@@ -74,5 +74,7 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - Do not commit build outputs (`*.rbxl`, `*.rbxm`), `Packages/`, `ServerPackages/`, or Obsidian workspace files. `.gitignore` covers these.
 
 ## Agent skills
-- `.claude/skills/` holds the third-party **roblox-brain** skill pack (MIT, pinned commit, flat copy of upstream). Do not edit it by hand; provenance and update steps are in `vault/decisions/0002-roblox-brain-skill-pack.md`.
-- **This file wins.** If a skill disagrees with a rule here (for example, saving data through ProfileStore rather than raw DataStore calls), follow this file.
+- `.claude/skills/roblox-*` holds the third-party **roblox-brain** skill pack (MIT, pinned commit, flat copy of upstream). Do not edit it by hand; provenance and update steps are in `vault/decisions/0002-roblox-brain-skill-pack.md`.
+- `.claude/skills/project-*` holds this team's five workflow skills (intake, visual direction, feature delivery, Studio verification, handoff). The team owns and edits these. How to use them: `docs/SKILLS_GUIDE.md`.
+- **This file wins.** If a skill disagrees with a rule here (for example, saving data through ProfileStore rather than raw DataStore calls), follow this file. The full conflict table is in `docs/CLAUDE_SKILLS_REVIEW.md`.
+- Claude Code reads `.claude/skills/` automatically. Codex reads `.agents/skills/` instead, so Codex users follow the rules in this file and can open a project skill's `SKILL.md` directly when they need the workflow.
