@@ -1,0 +1,22 @@
+{
+  "[luau]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": false
+  },
+  "[lua]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": false
+  },
+  "stylua.searchBinaryInPATH": true,
+  "selene.selenePath": "selene",
+  "luau-lsp.platform.type": "roblox",
+  "luau-lsp.sourcemap.enabled": true,
+  "luau-lsp.sourcemap.autogenerate": true,
+  "luau-lsp.sourcemap.rojoProjectFile": "default.project.json",
+  "luau-lsp.ignoreGlobs": [
+    "**/Packages/**",
+    "**/ServerPackages/**",
+    "**/DevPackages/**",
+    "**/src/server/vendor/**"
+  ]
+}
