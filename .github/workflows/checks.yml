@@ -15,10 +15,10 @@ concurrency:
 jobs:
   check:
     name: Lint, format, and Rojo build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Installs Rokit, then runs `rokit install` against rokit.toml (see the action's
       # action.yml), so no separate install step is needed. The action is pinned to the
       # v0.2.1 commit; `version` pins Rokit itself.
