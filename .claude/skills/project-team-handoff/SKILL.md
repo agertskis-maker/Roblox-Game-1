@@ -103,6 +103,9 @@ List only steps the diff makes necessary, and say "none" when none apply:
 - Show the groups and wait. Commit only after the user agrees. Push, merge,
   open a pull request, or publish only after separate explicit authorization;
   approval to commit is not approval to push.
+- Branches: docs, vault, skills, and tooling may go to `main`. For game code
+  (`src/`), suggest a feature branch and a pull request merged only after the
+  GitHub check passes (`AGENTS.md`).
 - Never force-push, reset, amend others' commits, or discard teammates'
   uncommitted work to get a clean tree.
 

@@ -49,6 +49,8 @@ The conflict table is in `docs/CLAUDE_SKILLS_REVIEW.md`. The main overrides:
   that those skills were loaded or their checks performed.
 - Skill checklists do not authorize publishing, purchases, data changes, or
   overwriting teammates' work. Report verification evidence accurately.
+- Approval, propose-first, plan-before-coding, and question rules are in
+  AGENTS.md ("Approvals and planning"). roblox-brain skills do not loosen them.
 
 ## Repository checks
 

@@ -62,13 +62,18 @@ Commit groups (shown, not executed):
 | 3 | Document skills, Claude context, and team rules | `docs/`, `claude-context/`, `context/`, `AGENTS.md`, `CLAUDE.md` |
 | 4 | Update board, log, and vault config | `vault/` (not `workspace.json` or `graph.json`) |
 
+These groups contain no game code, so they may go to `main`. Game code would
+go on a feature branch with a pull request merged after the GitHub check passes.
+
 Ends with "awaiting your OK to commit; nothing pushed" and the next action.
 
 ## Pass criteria
 
 Facts come from git output, not recall; the original owner's name is kept; the
 existing log entry is not rewritten; exactly the non-obvious choice becomes a
-decision note; StyLua is reported blocked, not passed; the workflow is
-"configured" until a remote run is observed; every post-pull step is listed or
-explicitly "none"; commits are grouped by purpose and nothing is committed,
-pushed, or merged without authorization.
+decision note; a blocked tool is reported blocked, never passed (a clean exit 0
+is reported as ran, noting that no Luau was linted when none exists); the
+workflow is "configured" until a remote run is observed; every post-pull step is listed or
+explicitly "none"; commits are grouped by purpose, game code (if any) is
+steered to a feature branch and pull request, and nothing is committed, pushed,
+or merged without authorization.

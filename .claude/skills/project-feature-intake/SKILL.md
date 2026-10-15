@@ -9,7 +9,11 @@ argument-hint: "[prompt text or path to a prompt file]"
 
 Turn the request into an actionable requirement ledger without losing the
 owner's ambition. Intake is review: implementation starts only when the current
-request authorizes it, and then continues in `project-feature-delivery`.
+request authorizes it, and then continues in `project-feature-delivery`. A
+one-line "Approved: ..." authorizes it when it clearly refers to a specific
+request, spec, or ledger; if it is ambiguous which, ask. A bare imperative
+such as "Build X" gets a short intake, then the delivery plan; it is not an
+approval.
 
 ## Read first
 
@@ -24,9 +28,12 @@ request authorizes it, and then continues in `project-feature-delivery`.
 
 A candidate concept or earlier suggestion is not an approved feature. If no
 concept has been selected, say which candidate the request concerns and do not
-choose, merge, or build one. Name a candidate only when the request or a vault
-note ties it there; otherwise say the request is unmapped and list the
-candidates it could be.
+choose, merge, or build one. A concept counts as selected only when
+`vault/design/GDD.md` has `status: selected` and `concept:` naming it, plus a
+decision note; an "Approved:" on a feature never selects one. Name a
+candidate only when the request, a vault
+note, or `claude-context/05_GAMEPLAY_AND_CONCEPT_LAB.md` ties it there;
+otherwise say the request is unmapped and list the candidates it could be.
 
 ## Produce, scaled to the request
 
@@ -34,19 +41,26 @@ candidates it could be.
 2. **Requirement ledger** (template in `references/ledger-template.md`): stable
    ID, exact behavior, required/optional, source quote or section, acceptance
    evidence, dependency, status. Merge passages that say the same thing into
-   one ID; never merge passages that disagree. A passage written as required
-   that policy or an approved decision blocks stays Required with status
-   `blocked`, citing the rule; never demote it to Optional to unblock it.
+   one ID; never merge passages that disagree. Wishes ("should feel like",
+   "maybe") are Optional; stated behavior is Required. A required passage that
+   policy or an approved decision blocks stays Required with status `blocked`,
+   citing the rule; never demote it to Optional to unblock it.
 3. **Contradictions:** each conflict between two passages, or between the prompt
    and AGENTS.md / an approved decision, with both quotes and what it blocks.
-4. **Material questions:** at most a small batch. Ask only about choices that
-   change ownership, loss, economy, monetization, fairness, data, the core
-   fantasy, or integration. For each, say what each answer would change.
+4. **Material questions:** every question whose answer would change the result,
+   as one batch, with no fixed cap. Typical ones concern ownership, loss,
+   economy, monetization, fairness, data, the core fantasy, or integration. For
+   each, say what each answer would change. Do not ask about reversible details
+   or about anything `AGENTS.md` or an approved decision already settles; state
+   those as constraints. For a propose-first item (see `AGENTS.md`), include
+   player benefit, cost, risk, and a test with its questions.
 5. **Delegated details:** reversible presentation and implementation choices you
    will make yourself within the approved direction, labelled as yours.
 6. **First playable slice:** one complete player journey with its verification,
    then the stages that reach the full requested finish. Keep deferred ambition
-   visible as "not yet", never silently removed.
+   visible as "not yet", never silently removed. List concept-agnostic
+   foundations the slice depends on (starting with the ProfileStore lifecycle
+   module) as their own items.
 
 Continue independent authorized work while questions are open. If every item is
 gated on an open question, say so and stop. Missing images or links stay
@@ -54,10 +68,14 @@ missing evidence; do not invent their contents.
 
 ## Hand-offs
 
-- Requests with a look or reference images: `project-visual-direction`.
+- Requests with a look or reference images: `project-visual-direction`. "Make
+  it like this" is strong guidance, not a mandate for the whole reference. Put
+  the qualities you plan to preserve (or, with no image, which qualities of the
+  reference matter) in the same question batch, not a second round.
 - Approved build work: `project-feature-delivery`.
 - Save the ledger in `vault/design/` (for example `vault/design/specs/<feature>.md`)
-  when the owner wants it kept.
+  when the owner wants it kept. A review that writes nothing needs no board
+  claim; claim when you save a ledger.
 
 ## Common failures
 

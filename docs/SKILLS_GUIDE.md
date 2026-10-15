@@ -36,6 +36,38 @@ the skill. The text after the name is passed to the skill as its argument.
 Skip a step that does not apply (a pure logic change has no visual direction).
 Verification and handoff are not optional for work you intend to merge.
 
+## Approvals and planning
+
+These rules apply to everyone and live in `AGENTS.md` (reasoning in
+`vault/decisions/0004-workflow-rules.md`):
+
+- "Owner" is the repository owner until the team assigns area owners on the
+  board at the concept meeting; area owners then approve samples and plans for
+  their area.
+- A one-line "Approved: ..." counts when it clearly refers to a specific
+  request, spec, or ledger; if it is ambiguous which, you will be asked. One
+  reply may grant both a propose-first approval and a plan go-ahead if it says
+  both, for example "Approved, go ahead."
+- A concept is selected only when `vault/design/GDD.md` has `status: selected`
+  and `concept:` naming it, plus a decision note. An "Approved:" on a feature
+  never selects one.
+- Concept-agnostic foundations, starting with the ProfileStore lifecycle
+  module, may start before the concept is chosen. Anything touching saved data
+  still needs the plan posted and an explicit go-ahead (the gates stack).
+- A new currency or other economy field is propose-first: it needs approval
+  after the agent presents benefit, cost, risk, and a test. That includes a
+  last-claim timestamp for a currency reward.
+- Delivery always posts a short plan before coding, and waits for your
+  go-ahead only when the work touches saved data or schemas, the economy,
+  monetization, or shared contracts or interfaces. A bare "Build X" gets a
+  short intake, then the plan.
+- Agents ask every question whose answer changes the result, in one batch, and
+  decide reversible details themselves.
+- Branches: `main` is fine for docs, vault, skills, and tooling. From the first
+  game-code task, each person works on a feature branch and merges to `main` by
+  pull request after the GitHub check passes. Branch protection is not enforced
+  yet.
+
 ## Where skills work
 
 - **Claude Code in the terminal**, started inside this repository folder.

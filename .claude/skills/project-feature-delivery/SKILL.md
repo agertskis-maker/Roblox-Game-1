@@ -14,19 +14,51 @@ saves presented as finished.
 
 ## Preconditions (stop and ask if missing)
 
-- An approved spec or intake ledger (`project-feature-intake`). The game concept
-  must be selected; do not build an unselected candidate.
+- Approval: an approved spec or intake ledger (`project-feature-intake`), or a
+  one-line "Approved: ..." that clearly refers to a specific request, spec, or
+  ledger. If it is ambiguous which, ask. "Owner" is the repository owner until
+  the board assigns area owners, who then approve plans for their area. One
+  reply may grant both a propose-first approval and a plan go-ahead if it says
+  both ("Approved, go ahead").
+- Concept: build features only for a selected concept, meaning
+  `vault/design/GDD.md` has `status: selected` and `concept:` naming it, plus a
+  decision note. An "Approved:" on a feature never selects a concept.
+  Concept-agnostic foundations, starting with the ProfileStore lifecycle module
+  and a minimal data template with no concept-specific fields, may start before
+  the concept is chosen. Any currency or economy field (including a last-claim
+  timestamp for a currency reward) is a propose-first item, not a foundation.
+  Do not build an unselected candidate.
 - The task is claimed on `vault/tasks/BOARD.md`: a row under In progress with
   your name after it, as the board's header describes (a tool name such as
-  Claude is fine).
+  Claude is fine). Claim it before coding, after any go-ahead the plan needs;
+  posting a plan or asking questions is not starting work.
 - You inspected teammates' work in the areas you will touch: `git status`, the
   branch, recent commits, and remote branches after `git fetch` (it updates
-  remote-tracking refs only). Work that exists only on another machine is
-  invisible, so ask when the board suggests someone is on it. Never overwrite it.
+  remote-tracking refs only; `git ls-remote --heads origin` is the read-only
+  alternative, and offline you say the remote state is unknown). Work that
+  exists only on another machine is invisible, so ask when the board suggests
+  someone is on it. Never overwrite it.
 - You read `AGENTS.md` and inspected existing modules before inventing paths.
+  While the folder convention is open, follow the `AGENTS.md` layout and list
+  each new path in the plan.
 - If the feature saves data, the single ProfileStore lifecycle module exists.
-  If it does not, stop and ask whether to build it first (as its own claimed
-  board item) or whether a teammate owns it. Never add a second save path.
+  If it does not, it is the first increment: its own claimed board item, with a
+  minimal template and no concept-specific fields, unless the board shows a
+  teammate owns it. Never add a second save path.
+
+## Plan before coding
+
+Post a short plan first: the ledger IDs (or request lines) covered, the files
+you will create or change, and the checks you will run.
+
+- **Wait for an explicit go-ahead** when the work touches saved data or
+  schemas, the economy, monetization, or shared contracts or interfaces.
+- **Otherwise proceed** once the plan is posted.
+
+The gates stack: a foundation such as the ProfileStore lifecycle module may
+start before the concept is chosen, but anything touching saved data still
+needs the plan posted and an explicit go-ahead. A bare "Build X" gets a short
+intake (`project-feature-intake`), then this plan.
 
 ## Workflow
 
@@ -42,10 +74,14 @@ saves presented as finished.
    numbers, length, allowed IDs, current state, distance, per-player rate).
    Resolve contested actions without a yielding gap that allows two winners.
    Time is server time only (`os.time()` for saved timestamps); the client may
-   display a server-supplied time and never sends one.
+   display a server-supplied time and never sends one. For a countdown the
+   server sends an absolute server-time target and the client derives the
+   remaining time from `Workspace:GetServerTimeNow()`, never from its local
+   clock.
 3. **Saving.** Only through the single ProfileStore lifecycle module. Add fields
-   to the template; plan migrations when meaning changes. Test with
-   `ProfileStore.Mock`. Never touch live profiles.
+   to the template; plan migrations when meaning changes. Until the concept is
+   selected, add no concept-specific fields. Test with `ProfileStore.Mock`.
+   Never touch live profiles.
 4. **Client.** Sends intent only. Implements loading, empty, locked,
    affordable/unaffordable, pending, success, rejection, and retry states. Local
    feedback may acknowledge a tap but never confirms ownership or purchase
@@ -53,13 +89,15 @@ saves presented as finished.
 5. **Failure handling.** Fill the table in `references/delivery-checklist.md`:
    duplicate input, simultaneous players, malformed values, insufficient
    resources, stale state, latency, leaving mid-action, respawn, shutdown,
-   save failure. Keep the filled table in the plan and, once built, in the
-   handoff.
+   save failure. Mark a row N/A with a one-line reason when it cannot apply.
+   Keep the filled table in the plan and, once built, in the handoff.
 6. **Increments.** Core interaction → complete slice → polish to the requested
    standard → expand. Each increment is playable and verified. Placeholders are
    listed as placeholders in the handoff.
 7. **Check and verify.** Run `./scripts/check.ps1`, then
-   `project-studio-verification`, then `project-team-handoff`.
+   `project-studio-verification`, then `project-team-handoff`. Game code goes
+   on a feature branch and merges to `main` by pull request only after the
+   GitHub check passes (`AGENTS.md`).
 
 ## Code rules (from AGENTS.md, not optional)
 
@@ -78,8 +116,10 @@ or `src/server/vendor/`; no new frameworks or dependencies without approval.
 
 New currency, trading, PvP, breeding, permanent loss or theft, paid items or
 paid luck, cross-server systems, destructive prestige, a different art style,
-or anything that changes the creative premise. Give player benefit, cost, risk,
-and a way to test it, then wait for direction.
+or anything that changes the creative premise. Present player benefit, cost,
+risk, and a way to test it. Explicit owner approval after that presentation
+satisfies this rule; an "Approved:" given before the presentation does not.
+Record each approved item as a decision note.
 
 Load third-party skills for API detail when relevant: roblox-networking,
 roblox-security, roblox-luau-core, roblox-luau-types, roblox-gui,

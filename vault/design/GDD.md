@@ -3,6 +3,7 @@ title: Game Design Document
 tags:
   - design
 status: draft
+concept: undecided
 ---
 
 # Game Design Document

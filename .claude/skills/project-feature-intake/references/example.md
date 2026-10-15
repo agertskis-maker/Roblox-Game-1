@@ -31,13 +31,19 @@ Questions:
 1. Is a carried, unbanked egg "earned"? If no: stealing only affects unbanked
    eggs and saves stay simple. If yes: stealing conflicts with the safety
    promise and needs a recovery rule.
-2. Paid luck: has the team approved monetization? If not, R4 is deferred. If
-   yes, it needs current Roblox paid-random policy, disclosed odds, and
-   per-player eligibility checks before any build.
+2. Paid luck is blocked (stated as a constraint: it needs an approved team
+   design and current Roblox policy, and none exists). Do you want a proposal
+   drafted (player benefit, cost, risk, test) for the team to approve? If not,
+   R4 is deferred. If yes, it also needs disclosed odds and per-player
+   eligibility checks before any build.
 3. Which Grow a Garden screens should the shop resemble? Please attach images.
 
 Concept check: this belongs to candidate C (storm-region eggs), which the team
-has not selected. Intake only; no build until the concept is chosen.
+has not selected: `GDD.md` says `concept: undecided` and no selection decision
+note exists. The bare "Build" gets this intake and then a plan; no feature
+build until the concept is selected. The ProfileStore lifecycle module is
+listed as a separate concept-agnostic foundation (F1) that may start, with its
+own plan and go-ahead because it touches saved data.
 
 Choices I made: ledger IDs, file placement for the eventual spec.
 
@@ -47,6 +53,10 @@ paid eggs (needs Q2), shop styling (needs references).
 
 ## Pass criteria for this example
 
-The output keeps every requirement, flags C1 with both quotes, asks no more than
-three questions, refuses to start building an unselected concept, and treats the
+The output keeps every requirement, flags C1 with both quotes, asks every
+question whose answer changes the result in one batch with no fixed cap, asks
+nothing the project rules already settle (paid luck is a stated constraint, not
+a question) and nothing that is a reversible detail, refuses to start building
+an unselected concept, lists the ProfileStore lifecycle module as a separate
+foundation instead of building it or folding it into the slice, and treats the
 missing reference images as missing.
