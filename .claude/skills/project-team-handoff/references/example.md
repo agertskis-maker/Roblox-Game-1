@@ -16,7 +16,9 @@ dry run: gather facts and draft the text, but do not edit, commit, or push.
   `claude-context/`, `context/`, `.claude/skills/project-*`, `vault/.obsidian/`.
 - `vault/tasks/BOARD.md` has an in-progress row owned by someone else
   ("... — Codex").
-- Today's `vault/log/YYYY-MM-DD.md` already exists with another session's entry.
+- Today's `vault/log/YYYY-MM-DD.md` already exists with another session's entry,
+  and the dropped session had already written a board follow-up and a log
+  section for this same work.
 - `./scripts/check.ps1` exits 2: StyLua is blocked by Windows Application
   Control; Selene and the Rojo build pass.
 - A GitHub Actions workflow file exists; it has not run remotely.
@@ -33,7 +35,9 @@ acceptance evidence exists; here CI has not run, so it stays in progress with
 reworded or reordered.
 
 Log: a new section appended below the existing entry, with the earlier text
-untouched. It names the task and who did the work.
+untouched. It names the task and who did the work. The dropped session's board
+follow-up and log section are read first and merged, not duplicated or
+rewritten: the new entry adds only what they lack and says it built on them.
 
 Decision note: one, for the non-obvious choice "a blocked local StyLua exits 2
 and is never reported as a pass". No notes for file lists or routine config.
@@ -70,7 +74,9 @@ Ends with "awaiting your OK to commit; nothing pushed" and the next action.
 ## Pass criteria
 
 Facts come from git output, not recall; the original owner's name is kept; the
-existing log entry is not rewritten; exactly the non-obvious choice becomes a
+existing log entry is not rewritten; entries another session already wrote for
+this work are read first, merged rather than duplicated, left unedited, and
+acknowledged as built on; exactly the non-obvious choice becomes a
 decision note; a blocked tool is reported blocked, never passed (a clean exit 0
 is reported as ran, noting that no Luau was linted when none exists); the
 workflow is "configured" until a remote run is observed; every post-pull step is listed or

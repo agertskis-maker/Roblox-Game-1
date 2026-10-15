@@ -63,6 +63,13 @@ These rules apply to everyone and live in `AGENTS.md` (reasoning in
   short intake, then the plan.
 - Agents ask every question whose answer changes the result, in one batch, and
   decide reversible details themselves.
+- When a precondition fails (no selected concept, an unapproved propose-first
+  item, a missing approval), the agent posts the questions plus a conditional
+  plan (what it would do once each answer arrives) and implements nothing until
+  the precondition is met.
+- If another session already wrote board or log entries for the same work, the
+  agent reads them first, merges rather than duplicates, never rewrites their
+  text, and says it built on them.
 - Branches: `main` is fine for docs, vault, skills, and tooling. From the first
   game-code task, each person works on a feature branch and merges to `main` by
   pull request after the GitHub check passes. Branch protection is not enforced

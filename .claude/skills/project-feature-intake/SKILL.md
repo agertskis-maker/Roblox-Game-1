@@ -60,11 +60,15 @@ otherwise say the request is unmapped and list the candidates it could be.
    then the stages that reach the full requested finish. Keep deferred ambition
    visible as "not yet", never silently removed. List concept-agnostic
    foundations the slice depends on (starting with the ProfileStore lifecycle
-   module) as their own items.
+   module) as their own items. Write the slice as a conditional plan: what you
+   would do once each answer arrives.
 
-Continue independent authorized work while questions are open. If every item is
-gated on an open question, say so and stop. Missing images or links stay
-missing evidence; do not invent their contents.
+Continue independent authorized work while questions are open. When a
+precondition fails (no selected concept, an unapproved propose-first item, a
+missing approval), post the questions plus the conditional plan and do no
+implementation until it is met. If every item is gated on an open question, say
+so, post the conditional plan, and stop. Missing images or links stay missing
+evidence; do not invent their contents.
 
 ## Hand-offs
 

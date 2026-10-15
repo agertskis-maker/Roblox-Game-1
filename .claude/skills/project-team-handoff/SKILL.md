@@ -27,6 +27,10 @@ Before writing a word, run and read:
 
 Anything you cannot establish is written as "unknown" with the reason.
 
+If another session already wrote board or log entries for this work, read them
+first and merge rather than duplicate: add only what they lack, never rewrite
+their text, and say in your entry that you built on them.
+
 ## 2. Update `vault/tasks/BOARD.md`
 
 - Read the live file first; teammates edit it.
@@ -42,7 +46,8 @@ Anything you cannot establish is written as "unknown" with the reason.
 ## 3. Append to `vault/log/YYYY-MM-DD.md`
 
 - File exists: append a new section at the end. Do not rewrite, reorder, or tidy
-  earlier entries; they belong to other people and sessions.
+  earlier entries; they belong to other people and sessions, including any
+  entries another session wrote for this work (see section 1).
 - File missing: create it with `title`, `date`, and `tags: [log]` frontmatter.
   File exists without `date` or section headings: append your level-2 section
   anyway and leave its frontmatter alone.

@@ -47,8 +47,12 @@ own plan and go-ahead because it touches saved data.
 
 Choices I made: ledger IDs, file placement for the eventual spec.
 
-First slice (once approved): one nest, one egg type, claim, carry, bank,
-inventory count, verified with two clients. Deferred: stealing (needs Q1),
+First slice (conditional plan, once the concept is selected and Q1 is
+answered): one nest, one egg type, claim, carry, bank, inventory count,
+verified with two clients. What happens once each answer arrives: Q1 answered
+unbanked-only → stealing becomes a propose-first item; Q2 answered "draft a
+proposal" → the paid-luck proposal is presented; Q3 answered with images → hand
+the shop to visual direction. No implementation until the preconditions are met. Deferred: stealing (needs Q1),
 paid eggs (needs Q2), shop styling (needs references).
 
 ## Pass criteria for this example
@@ -58,5 +62,6 @@ question whose answer changes the result in one batch with no fixed cap, asks
 nothing the project rules already settle (paid luck is a stated constraint, not
 a question) and nothing that is a reversible detail, refuses to start building
 an unselected concept, lists the ProfileStore lifecycle module as a separate
-foundation instead of building it or folding it into the slice, and treats the
-missing reference images as missing.
+foundation instead of building it or folding it into the slice, gives the first
+slice as a conditional plan (what happens once each answer arrives), does no
+implementation, and treats the missing reference images as missing.

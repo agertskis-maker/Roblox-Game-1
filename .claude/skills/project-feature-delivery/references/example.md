@@ -33,6 +33,11 @@ checks to run. The work touches saved data and the economy, so delivery waits
 for an explicit go-ahead after posting. The gates stack: even increment 0, the
 foundation module, touches saved data and waits for the go-ahead.
 
+Because the currency approval and the go-ahead are both missing, the answer is
+the questions plus a conditional plan (what happens once each answer arrives),
+with no implementation. Game code, when it starts, goes on a feature branch
+with a pull request after the GitHub check passes.
+
 Contract (draft, applied only after the currency is approved):
 
 | Remote | Direction | Arguments | Server validation | Result | Rate limit |
@@ -71,4 +76,7 @@ presented with benefit, cost, risk, and a test and is not treated as approved
 by the earlier line; the missing data module becomes the first increment with a
 minimal template instead of a second save path; amounts and time are
 server-only; every remote argument is validated; all client states are listed;
-the failure table is filled with outcomes; increments are playable.
+the failure table is filled with outcomes; increments are playable. Failed
+preconditions (concept, propose-first approval, go-ahead) produce questions plus
+a conditional plan and no implementation, and the propose-first and feature
+branch rules are checked among the preconditions.

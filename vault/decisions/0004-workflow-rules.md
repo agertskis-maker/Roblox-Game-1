@@ -55,6 +55,16 @@ The repository owner answered the four questions the dry runs kept hitting, plus
 | A8 | The reduced-motion mechanism is decided with the visual direction after the concept is chosen. Open item. | AGENTS.md; visual-direction; board Backlog |
 | A9 | `claude-context/09` is refreshed from the current `AGENTS.md`, and `claude-context/10` reflects decisions 0003 and 0004. | `claude-context/` |
 
-Interpretation to confirm: the branch answer has two overlapping sentences ("until a second person writes game code" and "from the first game-code task onward"). `AGENTS.md` applies the stricter second one: feature branches start with the first game-code task, and `main` stays fine for docs, vault, skills, and tooling.
+Interpretation (confirmed by the repository owner in addendum 2): the branch answer has two overlapping sentences ("until a second person writes game code" and "from the first game-code task onward"). `AGENTS.md` applies the stricter second one: feature branches start with the first game-code task, and `main` stays fine for docs, vault, skills, and tooling.
 
 Open items: reduced-motion mechanism; fonts and touch-target size; assigning area owners at the concept meeting.
+
+## Addendum 2 2026-10-15: branch wording confirmed, four wording gaps decided
+The repository owner confirmed the branch wording as applied: feature branches start with the first game-code task, and `main` stays fine for docs, vault, skills, and tooling. Four wording gaps found by dry runs were decided as follows.
+
+| # | Rule | Applied in |
+|---|---|---|
+| B1 | Propose-first items are part of delivery's Preconditions list: if the feature includes one, benefit, cost, risk, and a test were presented and the owner approved after that. | feature-delivery |
+| B2 | The feature-branch rule is stated in delivery's Preconditions, not only in step 7. | feature-delivery; AGENTS.md "Branches" |
+| B3 | When a precondition fails, post the questions plus a conditional plan (what you would do once each answer arrives), and do no implementation until the precondition is met. | AGENTS.md; feature-delivery; feature-intake; both examples; guide |
+| B4 | If another session already wrote board or log entries for this work, read them first, merge rather than duplicate, never rewrite their text, and say in your entry that you built on them. | AGENTS.md; team-handoff and example; guide |

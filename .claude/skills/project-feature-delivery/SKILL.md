@@ -12,7 +12,7 @@ validated, changes authoritative state, gives clear feedback, saves when it
 should, and fails gracefully. No disconnected buttons, fake data, or untested
 saves presented as finished.
 
-## Preconditions (stop and ask if missing)
+## Preconditions (no implementation until met)
 
 - Approval: an approved spec or intake ledger (`project-feature-intake`), or a
   one-line "Approved: ..." that clearly refers to a specific request, spec, or
@@ -45,6 +45,17 @@ saves presented as finished.
   If it does not, it is the first increment: its own claimed board item, with a
   minimal template and no concept-specific fields, unless the board shows a
   teammate owns it. Never add a second save path.
+- Propose-first: if the feature includes a propose-first item (listed under
+  "Propose first" below; any currency or economy field counts), its player
+  benefit, cost, risk, and test were presented and the owner approved after
+  that presentation.
+- Branch: game code is on a feature branch, starting with the first game-code
+  task, and merges to `main` by pull request only after the GitHub check
+  passes (`AGENTS.md`). `main` is fine for docs, vault, skills, and tooling.
+
+When a precondition fails, post the questions plus a conditional plan (what you
+would do once each answer arrives), and do no implementation until the
+precondition is met.
 
 ## Plan before coding
 
