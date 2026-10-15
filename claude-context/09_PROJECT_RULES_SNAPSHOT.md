@@ -80,6 +80,7 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - `vault/` is the shared Obsidian vault and the source of truth for design, tasks and decisions. Start with `vault/00_INDEX.md` and `vault/tasks/BOARD.md`.
 - Before you start work, claim a task on the board. A design-only brief needs a one-line claim too. When you finish, update the board and add a short entry under `vault/log/`.
 - Record non-obvious choices as `vault/decisions/NNNN-short-title.md` so the next person does not have to rediscover the reasoning.
+- If another session already wrote board or log entries for this work, read them first and merge rather than duplicate. Never rewrite their text, and say in your entry that you built on them.
 - **Branches.** `main` is fine for docs, vault, skills, and tooling. From the first game-code task onward, each person works on a feature branch and merges to `main` by pull request only after the GitHub check passes. Branch protection settings are not enforced yet.
 - Do not commit build outputs (`*.rbxl`, `*.rbxm`), `Packages/`, `ServerPackages/`, or Obsidian workspace files. `.gitignore` covers these.
 
@@ -91,6 +92,7 @@ Reasoning and history: `vault/decisions/0004-workflow-rules.md`.
 - **Foundations.** Concept-agnostic foundations, starting with the ProfileStore lifecycle module, may start before the concept is chosen. Keep the data template minimal, with no concept-specific fields, until the concept is selected.
 - **Propose first**: a new currency, trading, PvP, breeding, permanent loss or theft, paid items or paid luck, cross-server systems, destructive prestige, a different art style, or anything that changes the creative premise. Any currency or economy field is propose-first, not a foundation; that includes a last-claim timestamp for a currency reward. Present player benefit, cost, risk, and a way to test it. Explicit owner approval after that presentation satisfies the rule. Record each approved item as a decision note.
 - **Plan before coding.** Post a short plan first: ledger IDs, files, checks. Wait for an explicit go-ahead when the work touches saved data or schemas, the economy, monetization, or shared contracts or interfaces; otherwise proceed. The gates stack: a foundation that touches saved data still needs the plan posted and an explicit go-ahead. A bare "Build X" gets a short intake, then the plan.
+- **Failed preconditions.** When a precondition fails, post the questions plus a conditional plan (what you would do once each answer arrives), and do no implementation until the precondition is met.
 - **Questions.** Ask every question whose answer would change the result, in one batch, with no fixed cap. Decide reversible details yourself and label them.
 
 ## Agent skills
