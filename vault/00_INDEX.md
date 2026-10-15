@@ -11,7 +11,7 @@ Shared notes for the team. The engineering rules live in the repo root `AGENTS.m
 ## Start here
 - [[GDD]]: what we are building and why
 - [[BOARD]]: who is doing what
-- Decisions: [[0001-profilestore-source]]
+- Decisions: [[0001-profilestore-source]], [[0002-roblox-brain-skill-pack]]
 - Log: [[2026-10-14]]
 
 ## Conventions

@@ -1,0 +1,4 @@
+src/server/vendor/**
+Packages/**
+ServerPackages/**
+DevPackages/**

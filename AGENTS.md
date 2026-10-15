@@ -5,7 +5,7 @@ A Roblox game built by a 3-person team. Code is written in **Luau**, synced into
 ## Setup (every teammate, once)
 
 ```
-rokit install        # installs the pinned rojo + wally
+rokit install        # installs the pinned rojo, wally, selene + stylua
 wally install        # downloads Wally packages into Packages/
 rojo serve           # then press Connect in the Rojo plugin inside Studio
 ```
@@ -50,6 +50,7 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - Get services with `game:GetService("Name")`.
 - Clean up with Trove, handle async/retries with Promise, expose custom events with Signal. Do not leave connections or threads unmanaged.
 - Rojo is the source of truth for scripts. Do not edit synced scripts in Studio; changes there are overwritten on the next sync.
+- **Code must pass both Selene and StyLua** before you commit: `selene src` and `stylua --check src` (run `stylua src` to fix formatting). Config is in `selene.toml` and `stylua.toml`. Fix the code rather than silencing a lint; vendored and generated code (`src/server/vendor/`, `Packages/`, `ServerPackages/`) is excluded.
 
 ### Data and saving
 - **ProfileStore is the only way player data is saved.** Server only; require it from `ServerScriptService.Server.vendor.ProfileStore`.
@@ -71,3 +72,7 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - Before you start work, claim a task on the board. When you finish, update the board and add a short entry under `vault/log/`.
 - Record non-obvious choices as `vault/decisions/NNNN-short-title.md` so the next person does not have to rediscover the reasoning.
 - Do not commit build outputs (`*.rbxl`, `*.rbxm`), `Packages/`, `ServerPackages/`, or Obsidian workspace files. `.gitignore` covers these.
+
+## Agent skills
+- `.claude/skills/` holds the third-party **roblox-brain** skill pack (MIT, pinned commit, flat copy of upstream). Do not edit it by hand; provenance and update steps are in `vault/decisions/0002-roblox-brain-skill-pack.md`.
+- **This file wins.** If a skill disagrees with a rule here (for example, saving data through ProfileStore rather than raw DataStore calls), follow this file.

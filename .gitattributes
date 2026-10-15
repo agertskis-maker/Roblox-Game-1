@@ -1,0 +1,4 @@
+# StyLua formats with LF line endings. Keep Lua/Luau sources LF on every OS so
+# `stylua --check` agrees on Windows machines that have core.autocrlf=true.
+*.lua text eol=lf
+*.luau text eol=lf
