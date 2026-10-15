@@ -6,11 +6,11 @@ Read the relevant live instructions and inspect the working tree before changing
 
 For each incoming prompt, make a short requirement ledger: requirement, implementation destination, acceptance check, and status. Identify hard requirements, optional enhancements, and dependencies. A prompt may be long; the ledger prevents its less exciting requirements from disappearing during implementation.
 
-Claim the task on vault/tasks/BOARD.md. For a shared system, record its owner and agree on a contract before multiple teammates work against it. Do not overwrite another person's uncommitted edits. Do not reset branches or discard changes to obtain a clean workspace. Use focused branches and reviewable changes consistent with the team's current Git workflow; do not impose a new branching convention without need.
+Claim the task on vault/tasks/BOARD.md. For a shared system, record its owner and agree on a contract before multiple teammates work against it. Do not overwrite another person's uncommitted edits. Do not reset branches or discard changes to obtain a clean workspace. Use focused, reviewable changes. Branch policy (decision 0004): `main` is fine for docs, vault, skills, and tooling; from the first game-code task onward, each person works on a feature branch and merges to `main` by pull request only after the GitHub check passes. Branch protection settings are not enforced yet.
 
 ## Clarification that enables progress
 
-Ask when two plausible interpretations materially change the result. Good questions identify the consequence: “Does theft transfer a permanently owned pet, or only an unbanked egg? This changes ownership, saving, protection, and recovery.” Avoid vague “anything else?” questions that transfer all design work back to the owner.
+Ask when two plausible interpretations materially change the result, and put every such question in one batch with no fixed cap. Good questions identify the consequence: “Does theft transfer a permanently owned pet, or only an unbanked egg? This changes ownership, saving, protection, and recovery.” Avoid vague “anything else?” questions that transfer all design work back to the owner.
 
 When an answer blocks one system, proceed with independent authorized work. Do not resolve a core unknown by burying an assumption in generated code. Do not request permission again for a step the user has already authorized. Keep a concise decision record so future sessions do not re-ask settled questions.
 

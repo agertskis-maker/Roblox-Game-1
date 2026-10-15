@@ -5,7 +5,7 @@ A Roblox game built by a 3-person team. Code is written in **Luau**, synced into
 ## Setup (every teammate, once)
 
 ```
-rokit install        # installs the pinned rojo + wally
+rokit install        # installs the pinned rojo, wally, selene + stylua
 wally install        # downloads Wally packages into Packages/
 rojo serve           # then press Connect in the Rojo plugin inside Studio
 ```
@@ -50,6 +50,7 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - Get services with `game:GetService("Name")`.
 - Clean up with Trove, handle async/retries with Promise, expose custom events with Signal. Do not leave connections or threads unmanaged.
 - Rojo is the source of truth for scripts. Do not edit synced scripts in Studio; changes there are overwritten on the next sync.
+- **Code must pass both Selene and StyLua** before you commit: `selene src` and `stylua --check src` (run `stylua src` to fix formatting). Config is in `selene.toml` and `stylua.toml`. Fix the code rather than silencing a lint; vendored and generated code (`src/server/vendor/`, `Packages/`, `ServerPackages/`) is excluded.
 
 ### Data and saving
 - **ProfileStore is the only way player data is saved.** Server only; require it from `ServerScriptService.Server.vendor.ProfileStore`.
@@ -66,8 +67,34 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - **Every DataStore call goes inside `pcall`**, with retry/backoff and logging on failure. This includes `DataStoreService`, `OrderedDataStore`, and any ProfileStore call made outside the normal session lifecycle (`GetAsync`, `MessageAsync`, `RemoveAsync`, ...).
 - Do not call `DataStoreService` directly from feature code; go through a wrapper that does the `pcall`.
 
+### Visual references and UI styling
+- Allowed: imitating style traits of a reference (shape language, outlines, rounded panels, palette mood, layout patterns).
+- Not allowed: copying logos, characters, item art, icons, unlicensed fonts, names, or a near-identical recreation of a distinctive screen.
+- "Make it like this" is strong guidance, not a mandate for the whole reference. List the qualities you plan to preserve and have the owner confirm them in the same question batch.
+- The representative sample for a visual direction is approved by the repository owner, or by the area owner once the board assigns one. Record the approval in `vault/design/visual-direction.md`. A shop or panel opened during gameplay is reviewed as an overlay on the gameplay view.
+- Fonts and touch-target size are undecided. They are proposed after the concept is chosen and the owner approves; do not hard-code them yet.
+- The reduced-motion mechanism is an open item, decided with the visual direction after the concept is chosen.
+- **Provisional:** UI style tokens (colors, fonts, spacing, corner radius, stroke) live in one shared module in `src/shared`, not in the Studio Style Editor, because that data lives in the place file and is not in Git. Revisit when the concept's visual direction is approved.
+
 ## Team workflow
 - `vault/` is the shared Obsidian vault and the source of truth for design, tasks and decisions. Start with `vault/00_INDEX.md` and `vault/tasks/BOARD.md`.
-- Before you start work, claim a task on the board. When you finish, update the board and add a short entry under `vault/log/`.
+- Before you start work, claim a task on the board. A design-only brief needs a one-line claim too. When you finish, update the board and add a short entry under `vault/log/`.
 - Record non-obvious choices as `vault/decisions/NNNN-short-title.md` so the next person does not have to rediscover the reasoning.
+- **Branches.** `main` is fine for docs, vault, skills, and tooling. From the first game-code task onward, each person works on a feature branch and merges to `main` by pull request only after the GitHub check passes. Branch protection settings are not enforced yet.
 - Do not commit build outputs (`*.rbxl`, `*.rbxm`), `Packages/`, `ServerPackages/`, or Obsidian workspace files. `.gitignore` covers these.
+
+### Approvals and planning
+Reasoning and history: `vault/decisions/0004-workflow-rules.md`.
+- **Owner.** "Owner" means the repository owner until the team assigns area owners on the board at the concept meeting. Area owners then approve samples and plans for their area.
+- **Approval.** A one-line "Approved: ..." counts when it clearly refers to a specific request, spec, or ledger. If it is ambiguous which, ask. One reply may grant both a propose-first approval and a plan go-ahead if it says both, for example "Approved, go ahead."
+- **Concept selected** means `vault/design/GDD.md` has `status: selected` and `concept:` naming it, plus a decision note. An "Approved:" on a feature never selects a concept. Do not build features for an unselected candidate.
+- **Foundations.** Concept-agnostic foundations, starting with the ProfileStore lifecycle module, may start before the concept is chosen. Keep the data template minimal, with no concept-specific fields, until the concept is selected.
+- **Propose first**: a new currency, trading, PvP, breeding, permanent loss or theft, paid items or paid luck, cross-server systems, destructive prestige, a different art style, or anything that changes the creative premise. Any currency or economy field is propose-first, not a foundation; that includes a last-claim timestamp for a currency reward. Present player benefit, cost, risk, and a way to test it. Explicit owner approval after that presentation satisfies the rule. Record each approved item as a decision note.
+- **Plan before coding.** Post a short plan first: ledger IDs, files, checks. Wait for an explicit go-ahead when the work touches saved data or schemas, the economy, monetization, or shared contracts or interfaces; otherwise proceed. The gates stack: a foundation that touches saved data still needs the plan posted and an explicit go-ahead. A bare "Build X" gets a short intake, then the plan.
+- **Questions.** Ask every question whose answer would change the result, in one batch, with no fixed cap. Decide reversible details yourself and label them.
+
+## Agent skills
+- `.claude/skills/roblox-*` holds the third-party **roblox-brain** skill pack (MIT, pinned commit, flat copy of upstream). Do not edit it by hand; provenance and update steps are in `vault/decisions/0002-roblox-brain-skill-pack.md`.
+- `.claude/skills/project-*` holds this team's five workflow skills (intake, visual direction, feature delivery, Studio verification, handoff). The team owns and edits these. How to use them: `docs/SKILLS_GUIDE.md`.
+- **This file wins.** If a skill disagrees with a rule here (for example, saving data through ProfileStore rather than raw DataStore calls), follow this file. The full conflict table is in `docs/CLAUDE_SKILLS_REVIEW.md`.
+- Claude Code reads `.claude/skills/` automatically. Codex reads `.agents/skills/` instead, so Codex users follow the rules in this file and can open a project skill's `SKILL.md` directly when they need the workflow.

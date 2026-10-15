@@ -1,6 +1,6 @@
 # Roblox Game — Claude context pack
 
-Prepared 2026-10-15. Version 1.0. Game selection is pending the team's Sunday discussion, 2026-10-18.
+Prepared 2026-10-15. Version 1.1 (revised 2026-10-15 for vault decisions 0003 and 0004: files 01, 03, 04, 09, and 10 changed). Game selection is pending the team's Sunday discussion, 2026-10-18.
 
 ## Install in the Claude Desktop project shown in your screenshot
 
