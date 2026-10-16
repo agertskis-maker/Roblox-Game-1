@@ -113,6 +113,7 @@ Those are per machine (next section).
 | Rojo connection | `rojo serve`, then Connect in the plugin | Per Studio session |
 | Studio MCP for Claude | In PowerShell, from the repo folder: `claude mcp add Roblox_Studio -- cmd.exe /c "cd /d %LOCALAPPDATA%\Roblox && .\mcp.bat"`, then restart Claude Code | Registered in your local Claude config, private to you and tied to this project |
 | Editor extensions | Install the ones in `.vscode/extensions.json` | Per editor install |
+| Blender MCP (animation work only) | Install Blender 5.2 LTS and `uv`, then from the repo folder: `claude mcp add blender -e BLENDER_MCP_SAFE_MODE=1 -e DISABLE_TELEMETRY=true -- uvx mcp-for-blender`, then `uvx mcp-for-blender install-addon`. Full steps and safe-mode limits: `docs/ANIMATION_PIPELINE.md` | Registered in your local Claude config; the add-on lives in your Blender |
 
 Register the Studio MCP server once, in local scope (the default). A second
 entry in user scope with a different command causes a "Conflicting scopes"

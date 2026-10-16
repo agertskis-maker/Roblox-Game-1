@@ -76,6 +76,16 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - The reduced-motion mechanism is an open item, decided with the visual direction after the concept is chosen.
 - **Provisional:** UI style tokens (colors, fonts, spacing, corner radius, stroke) live in one shared module in `src/shared`, not in the Studio Style Editor, because that data lives in the place file and is not in Git. Revisit when the concept's visual direction is approved.
 
+### Animation
+Setup, settings, tested results and fixes: `docs/ANIMATION_PIPELINE.md`. Reasoning: `vault/decisions/0005-animation-pipeline.md`.
+- Free tools only: Blender for keyframes, Mesh2Motion for rigs and a CC0 animation library. No paid animation tools or assets without owner approval.
+- Rigid props and UI are animated in code (tweens, springs). Skinned characters and creatures use keyframed bones.
+- Roblox bones move and rotate only; bone scale is dropped on import. Squash and stretch on a skinned creature uses translation bones.
+- Blender MCP runs with `BLENDER_MCP_SAFE_MODE=1`. Never turn safe mode off; if it blocks a step, stop and tell the owner. Stop the Blender server when you are not using it.
+- Test imports go into a local test place, not the Team Create place, with "Upload to Roblox" unticked unless the owner approved the upload.
+- Never publish an animation without owner approval. An animation must be owned by the user or group that owns the experience.
+- Keep `.blend`, `.fbx` and `.rbxl` test files outside the repo until the team decides where source art lives.
+
 ## Team workflow
 - `vault/` is the shared Obsidian vault and the source of truth for design, tasks and decisions. Start with `vault/00_INDEX.md` and `vault/tasks/BOARD.md`.
 - Before you start work, claim a task on the board. A design-only brief needs a one-line claim too. When you finish, update the board and add a short entry under `vault/log/`.
