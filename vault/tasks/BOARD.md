@@ -24,9 +24,10 @@ Claim a task by putting your name after it. Move it down as it progresses. Link 
 - [ ] _add ideas here_
 - [ ] Decide the reduced-motion mechanism with the visual direction, after the concept is chosen ([[0004-workflow-rules]])
 - [ ] Decide where source `.blend` and exported `.fbx` art lives, and which account or group owns animations ([[0005-animation-pipeline]])
-- [ ] Measure the runtime cost of 10-bone creatures with many on screen, and have a person watch a squash loop and judge its feel ([[0005-animation-pipeline]])
+- [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Squash loop feel check: the repository owner watched the scale rig and the translation-bone rig side by side in a review place and judged the bounce, squish and speed right; a desktop cost check showed no difference up to 800 copies - Claude Code ([[2026-10-15]], [[0005-animation-pipeline]])
 - [x] Free animation pipeline: Blender, Blender MCP with safe mode, Mesh2Motion, and a Studio import test, written up in `docs/ANIMATION_PIPELINE.md` - Claude Code at the repository owner's request. Nothing in it is concept-specific ([[2026-10-15]], [[0005-animation-pipeline]])
 - [x] Set up shared code checks, editor support, and reviewed Claude skills — Codex; finished by Claude. First GitHub "Project checks" run passed, but no first-party Luau exists yet, so Selene and StyLua checked no files ([[2026-10-15]], [[0003-blocked-tool-exit-code]])
 - [x] Create Claude project context pack and downloadable ZIP — Codex; see `claude-context/00_START_HERE.md` ([[2026-10-15]])

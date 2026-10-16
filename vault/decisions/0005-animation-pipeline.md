@@ -42,7 +42,8 @@ Details and numbers are in `docs/ANIMATION_PIPELINE.md` section 7.
 
 ## Consequences
 - Rigs with squash have about 3x the bones and about 3x the keys of a scale
-  rig. Runtime cost in Roblox was not measured.
+  rig. No runtime difference showed up at 800 copies on one desktop; phones
+  are untested.
 - Skinning needs care: at most 4 influences per vertex, no weight on the root,
   and small parts such as eyes skinned rigidly.
 - Mesh2Motion exports must use the **Unity** FBX preset to arrive upright, face
@@ -51,9 +52,14 @@ Details and numbers are in `docs/ANIMATION_PIPELINE.md` section 7.
 - Teammates install Blender, `uv`, the MCP server and the add-on once per
   machine. None of it is in Git.
 
+## Verified since
+- 2026-10-15, the repository owner watched both rigs side by side in a review
+  place and judged V2's bounce and squish, and the speed, as right ("both good").
+- 2026-10-15, 100, 400 and 800 animated copies of each rig held 60 fps in a
+  Studio playtest on one desktop with an integrated GPU.
+
 ## Not yet verified
-- A person watching the loop and judging feel.
-- Runtime cost of many animated creatures.
+- Runtime cost on a phone or other low-end device.
 - Publishing and animation ownership (docs only).
 - The Codex MCP setup.
 

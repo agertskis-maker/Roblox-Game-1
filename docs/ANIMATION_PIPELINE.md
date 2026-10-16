@@ -129,9 +129,10 @@ A blob 2.5 wide and 3.2 tall, 11 bones:
   bone) showed a visible ledge on landing, so use two rings.
 - Eyes and other small parts: skin each one rigidly (same weights on all its
   vertices) so they do not stretch.
-- Cost: 3 bones became 10, and keys grew from about 50 to about 170. Runtime
-  cost in Roblox was **not measured**. It is probably small for one creature
-  and worth measuring before many are on screen at once (MicroProfiler).
+- Cost: 3 bones became 10, and keys grew from about 50 to about 170. Measured
+  once in Studio (section 7): 800 animated copies of the 11-bone rig held the
+  same 60 fps as 800 copies of the 3-bone rig. That was one desktop with an
+  integrated GPU, held at the 60 fps cap, so it says nothing yet about phones.
 
 ### Cartoony motion rules
 
@@ -232,6 +233,28 @@ In edit mode, `animator:StepAnimations(dt)` with `dt` above zero advances it
 (used only for tests; a zero step does nothing). Setting `track.TimePosition`
 first lets you jump to a frame.
 
+### A review place you can just watch (tested)
+
+For the feel check we built one local place with both rigs side by side:
+
+- A Rojo build with a `Baseplate` part, then both FBX files imported as above
+  (Upload to Roblox off), renamed, anchored and moved 10 studs apart with
+  `Model:TranslateBy`, so the importer's pivot is left alone.
+- The clips are copied into `ReplicatedStorage`. A `LocalScript` registers them
+  with `RegisterKeyframeSequence`, plays them looped on each model's `Animator`,
+  and frames the camera so both rigs and their labels fit the window.
+  `Players.CharacterAutoLoads` is off and the CoreGui is hidden, so nothing else
+  is on screen.
+- Press the blue **Play** triangle at the top left to watch and the red square
+  to stop. Setting the attribute `AnimSpeed` on Workspace changes the speed
+  while it runs.
+- Save with **File, Save to File**. Never **Save to Roblox**.
+- In a Rojo project file set a part's `CFrame`. `Position` was ignored in our
+  build, so the baseplate stayed at the origin with its top 10 studs up.
+- Studio ran at about 15 fps while another window was in front of it and at 60
+  fps when it was in front, so bring it forward before judging smoothness or
+  measuring speed.
+
 ## 7. Verification ledger (2026-10-15)
 
 | Claim | Level | How |
@@ -240,8 +263,8 @@ first lets you jump to a frame.
 | Bone scale does not survive | tested, real importer + runtime | clip data; scaled matrix stored as identity |
 | Translation bones bend the mesh and keep the timing | tested, real importer + runtime | clip values matched authored to 2 decimals; rendered frames |
 | Two-ring squash looks right | Blender preview and Roblox render, by me | `look` and `screen_capture` frames |
-| Feels good in motion at 30 fps | **not checked by a person** | needs a human look at the loop |
-| Runtime cost of extra bones | **not measured** | needs MicroProfiler with many copies |
+| Squash loop feel and speed | tested, by the repository owner | watched both rigs side by side in the review place and answered "both good" to "bouncy and squishy enough?" and "speed right?" |
+| Runtime cost of extra bones | tested, one desktop only | 100, 400 and 800 copies of each rig in a playtest, frame times logged: all at the 60 fps cap (16.6 ms); copies confirmed animating and in view; not tested on a phone |
 | Publishing, animation IDs, ownership | **not run** | docs only (section 9) |
 | Codex MCP setup | **not run** | config shown from the Codex format |
 
@@ -296,6 +319,7 @@ auto-rig a model you upload, though we only tested the sample fox.
 | Creature faces backwards | Head toward +Z | Rotate 180 degrees about Y |
 | Everything is gray | Blender material colors are not imported | Texture, or set `Color` in code |
 | Studio viewport is black | Window minimized, or a script tab covers the 3D view | Restore the window, click the place tab |
+| Labels missing in an MCP screenshot | `screen_capture` does not draw `BillboardGui` | Look at the real window |
 | Import made a real asset | "Upload to Roblox" was left on | Untick it each time (section 6) |
 | `Animator is not a valid member` | Animator is created when the clip editor opens | Create one in code if missing |
 | Safe mode rejects a script | `yield`, `lambda`, `:=` or `open` | Plain loops and functions; terminal for files |
@@ -306,8 +330,8 @@ auto-rig a model you upload, though we only tested the sample fox.
 - Where source `.blend` and exported `.fbx` files live (repo folder, LFS, or
   shared drive) and who approves new ones.
 - Which account or group owns animations once the concept is chosen.
-- Measure the runtime cost of 10-bone creatures with many on screen.
-- A person should watch the loop and judge feel; no human has yet.
+- Re-measure the cost of 10-bone creatures on a phone or other low-end device
+  (800 copies held 60 fps on one desktop).
 - Confirm the Codex setup on a machine that uses Codex.
 
 ## 12. Sources
