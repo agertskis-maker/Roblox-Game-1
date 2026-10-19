@@ -3,11 +3,15 @@
 -- never change the value they are given, and callers must keep the real value.
 --
 -- Rules:
---   Cash      below 1,000,000: "$12,480" (whole dollars, comma groups).
---             from 1,000,000:  three significant digits with a suffix,
---             "$1.23M", "$12.3M", "$123M", then B and T. Digits are truncated,
---             never rounded up, so the display never shows more than the
---             player has ($1,999,999 shows "$1.99M").
+--   Cash      below 10,000: "$950", "$9,999" (whole dollars, comma groups).
+--             from 10,000:  at most three significant digits with a suffix
+--             K, M, B or T: "$12.4K", "$116K", "$1.2M", "$3.45B". Trailing
+--             decimal zeros are dropped ("$1M", not "$1.00M"). Digits are
+--             truncated, never rounded up (the established contract), so the
+--             display never shows more than the player has, and a value just
+--             under a suffix boundary stays in the lower suffix: $999,999 shows
+--             "$999K", never "$1000K" or "$1M". From 1,000T, whole trillions
+--             with commas.
 --   Distance  below 10,000 m: "1,240 m" (whole metres).
 --             from 10,000 m:  kilometres, one decimal truncated below 1,000 km
 --             ("12.4 km"), whole kilometres with commas after that
@@ -37,7 +41,19 @@ local SUFFIXES = {
 	{ size = 1e12, letter = "T" },
 	{ size = 1e9, letter = "B" },
 	{ size = 1e6, letter = "M" },
+	{ size = 1e3, letter = "K" },
 }
+
+Format.CashCompactFrom = 10000
+
+-- "1.20" -> "1.2", "1.00" -> "1", "10.0" -> "10".
+local function trimZeros(text: string): string
+	if text:find(".", 1, true) then
+		text = text:gsub("0+$", "")
+		text = text:gsub("%.$", "")
+	end
+	return text
+end
 
 -- Three significant digits of value / size, truncated, using whole-number
 -- arithmetic so float error cannot drop a digit: 1,999,999 / 1e6 -> "1.99".
@@ -47,14 +63,14 @@ local function threeSignificant(value: number, size: number): string
 		return string.format("%d", hundredths // 100)
 	elseif hundredths >= 1000 then
 		local tenths = hundredths // 10
-		return string.format("%d.%d", tenths // 10, tenths % 10)
+		return trimZeros(string.format("%d.%d", tenths // 10, tenths % 10))
 	end
-	return string.format("%d.%02d", hundredths // 100, hundredths % 100)
+	return trimZeros(string.format("%d.%02d", hundredths // 100, hundredths % 100))
 end
 
 function Format.cash(amount: number): string
 	local value = math.floor(sanitize(amount))
-	if value < 1e6 then
+	if value < Format.CashCompactFrom then
 		return "$" .. Format.group(value)
 	end
 	for _, suffix in SUFFIXES do

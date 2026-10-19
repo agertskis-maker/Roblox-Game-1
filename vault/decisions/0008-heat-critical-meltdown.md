@@ -71,3 +71,10 @@ A hard stop at 100% with one second of Sputter punishes a near miss. A short, re
 ## Consequences
 - Run-end causes now read "Meltdown escape window expired" instead of "Sputter window missed".
 - The outline's acceptance criteria and test list gain: a claim completes during Meltdown; an escape cancels Meltdown presentation; reduced motion removes flashing, shaking, and pulsing.
+
+## Amendment 2 (2026-10-19): flash ceiling 2.5 per second, Heat colours without green
+
+Decided by Adam in the Lane 3 HUD revision 3 review. It narrows two points above; the earlier text is kept as history.
+
+- **Flash ceiling lowered to 2.5 per second.** All visible alarm peaks combined (panel, both sirens, bar emphasis, any flashing instruction, and later the car's emphasis) stay at or under 2.5 per second in Meltdown; Critical stays lower and less urgent. The three-per-second figure above is superseded. The HUD counts two visible peaks per alarm cycle and caps the clock at 1.25 cycles per second (Meltdown 1.2, so 2.4 per second; Critical 1.2 to 2.0 per second).
+- **Heat colour stops:** Calm blue at 0%, pale cream at about 35%, Warning yellow at 60%, orange at about 75%, Danger red from 85%. No green anywhere in the Heat scale, explicitly at 40% and 50%. The bar and thermometer still share one mapping.

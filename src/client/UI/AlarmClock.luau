@@ -10,10 +10,11 @@
 --
 -- One cycle = one panel peak. wave(0) peaks once per cycle; the right siren
 -- uses wave(0.5), half a cycle later. The screen therefore shows two visible
--- peaks per cycle, so the rate is capped at Tokens.Motion.AlarmMaxHz (1.4),
--- keeping all peaks combined at or under 2.8 per second (decision 0008:
--- under three per second). The rate is set by the Heat presentation; other
--- effects only read the phase.
+-- peaks per cycle, so the rate is capped at Tokens.Motion.AlarmMaxHz (1.25),
+-- keeping all peaks combined at or under 2.5 per second (Adam, 2026-10-19).
+-- A later effect that peaks at any other phase adds peaks and must be
+-- counted. The rate is set by the Heat presentation; other effects only read
+-- the phase.
 --
 -- Provisional interface for later effects (for example Pip's emphasis):
 --   local stop = AlarmClock.subscribe(function(dt, phase) ... end)

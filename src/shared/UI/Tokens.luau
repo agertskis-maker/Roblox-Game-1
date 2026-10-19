@@ -44,6 +44,19 @@ export type Palette = {
 	Glass: Color3,
 	Chrome: Color3,
 	ChromeShade: Color3,
+	HeatMist: Color3,
+	HeatCream: Color3,
+	CashTop: Color3,
+	CashBottom: Color3,
+	CashOutline: Color3,
+	CashShadow: Color3,
+	BillFace: Color3,
+	BillLight: Color3,
+	BillDark: Color3,
+	BillBand: Color3,
+	BillBandShade: Color3,
+	Sparkle: Color3,
+	FloatText: Color3,
 }
 
 -- Colour roles. Red (Danger) is reserved for danger; orange (Primary) for go/buy.
@@ -74,18 +87,36 @@ Tokens.Color = table.freeze({
 	Glass = rgb(234, 246, 251), -- #EAF6FB thermometer glass
 	Chrome = rgb(214, 222, 232), -- #D6DEE8 radiator cap
 	ChromeShade = rgb(140, 152, 170), -- #8C98AA cap shading
+	-- Heat scale, revision 3 (Adam, 2026-10-19): no green anywhere in Heat.
+	HeatMist = rgb(201, 213, 238), -- #C9D5EE pale periwinkle between blue and cream
+	HeatCream = rgb(248, 230, 188), -- #F8E6BC pale cream at about 35%
+	-- Cash counter (green is Cash's colour; Heat never uses it).
+	CashTop = rgb(46, 230, 90), -- #2EE65A bright saturated green
+	CashBottom = rgb(160, 246, 184), -- #A0F6B8 light mint
+	CashOutline = rgb(20, 27, 51), -- #141B33 near-black navy outline
+	CashShadow = rgb(20, 27, 51), -- drop shadow, used with transparency
+	BillFace = rgb(52, 180, 90), -- #34B45A medium green bill
+	BillLight = rgb(150, 228, 165), -- #96E4A5 inset border and emblem
+	BillDark = rgb(31, 122, 60), -- #1F7A3C lower bills and edge shading
+	BillBand = rgb(255, 184, 40), -- #FFB828 gold band
+	BillBandShade = rgb(224, 123, 18), -- #E07B12 band shading
+	Sparkle = rgb(214, 255, 222), -- #D6FFDE gain sparkles
+	FloatText = rgb(255, 255, 255), -- floating Distance option B
 } :: Palette)
 
 -- Fixed temperature scale for Heat, 0 to 1. The bar reveals this scale from
 -- the left and the thermometer liquid uses heatColor, so the colour at the bar
 -- tip always matches the liquid at the same Heat.
--- Calm blue is held to 30% so the cool range reads blue; the blend to yellow
--- happens between 30% and 60% (a straight 0-60% blend looked green early on).
+-- Revision 3 stops (approved by Adam): Calm blue at 0%, pale cream at about
+-- 35%, Warning yellow at 60%, orange at about 75%, Danger red from 85%. A
+-- pale periwinkle (HeatMist) sits between blue and cream because a straight
+-- blue-to-cream blend passes through a pale aqua that reads green.
 local HEAT_STOPS: { { at: number, role: string } } = {
 	{ at = 0, role = "Calm" },
-	{ at = 0.3, role = "Calm" },
+	{ at = 0.18, role = "HeatMist" },
+	{ at = 0.35, role = "HeatCream" },
 	{ at = 0.6, role = "Warning" },
-	{ at = 0.725, role = "HeatOrange" },
+	{ at = 0.75, role = "HeatOrange" },
 	{ at = 0.85, role = "Danger" },
 	{ at = 1, role = "DangerDeep" },
 }
@@ -101,6 +132,8 @@ Tokens.TextSize = table.freeze({
 	Value = 24,
 	Label = 18,
 	Minimum = 16,
+	Cash = 40, -- floating Cash counter (Adam, 2026-10-19)
+	FloatDistance = 32, -- Distance option B (proposal)
 })
 
 Tokens.Space = table.freeze({
@@ -157,11 +190,13 @@ end
 -- Motion timings. With reduced motion, decorative oscillation and fades are
 -- removed and essential values snap.
 --
--- Alarm counting (decision 0008): one alarm cycle produces one panel peak
--- and two siren peaks (left on the panel's phase, right half a cycle later),
--- so the screen shows two visible peaks per cycle. The cycle rate is capped
--- at AlarmMaxHz = 1.4, so all peaks combined stay at or under 2.8 per second,
--- below the three-per-second ceiling.
+-- Alarm counting (decision 0008, ceiling lowered by Adam on 2026-10-19):
+-- one alarm cycle produces two distinct visible peaks. At phase 0 the panel
+-- tint, the left siren and the Meltdown bar wash peak together; at phase 0.5
+-- the right siren peaks. HOP NOW! does not flash. So combined visible peaks
+-- per second = 2 x cycle rate. The cap AlarmMaxHz = 1.25 keeps the combined
+-- rate at or under 2.5 per second; Meltdown uses 1.2 (2.4 per second) and
+-- Critical stays lower (1.2 to 2.0 per second).
 Tokens.Motion = table.freeze({
 	Press = 0.1,
 	Panel = 0.2,
@@ -169,13 +204,20 @@ Tokens.Motion = table.freeze({
 	-- Exponential smoothing rates (per second) for frame-rate-independent easing.
 	HeatSmoothing = 10,
 	EffectSmoothing = 6,
-	AlarmCriticalStartHz = 0.8,
-	AlarmCriticalEndHz = 1.3,
-	AlarmMeltdownHz = 1.4,
-	AlarmMaxHz = 1.4,
+	AlarmCriticalStartHz = 0.6,
+	AlarmCriticalEndHz = 1.0,
+	AlarmMeltdownHz = 1.2,
+	AlarmMaxHz = 1.25,
 	VisiblePeaksPerCycle = 2,
-	FlashCeilingHz = 3,
+	CombinedFlashCeiling = 2.5,
 	BumpSeconds = 0.6,
+	-- Cash counter (presentation only).
+	CashGainSeconds = 0.35,
+	CashSpendSeconds = 0.18,
+	CashPunch = 0.12,
+	CashPunchBig = 0.16,
+	CashGainLabelSeconds = 0.7,
+	CashCoalesceSeconds = 0.25,
 })
 
 local function lerpColor(a: Color3, b: Color3, t: number): Color3

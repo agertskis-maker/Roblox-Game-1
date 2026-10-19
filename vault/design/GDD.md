@@ -38,9 +38,9 @@ You are a fearless kid who leaps from car to car on a never-ending highway. Hold
 Run details (**Proposed** unless stated): private client-simulated runs checked by the server, four-lane one-direction traffic (same direction is **Decided**), Foot Dash on missing a car (landing on the road is **Decided**), Heat that resets on every Hop and rises on bumps (**Decided**), hazards: potholes, oil slicks, construction, gap jumps (**Decided**). Outline section 06.
 
 **Heat stages** ([[0008-heat-critical-meltdown]]): `Calm` "Cool", `Warning` "Hot" from 60%, `Critical` "Too hot!" from 85%, `Meltdown` "Losing control!" at 100% (thresholds **Tunable**).
-- Critical (**Decided**): localized red emphasis on the ridden car and the gauge, flashing at most three times per second, never full-screen; with reduced motion, steady red, a label or icon, and stripes instead.
+- Critical (**Decided**): localized red emphasis on the ridden car and the gauge, flashing at most 2.5 times per second, all visible peaks combined (0008 amendment 2), never full-screen; with reduced motion, steady red, a label or icon, and stripes instead.
 - Meltdown (**Decided**): 100% Heat does not end the run. The car becomes hard to control for a brief escape window, Hop stays available, a claim that completes during it still counts, and the run ends only if the window expires with the player aboard. The HUD shows no escape timer: the bar stays full, "Losing control!" is joined by **HOP NOW!**, and smoke rises from the thermometer (0008 amendment).
-- Heat display (**Decided**, 0008 amendment): continuous fill and colour (blue, yellow at 60%, orange, red from 85%); at Critical the Heat panel becomes a localized alarm driven by one clock shared with the car effect; reduced motion uses steady styling.
+- Heat display (**Decided**, 0008 amendment): continuous fill and colour (blue, pale cream about 35%, yellow at 60%, orange about 75%, red from 85%; no green); at Critical the Heat panel becomes a localized alarm driven by one clock shared with the car effect; reduced motion uses steady styling.
 - Meltdown driving details (**Proposed**, **Tunable**, Lane 1): a 3-second window, sluggish steering, growing wobble and drift, falling speed, a final spinout, never inverted controls.
 - This replaces the outline v2.0 "Blowout" and 1-second "Sputter" rule.
 

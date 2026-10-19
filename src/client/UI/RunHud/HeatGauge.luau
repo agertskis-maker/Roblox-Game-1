@@ -32,9 +32,9 @@ export type HeatStage = "Calm" | "Warning" | "Critical" | "Meltdown"
 
 -- Panel geometry in design px.
 local WIDTH = 320
-local HEIGHT = 86
+local HEIGHT = 92
 local TRACK_X = 70
-local TRACK_Y = 50
+local TRACK_Y = 54
 local TRACK_H = 24
 local TRACK_W = WIDTH - TRACK_X - 14
 local TRACK_INSET = 3
@@ -44,9 +44,22 @@ local SMOKE_PUFFS = 7
 local BUBBLES = 3
 local HEAT_LINES = 2
 local STRIPE_COUNT = 16
--- Tube geometry: 56 px tall, the bottom 14 px hidden behind the bulb.
-local LIQUID_HIDDEN = 14
-local LIQUID_RANGE = 38
+-- Thermometer geometry (card coordinates, design px), about 20% smaller than
+-- revision 2 so the whole instrument fits inside the card.
+local THERMO_X = 30
+local TUBE_TOP = 26
+local TUBE_SIZE = Vector2.new(15, 38)
+local BULB_Y = 68
+local BULB_SIZE = 24
+-- The bottom of the tube sits behind the bulb.
+local LIQUID_HIDDEN = 10
+local LIQUID_RANGE = 25
+-- Siren layout: mirrored about the centre, one each side of the title tab,
+-- centred on the card's top-border line (UIStroke draws outside the frame).
+local SIREN_SIZE = Vector2.new(22, 18)
+local SIREN_GAP = 10
+local SIREN_OFFSET = TAB_SIZE.X / 2 + SIREN_GAP + SIREN_SIZE.X / 2
+local BORDER_CENTRE = -Tokens.Stroke.Regular / 2
 
 local RANK: { [string]: number } = { Calm = 0, Warning = 1, Critical = 2, Meltdown = 3 }
 
@@ -268,26 +281,28 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Parent = tab,
 	})
 
-	-- Siren lights at the top corners.
+	-- Siren lights: identical, mirrored about the panel centre on the
+	-- straight top edge, one each side of the title tab, centred on the
+	-- top-border line. Positions come from shared layout values only.
 	self._sirens = {}
-	for i, x in { 22, WIDTH - 22 } do
+	for i, side in { -1, 1 } do
 		local holder = make("Frame", {
 			Name = if i == 1 then "SirenLeft" else "SirenRight",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromOffset(x, 4),
-			Size = UDim2.fromOffset(22, 18),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, side * SIREN_OFFSET, BORDER_CENTRE / HEIGHT, 0),
+			Size = UDim2.fromOffset(SIREN_SIZE.X, SIREN_SIZE.Y),
 			BackgroundTransparency = 1,
 			ZIndex = 10,
 			Parent = body,
 		})
 		local glow = circle(holder, "Glow", 30, palette.Danger, 9)
-		glow.Position = UDim2.new(0.5, 0, 0, 7)
+		glow.Position = UDim2.fromScale(0.5, 0.5)
 		glow.BackgroundTransparency = 1
 		local dome = make("Frame", {
 			Name = "Dome",
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -4),
-			Size = UDim2.fromOffset(16, 14),
+			Size = UDim2.fromOffset(16, 12),
 			BackgroundColor3 = palette.SirenOff,
 			BorderSizePixel = 0,
 			ZIndex = 11,
@@ -299,7 +314,7 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 			Name = "Base",
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.fromScale(0.5, 1),
-			Size = UDim2.fromOffset(22, 6),
+			Size = UDim2.fromOffset(SIREN_SIZE.X, 6),
 			BackgroundColor3 = palette.Stroke,
 			BorderSizePixel = 0,
 			ZIndex = 11,
@@ -309,12 +324,17 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		table.insert(self._sirens, { holder = holder, dome = dome, glow = glow, base = base, stroke = domeStroke })
 	end
 
-	-- Thermometer instrument. Everything in it moves together for rattle and
-	-- jolt; its rest position is restored exactly.
+	-- Thermometer instrument. Its frame covers the left of the card with the
+	-- same coordinates as the card, so the numbers below are card positions.
+	-- Everything in it moves together for rattle and jolt; its rest position
+	-- is restored exactly. Clearance budget (design px at scale 1.0, strokes
+	-- included): cap top at 13 and bulb bottom at 83 inside a 92 px card, so
+	-- with the largest rattle, jiggle and jolt the gaps to the inner border
+	-- stay at 8 px or more; the right edge (heat lines) stays 8 px or more
+	-- from the stage text.
 	local instrument = make("Frame", {
 		Name = "Instrument",
-		Position = UDim2.fromOffset(14, -8),
-		Size = UDim2.fromOffset(44, 96),
+		Size = UDim2.fromOffset(TRACK_X - 6, HEIGHT),
 		BackgroundTransparency = 1,
 		ZIndex = 4,
 		Parent = card,
@@ -323,16 +343,16 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	self._instrumentRest = instrument.Position
 
 	-- Bulb glow behind the bulb.
-	self._bulbGlow = circle(instrument, "BulbGlow", 46, palette.Calm, 4)
-	self._bulbGlow.Position = UDim2.fromOffset(22, 76)
+	self._bulbGlow = circle(instrument, "BulbGlow", 34, palette.Calm, 4)
+	self._bulbGlow.Position = UDim2.fromOffset(THERMO_X, BULB_Y)
 	self._bulbGlow.BackgroundTransparency = 1
 
 	-- Glass tube with a thick navy silhouette.
 	local tube = make("Frame", {
 		Name = "Tube",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromOffset(22, 18),
-		Size = UDim2.fromOffset(18, 56),
+		Position = UDim2.fromOffset(THERMO_X, TUBE_TOP),
+		Size = UDim2.fromOffset(TUBE_SIZE.X, TUBE_SIZE.Y),
 		BackgroundColor3 = palette.Glass,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -340,44 +360,54 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Parent = instrument,
 	})
 	corner(tube, Tokens.Radius.Pill)
-	self._tubeStroke = outline(tube, palette.Stroke, Tokens.Stroke.Thick)
+	self._tubeStroke = outline(tube, palette.Stroke, Tokens.Stroke.Regular)
 	self._tube = tube
 	self._liquid = make("Frame", {
 		Name = "Liquid",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 1),
-		Size = UDim2.fromOffset(10, 0),
+		Size = UDim2.fromOffset(9, 0),
 		BackgroundColor3 = palette.Calm,
 		BorderSizePixel = 0,
 		ZIndex = 6,
 		Parent = tube,
 	})
-	corner(self._liquid, UDim.new(0, 4))
+	corner(self._liquid, UDim.new(0, 3))
+	-- A navy surface line keeps the level readable when the liquid is pale.
+	self._meniscus = make("Frame", {
+		Name = "Surface",
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = palette.Stroke,
+		BackgroundTransparency = 0.15,
+		BorderSizePixel = 0,
+		ZIndex = 7,
+		Parent = self._liquid,
+	})
 	self._bubbleFrames = {}
 	for i = 1, BUBBLES do
-		local b = circle(tube, "Bubble" .. i, 4, Color3.new(1, 1, 1), 7)
+		local b = circle(tube, "Bubble" .. i, 3, Color3.new(1, 1, 1), 7)
 		b.BackgroundTransparency = 1
 		table.insert(self._bubbleFrames, b)
 	end
 	-- Shine streak on the glass, kept quieter than the liquid.
 	make("Frame", {
 		Name = "Shine",
-		Position = UDim2.fromOffset(3, 6),
-		Size = UDim2.fromOffset(3, 30),
+		Position = UDim2.fromOffset(2, 5),
+		Size = UDim2.fromOffset(2, 20),
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.45,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		ZIndex = 8,
 		Parent = tube,
 	})
 	-- Crack marks, shown only during Meltdown.
 	self._cracks = {}
-	for i, spec in { { 11, 14, 32 }, { 8, 26, -28 }, { 12, 38, 24 } } do
+	for i, spec in { { 8, 10, 32 }, { 6, 19, -28 }, { 9, 28, 24 } } do
 		local crack = make("Frame", {
 			Name = "Crack" .. i,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromOffset(spec[1], spec[2]),
-			Size = UDim2.fromOffset(2, 9),
+			Size = UDim2.fromOffset(2, 7),
 			Rotation = spec[3],
 			BackgroundColor3 = palette.Stroke,
 			BackgroundTransparency = 1,
@@ -391,8 +421,8 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	for i = 1, 3 do
 		make("Frame", {
 			Name = "Tick" .. i,
-			Position = UDim2.fromOffset(33, 18 + i * 13),
-			Size = UDim2.fromOffset(6, 2),
+			Position = UDim2.fromOffset(THERMO_X + 12, TUBE_TOP + 1 + i * 8),
+			Size = UDim2.fromOffset(5, 2),
 			BackgroundColor3 = palette.Stroke,
 			BorderSizePixel = 0,
 			ZIndex = 5,
@@ -400,19 +430,19 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		})
 	end
 	-- Bulb.
-	self._bulb = circle(instrument, "Bulb", 28, palette.Calm, 6)
-	self._bulb.Position = UDim2.fromOffset(22, 76)
-	outline(self._bulb, palette.Stroke, Tokens.Stroke.Thick)
-	local highlight = circle(self._bulb, "Highlight", 7, Color3.new(1, 1, 1), 7)
-	highlight.Position = UDim2.fromOffset(9, 9)
+	self._bulb = circle(instrument, "Bulb", BULB_SIZE, palette.Calm, 6)
+	self._bulb.Position = UDim2.fromOffset(THERMO_X, BULB_Y)
+	outline(self._bulb, palette.Stroke, Tokens.Stroke.Regular)
+	local highlight = circle(self._bulb, "Highlight", 6, Color3.new(1, 1, 1), 7)
+	highlight.Position = UDim2.fromOffset(8, 8)
 	highlight.BackgroundTransparency = 0.3
 
 	-- Radiator cap (chrome) on top of the tube; pivots at its bottom centre.
 	local cap = make("Frame", {
 		Name = "Cap",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromOffset(22, 20),
-		Size = UDim2.fromOffset(28, 18),
+		Position = UDim2.fromOffset(THERMO_X, TUBE_TOP + 2),
+		Size = UDim2.fromOffset(22, 14),
 		BackgroundTransparency = 1,
 		ZIndex = 9,
 		Parent = instrument,
@@ -423,7 +453,7 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Name = "Base",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 1),
-		Size = UDim2.fromOffset(28, 9),
+		Size = UDim2.fromOffset(22, 7),
 		BackgroundColor3 = palette.Chrome,
 		BorderSizePixel = 0,
 		ZIndex = 9,
@@ -434,14 +464,14 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	local capTop = make("Frame", {
 		Name = "Top",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -8),
-		Size = UDim2.fromOffset(16, 9),
+		Position = UDim2.new(0.5, 0, 1, -6),
+		Size = UDim2.fromOffset(13, 7),
 		BackgroundColor3 = palette.Chrome,
 		BorderSizePixel = 0,
 		ZIndex = 10,
 		Parent = cap,
 	})
-	corner(capTop, UDim.new(0, 4))
+	corner(capTop, UDim.new(0, 3))
 	outline(capTop, palette.Stroke, Tokens.Stroke.Thin)
 	make("Frame", {
 		Name = "Shade",
@@ -454,21 +484,21 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	})
 	make("Frame", {
 		Name = "Shine",
-		Position = UDim2.fromOffset(3, 2),
-		Size = UDim2.fromOffset(4, 3),
+		Position = UDim2.fromOffset(2, 2),
+		Size = UDim2.fromOffset(3, 2),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = 11,
 		Parent = capTop,
 	})
 
-	-- Heat lines rising beside the tube (Hot and above).
+	-- Heat lines rising beside the ticks (Hot and above), kept inside the panel.
 	self._lineFrames = {}
 	for i = 1, HEAT_LINES do
 		local line = make("Frame", {
 			Name = "HeatLine" .. i,
 			AnchorPoint = Vector2.new(0.5, 1),
-			Size = UDim2.fromOffset(3, 10),
+			Size = UDim2.fromOffset(3, 9),
 			BackgroundColor3 = palette.Warning,
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
@@ -479,7 +509,9 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		table.insert(self._lineFrames, line)
 	end
 
-	-- Smoke: a fixed pool of puffs (two layered circles each), reused in a loop.
+	-- Smoke: a fixed pool of puffs (two layered circles each), reused in a
+	-- loop. It drifts up and to the left, away from the left siren and the
+	-- title tab.
 	self._puffs = {}
 	for i = 1, SMOKE_PUFFS do
 		local puff = circle(instrument, "Smoke" .. i, 10, palette.Smoke, 12)
@@ -494,7 +526,7 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	-- Stage label (two layers for a short cross-fade) in a fixed-width area.
 	local labelArea = make("Frame", {
 		Name = "LabelArea",
-		Position = UDim2.fromOffset(TRACK_X, 16),
+		Position = UDim2.fromOffset(TRACK_X, 18),
 		Size = UDim2.fromOffset(132, 26),
 		BackgroundTransparency = 1,
 		ZIndex = 5,
@@ -526,7 +558,7 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	local hop = make("Frame", {
 		Name = "HopNow",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 16),
+		Position = UDim2.new(1, -12, 0, 18),
 		Size = UDim2.fromOffset(104, 26),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
@@ -652,6 +684,17 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		BorderSizePixel = 0,
 		ZIndex = 8,
 		Parent = fillArea,
+	})
+	-- Navy marker at the fill tip, so the level reads even where the scale is
+	-- pale (the cream stop near 35%) against the white track.
+	self._tipMarker = make("Frame", {
+		Name = "TipMarker",
+		AnchorPoint = Vector2.new(1, 0),
+		Size = UDim2.new(0, 2, 1, 0),
+		BackgroundColor3 = palette.Stroke,
+		BorderSizePixel = 0,
+		ZIndex = 9,
+		Parent = self._mask,
 	})
 	for _, threshold in { HeatGauge.Thresholds.Warning, HeatGauge.Thresholds.Critical } do
 		local mark = make("Frame", {
@@ -805,6 +848,12 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 	local pulse = if reduced then 1 else 0.35 + 0.65 * wave
 	self._card.BackgroundColor3 = palette.Card:Lerp(palette.AlarmTint, alarm * pulse)
 	self._cardStroke.Thickness = Tokens.Stroke.Regular + alarm * pulse
+	-- Keep both sirens centred on the border line as the border thickens.
+	-- UDim offsets are whole pixels, so the half-stroke goes in the scale.
+	for i, siren in self._sirens do
+		siren.holder.Position =
+			UDim2.new(0.5, (if i == 1 then -1 else 1) * SIREN_OFFSET, -self._cardStroke.Thickness / (2 * HEIGHT), 0)
+	end
 	self._cardStroke.Color = palette.Stroke
 	local haloReach = if reduced then 6 else 6 + 4 * wave
 	self._halo.Size = UDim2.new(1, 2 * haloReach * alarm, 1, 2 * haloReach * alarm)
@@ -824,6 +873,7 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 
 	-- 6. Bar: reveal, stripes, Meltdown flash.
 	self._mask.Size = UDim2.fromScale(1 - level, 1)
+	self._tipMarker.Visible = level > 0.01 and level < 0.99
 	local stripeStrength = math.max(alarm, 0)
 	for _, bar in self._stripeBars do
 		bar.BackgroundColor3 = if meltdown then palette.StripeLight else palette.Stroke
@@ -847,7 +897,8 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 	local tubeLevel = math.clamp(level + slosh, 0, 1)
 	-- The bottom of the tube sits behind the bulb, so 0% fills only that
 	-- hidden part and 100% reaches the top of the visible glass.
-	self._liquid.Size = UDim2.fromOffset(10, LIQUID_HIDDEN + tubeLevel * LIQUID_RANGE)
+	self._liquid.Size = UDim2.fromOffset(9, LIQUID_HIDDEN + tubeLevel * LIQUID_RANGE)
+	self._meniscus.Visible = tubeLevel > 0.02
 	self._liquid.BackgroundColor3 = color
 	self._bulb.BackgroundColor3 = color
 	self._bulbGlow.BackgroundColor3 = color
@@ -858,14 +909,14 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 		local cycle = (t * (0.5 + 0.9 * self._bubbles) + i / BUBBLES) % 1
 		-- Rise from the top of the bulb to just under the liquid surface.
 		local depth = tubeLevel * LIQUID_RANGE
-		local y = 56 - LIQUID_HIDDEN - cycle * math.max(0, depth - 3)
+		local y = TUBE_SIZE.Y - LIQUID_HIDDEN - cycle * math.max(0, depth - 3)
 		bubble.Position = UDim2.new(0.5, (i - 2) * 3, 0, y)
 		bubble.BackgroundTransparency = 1 - show * 0.85 * (if depth > 6 then 1 else 0)
 	end
 	for i, line in self._lineFrames do
 		local show = if reduced then 0 else self._lines
 		local cycle = (t * 0.9 + i * 0.5) % 1
-		line.Position = UDim2.fromOffset(36 + (i - 1) * 5, 30 - cycle * 18)
+		line.Position = UDim2.fromOffset(THERMO_X + 20 + (i - 1) * 4, TUBE_TOP + 20 - cycle * 14)
 		line.BackgroundColor3 = color
 		line.BackgroundTransparency = 1 - show * (1 - cycle) * 0.9
 	end
@@ -878,8 +929,8 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 	local melt = self._melt
 	local jiggle = if reduced then 0 else -1.5 * math.abs(math.sin(t * 18)) * self._rattle * (1 - melt)
 	local wobble = if reduced then 0 else 3 * math.sin(t * 9) * melt
-	self._cap.Position = self._capRest + UDim2.fromOffset(4 * melt, -7 * melt + jiggle)
-	self._cap.Rotation = 18 * melt + wobble
+	self._cap.Position = self._capRest + UDim2.fromOffset(-3 * melt, -7 * melt + jiggle)
+	self._cap.Rotation = -18 * melt + wobble
 	for _, crack in self._cracks do
 		crack.BackgroundTransparency = 1 - melt
 	end
@@ -891,7 +942,11 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 		local visible = melt
 		local x, y, size, alpha
 		if reduced then
-			local still = { { 30, -2, 14 }, { 38, -10, 18 }, { 28, -16, 12 } }
+			local still = {
+				{ THERMO_X - 4, TUBE_TOP - 22, 14 },
+				{ THERMO_X - 10, TUBE_TOP - 30, 16 },
+				{ THERMO_X, TUBE_TOP - 34, 11 },
+			}
 			local spec = still[i]
 			if spec then
 				x, y, size, alpha = spec[1], spec[2], spec[3], 0.25
@@ -901,8 +956,8 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 			end
 		else
 			local life = (t * 0.55 + i / SMOKE_PUFFS) % 1
-			x = 28 + (14 * life + 3 * math.sin(t * 2 + i)) * spread
-			y = 4 - 46 * life * (0.6 + 0.4 * spread)
+			x = THERMO_X - 4 - (14 * life + 3 * math.sin(t * 2 + i)) * spread
+			y = TUBE_TOP - 18 - 40 * life * (0.6 + 0.4 * spread)
 			size = (10 + 20 * life * spread)
 			alpha = 0.15 + 0.85 * life ^ 1.5
 		end
