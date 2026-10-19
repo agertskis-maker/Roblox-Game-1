@@ -9,13 +9,15 @@ tags:
 Claim a task by putting your name after it. Move it down as it progresses. Link to a decision note if the work involved a non-obvious choice.
 
 ## Lanes
-Car Hop work is split into three lanes with separate paths ([[0007-concept-car-hop-and-lanes]]). Until a lane has a named owner, the repository owner is its owner (`AGENTS.md`).
+Car Hop work is split into three lanes with separate paths ([[0007-concept-car-hop-and-lanes]]). Owners named by Adam on 2026-10-19; each lane owner approves samples and plans for their lane (`AGENTS.md`).
 
 | Lane | Owner | Paths |
 |---|---|---|
-| 1 Driving | TBD | `src/client/Run`, `src/shared/Run` |
-| 2 Data & Economy | TBD | `src/server`, `src/shared/Catalog`, `src/shared/Net` |
-| 3 World, UI & Feel | the repository owner (name to be filled in) | `src/client/UI`, `src/client/Home`, `src/shared/UI`, and the shared place's Workspace |
+| 1 Driving | Brian R | `src/client/Run`, `src/shared/Run` |
+| 2 Data & Economy | Brian L | `src/server`, `src/shared/Catalog`, `src/shared/Net` |
+| 3 World, UI & Feel | Adam (repository owner) | `src/client/UI`, `src/client/Home`, `src/shared/UI`, and the shared place's Workspace |
+
+- Lane 3 owns the run HUD's presentation; Lanes 1 and 2 supply its state and keep ownership of gameplay and authoritative data ([[2026-10-19]]).
 
 - Shared contracts (the catalog, the remotes, the save layout) are owned by Lane 2 and change only when all three lanes agree.
 - Each developer connects Rojo only to their own private Studio test place, never to the shared Team Create place, except one integration person (TBD).
@@ -23,10 +25,10 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## In progress
 - [ ] Local build connection on the repository owner's machine: tools, packages, check, Rojo plugin file and Studio MCP are done and logged; Rojo Connect waits until the owner names their private test place (Rojo goes only to a private place, [[0007-concept-car-hop-and-lanes]]) - Claude Code at the repository owner's request ([[2026-10-18]])
-- [ ] Lane 3 visual direction sample: Pip, Downtown road slice, and responsive HUD - repository owner — Lane 3, with Claude Code. Covers the Lane 3 Stage 0 visual-direction row; branch `feature/lane3-visual-sample`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
+- [ ] Lane 3 visual direction sample: Pip, Downtown road slice, and responsive HUD - Adam, with Claude Code. Order: HUD first (in review), then Pip, then the Downtown scene, each stopping for Adam's approval. Covers the Lane 3 Stage 0 visual-direction row; branch `feature/lane3-visual-sample`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
 
 ## Up next
-- [ ] Name the owners of Lane 1 and Lane 2, fill in the Lane 3 owner's name, and name the one integration person who may connect Rojo to the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
+- [ ] Name the one integration person who may connect Rojo to the shared Team Create place (lane owners are named above) ([[0007-concept-car-hop-and-lanes]])
 - [ ] Each developer: make your own private Studio test place and connect Rojo only to it. Confirm whether the open "test1" place is the owner's private place or has Team Create on ([[2026-10-18]], [[0007-concept-car-hop-and-lanes]])
 - [ ] Approve, change, or reject the proposed Studio MCP rules ([[0006-studio-mcp-rules]])
 - [ ] Lane 1 Stage 0 (proposed: the outline's Stage 0 has no driving work): empty `--!strict` module skeletons in `src/client/Run` and `src/shared/Run`, and agree with Lane 2 what a run reports to the server (run seed, Hop, Claim, run end) so Lane 2 can draft the remotes. No gameplay yet; the run prototype is Stage 1 ([[car-hop-outline-v2]] section 15)

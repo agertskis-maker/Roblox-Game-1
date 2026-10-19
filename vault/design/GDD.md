@@ -109,7 +109,7 @@ Stages, not dates: there is no deadline (**Decided**). Each stage ends with the 
 ## Open questions
 Full list: outline section 17. Still open:
 - Final title (Car Hop is a working title) and whether it is available on Roblox.
-- Owners for Lane 1 and Lane 2, and the one integration person ([[0007-concept-car-hop-and-lanes]]).
+- The one integration person ([[0007-concept-car-hop-and-lanes]]). Lane owners are named: Brian R (Lane 1), Brian L (Lane 2), Adam (Lane 3).
 - Approval of the proposed car names and silhouettes before modeling.
 - Game pass prices; whether Developer Products or a daily bonus are ever added.
 - Publishing eligibility and current policy for this account.
