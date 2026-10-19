@@ -23,6 +23,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## In progress
 - [ ] Local build connection on the repository owner's machine: tools, packages, check, Rojo plugin file and Studio MCP are done and logged; Rojo Connect waits until the owner names their private test place (Rojo goes only to a private place, [[0007-concept-car-hop-and-lanes]]) - Claude Code at the repository owner's request ([[2026-10-18]])
+- [ ] Lane 3 visual direction sample: Pip, Downtown road slice, and responsive HUD - repository owner — Lane 3, with Claude Code. Covers the Lane 3 Stage 0 visual-direction row; branch `feature/lane3-visual-sample`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
 
 ## Up next
 - [ ] Name the owners of Lane 1 and Lane 2, fill in the Lane 3 owner's name, and name the one integration person who may connect Rojo to the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
@@ -33,7 +34,6 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Lane 2 Stage 0: catalog skeleton in `src/shared/Catalog` (the shape of a car, World, upgrade price and mission template, placeholder values only) and remote names with argument types in `src/shared/Net`; the server validates every argument
 - [ ] Lane 2 Stage 0: server code that gives a joining player a plot and frees it on leave, with the plot marker names agreed with Lane 3
 - [ ] Lane 3 Stage 0: greybox island in the shared place's Workspace: central plaza, 12 plot markers with a spawn at each plot gate, a Portal row of three archways, the Garage building and the Stunt Circuit gate, all placeholders
-- [ ] Lane 3 Stage 0: propose the visual direction and a representative sample for the owner's approval (fonts, touch-target size and the reduced-motion mechanism are still open); UI tokens go in `src/shared/UI` ([[0004-workflow-rules]])
 - [ ] Stage 0 check, integration person TBD: a player joins, gets a plot, saves and loads an empty profile ([[car-hop-outline-v2]] section 15)
 - [ ] Each teammate: run `rokit install`, `wally install`, and connect the Rojo plugin (see `AGENTS.md`)
 - [ ] Build the player data module on ProfileStore (session start/end, template, kick on session loss)
