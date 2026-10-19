@@ -35,7 +35,15 @@ export type Palette = {
 	Coin: Color3,
 	Steam: Color3,
 	Smoke: Color3,
+	SmokeLight: Color3,
 	StripeLight: Color3,
+	HeatOrange: Color3,
+	DangerDeep: Color3,
+	AlarmTint: Color3,
+	SirenOff: Color3,
+	Glass: Color3,
+	Chrome: Color3,
+	ChromeShade: Color3,
 }
 
 -- Colour roles. Red (Danger) is reserved for danger; orange (Primary) for go/buy.
@@ -56,8 +64,31 @@ Tokens.Color = table.freeze({
 	Coin = rgb(255, 200, 61), -- #FFC83D
 	Steam = rgb(255, 255, 255),
 	Smoke = rgb(150, 154, 168), -- #969AA8 grey smoke
+	SmokeLight = rgb(198, 202, 214), -- #C6CAD6 lighter smoke layer
 	StripeLight = rgb(255, 248, 236), -- #FFF8EC
+	-- Heat scale additions (2026-10-19 HUD revision, pending review):
+	HeatOrange = rgb(255, 143, 42), -- #FF8F2A between Warning and Danger; not the action orange
+	DangerDeep = rgb(201, 48, 58), -- #C9303A deepest red at 100% Heat
+	AlarmTint = rgb(255, 214, 210), -- #FFD6D2 light alarm red; navy text stays readable on it
+	SirenOff = rgb(242, 196, 194), -- #F2C4C2 unlit siren
+	Glass = rgb(234, 246, 251), -- #EAF6FB thermometer glass
+	Chrome = rgb(214, 222, 232), -- #D6DEE8 radiator cap
+	ChromeShade = rgb(140, 152, 170), -- #8C98AA cap shading
 } :: Palette)
+
+-- Fixed temperature scale for Heat, 0 to 1. The bar reveals this scale from
+-- the left and the thermometer liquid uses heatColor, so the colour at the bar
+-- tip always matches the liquid at the same Heat.
+-- Calm blue is held to 30% so the cool range reads blue; the blend to yellow
+-- happens between 30% and 60% (a straight 0-60% blend looked green early on).
+local HEAT_STOPS: { { at: number, role: string } } = {
+	{ at = 0, role = "Calm" },
+	{ at = 0.3, role = "Calm" },
+	{ at = 0.6, role = "Warning" },
+	{ at = 0.725, role = "HeatOrange" },
+	{ at = 0.85, role = "Danger" },
+	{ at = 1, role = "DangerDeep" },
+}
 
 Tokens.FontFamily = "FredokaOne"
 
@@ -109,11 +140,12 @@ Tokens.Touch = table.freeze({
 Tokens.Scale = table.freeze({
 	BaseShortSide = 390,
 	Min = 1,
-	Max = 1.75,
+	Max = 1.5,
 })
 
 -- The approved rule: the viewport's short side divided by 390, clamped to
--- 1.0 to 1.75. Phones stay at 1.0; a 1920 x 1080 screen gets 1.75.
+-- 1.0 to 1.5 (cap lowered from 1.75 by Adam on 2026-10-19). Phones stay at
+-- 1.0; a 1920 x 1080 screen gets 1.5.
 function Tokens.uiScaleFor(viewport: Vector2): number
 	local shortSide = math.min(viewport.X, viewport.Y)
 	if shortSide <= 0 then
@@ -122,20 +154,56 @@ function Tokens.uiScaleFor(viewport: Vector2): number
 	return math.clamp(shortSide / Tokens.Scale.BaseShortSide, Tokens.Scale.Min, Tokens.Scale.Max)
 end
 
--- Motion timings in seconds. With reduced motion every tween uses 0 and no
--- pulse runs.
+-- Motion timings. With reduced motion, decorative oscillation and fades are
+-- removed and essential values snap.
+--
+-- Alarm counting (decision 0008): one alarm cycle produces one panel peak
+-- and two siren peaks (left on the panel's phase, right half a cycle later),
+-- so the screen shows two visible peaks per cycle. The cycle rate is capped
+-- at AlarmMaxHz = 1.4, so all peaks combined stay at or under 2.8 per second,
+-- below the three-per-second ceiling.
 Tokens.Motion = table.freeze({
 	Press = 0.1,
 	Panel = 0.2,
-	GaugeFill = 0.15,
-	HeatReset = 0.25,
-	WarningPulseHz = 1.1,
-	CriticalPulseStartHz = 1.0,
-	-- Pulse rate used at 100% Heat and through Meltdown. Decision 0008 caps
-	-- flashing at 3 per second; 2.5 keeps a margin under that ceiling.
-	PulseMaxHz = 2.5,
+	LabelFade = 0.15,
+	-- Exponential smoothing rates (per second) for frame-rate-independent easing.
+	HeatSmoothing = 10,
+	EffectSmoothing = 6,
+	AlarmCriticalStartHz = 0.8,
+	AlarmCriticalEndHz = 1.3,
+	AlarmMeltdownHz = 1.4,
+	AlarmMaxHz = 1.4,
+	VisiblePeaksPerCycle = 2,
 	FlashCeilingHz = 3,
+	BumpSeconds = 0.6,
 })
+
+local function lerpColor(a: Color3, b: Color3, t: number): Color3
+	return a:Lerp(b, math.clamp(t, 0, 1))
+end
+
+-- Colour of the temperature scale at heat01 (0 to 1).
+function Tokens.heatColor(heat01: number, palette: Palette?): Color3
+	local p = (palette or Tokens.Color) :: any
+	local h = math.clamp(heat01, 0, 1)
+	for i = 2, #HEAT_STOPS do
+		local a, b = HEAT_STOPS[i - 1], HEAT_STOPS[i]
+		if h <= b.at then
+			return lerpColor(p[a.role], p[b.role], (h - a.at) / (b.at - a.at))
+		end
+	end
+	return p[HEAT_STOPS[#HEAT_STOPS].role]
+end
+
+-- The same scale as a ColorSequence for the bar's UIGradient.
+function Tokens.heatColorSequence(palette: Palette?): ColorSequence
+	local p = (palette or Tokens.Color) :: any
+	local points = {}
+	for _, stop in HEAT_STOPS do
+		table.insert(points, ColorSequenceKeypoint.new(stop.at, p[stop.role]))
+	end
+	return ColorSequence.new(points)
+end
 
 -- Converts a colour to the grey of the same perceived brightness. Used by the
 -- development preview to check that nothing depends on colour alone.

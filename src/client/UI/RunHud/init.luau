@@ -10,8 +10,11 @@
 --     distance: number,              -- metres this run (Lane 1)
 --     heat: number,                  -- 0 to 1 on the ridden car (Lane 1)
 --     stage: HeatStage?,             -- "Calm" | "Warning" | "Critical" | "Meltdown" (Lane 1)
---     meltdownRemaining01: number?,  -- escape time left, 1 -> 0, only during Meltdown (Lane 1)
+--     meltdownRemaining01: number?,  -- no longer used (0008 amendment: no visible timer); ignored
 --   }
+-- Also provisional, for Lane 1: hud:jolt(strength?) plays the presentation-only
+-- bump reaction, and hud.HeatCue fires ("Stage" | "AlarmPeak", stage) for
+-- future audio. Neither changes any gameplay value.
 --
 -- Scaling: each widget root has one UIScale ("HudScale") set to
 -- Tokens.uiScaleFor(viewport). It scales the widget's size, text, strokes and
@@ -55,6 +58,8 @@ export type Options = {
 -- formats in Format.
 local CASH_SIZE = Vector2.new(168, 48)
 local DISTANCE_SIZE = Vector2.new(164, 44)
+-- Minimum distance between the Heat panel (with its effects) and the safe-area edge.
+local SAFE_MARGIN = 24
 
 local RunHud = {}
 RunHud.__index = RunHud
@@ -224,6 +229,7 @@ function RunHud.new(parent: Instance, options: Options?)
 	make("UIScale", { Name = "HudScale", Scale = 1, Parent = gauge.Root })
 	self._gauge = gauge
 	self._gaugeRoot = gauge.Root
+	self.HeatCue = gauge.Cue
 	self._trove:Add(function()
 		gauge:destroy()
 	end)
@@ -251,7 +257,14 @@ function RunHud.new(parent: Instance, options: Options?)
 		-- live. There it sits one touch row higher; landscape has room beside it.
 		local portrait = viewport.Y > viewport.X
 		local touchRow = if portrait then (Tokens.Touch.Primary + Tokens.Space.XL) * scale else 0
-		gauge.Root.Position = UDim2.new(0.5, 0, 1, -(gap + touchRow))
+		-- The panel and its effects (halo) stay at least 24 px inside the safe
+		-- area: at the bottom, and at the sides through a cap on stage growth.
+		local edge = SAFE_MARGIN + HeatGauge.EffectMargin * scale
+		gauge.Root.Position = UDim2.new(0.5, 0, 1, -(edge + touchRow))
+		local fullWidth = (HeatGauge.Size.X + 2 * HeatGauge.EffectMargin) * scale
+		local maxGrowth = if safeWidth > 0 then (safeWidth - 2 * SAFE_MARGIN) / fullWidth else 1
+		gauge:setLayout(maxGrowth, if portrait then 0.6 else 1)
+		self._maxGrowth = maxGrowth
 	end
 	applyScale()
 	self._trove:Connect(gui:GetPropertyChangedSignal("AbsoluteSize"), applyScale)
@@ -293,7 +306,12 @@ function RunHud.setState(self: any, state: RunHudState)
 	local number, unit = Format.distanceParts(state.distance)
 	self._distanceText.Text = number
 	self._distanceUnit.Text = unit
-	self._gauge:set(state.heat, state.stage, state.meltdownRemaining01)
+	self._gauge:set(state.heat, state.stage)
+end
+
+-- Presentation-only bump reaction (provisional, for Lane 1). Changes no Heat.
+function RunHud.jolt(self: any, strength: number?)
+	self._gauge:jolt(strength)
 end
 
 function RunHud.getDebugState(self: any): { [string]: any }
@@ -318,8 +336,8 @@ function RunHud.getDebugState(self: any): { [string]: any }
 		cashBox = box(self._cashRoot),
 		distanceBox = box(self._distanceRoot),
 		gaugeBox = box(self._gaugeRoot),
+		maxGrowth = self._maxGrowth,
 		gauge = self._gauge:getDebugState(),
-		activeTweens = self._gauge:activeTweens(),
 	}
 end
 

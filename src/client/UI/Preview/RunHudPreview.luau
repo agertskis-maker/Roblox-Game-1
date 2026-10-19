@@ -4,8 +4,8 @@
 -- Shows the run HUD with mock data so its states can be reviewed in Studio.
 -- Nothing runs unless someone calls start() during a Studio playtest; outside
 -- Studio every entry point returns without doing anything. No remotes, no
--- saving, no balance or gameplay changes: every number here is sample data,
--- and the "countdown" is a mock driver that ends no run.
+-- saving, no balance or gameplay changes. Every number is sample data; the
+-- stage here is chosen by this fixture, standing in for Lane 1.
 --
 -- Start it from the Studio command bar (or MCP) during a playtest, client side:
 --   require(game.Players.LocalPlayer.PlayerScripts.Client.UI.Preview.RunHudPreview).start()
@@ -22,6 +22,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local AlarmClock = require(script.Parent.Parent.AlarmClock)
+local HeatGauge = require(script.Parent.Parent.RunHud.HeatGauge)
 local RunHud = require(script.Parent.Parent.RunHud)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -32,7 +34,7 @@ type MotionMode = "Follow" | "Reduced" | "Full"
 local HUD_NAME = "Lane3_RunHudPreview"
 local CONTROLS_NAME = "Lane3_HudPreviewControls"
 local GREY_EFFECT_NAME = "Lane3_PreviewGrey"
-local COUNTDOWN_SECONDS = 3 -- mock only; the real window is Lane 1's (Tunable)
+local SIMULATED_BUMP_HEAT = 0.15 -- preview only; real bump values belong to Lane 1
 
 local VALUE_SETS: { { name: string, cash: number, distance: number } } = {
 	{ name = "Short", cash = 0, distance = 0 },
@@ -44,7 +46,7 @@ local VALUE_SETS: { { name: string, cash: number, distance: number } } = {
 local STAGE_HEAT: { [string]: number } = {
 	Calm = 0.3,
 	Warning = 0.72,
-	Critical = 0.93,
+	Critical = 0.95,
 	Meltdown = 1,
 }
 
@@ -52,17 +54,17 @@ local RunHudPreview = {}
 
 type Session = {
 	trove: any,
-	countdownTrove: any,
+	driverTrove: any,
 	hud: any,
 	controls: ScreenGui?,
 	status: TextLabel?,
 	valueIndex: number,
 	heat: number,
 	meltdown: boolean,
-	remaining: number,
 	motion: MotionMode,
 	grey: boolean,
-	countdownRunning: boolean,
+	driver: string?,
+	note: string,
 	inputLog: { string }?,
 }
 
@@ -107,39 +109,34 @@ local function overrideFor(mode: MotionMode): boolean?
 	return nil
 end
 
-local function currentState(s: Session): RunHud.RunHudState
-	local values = VALUE_SETS[s.valueIndex]
-	return {
-		cash = values.cash,
-		distance = values.distance,
-		heat = if s.meltdown then 1 else s.heat,
-		stage = if s.meltdown then "Meltdown" else nil,
-		meltdownRemaining01 = if s.meltdown then s.remaining else nil,
-	}
-end
-
-local function setStatus(s: Session, text: string)
-	if s.status then
-		s.status.Text = text
+-- The mock "gameplay" stage: Meltdown only when this fixture says so;
+-- otherwise derived from heat with the provisional thresholds.
+local function mockStage(s: Session): HeatStage
+	if s.meltdown then
+		return "Meltdown"
 	end
+	return HeatGauge.stageFor(s.heat)
 end
 
 local function render(s: Session)
-	s.hud:setState(currentState(s))
 	local values = VALUE_SETS[s.valueIndex]
-	local stage = if s.meltdown then "Meltdown" else s.hud:getDebugState().gauge.stage
-	setStatus(
-		s,
-		string.format(
-			"%s | heat %d%% | escape %d%% | %s values | motion %s%s",
-			stage,
-			math.floor(s.heat * 100 + 0.5),
-			math.floor(s.remaining * 100 + 0.5),
+	s.hud:setState({
+		cash = values.cash,
+		distance = values.distance,
+		heat = if s.meltdown then 1 else s.heat,
+		stage = mockStage(s),
+	})
+	if s.status then
+		s.status.Text = string.format(
+			"%s | heat %d%% | %s values | motion %s%s%s",
+			mockStage(s),
+			math.floor((if s.meltdown then 1 else s.heat) * 100 + 0.5),
 			values.name,
 			s.motion,
-			if s.grey then " | grey" else ""
+			if s.grey then " | grey" else "",
+			if s.note ~= "" then " | " .. s.note else ""
 		)
-	)
+	end
 end
 
 local function buildHud(s: Session)
@@ -153,9 +150,9 @@ local function buildHud(s: Session)
 	})
 end
 
-local function stopCountdown(s: Session)
-	s.countdownTrove:Clean()
-	s.countdownRunning = false
+local function stopDriver(s: Session)
+	s.driverTrove:Clean()
+	s.driver = nil
 end
 
 local function buildControls(s: Session)
@@ -239,7 +236,7 @@ local function buildControls(s: Session)
 		b.LayoutOrder = order
 		b.BackgroundColor3 = Color3.fromRGB(52, 56, 72)
 		b.Font = Enum.Font.Code
-		b.TextSize = 14
+		b.TextSize = 13
 		b.TextWrapped = true
 		b.TextColor3 = Color3.new(1, 1, 1)
 		b.Text = label
@@ -262,14 +259,14 @@ local function buildControls(s: Session)
 	button("Heat +", function()
 		RunHudPreview.scrubHeat(0.05)
 	end)
-	button("Escape -", function()
-		RunHudPreview.scrubEscape(-0.1)
+	button("Sweep 0-100%", function()
+		RunHudPreview.sweep(8)
 	end)
-	button("Escape +", function()
-		RunHudPreview.scrubEscape(0.1)
+	button("Simulate bump", function()
+		RunHudPreview.simulateBump(false)
 	end)
-	button("Run countdown", function()
-		RunHudPreview.runCountdown()
+	button("Sim. bump +15% heat", function()
+		RunHudPreview.simulateBump(true)
 	end)
 	button("Mock Hop", function()
 		RunHudPreview.mockHop()
@@ -328,17 +325,17 @@ function RunHudPreview.start(): boolean
 	local trove = Trove.new()
 	local s: Session = {
 		trove = trove,
-		countdownTrove = trove:Extend(),
+		driverTrove = trove:Extend(),
 		hud = nil,
 		controls = nil,
 		status = nil,
 		valueIndex = 2,
-		heat = STAGE_HEAT.Calm,
+		heat = 0,
 		meltdown = false,
-		remaining = 1,
 		motion = "Follow",
 		grey = false,
-		countdownRunning = false,
+		driver = nil,
+		note = "",
 		inputLog = nil,
 	}
 	session = s
@@ -369,77 +366,92 @@ local function active(): Session?
 	return session
 end
 
+-- Sets an exact mock Heat (0 to 1). Below 1 this leaves Meltdown.
+function RunHudPreview.setHeat(heat01: number)
+	local s = active()
+	if not s then
+		return
+	end
+	stopDriver(s)
+	s.meltdown = false
+	s.heat = math.clamp(heat01, 0, 0.999)
+	s.note = ""
+	render(s)
+end
+
 function RunHudPreview.setStage(stage: HeatStage)
 	local s = active()
 	if not s then
 		return
 	end
-	stopCountdown(s)
+	stopDriver(s)
 	s.meltdown = stage == "Meltdown"
 	s.heat = STAGE_HEAT[stage]
-	s.remaining = 1
+	s.note = ""
 	render(s)
 end
 
--- Heat scrub stays below Meltdown; Meltdown is entered only on purpose.
 function RunHudPreview.scrubHeat(delta: number)
 	local s = active()
 	if not s then
 		return
 	end
-	stopCountdown(s)
+	RunHudPreview.setHeat((if s.meltdown then 1 else s.heat) + delta)
+end
+
+-- Mock driver: raises Heat continuously from 0 to 100% over `seconds`, then
+-- enters a mock Meltdown and holds it. It ends nothing.
+function RunHudPreview.sweep(seconds: number?)
+	local s = active()
+	if not s then
+		return
+	end
+	stopDriver(s)
+	local duration = seconds or 8
 	s.meltdown = false
-	s.heat = math.clamp(s.heat + delta, 0, 0.99)
-	render(s)
-end
-
-function RunHudPreview.scrubEscape(delta: number)
-	local s = active()
-	if not s then
-		return
-	end
-	stopCountdown(s)
-	s.meltdown = true
-	s.heat = 1
-	s.remaining = math.clamp(s.remaining + delta, 0, 1)
-	render(s)
-end
-
--- Mock driver: drains the escape bar from 1 to 0 over COUNTDOWN_SECONDS and
--- then stops at 0. It ends nothing; the real decision belongs to Lane 1.
-function RunHudPreview.runCountdown()
-	local s = active()
-	if not s then
-		return
-	end
-	stopCountdown(s)
-	s.meltdown = true
-	s.heat = 1
-	s.remaining = 1
-	s.countdownRunning = true
-	s.countdownTrove:Connect(RunService.Heartbeat, function(dt: number)
-		s.remaining = math.max(0, s.remaining - dt / COUNTDOWN_SECONDS)
-		render(s)
-		if s.remaining <= 0 then
-			stopCountdown(s)
-			render(s)
-			setStatus(s, "Meltdown | escape 0% | mock window expired (preview: no run ended)")
+	s.heat = 0
+	s.driver = "sweep"
+	s.note = "mock sweep"
+	s.driverTrove:Connect(RunService.Heartbeat, function(dt: number)
+		s.heat = math.min(0.999, s.heat + dt / duration)
+		if s.heat >= 0.999 then
+			s.meltdown = true
+			s.note = "mock Meltdown (no run ends)"
+			stopDriver(s)
 		end
+		render(s)
 	end)
 	render(s)
 end
 
--- Mock Hop: Heat resets on every Hop, which also clears Meltdown and stops
--- the mock countdown and any danger pulse.
+-- Plays the presentation-only bump reaction. With addHeat, the mock fixture
+-- also raises Heat by a labelled, simulated amount; real bump Heat is Lane 1's.
+function RunHudPreview.simulateBump(addHeat: boolean)
+	local s = active()
+	if not s then
+		return
+	end
+	s.hud:jolt(1)
+	if addHeat and not s.meltdown then
+		s.heat = math.min(0.999, s.heat + SIMULATED_BUMP_HEAT)
+		s.note = "simulated bump +15% (preview only)"
+	else
+		s.note = "simulated bump"
+	end
+	render(s)
+end
+
+-- Mock Hop: Heat resets on every Hop, which also clears Meltdown and every
+-- alarm effect.
 function RunHudPreview.mockHop()
 	local s = active()
 	if not s then
 		return
 	end
-	stopCountdown(s)
+	stopDriver(s)
 	s.meltdown = false
-	s.remaining = 1
 	s.heat = 0
+	s.note = "mock Hop"
 	render(s)
 end
 
@@ -546,27 +558,6 @@ function RunHudPreview.probeInput()
 	end)
 end
 
--- Lists the GUI objects under a screen point and whether any can capture input.
-function RunHudPreview.hitTest(x: number, y: number): { string }
-	local found = {}
-	for _, object in playerGui():GetGuiObjectsAtPosition(x, y) do
-		local interactable = true
-		pcall(function()
-			interactable = (object :: any).Interactable
-		end)
-		table.insert(
-			found,
-			string.format(
-				"%s Active=%s Interactable=%s",
-				object:GetFullName():gsub("^.-PlayerGui%.", ""),
-				tostring(object.Active),
-				tostring(interactable)
-			)
-		)
-	end
-	return found
-end
-
 -- Read-only summary for review and tests.
 function RunHudPreview.debug(): { [string]: any }
 	local s = active()
@@ -586,8 +577,9 @@ function RunHudPreview.debug(): { [string]: any }
 		hudGuis = hudCount,
 		controlGuis = controlsCount,
 		greyEffect = Lighting:FindFirstChild(GREY_EFFECT_NAME) ~= nil,
-		countdownRunning = if s then s.countdownRunning else false,
+		driver = if s then s.driver else nil,
 		inputLog = if s then s.inputLog else nil,
+		clock = AlarmClock.stats(),
 		hud = if s and s.hud then s.hud:getDebugState() else nil,
 	}
 end
