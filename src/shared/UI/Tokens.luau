@@ -1,0 +1,156 @@
+--!strict
+-- Shared UI style tokens for Car Hop (Lane 3 owns this module).
+--
+-- Approved by Adam on 2026-10-19: Fredoka One for game text (36 / 24 / 18,
+-- 16 minimum), touch targets of 48 px (56 px for primary buttons), the
+-- short-side scaling rule below, and following Roblox's Reduce Motion
+-- setting. Colours, spacing, radii, strokes and motion timings are part of
+-- the HUD sample that is still pending Adam's review
+-- (vault/design/visual-direction.md).
+--
+-- Units: every size here is a design pixel at scale 1.0. Widgets are scaled
+-- once, by a UIScale at each widget's root (see uiScaleFor). Components must
+-- not multiply these numbers by the scale themselves.
+
+local Tokens = {}
+
+local function rgb(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
+end
+
+export type Palette = {
+	Card: Color3,
+	CardInset: Color3,
+	Text: Color3,
+	TextSecondary: Color3,
+	Stroke: Color3,
+	Shadow: Color3,
+	Track: Color3,
+	Primary: Color3,
+	PrimaryPressed: Color3,
+	Success: Color3,
+	Danger: Color3,
+	Warning: Color3,
+	Calm: Color3,
+	Coin: Color3,
+	Steam: Color3,
+	Smoke: Color3,
+	StripeLight: Color3,
+}
+
+-- Colour roles. Red (Danger) is reserved for danger; orange (Primary) for go/buy.
+Tokens.Color = table.freeze({
+	Card = rgb(255, 244, 220), -- #FFF4DC cream card
+	CardInset = rgb(246, 230, 191), -- #F6E6BF
+	Text = rgb(30, 42, 74), -- #1E2A4A navy
+	TextSecondary = rgb(74, 85, 120), -- #4A5578
+	Stroke = rgb(30, 42, 74), -- navy outlines
+	Shadow = rgb(30, 42, 74),
+	Track = rgb(255, 255, 255), -- empty gauge track
+	Primary = rgb(255, 138, 31), -- #FF8A1F
+	PrimaryPressed = rgb(217, 106, 0), -- #D96A00
+	Success = rgb(61, 190, 108), -- #3DBE6C
+	Danger = rgb(229, 72, 77), -- #E5484D
+	Warning = rgb(255, 184, 28), -- #FFB81C
+	Calm = rgb(63, 182, 216), -- #3FB6D8
+	Coin = rgb(255, 200, 61), -- #FFC83D
+	Steam = rgb(255, 255, 255),
+	Smoke = rgb(150, 154, 168), -- #969AA8 grey smoke
+	StripeLight = rgb(255, 248, 236), -- #FFF8EC
+} :: Palette)
+
+Tokens.FontFamily = "FredokaOne"
+
+function Tokens.font(): Font
+	return Font.fromName(Tokens.FontFamily)
+end
+
+Tokens.TextSize = table.freeze({
+	Display = 36,
+	Value = 24,
+	Label = 18,
+	Minimum = 16,
+})
+
+Tokens.Space = table.freeze({
+	XS = 4,
+	S = 8,
+	M = 12,
+	L = 16,
+	XL = 24,
+	XXL = 32,
+})
+
+Tokens.Radius = table.freeze({
+	Small = UDim.new(0, 8),
+	Card = UDim.new(0, 14),
+	Panel = UDim.new(0, 20),
+	Pill = UDim.new(1, 0),
+})
+
+Tokens.Stroke = table.freeze({
+	Thin = 2,
+	Regular = 3,
+	Thick = 4,
+})
+
+Tokens.Shadow = table.freeze({
+	OffsetY = 4,
+	Transparency = 0.8,
+})
+
+-- Interactive elements never end up smaller than these on screen, because the
+-- scale below never goes under 1.0.
+Tokens.Touch = table.freeze({
+	Minimum = 48,
+	Primary = 56,
+})
+
+Tokens.Scale = table.freeze({
+	BaseShortSide = 390,
+	Min = 1,
+	Max = 1.75,
+})
+
+-- The approved rule: the viewport's short side divided by 390, clamped to
+-- 1.0 to 1.75. Phones stay at 1.0; a 1920 x 1080 screen gets 1.75.
+function Tokens.uiScaleFor(viewport: Vector2): number
+	local shortSide = math.min(viewport.X, viewport.Y)
+	if shortSide <= 0 then
+		return Tokens.Scale.Min
+	end
+	return math.clamp(shortSide / Tokens.Scale.BaseShortSide, Tokens.Scale.Min, Tokens.Scale.Max)
+end
+
+-- Motion timings in seconds. With reduced motion every tween uses 0 and no
+-- pulse runs.
+Tokens.Motion = table.freeze({
+	Press = 0.1,
+	Panel = 0.2,
+	GaugeFill = 0.15,
+	HeatReset = 0.25,
+	WarningPulseHz = 1.1,
+	CriticalPulseStartHz = 1.0,
+	-- Pulse rate used at 100% Heat and through Meltdown. Decision 0008 caps
+	-- flashing at 3 per second; 2.5 keeps a margin under that ceiling.
+	PulseMaxHz = 2.5,
+	FlashCeilingHz = 3,
+})
+
+-- Converts a colour to the grey of the same perceived brightness. Used by the
+-- development preview to check that nothing depends on colour alone.
+function Tokens.toGrey(color: Color3): Color3
+	local l = 0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B
+	return Color3.new(l, l, l)
+end
+
+function Tokens.greyPalette(): Palette
+	local source = Tokens.Color :: any
+	local grey = {}
+	for role, color in source do
+		grey[role] = Tokens.toGrey(color)
+	end
+	return table.freeze(grey) :: any
+end
+
+return table.freeze(Tokens)
