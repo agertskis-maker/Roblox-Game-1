@@ -98,6 +98,12 @@ Capture screenshots of each changed screen and reward moment. Review against the
 approved visual direction at the phone and desktop baseline. Say which sizes
 were actually inspected; a desktop capture is not a phone test.
 
+When a review involves motion or animation, include a real-time video in the
+review page. Verify playback and label capture limitations. Still frames
+supplement motion evidence. If recording is blocked, report that and request
+the minimum user assistance needed; do not mark motion visually verified from
+screenshots alone. Ask before installing a recorder.
+
 ## 6. Clean up
 
 Stop play, delete temporary test scripts and instances you created, and confirm

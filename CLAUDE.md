@@ -58,3 +58,11 @@ Run `./scripts/check.ps1` from PowerShell after meaningful source edits. It chec
 strict directives, Selene, StyLua, and a Rojo build without rewriting sources.
 Studio behavior needs separate testing. If a tool is blocked or unavailable,
 report that limitation; never treat a skipped check as passing.
+
+## Motion review evidence
+
+When a review involves motion or animation, include a real-time video in the
+review page. Verify playback and label capture limitations. Still frames
+supplement motion evidence. If recording is blocked, report that and request
+the minimum user assistance needed; do not mark motion visually verified from
+screenshots alone. Ask before installing a recorder.
