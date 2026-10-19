@@ -1,6 +1,8 @@
 # Car Hop (working title): Game Outline
 
-**Version 2.0 | 18 October 2026 | Supersedes "Car-Hopping & Racetrack" v1.0**
+**Version 2.1 | 19 October 2026 | Supersedes "Car-Hopping & Racetrack" v1.0**
+
+> v2.1 change: the 100% Heat "Blowout" and 1-second "Sputter" window of v2.0 are superseded by **Critical and Meltdown** (decision 0008, 19 October 2026). Sections 02, 03, 06, 13, 15 and 18 are updated; nothing else changed.
 
 This is the reference document for what the game is. It is written so that anyone on the team, or Claude in a fresh session, can read it and know exactly what we are building in every area. It is a design outline, not a build log and not the canonical GDD in the repository vault. When the live GDD, AGENTS.md, or the decision register conflicts with this file, the live repository record wins and this file should be refreshed.
 
@@ -60,7 +62,8 @@ These are the words used in UI and in code. Code identifiers may be longer, but 
 | UI word | Meaning |
 |---|---|
 | **Hop** | Jumping from your current car (or from the road) onto another car. |
-| **Heat** | The overheating meter on the car you are riding. Full Heat ends the run. |
+| **Heat** | The overheating meter on the car you are riding. Full Heat starts a Meltdown. |
+| **Meltdown** | The short escape window after Heat reaches 100%: the car is hard to control and the player must Hop out before it crashes. Shown as "Losing control!". |
 | **Keys** | The claim meter. Stay aboard an unowned car until the Keys meter fills and the car is yours. "You got the Keys!" |
 | **Claim** | The verb for earning a car permanently. Replaces "tame". |
 | **Joyride Bonus** | Cash paid for filling the Keys meter on a car you already own. |
@@ -80,7 +83,7 @@ These are the words used in UI and in code. Code identifiers may be longer, but 
 
 ## 03 / Design pillars
 
-1. **Readable danger.** The player always knows why they failed: Heat was full, they missed a Hop, they hit a hazard head-on, or traffic caught them on foot. No arbitrary deaths.
+1. **Readable danger.** The player always knows why they failed: they did not escape a Meltdown, they missed a Hop, they hit a hazard head-on, or traffic caught them on foot. No arbitrary deaths.
 2. **Every car does something.** Each car family changes how the run plays. A car is a tool, a trophy, and an earner, in that order of discovery.
 3. **The island shows progress.** You can tell how far a player has come by walking past their plot. Speedway size, Paddock, buildings, and the cars on the track are the scoreboard.
 4. **One currency, clear prices.** Cash in, Cash out. Players always know what the next purchase is and what it does.
@@ -227,9 +230,10 @@ Tutorial rules:
 - Stages:
   - **0 to 60%:** calm. Gauge visible but quiet.
   - **60 to 85%: Warning.** Gauge turns amber and pulses, engine rattle sound begins, small steam puffs from the hood, the Heat icon wobbles.
-  - **85 to 100%: Critical.** Gauge red, car shakes visibly, horn beep pattern, the screen edge gets a soft heat shimmer. Still fully steerable.
-  - **100%: Blowout.** The car coughs smoke and starts slowing. A 1.0 second (**Tunable**) **Sputter** window remains in which a Hop still works. If the player is still aboard when the car stops, the run ends.
-- Color is never the only signal: shape (the gauge grows), motion (shaking), and sound all change with stage.
+  - **85% to below 100%: Critical** (player label "Too hot!"). Gauge red, car shakes visibly, horn beep pattern. Still fully steerable. **Decided (0008):** red emphasis is localized to the ridden car and the Heat gauge; flashing speeds up toward 100% but never exceeds three flashes per second (a ceiling, not a target); a restrained red pulse is preferred to hard on/off flashing; never flash the whole screen or add a red full-screen overlay (this replaces v2.0's screen-edge heat shimmer). With reduced motion: steady red emphasis, a warning label or icon, and stripes; no flashing, shaking, or pulsing.
+  - **100%: Meltdown** (player label "Losing control!"). **Decided (0008):** reaching 100% does not eject the player or end the run. The car becomes hard to control during a brief escape window; Hop stays available throughout; a Keys meter that completes during Meltdown still claims the car; if the player has not escaped when the window ends, the car crashes and the run ends; escaping clears the old car's Meltdown presentation and the new car's Heat resets as on every Hop. **Proposed, Tunable, owned by Lane 1 (Brian R):** a 3-second window, sluggish or delayed steering, increasing wobble and sideways drift, gradually falling speed, and a final spinout; controls are never inverted.
+  - *Superseded (v2.0):* "100%: Blowout" with a 1.0 second Sputter window. Kept here only as history; see decision 0008.
+- Color is never the only signal: shape (the gauge grows), motion (shaking), and sound all change with stage. At Meltdown the Heat bar becomes a labelled escape countdown that drains from full to empty, with a smoke icon and danger stripes, so it cannot be read as cooling down.
 - **Bumps add Heat:**
   - Side scrape against another car: +15% Heat, sparks, a scrape sound. The car nudges apart.
   - Rear-ending a car ahead: +30% Heat, a jolt, and a brief slowdown that lets traffic behind close in. Not a run end.
@@ -246,6 +250,7 @@ Tutorial rules:
 - Landing on an unowned model shows the **Keys meter** over the car (a key outline filling up). When full, the car is claimed instantly on the server, the card appears, and the Garage count updates.
 - Claim time is by rarity, and every family's Heat Capacity is set so that even the Legendary claim completes with at least 3 seconds of Heat to spare if the player lands clean. A fair claim is always possible.
 - Bumps during a claim add Heat but do not reset the Keys meter.
+- A Keys meter that completes during Meltdown still claims the car (**Decided**, 0008).
 - Only one car can be claimed per landing; hopping off resets the Keys meter for that instance.
 - A full Speedway never blocks a claim. Claims go to the Garage; the Lineup is a separate choice.
 
@@ -285,7 +290,7 @@ Hazard rules:
 
 **Decided:** retry is free; claimed cars are kept; no lengthy failure sequence.
 
-- Run end causes: full Heat with the Sputter window missed, Foot Dash expired or hit from behind, head-on hit on Construction, falling at a Gap.
+- Run end causes: the Meltdown escape window expired with the player still aboard, Foot Dash expired or hit from behind, head-on hit on Construction, falling at a Gap.
 - Failure presentation is under 2 seconds: a soft crash puff, the camera settles, and the **Results** panel slides up: Distance, Cars Claimed (with their cards), Joyride Bonuses, Coins, Milestones, Total Cash. New personal best distance gets a ribbon.
 - Buttons: **Retry** (same World, new seed, instant) and **Go Home** (back to your plot gate). Missions that were completed during the run are shown as completed on this screen.
 - Cash earned in a run is added to the balance as it happens (server-side) so a disconnect mid-run loses nothing already earned.
@@ -570,13 +575,13 @@ Rules:
 
 - One font, one panel style (cream card, navy text, rounded corners, soft drop shadow), one accent color per action type (orange for go/buy, green for success, red only for danger).
 - Big buttons, icon-first labels, numbers large. Minimum 44 px touch targets. Nothing important lives in a corner that a thumb covers on a phone.
-- HUD in a run: Cash (top left), Distance (top center), Heat gauge (bottom center, grows with stage), Keys meter over the target car, Hop icon (bottom right on touch; hidden on keyboard). Nothing else.
+- HUD in a run: Cash (top left), Distance (top center), Heat gauge (bottom center, grows with stage; at Meltdown it becomes the escape countdown), Keys meter over the target car, Hop icon (bottom right on touch; hidden on keyboard). Nothing else.
 - Every screen is reviewed at phone portrait, phone landscape, and 1080p desktop in Studio's emulator before it is called done.
 
 ### Audio
 
 - Music: one loop per World plus an island loop and a Stunt Circuit loop. Volume ducks under fanfares.
-- Key sounds, all short: Hop whoosh, landing thump, Keys tick as the meter fills, "You got the Keys!" fanfare (the most satisfying sound in the game), Heat rattle rising by stage, horn beeps at Critical, blowout cough, Lap Pay chime, Milestone chime, Variant sparkle, medal fanfare.
+- Key sounds, all short: Hop whoosh, landing thump, Keys tick as the meter fills, "You got the Keys!" fanfare (the most satisfying sound in the game), Heat rattle rising by stage, horn beeps at Critical, Meltdown cough and sputter, Lap Pay chime, Milestone chime, Variant sparkle, medal fanfare.
 - No sound carries information alone; every cue pairs with a visual.
 
 ### Game feel rules
@@ -622,6 +627,8 @@ This section describes the shape of the implementation so the design and the cod
 - A newcomer performs the first Hop and understands why the claimed car matters within the tutorial.
 - Landings are readable; a miss is traceable to the ring moving or a late tap.
 - Every rarity can be claimed with Heat to spare from a clean landing in every family.
+- Reaching 100% Heat starts a Meltdown, not an immediate run end; a Hop during Meltdown escapes and clears its presentation; a claim completing during Meltdown is granted; the run ends only when the escape window expires.
+- Critical and Meltdown flashing stays localized and at or under three flashes per second; with reduced motion there is no flashing, shaking, or pulsing, and danger still reads.
 - A claim survives crash, disconnect, and rejoin; a full Speedway never blocks ownership.
 - Joyride Bonus pays once per car instance; offline earnings never pay the same hours twice.
 - Lap Pay numbers on screen equal the server's credits.
@@ -657,6 +664,8 @@ This section describes the shape of the implementation so the design and the cod
 **Decided by the owner, 18 October 2026:** concept selected; phone and PC; no deadline; cars have family quirks; one-tap auto-targeted Hop; landing on the road allowed and should not be too easy; endless runs; Heat resets on every Hop; claim time a few seconds, longer for rarer cars; same-direction traffic with potholes, oil slicks, construction, and gap jumps; bumps add Heat instead of ending the run; Gold, Chrome, and Rainbow Variants; lump-sum Lap Pay per car scaled by rarity, straight to balance; visitors can walk on any Speedway but change only their own; two or three Worlds as variations (city, desert, mountain pass); World unlocks need Cash plus cars from the previous World; race rewards may include cosmetics; game passes from the start.
 
 **Delegated to Claude and chosen in this revision (all reversible):** working title Car Hop; cartoony-cool tone; 12-player servers and a ring-of-plots island; the tutorial sequence and assists; private client-simulated runs validated by a server seed; single place with streaming; chase camera spec; Foot Dash rules; Heat stages and bump values; eight families and their quirks; four rarities; Variant spawn-only-if-owned rule and multipliers; road coins; Milestones; Start In picker; Speedway lap pacing and auto-add; Slot and Income Tier ladders with visuals; offline at 50% rate with an 8-hour cap and a welcome-back card; single currency; three Worlds with proposed rosters; ghost time trial racing at launch with live lobbies deferred; three race stats with a 15% top-speed spread; medals per car and daily reward taper; customization scope; Missions and Goals at launch; the three-pass set; art, UI, and audio direction; staged production plan.
+
+**Decided by Adam, 19 October 2026 (v2.1, decision 0008):** Critical uses localized red emphasis with a three-flashes-per-second ceiling and a reduced-motion form; 100% Heat starts a Meltdown escape window instead of a Blowout and Sputter. Meltdown driving details are Proposed and Tunable, owned by Lane 1.
 
 ## 19 / References
 
