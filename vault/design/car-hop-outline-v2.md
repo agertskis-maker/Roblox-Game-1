@@ -1,8 +1,10 @@
 # Car Hop (working title): Game Outline
 
-**Version 2.1 | 19 October 2026 | Supersedes "Car-Hopping & Racetrack" v1.0**
+**Version 2.2 | 19 October 2026 | Supersedes "Car-Hopping & Racetrack" v1.0**
 
 > v2.1 change: the 100% Heat "Blowout" and 1-second "Sputter" window of v2.0 are superseded by **Critical and Meltdown** (decision 0008, 19 October 2026). Sections 02, 03, 06, 13, 15 and 18 are updated; nothing else changed.
+>
+> v2.2 change (decision 0008 amendment, 19 October 2026): Meltdown shows **no visible escape timer**; the HUD shows "Losing control!", **HOP NOW!**, smoke and a localized alarm instead. Heat fill and colour are continuous, and the Critical panel alarm shares one clock with the later car effect. Sections 06, 13, 15 and 18 are updated.
 
 This is the reference document for what the game is. It is written so that anyone on the team, or Claude in a fresh session, can read it and know exactly what we are building in every area. It is a design outline, not a build log and not the canonical GDD in the repository vault. When the live GDD, AGENTS.md, or the decision register conflicts with this file, the live repository record wins and this file should be refreshed.
 
@@ -233,7 +235,9 @@ Tutorial rules:
   - **85% to below 100%: Critical** (player label "Too hot!"). Gauge red, car shakes visibly, horn beep pattern. Still fully steerable. **Decided (0008):** red emphasis is localized to the ridden car and the Heat gauge; flashing speeds up toward 100% but never exceeds three flashes per second (a ceiling, not a target); a restrained red pulse is preferred to hard on/off flashing; never flash the whole screen or add a red full-screen overlay (this replaces v2.0's screen-edge heat shimmer). With reduced motion: steady red emphasis, a warning label or icon, and stripes; no flashing, shaking, or pulsing.
   - **100%: Meltdown** (player label "Losing control!"). **Decided (0008):** reaching 100% does not eject the player or end the run. The car becomes hard to control during a brief escape window; Hop stays available throughout; a Keys meter that completes during Meltdown still claims the car; if the player has not escaped when the window ends, the car crashes and the run ends; escaping clears the old car's Meltdown presentation and the new car's Heat resets as on every Hop. **Proposed, Tunable, owned by Lane 1 (Brian R):** a 3-second window, sluggish or delayed steering, increasing wobble and sideways drift, gradually falling speed, and a final spinout; controls are never inverted.
   - *Superseded (v2.0):* "100%: Blowout" with a 1.0 second Sputter window. Kept here only as history; see decision 0008.
-- Color is never the only signal: shape (the gauge grows), motion (shaking), and sound all change with stage. At Meltdown the Heat bar becomes a labelled escape countdown that drains from full to empty, with a smoke icon and danger stripes, so it cannot be read as cooling down.
+- Color is never the only signal: shape (the gauge grows), motion (shaking), and sound all change with stage.
+- **HUD Heat display (Decided, decision 0008 amendment):** the thermometer and bar follow Heat continuously; the bar is a fixed blue-to-red temperature scale (Calm blue at 0%, Warning yellow at 60%, orange between, Danger red from 85%) revealed from the left, so its tip colour matches the thermometer. At Critical the Heat panel becomes a localized alarm (panel pulse to a light red, halo, stronger stripes, two siren lights) driven by one shared alarm clock that the car's emphasis will also use. At Meltdown there is **no visible escape timer**: the bar stays full and joins the alarm, the label "Losing control!" is joined by the instruction **HOP NOW!**, and smoke rises from the thermometer's lifted cap. All visible alarm peaks combined stay under three per second. With reduced motion: steady light-red panel, solid lights, static stripes, a still smoke cloud, readable labels.
+  - *Superseded (v2.1):* "At Meltdown the Heat bar becomes a labelled escape countdown that drains from full to empty". Kept as history.
 - **Bumps add Heat:**
   - Side scrape against another car: +15% Heat, sparks, a scrape sound. The car nudges apart.
   - Rear-ending a car ahead: +30% Heat, a jolt, and a brief slowdown that lets traffic behind close in. Not a run end.
@@ -575,7 +579,7 @@ Rules:
 
 - One font, one panel style (cream card, navy text, rounded corners, soft drop shadow), one accent color per action type (orange for go/buy, green for success, red only for danger).
 - Big buttons, icon-first labels, numbers large. Minimum 44 px touch targets. Nothing important lives in a corner that a thumb covers on a phone.
-- HUD in a run: Cash (top left), Distance (top center), Heat gauge (bottom center, grows with stage; at Meltdown it becomes the escape countdown), Keys meter over the target car, Hop icon (bottom right on touch; hidden on keyboard). Nothing else.
+- HUD in a run: Cash (top left), Distance (top center), Heat gauge (bottom center, grows with stage; at Meltdown it stays full, shows HOP NOW! and smoke, and shows no timer), Keys meter over the target car, Hop icon (bottom right on touch; hidden on keyboard). Nothing else.
 - Every screen is reviewed at phone portrait, phone landscape, and 1080p desktop in Studio's emulator before it is called done.
 
 ### Audio
@@ -629,6 +633,7 @@ This section describes the shape of the implementation so the design and the cod
 - Every rarity can be claimed with Heat to spare from a clean landing in every family.
 - Reaching 100% Heat starts a Meltdown, not an immediate run end; a Hop during Meltdown escapes and clears its presentation; a claim completing during Meltdown is granted; the run ends only when the escape window expires.
 - Critical and Meltdown flashing stays localized and at or under three flashes per second; with reduced motion there is no flashing, shaking, or pulsing, and danger still reads.
+- During Meltdown the HUD shows no escape timer; "Losing control!" and HOP NOW! are readable at phone sizes; a Hop clears the alarm, smoke and thermometer state at once.
 - A claim survives crash, disconnect, and rejoin; a full Speedway never blocks ownership.
 - Joyride Bonus pays once per car instance; offline earnings never pay the same hours twice.
 - Lap Pay numbers on screen equal the server's credits.
@@ -666,6 +671,8 @@ This section describes the shape of the implementation so the design and the cod
 **Delegated to Claude and chosen in this revision (all reversible):** working title Car Hop; cartoony-cool tone; 12-player servers and a ring-of-plots island; the tutorial sequence and assists; private client-simulated runs validated by a server seed; single place with streaming; chase camera spec; Foot Dash rules; Heat stages and bump values; eight families and their quirks; four rarities; Variant spawn-only-if-owned rule and multipliers; road coins; Milestones; Start In picker; Speedway lap pacing and auto-add; Slot and Income Tier ladders with visuals; offline at 50% rate with an 8-hour cap and a welcome-back card; single currency; three Worlds with proposed rosters; ghost time trial racing at launch with live lobbies deferred; three race stats with a 15% top-speed spread; medals per car and daily reward taper; customization scope; Missions and Goals at launch; the three-pass set; art, UI, and audio direction; staged production plan.
 
 **Decided by Adam, 19 October 2026 (v2.1, decision 0008):** Critical uses localized red emphasis with a three-flashes-per-second ceiling and a reduced-motion form; 100% Heat starts a Meltdown escape window instead of a Blowout and Sputter. Meltdown driving details are Proposed and Tunable, owned by Lane 1.
+
+**Decided by Adam, 19 October 2026 (v2.2, decision 0008 amendment):** no visible Meltdown escape timer; Losing control!, HOP NOW!, smoke and a localized alarm instead; continuous Heat fill and colour; one alarm clock shared by the Heat panel and the car effect. Lane 1 keeps the escape window's timing and the control behaviour.
 
 ## 19 / References
 
