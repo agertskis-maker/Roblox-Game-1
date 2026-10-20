@@ -4,3 +4,11 @@ args = [
     "/c",
     'cd /d %LOCALAPPDATA%\Roblox && .\mcp.bat',
 ]
+
+[mcp_servers.blender]
+command = "uvx"
+args = ["mcp-for-blender"]
+
+[mcp_servers.blender.env]
+BLENDER_MCP_SAFE_MODE = "1"
+DISABLE_TELEMETRY = "true"
