@@ -121,3 +121,6 @@ end
 6. Does anything need the markers on the client under StreamingEnabled?
 7. Should the server warn when `Players.MaxPlayers` exceeds `PlotCount`?
 8. If later Speedway tiers change the lap path, how should each tier's path be published (a path set per tier)?
+
+## Open for Lane 1 (Brian R) and Lane 2 (Brian L): lap speed
+A 15 second lap (outline 08, Tunable) on the 427.1-stud path means about **28.5 studs/s**, against 16.7 on option A's 250-stud oval. Keep 15 s for livelier cars, or lengthen the lap? Not decided here (Adam, 2026-10-20); Lane 3 only supplies the path.

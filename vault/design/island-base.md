@@ -23,6 +23,13 @@ Sources: Adam's island brief and his 8-plot change (2026-10-20 session), [[GDD]]
 - 8 plots, 45 degree slices, at most 8 players per server; the plot count is one config value ([[0011-eight-plots-per-server]]).
 - Island at roughly option A's footprint; the freed room goes to bigger Speedways, with room for the whole upgrade path in the two Speedway references.
 - Walking target: any plot gate to any shared plaza destination in under 8 seconds (replaces the outline's 20-second crossing).
+- Layout: the track-first plot (revision 2) is approved, with the go-ahead for Stage A, stopping at the end of Stage A for review.
+- Build recipes must not reach players: they go in a server-only location under an `Island` folder, with `assets/island/` for the manifest and rebuild notes. `default.project.json` is not edited by Lane 3 alone. Status: **blocked**. Lane 3 owns no server-only folder (decision 0007: `src/server` is Lane 2's, and `default.project.json` has no lane), so the options are with Adam (see the log).
+- Edit-mode build in `CarHop-Island-Test.rbxl` approved. `execute_luau` is approved in that place only, limited to calling the island modules, measuring and reading state.
+- Smooth Terrain for the coast approved, with terrain material colours and water settings saved and restored, and edits only inside the measured island area.
+- Studio sharing by the lock file `C:UsersagertDocumentsCar-Hop-ArtSTUDIO_LOCK.txt`, checked before every Studio step. A lock older than 2 hours is reported to Adam, never deleted.
+- Stage A includes a performance test: placeholder blocks lapping several Speedways along the path markers, moved by each player's game with no physics and distant plots paused. The report gives measured frame rate and memory separately from estimates. Place-wide streaming settings are proposed, not changed.
+- Lap speed (28.5 studs/s for a 15 s lap) stays an open question for Lanes 1 and 2 in [[plot-marker-contract]].
 
 ## Measured layout (revision 2, recommended: track first)
 Plaza frame: island centre at the origin, bearings clockwise from north (north = Roblox -Z). Plot frame: `u` is outward along the plot's centre line, `v` (or `x`) is to the right when facing outward. All values are studs. Computed by a geometry script (Node, scratchpad `layout8.js`), not yet built; Stage A builds it full size and measures it.
