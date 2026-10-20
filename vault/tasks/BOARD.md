@@ -25,7 +25,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## In progress
 - [ ] Local build connection on the repository owner's machine: tools, packages, check, Rojo plugin file and Studio MCP are done and logged; Rojo Connect waits until the owner names their private test place (Rojo goes only to a private place, [[0007-concept-car-hop-and-lanes]]) - Claude Code at the repository owner's request ([[2026-10-18]])
-- [ ] Lane 3 visual direction sample: Pip, Downtown road slice, and responsive HUD - Adam, with Claude Code. Order: HUD first (in review), then Pip, then the Downtown scene, each stopping for Adam's approval. Covers the Lane 3 Stage 0 visual-direction row; branch `feature/lane3-visual-sample`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
+- [ ] Lane 3 visual direction sample: Pip, Downtown road slice, and responsive HUD - Adam, with Claude Code. Order: HUD first (approved by Adam 2026-10-20, revision 4; pull request open, not merged), then Pip (not started), then the Downtown scene, each stopping for Adam's approval. Covers the Lane 3 Stage 0 visual-direction row; branch `feature/lane3-visual-sample`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
 
 ## Up next
 - [ ] Name the one integration person who may connect Rojo to the shared Team Create place (lane owners are named above) ([[0007-concept-car-hop-and-lanes]])
@@ -44,6 +44,8 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] At the concept meeting: set `GDD.md` to `status: selected` with `concept:` named and add a decision note, and assign area owners on this board ([[0004-workflow-rules]])
 - [ ] Each teammate who will animate: install Blender 5.2 LTS, `uv`, the Blender MCP server and add-on once per machine, with safe mode on (see `docs/ANIMATION_PIPELINE.md` section 3, [[0005-animation-pipeline]])
 
+- [ ] Lane 3 HUD checks still open after approval (not passed): real phones and phone performance; the player's own Roblox Reduce Motion setting; the 378 to 398 px one-row range on screen; the HUD over the real road and chase camera (Downtown scene review) ([[visual-direction]], [[2026-10-20]])
+
 ## Backlog
 - [ ] _add ideas here_
 - [ ] Decide the reduced-motion mechanism with the visual direction, after the concept is chosen ([[0004-workflow-rules]])
@@ -51,6 +53,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Lane 3 HUD stage of the visual sample (ENGINE HEAT panel, Cash counter, Distance B), approved by Adam on 2026-10-20 at revision 4; tested in Studio's Device Simulator only, open items are under "Up next" - Adam, with Claude Code ([[2026-10-19]], [[2026-10-20]], [[visual-direction]])
 - [x] Agree on the game concept and fill in [[GDD]]: Car Hop selected by the team on 2026-10-18; `GDD.md` is `status: selected`, `concept: Car Hop`, summarised from [[car-hop-outline-v2]] - Claude Code at the repository owner's request ([[2026-10-19]], [[0007-concept-car-hop-and-lanes]])
 - [x] Prepare car-hopping concept outline as PDF and Markdown for owner/Claude review - Codex; see [[car-hopping-game-outline]] and [[2026-10-18]]
 - [x] Squash loop feel check: the repository owner watched the scale rig and the translation-bone rig side by side in a review place and judged the bounce, squish and speed right; a desktop cost check showed no difference up to 800 copies - Claude Code ([[2026-10-15]], [[0005-animation-pipeline]])
