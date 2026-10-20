@@ -13,10 +13,12 @@
 -- exponential smoothing, which is frame-rate independent. With reduced
 -- motion, essential values (fill, colour, label, stage styling) snap and all
 -- decorative movement (pulse, sirens alternating, rattle, jolt, slosh,
--- bubbles, heat lines, smoke drift, cross-fade) is removed.
+-- bubbles, heat lines, smoke drift, stripe travel, HOP NOW! pulse,
+-- cross-fade) is removed.
 --
 -- Provisional interface (needs Lane 1 agreement, decision 0007):
 --   gauge:set(heat01, stage)  -- a third argument (old meltdownRemaining01) is ignored
+--   gauge:snap(heat01, stage) -- shows a state with no transition (first mount)
 --   gauge:jolt(strength?)     -- presentation-only bump reaction; changes no Heat
 --   gauge.Cue                 -- Signal(cue, stage) for future audio: "Stage" on a
 --                               stage change, "AlarmPeak" once per alarm cycle
@@ -43,7 +45,16 @@ local HALO_MAX = 10 -- how far the alarm halo reaches outside the panel
 local SMOKE_PUFFS = 7
 local BUBBLES = 3
 local HEAT_LINES = 2
+-- Hazard stripes: STRIPE_COUNT spacings across the bar, plus two spare
+-- stripes at each end so the diagonal pattern stays seamless while it moves.
 local STRIPE_COUNT = 16
+local STRIPE_SPARE = 2
+local HOP_PULSE = 0.08 -- HOP NOW! grows 1.00 -> 1.08 -> 1.00 on each panel peak
+local GLOW_REACH = 6 -- Meltdown edge glow beyond the bar's outline
+-- Smoke puffs: varied sizes and irregular spacing along one plume, so the
+-- puffs overlap into a connected cloud instead of an even chain of beads.
+local PUFF_SIZE = { 1.0, 0.72, 1.18, 0.86, 1.08, 0.78, 0.96 }
+local PUFF_OFFSET = { 0, 0.13, 0.31, 0.44, 0.6, 0.73, 0.87 }
 -- Thermometer geometry (card coordinates, design px), about 20% smaller than
 -- revision 2 so the whole instrument fits inside the card.
 local THERMO_X = 30
@@ -192,6 +203,8 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	self._bumpStrength = 0
 	self._labelFade = 1
 	self._lastPhase = 0
+	self._snapNext = false
+	self._smokeShown = true
 	self._updateCost = 0
 	self._updateFrames = 0
 
@@ -509,18 +522,19 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		table.insert(self._lineFrames, line)
 	end
 
-	-- Smoke: a fixed pool of puffs (two layered circles each), reused in a
-	-- loop. It drifts up and to the left, away from the left siren and the
-	-- title tab.
+	-- Smoke: a fixed pool of puffs reused in a loop (same budget as revision
+	-- 3: 7 puffs x 2 circles x their corners = 28 instances). Each puff is a
+	-- light grey edge with a charcoal core; puffs grow, overlap and fade as
+	-- they rise up and to the left, away from the left siren and the title tab.
 	self._puffs = {}
 	for i = 1, SMOKE_PUFFS do
-		local puff = circle(instrument, "Smoke" .. i, 10, palette.Smoke, 12)
+		local puff = circle(instrument, "Smoke" .. i, 10, palette.SmokeLight, 12)
 		puff.BackgroundTransparency = 1
-		local inner = circle(puff, "Inner", 6, palette.SmokeLight, 13)
-		inner.Position = UDim2.fromScale(0.42, 0.4)
-		inner.Size = UDim2.fromScale(0.6, 0.6)
-		inner.BackgroundTransparency = 1
-		table.insert(self._puffs, { outer = puff, inner = inner })
+		local core = circle(puff, "Core", 6, palette.SmokeCore, 13)
+		core.Position = UDim2.fromScale(0.52, 0.56)
+		core.Size = UDim2.fromScale(0.7, 0.7)
+		core.BackgroundTransparency = 1
+		table.insert(self._puffs, { outer = puff, inner = core })
 	end
 
 	-- Stage label (two layers for a short cross-fade) in a fixed-width area.
@@ -554,22 +568,23 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 	self._labelFront = 1
 
 	-- HOP NOW! instruction (not a button): danger-red text with a navy
-	-- outline and an up-arrow, right of the stage label.
+	-- outline, right-aligned and vertically centred with the stage label. It
+	-- pulses in scale on the panel's alarm peaks; the frame is anchored at its
+	-- right-centre, so the right edge stays still while it grows.
 	local hop = make("Frame", {
 		Name = "HopNow",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 18),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0, 18 + 13),
 		Size = UDim2.fromOffset(104, 26),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = card,
 	})
 	self._hop = hop
+	self._hopPulse = make("UIScale", { Name = "Pulse", Scale = 1, Parent = hop })
 	self._hopText = make("TextLabel", {
 		Name = "Text",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(1, 0.5),
-		Size = UDim2.new(1, -20, 1, 0),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		FontFace = font,
 		TextSize = Tokens.TextSize.Label,
@@ -588,23 +603,19 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Transparency = 1,
 		Parent = self._hopText,
 	})
-	self._hopArrow = {}
-	for _, rotation in { 40, -40 } do
-		local stroke = make("Frame", {
-			Name = "Arrow",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0, if rotation > 0 then 5 else 11, 0.5, 0),
-			Size = UDim2.fromOffset(4, 11),
-			Rotation = rotation,
-			BackgroundColor3 = palette.Danger,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 7,
-			Parent = hop,
-		})
-		corner(stroke, Tokens.Radius.Pill)
-		table.insert(self._hopArrow, stroke)
-	end
+
+	-- Meltdown edge glow behind the bar, pulsing with the panel.
+	self._edgeGlow = make("Frame", {
+		Name = "EdgeGlow",
+		Position = UDim2.fromOffset(TRACK_X - GLOW_REACH, TRACK_Y - GLOW_REACH),
+		Size = UDim2.fromOffset(TRACK_W + 2 * GLOW_REACH, TRACK_H + 2 * GLOW_REACH),
+		BackgroundColor3 = palette.MeltdownGlow,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = card,
+	})
+	corner(self._edgeGlow, Tokens.Radius.Pill)
 
 	-- Heat bar: a fixed temperature scale revealed from the left. A
 	-- track-coloured mask covers the part above the current Heat.
@@ -639,17 +650,20 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Parent = fillArea,
 	})
 	self._gradient = make("UIGradient", { Color = Tokens.heatColorSequence(palette), Parent = scaleFrame })
-	-- Meltdown wash: turns the full bar overheated red and carries the alarm
-	-- pulse; the temperature scale stays underneath.
+	-- Meltdown wash: turns the full bar a saturated danger red (steady; the
+	-- edge glow carries the pulse). The temperature scale stays underneath.
 	self._barFlash = make("Frame", {
 		Name = "OverheatWash",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = palette.Danger,
+		BackgroundColor3 = palette.MeltdownBar,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 6,
 		Parent = fillArea,
 	})
+	-- Diagonal stripes, clipped by the CanvasGroup. In Meltdown they travel
+	-- sideways one stripe spacing per alarm cycle; because the pattern repeats
+	-- every spacing, the wrap from phase 1 back to 0 is invisible.
 	local stripes = make("Frame", {
 		Name = "Stripes",
 		Size = UDim2.fromScale(1, 1),
@@ -658,10 +672,10 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 		Parent = fillArea,
 	})
 	self._stripeBars = {}
-	for i = 0, STRIPE_COUNT - 1 do
-		table.insert(
-			self._stripeBars,
-			make("Frame", {
+	for i = -STRIPE_SPARE, STRIPE_COUNT - 1 + STRIPE_SPARE do
+		table.insert(self._stripeBars, {
+			index = i,
+			frame = make("Frame", {
 				Name = "Bar",
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale((i + 0.5) / STRIPE_COUNT, 0.5),
@@ -672,8 +686,8 @@ function HeatGauge.new(parent: Instance, palette: Tokens.Palette, reducedMotion:
 				BorderSizePixel = 0,
 				ZIndex = 7,
 				Parent = stripes,
-			})
-		)
+			}),
+		})
 	end
 	self._mask = make("Frame", {
 		Name = "EmptyMask",
@@ -765,6 +779,24 @@ function HeatGauge.set(self: any, heat01: number, stage: HeatStage?, _ignoredLeg
 	end
 end
 
+-- Shows a state as it is, with no entrance fill, eased effect build-up,
+-- label cross-fade or stage cue (used when the HUD first mounts). An ongoing
+-- Critical or Meltdown alarm, smoke and stripes keep running afterwards.
+function HeatGauge.snap(self: any, heat01: number, stage: HeatStage?)
+	local heat = clamp01(heat01)
+	local resolved: HeatStage = stage or HeatGauge.stageFor(heat)
+	self._heat = heat
+	self._stage = resolved
+	self._bumpAge = math.huge
+	local front = self._labels[self._labelFront]
+	front.Text = HeatGauge.Labels[resolved]
+	front.TextTransparency = 0
+	self._labels[3 - self._labelFront].TextTransparency = 1
+	self._labelFade = 1
+	self._snapNext = true
+	self:_update(0, AlarmClock.getPhase())
+end
+
 -- Presentation-only bump reaction: a short jolt of the instrument and a
 -- slosh of the liquid that settles back to the supplied Heat. Changes no
 -- Heat value. Ignored with reduced motion.
@@ -802,18 +834,21 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 	local stage: HeatStage = self._stage
 	local meltdown = stage == "Meltdown"
 	local critical = stage == "Critical"
+	-- A snap (first mount) sets every eased value straight to its target.
+	local snapping = reduced or self._snapNext
+	self._snapNext = false
 	self._time += dt
 
 	-- 1. Heat level and colour (continuous). Meltdown shows a full bar.
 	local target = if meltdown then 1 else self._heat
-	self._shownHeat = if reduced then target else approach(self._shownHeat, target, dt, Tokens.Motion.HeatSmoothing)
+	self._shownHeat = if snapping then target else approach(self._shownHeat, target, dt, Tokens.Motion.HeatSmoothing)
 	local level = self._shownHeat
 	local color = Tokens.heatColor(level, palette)
 
 	-- 2. Effect intensities, eased so they never pop in at full strength.
 	local ease = Tokens.Motion.EffectSmoothing
 	local function towards(current: number, goal: number): number
-		return if reduced then goal else approach(current, goal, dt, ease)
+		return if snapping then goal else approach(current, goal, dt, ease)
 	end
 	self._glow = towards(self._glow, smoothstep(0.55, 1, level))
 	self._bubbles = towards(self._bubbles, smoothstep(0.55, 0.85, level))
@@ -871,15 +906,24 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 		siren.stroke.Transparency = 1 - show
 	end
 
-	-- 6. Bar: reveal, stripes, Meltdown flash.
+	-- 6. Bar: reveal, stripes, Meltdown hazard treatment. In Meltdown the
+	-- full bar is a steady saturated red with darker-red stripes travelling
+	-- sideways at constant speed (one spacing per alarm cycle, from the shared
+	-- phase), and the edge glow peaks with the panel. Reduced motion: the
+	-- same red bar and stripes, standing still, with a steady glow.
 	self._mask.Size = UDim2.fromScale(1 - level, 1)
 	self._tipMarker.Visible = level > 0.01 and level < 0.99
-	local stripeStrength = math.max(alarm, 0)
+	local melt = self._melt
+	local travel = if meltdown and not reduced and rate > 0 then phase else 0
+	local stripeColor = palette.Stroke:Lerp(palette.MeltdownStripe, melt)
+	local stripeOpacity = alarm * (0.55 + 0.4 * melt)
 	for _, bar in self._stripeBars do
-		bar.BackgroundColor3 = if meltdown then palette.StripeLight else palette.Stroke
-		bar.BackgroundTransparency = 1 - stripeStrength * (if meltdown then 0.75 else 0.55)
+		bar.frame.Position = UDim2.fromScale((bar.index + 0.5 + travel) / STRIPE_COUNT, 0.5)
+		bar.frame.BackgroundColor3 = stripeColor
+		bar.frame.BackgroundTransparency = 1 - stripeOpacity
 	end
-	self._barFlash.BackgroundTransparency = 1 - self._melt * (if reduced then 0.75 else 0.6 + 0.3 * wave)
+	self._barFlash.BackgroundTransparency = 1 - melt
+	self._edgeGlow.BackgroundTransparency = 1 - melt * (if reduced then 0.55 else 0.2 + 0.65 * wave)
 
 	-- 7. Thermometer: liquid, bulb, glow, bubbles, heat lines.
 	local slosh = 0
@@ -926,7 +970,6 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 	local shakeX = 1.6 * rattle * math.sin(t * 37) + joltX
 	local shakeY = 0.8 * rattle * math.cos(t * 29) + joltY
 	self._instrument.Position = self._instrumentRest + UDim2.fromOffset(shakeX, shakeY)
-	local melt = self._melt
 	local jiggle = if reduced then 0 else -1.5 * math.abs(math.sin(t * 18)) * self._rattle * (1 - melt)
 	local wobble = if reduced then 0 else 3 * math.sin(t * 9) * melt
 	self._cap.Position = self._capRest + UDim2.fromOffset(-3 * melt, -7 * melt + jiggle)
@@ -935,46 +978,55 @@ function HeatGauge._update(self: any, dt: number, phase: number)
 		crack.BackgroundTransparency = 1 - melt
 	end
 
-	-- 9. Smoke from the lifted cap: a fixed pool of puffs reused in a loop,
-	-- bounded to a small area above the instrument. Still cloud when reduced.
+	-- 9. Smoke from the lifted cap: one plume from a fixed pool of puffs
+	-- reused in a loop. Each puff is born small just above the cap, grows,
+	-- drifts up and to the left with a gentle wobble, and fades out near the
+	-- top; irregular spacing and varied sizes make the puffs overlap into one
+	-- billowing cloud. Still cloud when reduced. When Meltdown ends the pool is
+	-- hidden once and then skipped (no work while there is no smoke).
 	local spread = self._smokeScale
-	for i, puff in self._puffs do
-		local visible = melt
-		local x, y, size, alpha
-		if reduced then
-			local still = {
-				{ THERMO_X - 4, TUBE_TOP - 22, 14 },
-				{ THERMO_X - 10, TUBE_TOP - 30, 16 },
-				{ THERMO_X, TUBE_TOP - 34, 11 },
-			}
-			local spec = still[i]
-			if spec then
-				x, y, size, alpha = spec[1], spec[2], spec[3], 0.25
+	if melt > 0 or self._smokeShown then
+		self._smokeShown = melt > 0
+		for i, puff in self._puffs do
+			local x, y, size, opacity
+			if reduced then
+				local still = {
+					{ THERMO_X - 6, TUBE_TOP - 22, 15 },
+					{ THERMO_X - 12, TUBE_TOP - 30, 17 },
+					{ THERMO_X - 2, TUBE_TOP - 33, 12 },
+				}
+				local spec = still[i]
+				if spec then
+					x, y, size, opacity = spec[1], spec[2], spec[3], 0.75
+				else
+					x, y, size, opacity = THERMO_X, 0, 0, 0
+				end
 			else
-				x, y, size, alpha = 30, 0, 0, 1
-				visible = 0
+				local life = (t * 0.5 + PUFF_OFFSET[i]) % 1
+				local sway = 3 * math.sin(t * 2.3 + i * 1.7) * life
+				-- The plume leans further left as it rises (a curve, not a column).
+				x = THERMO_X - 2 - (19 * life ^ 1.3 + sway) * spread
+				y = TUBE_TOP - 16 - 38 * life * (0.6 + 0.4 * spread)
+				size = (11 + 21 * life * (0.7 + 0.3 * spread)) * PUFF_SIZE[i]
+				-- Quick fade in at the cap, soft fade out toward the top.
+				opacity = 0.9 * smoothstep(0, 0.1, life) * (1 - smoothstep(0.45, 1, life))
 			end
-		else
-			local life = (t * 0.55 + i / SMOKE_PUFFS) % 1
-			x = THERMO_X - 4 - (14 * life + 3 * math.sin(t * 2 + i)) * spread
-			y = TUBE_TOP - 18 - 40 * life * (0.6 + 0.4 * spread)
-			size = (10 + 20 * life * spread)
-			alpha = 0.15 + 0.85 * life ^ 1.5
+			puff.outer.Position = UDim2.fromOffset(x, y)
+			puff.outer.Size = UDim2.fromOffset(size, size)
+			local shown = melt * opacity
+			puff.outer.BackgroundTransparency = 1 - shown
+			-- A soft charcoal core: overlapping cores darken the plume's middle
+			-- while the light rims form its edge.
+			puff.inner.BackgroundTransparency = 1 - shown * 0.6
 		end
-		puff.outer.Position = UDim2.fromOffset(x, y)
-		puff.outer.Size = UDim2.fromOffset(size, size)
-		local transparency = 1 - visible * (1 - alpha)
-		puff.outer.BackgroundTransparency = transparency
-		puff.inner.BackgroundTransparency = transparency
 	end
 
-	-- 10. HOP NOW! and the label cross-fade.
+	-- 10. HOP NOW! (scale pulse on the panel's peaks; steady when reduced)
+	-- and the label cross-fade.
 	local hopShow = melt
 	self._hopText.TextTransparency = 1 - hopShow
 	self._hopStroke.Transparency = 1 - hopShow
-	for _, arrow in self._hopArrow do
-		arrow.BackgroundTransparency = 1 - hopShow
-	end
+	self._hopPulse.Scale = if reduced then 1 else 1 + HOP_PULSE * wave * melt
 	if self._labelFade < 1 then
 		self._labelFade = math.min(1, self._labelFade + dt / Tokens.Motion.LabelFade)
 		local front = self._labels[self._labelFront]
@@ -994,6 +1046,11 @@ function HeatGauge.getDebugState(self: any): { [string]: any }
 	local count = 0
 	for _ in self.Root:GetDescendants() do
 		count += 1
+	end
+	-- Every instance allocated for smoke, child shapes and corners included.
+	local smokeCount = 0
+	for _, puff in self._puffs do
+		smokeCount += 1 + #puff.outer:GetDescendants()
 	end
 	local avg = if self._updateFrames > 0 then self._updateCost / self._updateFrames else 0
 	return {
@@ -1018,6 +1075,10 @@ function HeatGauge.getDebugState(self: any): { [string]: any }
 		titleFits = self._title.TextFits,
 		labelFits = self._labels[self._labelFront].TextFits,
 		hopFits = self._hopText.TextFits,
+		hopPulse = self._hopPulse.Scale,
+		edgeGlow = 1 - self._edgeGlow.BackgroundTransparency,
+		smokeInstances = smokeCount,
+		labelFade = self._labelFade,
 		instances = count,
 		avgUpdateMs = avg * 1000,
 		clock = AlarmClock.stats(),

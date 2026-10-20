@@ -5,23 +5,34 @@
 -- the same component can be reused if another currency is ever approved.
 --
 -- Behaviour:
---   * First value (and any value set while reduced motion is on) snaps.
+--   * First value (and any value set while reduced motion is on) snaps, with
+--     no gain label, sparkles, pop or punch.
 --   * Increase: counts up over about 0.35 s from the displayed value, punches
---     the number about 12% (16% for big gains, capped), bounces the icon, plays
---     up to three sparkles and shows a "+$N" label that rises and fades.
+--     the number about 12% (16% for big gains, capped by setMaxPunch on narrow
+--     screens), pops the icon about its centre, plays up to three sparkles and
+--     shows a "+$N" label that rises and fades.
 --   * Decrease: counts down quickly, with no punch, sparkles or label.
 --   * A new value during an animation continues from the displayed value; the
 --     newest supplied value always wins and the count lands exactly on it.
 --   * Gain labels show the real change in supplied value. Gains within
 --     CashCoalesceSeconds join the visible label instead of queueing.
---   * Transient labels and sparkles come from small fixed pools.
+--   * Transient labels and sparkles come from small fixed pools. A gain
+--     label's text, outline and shadow fade from one value and every property
+--     is reset when the label is reused.
 --   * All per-frame work runs on the shared AlarmClock, subscribed only while
 --     something is animating.
+--
+-- Alignment (revision 4): the icon's visible artwork is centred on the
+-- visible digit height (not the TextLabel box) and sits GAP px from the
+-- visible ink of the "$" at scale 1.0. The number punches about its left
+-- edge at the digit centre line, and the icon pops about its own centre, so
+-- the two stay aligned while animating.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
 local AlarmClock = require(script.Parent.AlarmClock)
+local OutlinedText = require(script.Parent.OutlinedText)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -29,7 +40,9 @@ export type Options = {
 	name: string?,
 	palette: Tokens.Palette?,
 	buildIcon: (parent: Instance, palette: Tokens.Palette) -> Frame,
+	-- Square holder size and the visible artwork size centred inside it.
 	iconSize: Vector2,
+	iconArtSize: Vector2,
 	format: (value: number) -> string,
 	-- Strings used to reserve width for the widest supported value.
 	widestSamples: { string },
@@ -38,18 +51,18 @@ export type Options = {
 	initial: number?,
 }
 
-local GAP = 8 -- between visible icon artwork and text at scale 1.0
-local OUTLINE = 3.5
-local SHADOW_OFFSET = 3
+local GAP = 8 -- between visible icon artwork and visible "$" ink at scale 1.0
+local OUTLINE = OutlinedText.Outline
 local LABEL_SIZE = 22
 local LABEL_RISE = 16
 local LABEL_POOL = 2
 local SPARKLE_POOL = 3
 local SPARKLE_SECONDS = 0.45
-local BOUNCE = 5
+local ICON_POP = 0.08
 
 local CurrencyCounter = {}
 CurrencyCounter.__index = CurrencyCounter
+CurrencyCounter.Gap = GAP
 
 local function make(className: string, props: { [string]: any }): any
 	local instance = Instance.new(className)
@@ -65,60 +78,6 @@ end
 
 local function easeOut(t: number): number
 	return 1 - (1 - t) * (1 - t)
-end
-
--- An outlined, gradient-filled text layer with a drop shadow, as one unit.
-local function outlinedText(parent: Instance, name: string, size: number, palette: Tokens.Palette, z: number)
-	local holder = make("Frame", {
-		Name = name,
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ZIndex = z,
-		Parent = parent,
-	})
-	local shadow = make("TextLabel", {
-		Name = "Shadow",
-		Position = UDim2.fromOffset(0, SHADOW_OFFSET),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		TextSize = size,
-		TextColor3 = palette.CashShadow,
-		TextTransparency = 0.35,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = z,
-		Parent = holder,
-	})
-	make("UIStroke", {
-		Color = palette.CashShadow,
-		Thickness = OUTLINE,
-		Transparency = 0.35,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Parent = shadow,
-	})
-	local face = make("TextLabel", {
-		Name = "Face",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		TextSize = size,
-		TextColor3 = Color3.new(1, 1, 1),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = z + 1,
-		Parent = holder,
-	})
-	make("UIGradient", {
-		Rotation = 90,
-		Color = ColorSequence.new(palette.CashTop, palette.CashBottom),
-		Parent = face,
-	})
-	local stroke = make("UIStroke", {
-		Color = palette.CashOutline,
-		Thickness = OUTLINE,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Parent = face,
-	})
-	return holder, face, shadow, stroke
 end
 
 local function measure(text: string, size: number): Vector2
@@ -138,21 +97,35 @@ function CurrencyCounter.new(parent: Instance, options: Options)
 	self._animT = 1
 	self._duration = Tokens.Motion.CashGainSeconds
 	self._punch = 0
+	self._maxPunch = Tokens.Motion.CashPunchBig
 	self._unsubscribe = nil :: (() -> ())?
 
-	-- Reserve width for the widest supported value plus the punch overhang,
-	-- so neither a new digit nor the animation ever moves the neighbours.
+	-- Widest supported value: advance width, plus the outline on each side.
 	local widest = 0
 	for _, sample in options.widestSamples do
 		widest = math.max(widest, measure(sample, textSize).X)
 	end
 	local textWidth = math.ceil(widest + 2 * OUTLINE)
+	local textHeight = textSize + 2 * OUTLINE
+	local side = options.iconSize.X
+	local art = options.iconArtSize
+	local rowHeight = math.max(options.iconSize.Y, textHeight + OutlinedText.ShadowOffset)
+	local mid = rowHeight / 2
+	-- The "$" ink (with its outline) starts this far right of the label's edge.
+	local inkLeft = OutlinedText.DollarInkLeftEm * textSize - OUTLINE
+	local artRight = side / 2 + art.X / 2
+	local valueX = artRight + GAP - inkLeft
+	-- Digit centre below the label's centre, as an anchor inside the label.
+	local digitAnchorY = 0.5 + OutlinedText.DigitCentreEm * textSize / textHeight
 	local punchRoom = math.ceil(textWidth * Tokens.Motion.CashPunchBig)
-	local rowHeight = math.max(options.iconSize.Y, textSize + 2 * OUTLINE + SHADOW_OFFSET)
+
 	self.TextWidth = textWidth
 	self.RowHeight = rowHeight
-	-- Width/height of the counter row, and the reserved effect band beneath it.
-	self.ReservedSize = Vector2.new(options.iconSize.X + GAP + textWidth + punchRoom, rowHeight + LABEL_SIZE + 10)
+	self.ValueX = valueX
+	self.ArtLeft = side / 2 - art.X / 2
+	-- Visible right edge of the widest value at rest, from the label's left.
+	self.WidestInkRight = widest + OUTLINE
+	self.ReservedSize = Vector2.new(valueX + textWidth + punchRoom, rowHeight + LABEL_SIZE + 10)
 
 	local root = make("Frame", {
 		Name = options.name or "Counter",
@@ -167,51 +140,52 @@ function CurrencyCounter.new(parent: Instance, options: Options)
 	self._trove:Add(root)
 	self.Root = root
 
-	-- Icon, vertically centred on the number row.
+	-- Icon: square holder centred on the visible digit centre line. It pops
+	-- about its centre, which is also the artwork's visible centre.
+	local reserved = self.ReservedSize
 	local iconHolder = make("Frame", {
 		Name = "IconHolder",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromOffset(0, rowHeight / 2),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(side / 2 / reserved.X, mid / reserved.Y),
 		Size = UDim2.fromOffset(options.iconSize.X, options.iconSize.Y),
 		BackgroundTransparency = 1,
 		Parent = root,
 	})
 	self._iconHolder = iconHolder
-	self._iconRest = iconHolder.Position
+	self._iconPop = make("UIScale", { Name = "Pop", Scale = 1, Parent = iconHolder })
 	options.buildIcon(iconHolder, palette)
 
-	-- Number: punch scales around its left-centre, so it grows right into the
-	-- reserved room and outline and shadow scale together.
+	-- Number: anchored at its left edge on the digit centre line, so the punch
+	-- grows right and evenly up and down about the digits. Sub-pixel values go
+	-- in the scale components (UDim offsets are whole pixels).
 	local valueFrame = make("Frame", {
 		Name = "Value",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromOffset(options.iconSize.X + GAP, rowHeight / 2),
-		Size = UDim2.fromOffset(textWidth, textSize + 2 * OUTLINE),
+		AnchorPoint = Vector2.new(0, digitAnchorY),
+		Position = UDim2.fromScale(valueX / reserved.X, mid / reserved.Y),
+		Size = UDim2.fromOffset(textWidth, textHeight),
 		BackgroundTransparency = 1,
 		Parent = root,
 	})
+	self._valueFrame = valueFrame
 	self._punchScale = make("UIScale", { Name = "Punch", Scale = 1, Parent = valueFrame })
-	local _, face, shadow = outlinedText(valueFrame, "Text", textSize, palette, 2)
-	self._face = face
-	self._shadow = shadow
+	self._text = OutlinedText.build(valueFrame, "Text", textSize, palette.CashTop, palette.CashBottom, palette, 2)
 
-	-- Pools: gain labels below the row, sparkles around the icon.
+	-- Pools: gain labels below the row, sparkles around the icon artwork.
 	self._labels = {}
 	for i = 1, LABEL_POOL do
 		local holder = make("Frame", {
 			Name = "GainLabel" .. i,
-			Position = UDim2.fromOffset(options.iconSize.X + GAP, rowHeight + 4),
+			Position = UDim2.fromOffset(math.floor(valueX), rowHeight + 4),
 			Size = UDim2.fromOffset(textWidth, LABEL_SIZE + 2 * OUTLINE),
 			BackgroundTransparency = 1,
 			Visible = false,
 			Parent = root,
 		})
-		local _, lface, lshadow, lstroke = outlinedText(holder, "Text", LABEL_SIZE, palette, 4)
+		local parts = OutlinedText.build(holder, "Text", LABEL_SIZE, palette.CashTop, palette.CashBottom, palette, 4)
+		OutlinedText.setFade(parts, 1)
 		table.insert(self._labels, {
 			holder = holder,
-			face = lface,
-			shadow = lshadow,
-			stroke = lstroke,
+			parts = parts,
 			amount = 0,
 			age = math.huge,
 			rest = holder.Position,
@@ -219,16 +193,17 @@ function CurrencyCounter.new(parent: Instance, options: Options)
 	end
 	self._nextLabel = 1
 	self._sparkles = {}
+	local artLeft, artTop = side / 2 - art.X / 2, mid - art.Y / 2
 	local spots = {
-		Vector2.new(-2, -4),
-		Vector2.new(options.iconSize.X - 2, 2),
-		Vector2.new(options.iconSize.X * 0.45, options.iconSize.Y + 1),
+		Vector2.new(artLeft - 1, artTop - 2),
+		Vector2.new(artLeft + art.X, artTop + 6),
+		Vector2.new(artLeft + art.X * 0.45, artTop + art.Y + 2),
 	}
 	for i = 1, SPARKLE_POOL do
 		local spark = make("Frame", {
 			Name = "Sparkle" .. i,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(spots[i].X, spots[i].Y + (rowHeight - options.iconSize.Y) / 2),
+			Position = UDim2.fromOffset(spots[i].X, spots[i].Y),
 			Size = UDim2.fromOffset(7, 7),
 			Rotation = 45,
 			BackgroundColor3 = palette.Sparkle,
@@ -252,9 +227,7 @@ function CurrencyCounter.new(parent: Instance, options: Options)
 end
 
 function CurrencyCounter._render(self: any)
-	local text = self._format(math.floor(self._displayed))
-	self._face.Text = text
-	self._shadow.Text = text
+	OutlinedText.setText(self._text, self._format(math.floor(self._displayed)))
 end
 
 function CurrencyCounter._startLoop(self: any)
@@ -272,15 +245,22 @@ function CurrencyCounter._stopLoop(self: any)
 	end
 end
 
+-- Returns a pooled label to its hidden resting state.
+local function resetLabel(label: any)
+	label.age = math.huge
+	label.amount = 0
+	label.holder.Visible = false
+	label.holder.Position = label.rest
+	OutlinedText.setFade(label.parts, 1)
+end
+
 -- Hides every transient and returns all moving parts to rest.
 function CurrencyCounter._clearDecor(self: any)
 	self._punch = 0
 	self._punchScale.Scale = 1
-	self._iconHolder.Position = self._iconRest
+	self._iconPop.Scale = 1
 	for _, label in self._labels do
-		label.age = math.huge
-		label.amount = 0
-		label.holder.Visible = false
+		resetLabel(label)
 	end
 	for _, spark in self._sparkles do
 		spark.age = math.huge
@@ -300,17 +280,27 @@ function CurrencyCounter._showGain(self: any, delta: number)
 	if label == nil then
 		label = self._labels[self._nextLabel]
 		self._nextLabel = self._nextLabel % LABEL_POOL + 1
-		label.amount = 0
+		resetLabel(label)
 	end
 	label.amount += delta
 	label.age = 0
-	local text = "+" .. self._format(label.amount)
-	label.face.Text = text
-	label.shadow.Text = text
+	OutlinedText.setText(label.parts, "+" .. self._format(label.amount))
+	OutlinedText.setFade(label.parts, 0)
+	label.holder.Position = label.rest
 	label.holder.Visible = true
 	for _, spark in self._sparkles do
 		spark.age = -spark.delay
 	end
+end
+
+-- Largest punch allowed (fraction of size), from the HUD layout. Both punch
+-- amounts are scaled down together so a big gain still reads bigger.
+function CurrencyCounter.setMaxPunch(self: any, limit: number)
+	self._maxPunch = math.clamp(limit, 0, Tokens.Motion.CashPunchBig)
+end
+
+function CurrencyCounter.getMaxPunch(self: any): number
+	return self._maxPunch
 end
 
 -- Sets the supplied value. The first value, and every value while reduced
@@ -335,7 +325,8 @@ function CurrencyCounter.setValue(self: any, value: number, instant: boolean?)
 		local delta = value - previous
 		self._duration = Tokens.Motion.CashGainSeconds
 		local big = delta >= math.max(1000, previous * 0.25)
-		self._punch = if big then Tokens.Motion.CashPunchBig else Tokens.Motion.CashPunch
+		local ratio = self._maxPunch / Tokens.Motion.CashPunchBig
+		self._punch = ratio * (if big then Tokens.Motion.CashPunchBig else Tokens.Motion.CashPunch)
 		self:_showGain(delta)
 	else
 		self._duration = Tokens.Motion.CashSpendSeconds
@@ -358,12 +349,11 @@ function CurrencyCounter._step(self: any, dt: number)
 		self:_render()
 		local wave = math.sin(math.pi * self._animT)
 		self._punchScale.Scale = 1 + self._punch * wave
-		self._iconHolder.Position = self._iconRest
-			+ UDim2.fromOffset(0, -BOUNCE * wave * (if self._punch > 0 then 1 else 0))
+		self._iconPop.Scale = 1 + (if self._punch > 0 then ICON_POP * wave else 0)
 		busy = self._animT < 1
 	else
 		self._punchScale.Scale = 1
-		self._iconHolder.Position = self._iconRest
+		self._iconPop.Scale = 1
 	end
 
 	for _, label in self._labels do
@@ -371,14 +361,10 @@ function CurrencyCounter._step(self: any, dt: number)
 			label.age += dt
 			local t = math.clamp(label.age / Tokens.Motion.CashGainLabelSeconds, 0, 1)
 			label.holder.Position = label.rest + UDim2.fromOffset(0, -LABEL_RISE * easeOut(t))
-			local fade = if t < 0.6 then 0 else (t - 0.6) / 0.4
-			label.face.TextTransparency = fade
-			label.shadow.TextTransparency = 0.35 + 0.65 * fade
-			label.stroke.Transparency = fade
+			OutlinedText.setFade(label.parts, if t < 0.6 then 0 else (t - 0.6) / 0.4)
 			busy = true
 		elseif label.holder.Visible then
-			label.holder.Visible = false
-			label.amount = 0
+			resetLabel(label)
 		end
 	end
 
@@ -417,10 +403,18 @@ end
 
 function CurrencyCounter.getDebugState(self: any): { [string]: any }
 	local visible = 0
+	local labels = {}
 	for _, label in self._labels do
 		if label.holder.Visible then
 			visible += 1
 		end
+		table.insert(labels, {
+			visible = label.holder.Visible,
+			face = label.parts.face.TextTransparency,
+			faceStroke = label.parts.faceStroke.Transparency,
+			shadow = label.parts.shadow.TextTransparency,
+			shadowStroke = label.parts.shadowStroke.Transparency,
+		})
 	end
 	for _, spark in self._sparkles do
 		if spark.frame.Visible then
@@ -434,14 +428,16 @@ function CurrencyCounter.getDebugState(self: any): { [string]: any }
 	return {
 		value = self._value,
 		displayed = self._displayed,
-		text = self._face.Text,
+		text = self._text.face.Text,
 		animating = self._unsubscribe ~= nil,
 		punch = self._punchScale.Scale,
-		iconOffset = self._iconHolder.Position - self._iconRest,
+		maxPunch = self._maxPunch,
+		iconPop = self._iconPop.Scale,
 		visibleTransients = visible,
 		pooledTransients = LABEL_POOL + SPARKLE_POOL,
+		labels = labels,
 		instances = count + 1,
-		textFits = self._face.TextFits,
+		textFits = self._text.face.TextFits,
 		reservedSize = self.ReservedSize,
 	}
 end

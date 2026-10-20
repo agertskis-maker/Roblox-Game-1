@@ -57,6 +57,11 @@ export type Palette = {
 	BillBandShade: Color3,
 	Sparkle: Color3,
 	FloatText: Color3,
+	FloatTextCream: Color3,
+	MeltdownBar: Color3,
+	MeltdownStripe: Color3,
+	MeltdownGlow: Color3,
+	SmokeCore: Color3,
 }
 
 -- Colour roles. Red (Danger) is reserved for danger; orange (Primary) for go/buy.
@@ -101,7 +106,14 @@ Tokens.Color = table.freeze({
 	BillBand = rgb(255, 184, 40), -- #FFB828 gold band
 	BillBandShade = rgb(224, 123, 18), -- #E07B12 band shading
 	Sparkle = rgb(214, 255, 222), -- #D6FFDE gain sparkles
-	FloatText = rgb(255, 255, 255), -- floating Distance option B
+	-- Distance (option B, approved 2026-10-19): white-to-cream number.
+	FloatText = rgb(255, 255, 255), -- #FFFFFF top of the Distance number
+	FloatTextCream = rgb(255, 236, 196), -- #FFECC4 bottom of the Distance number
+	-- Meltdown hazard bar (revision 4).
+	MeltdownBar = rgb(230, 30, 40), -- #E61E28 saturated danger red
+	MeltdownStripe = rgb(140, 12, 24), -- #8C0C18 darker red hazard stripes
+	MeltdownGlow = rgb(255, 170, 60), -- #FFAA3C bright edge glow
+	SmokeCore = rgb(86, 90, 104), -- #565A68 charcoal smoke centre
 } :: Palette)
 
 -- Fixed temperature scale for Heat, 0 to 1. The bar reveals this scale from
@@ -133,7 +145,7 @@ Tokens.TextSize = table.freeze({
 	Label = 18,
 	Minimum = 16,
 	Cash = 40, -- floating Cash counter (Adam, 2026-10-19)
-	FloatDistance = 32, -- Distance option B (proposal)
+	FloatDistance = 32, -- floating Distance number (option B, approved 2026-10-19)
 })
 
 Tokens.Space = table.freeze({
@@ -192,9 +204,10 @@ end
 --
 -- Alarm counting (decision 0008, ceiling lowered by Adam on 2026-10-19):
 -- one alarm cycle produces two distinct visible peaks. At phase 0 the panel
--- tint, the left siren and the Meltdown bar wash peak together; at phase 0.5
--- the right siren peaks. HOP NOW! does not flash. So combined visible peaks
--- per second = 2 x cycle rate. The cap AlarmMaxHz = 1.25 keeps the combined
+-- tint, the left siren, the Meltdown bar's edge glow and the HOP NOW! scale
+-- pulse peak together; at phase 0.5 the right siren peaks. The hazard stripes
+-- travel one stripe spacing per cycle at constant speed (no brightness peak).
+-- So combined visible peaks per second = 2 x cycle rate. The cap AlarmMaxHz = 1.25 keeps the combined
 -- rate at or under 2.5 per second; Meltdown uses 1.2 (2.4 per second) and
 -- Critical stays lower (1.2 to 2.0 per second).
 Tokens.Motion = table.freeze({

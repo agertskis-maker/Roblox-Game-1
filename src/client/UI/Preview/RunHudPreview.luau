@@ -20,14 +20,19 @@
 -- Contrast fixture: setBackdrop("Sky" | "Road" | "White" | nil) puts a plain,
 -- labelled colour behind the HUD. It is a test fixture, not the Downtown scene.
 
+local ContextActionService = game:GetService("ContextActionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
 local AlarmClock = require(script.Parent.Parent.AlarmClock)
 local CashIcon = require(script.Parent.Parent.CurrencyCounter.CashIcon)
+local CurrencyCounter = require(script.Parent.Parent.CurrencyCounter)
+local FlagIcon = require(script.Parent.Parent.RunHud.FlagIcon)
+local Format = require(ReplicatedStorage.Shared.UI.Format)
 local HeatGauge = require(script.Parent.Parent.RunHud.HeatGauge)
 local RunHud = require(script.Parent.Parent.RunHud)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
@@ -35,12 +40,12 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 
 type HeatStage = RunHud.HeatStage
 type MotionMode = "Follow" | "Reduced" | "Full"
-type DistanceStyle = "Pill" | "Floating"
 
 local HUD_NAME = "Lane3_RunHudPreview"
 local CONTROLS_NAME = "Lane3_HudPreviewControls"
 local BACKDROP_NAME = "Lane3_PreviewBackdrop"
 local CLOSEUP_NAME = "Lane3_PreviewIconCloseup"
+local GAP_GUIDE_NAME = "Lane3_PreviewGapGuide"
 local GREY_EFFECT_NAME = "Lane3_PreviewGrey"
 local SIMULATED_BUMP_HEAT = 0.15 -- preview only; real bump values belong to Lane 1
 
@@ -72,11 +77,11 @@ type Session = {
 	meltdown: boolean,
 	motion: MotionMode,
 	grey: boolean,
-	distanceStyle: DistanceStyle,
 	backdrop: string?,
 	driver: string?,
 	note: string,
 	inputLog: { string }?,
+	closeup: any,
 }
 
 local session: Session? = nil
@@ -106,6 +111,7 @@ local function removeLeftovers()
 			or child.Name == CONTROLS_NAME
 			or child.Name == BACKDROP_NAME
 			or child.Name == CLOSEUP_NAME
+			or child.Name == GAP_GUIDE_NAME
 		then
 			child:Destroy()
 		end
@@ -143,11 +149,11 @@ local function render(s: Session)
 	})
 	if s.status then
 		s.status.Text = string.format(
-			"%s | heat %d%% | cash %d | dist %s | motion %s%s%s",
+			"%s | heat %d%% | cash %d | dist %d | motion %s%s%s",
 			mockStage(s),
 			math.floor((if s.meltdown then 1 else s.heat) * 100 + 0.5),
 			s.cash,
-			if s.distanceStyle == "Floating" then "B (proposal)" else "A",
+			s.distance,
 			s.motion,
 			if s.grey then " | grey" else "",
 			if s.note ~= "" then " | " .. s.note else ""
@@ -163,7 +169,6 @@ local function buildHud(s: Session)
 		name = HUD_NAME,
 		palette = if s.grey then Tokens.greyPalette() else nil,
 		reducedMotionOverride = overrideFor(s.motion),
-		distanceStyle = s.distanceStyle,
 	})
 end
 
@@ -302,8 +307,8 @@ local function buildControls(s: Session)
 	button("$9,999 to $12.4K", function()
 		RunHudPreview.boundaryDemo()
 	end)
-	button("Distance A/B", function()
-		RunHudPreview.setDistanceStyle(if (session :: Session).distanceStyle == "Pill" then "Floating" else "Pill")
+	button("Long distance", function()
+		RunHudPreview.setValues(nil, 9999)
 	end)
 	button("Backdrop", function()
 		local nextBackdrop: { [string]: string } = { None = "Sky", Sky = "Road", Road = "White", White = "None" }
@@ -353,12 +358,22 @@ local function buildControls(s: Session)
 	end)
 end
 
-function RunHudPreview.start(): boolean
+-- Optional initial mock state, for checking how the HUD first mounts.
+export type StartOptions = {
+	stage: HeatStage?,
+	heat: number?,
+	cash: number?,
+	distance: number?,
+	motion: MotionMode?,
+}
+
+function RunHudPreview.start(initial: StartOptions?): boolean
 	if not allowed() then
 		return false
 	end
 	RunHudPreview.stop()
 	removeLeftovers()
+	local init: StartOptions = initial or {}
 	local trove = Trove.new()
 	local s: Session = {
 		trove = trove,
@@ -367,17 +382,17 @@ function RunHudPreview.start(): boolean
 		hud = nil,
 		controls = nil,
 		status = nil,
-		cash = 12480,
-		distance = 1240,
-		heat = 0,
-		meltdown = false,
-		motion = "Follow",
+		cash = init.cash or 12480,
+		distance = init.distance or 1240,
+		heat = init.heat or (if init.stage then STAGE_HEAT[init.stage] else 0),
+		meltdown = init.stage == "Meltdown",
+		motion = init.motion or "Follow",
 		grey = false,
-		distanceStyle = "Pill",
 		backdrop = nil,
 		driver = nil,
 		note = "",
 		inputLog = nil,
+		closeup = nil,
 	}
 	session = s
 	buildHud(s)
@@ -580,17 +595,6 @@ function RunHudPreview.setValues(cash: number?, distance: number?)
 	render(s)
 end
 
--- Option A "Pill" (default) or option B "Floating" (proposal).
-function RunHudPreview.setDistanceStyle(style: DistanceStyle)
-	local s = active()
-	if not s then
-		return
-	end
-	s.distanceStyle = style
-	buildHud(s)
-	render(s)
-end
-
 function RunHudPreview.setBackdrop(name: string?)
 	local s = active()
 	if not s then
@@ -629,9 +633,46 @@ function RunHudPreview.setBackdrop(name: string?)
 	s.trove:Add(gui)
 end
 
--- Shows the Cash icon enlarged three times beside an actual-size copy, on a
--- white card in the middle of the screen, for reviewing the artwork.
-function RunHudPreview.showIconCloseup(visible: boolean)
+-- Thin guide line or crosshair for the enlarged close-up (preview only).
+local function guide(
+	parent: Instance,
+	name: string,
+	color: Color3,
+	horizontal: boolean,
+	at: UDim2,
+	z: number,
+	overhang: number?
+): Frame
+	local extra = overhang or 16
+	local line = Instance.new("Frame")
+	line.Name = name
+	line.AnchorPoint = Vector2.new(0.5, 0.5)
+	line.Position = at
+	line.Size = if horizontal then UDim2.new(1, extra, 0, 1) else UDim2.new(0, 1, 1, extra)
+	line.BackgroundColor3 = color
+	line.BorderSizePixel = 0
+	line.ZIndex = z
+	line.Parent = parent
+	return line
+end
+
+local GUIDE_COLORS = {
+	bill = Color3.fromRGB(255, 0, 200), -- magenta: top-bill centre
+	band = Color3.fromRGB(0, 170, 255), -- blue: band centre
+	container = Color3.fromRGB(255, 120, 0), -- orange: icon holder centre
+	art = Color3.fromRGB(0, 160, 60), -- green: visible artwork bounds
+	digits = Color3.fromRGB(200, 0, 0), -- red: visible digit midpoint
+}
+
+-- Shows the Cash counter and the Distance widget enlarged three times on a
+-- white card (preview only), with optional alignment guides:
+--   magenta / blue  the top bill's centre line and the band's centre line,
+--                   drawn inside the bill so they rotate with it
+--   orange          the square icon holder's centre (crosshair) and outline
+--   green           the visible artwork bounds computed from the geometry
+--   red             the visible digit midpoint (and the icon's centre line)
+-- Without guides the same view is used for pixel measurement.
+function RunHudPreview.showIconCloseup(visible: boolean, guides: boolean?, cash: number?, magnification: number?)
 	local s = active()
 	if not s then
 		return
@@ -640,6 +681,7 @@ function RunHudPreview.showIconCloseup(visible: boolean)
 	if existing then
 		existing:Destroy()
 	end
+	s.closeup = nil
 	if not visible then
 		return
 	end
@@ -651,31 +693,255 @@ function RunHudPreview.showIconCloseup(visible: boolean)
 	gui.ResetOnSpawn = false
 	-- Covers the whole screen so nothing else overlaps the artwork.
 	local card = Instance.new("Frame")
+	card.Name = "Card"
 	card.Size = UDim2.fromScale(1, 1)
 	card.BackgroundColor3 = BACKDROPS.White
 	card.BorderSizePixel = 0
 	card.Parent = gui
-	local big = CashIcon.build(card, palette)
-	big.AnchorPoint = Vector2.new(0.5, 0.5)
-	big.Position = UDim2.fromScale(0.58, 0.45)
+
+	-- 3x for review; larger values only for pixel measurement.
+	local zoomFactor = magnification or 3
+	local zoom = Instance.new("Frame")
+	zoom.Name = "Zoom"
+	zoom.AnchorPoint = Vector2.new(0.5, 0.5)
+	zoom.Position = UDim2.fromScale(0.5, 0.45)
+	zoom.Size = UDim2.fromOffset(240, 130)
+	zoom.BackgroundTransparency = 1
+	zoom.Parent = card
 	local scale = Instance.new("UIScale")
-	scale.Scale = 3
-	scale.Parent = big
-	local small = CashIcon.build(card, palette)
-	small.AnchorPoint = Vector2.new(0.5, 0.5)
-	small.Position = UDim2.fromScale(0.25, 0.45)
+	scale.Scale = zoomFactor
+	scale.Parent = zoom
+	-- Measuring views only: two magenta calibration squares at known screen
+	-- positions, so a capture can be mapped back to rendered pixels.
+	if magnification and magnification ~= 3 then
+		-- Bottom-left and upper-right, away from Roblox's top-bar buttons and
+		-- a landscape phone's camera notch.
+		for i, spot in { { 0, 24, 1, -24 }, { 1, -24, 0.3, 0 } } do
+			local mark = Instance.new("Frame")
+			mark.Name = "CalibrationMark" .. i
+			mark.AnchorPoint = Vector2.new(0.5, 0.5)
+			mark.Position = UDim2.new(spot[1], spot[2], spot[3], spot[4])
+			mark.Size = UDim2.fromOffset(8, 8)
+			mark.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
+			mark.BorderSizePixel = 0
+			mark.ZIndex = 30
+			mark.Parent = card
+		end
+	end
+
+	local counter = CurrencyCounter.new(zoom, {
+		name = "CashCloseup",
+		palette = palette,
+		buildIcon = CashIcon.build,
+		iconSize = CashIcon.Size,
+		iconArtSize = CashIcon.ArtSize,
+		format = Format.cash,
+		widestSamples = { "$99.9M" },
+		initial = cash or 12480,
+	})
+	counter.Root.Position = UDim2.fromOffset(0, 0)
+	s.trove:Add(function()
+		counter:destroy()
+	end)
+	s.closeup = counter
+	local distanceRoot = RunHud.buildDistancePreview(zoom, palette, 1240).root
+	distanceRoot.AnchorPoint = Vector2.new(0, 0)
+	distanceRoot.Position = UDim2.fromOffset(0, 80)
+
+	if guides then
+		-- Inside the top bill (rotates with it) and inside the band.
+		local holder = counter.Root:FindFirstChild("IconHolder") :: Frame
+		local icon = holder:FindFirstChild("CashIcon") :: Frame
+		local top = icon:FindFirstChild("BillTop", true) :: Frame
+		local band = top:FindFirstChild("Band") :: Frame
+		-- The bill line is longer so it shows past both ends of the band line.
+		guide(top, "GuideBillCentre", GUIDE_COLORS.bill, false, UDim2.fromScale(0.5, 0.5), 20, 30)
+		guide(band, "GuideBandCentre", GUIDE_COLORS.band, false, UDim2.fromScale(0.5, 0.5), 21, 0)
+		-- Holder centre and outline.
+		for _, root in
+			{ icon, (distanceRoot:FindFirstChild("FlagHolder") :: Frame):FindFirstChildOfClass("Frame") :: Frame }
+		do
+			guide(root, "GuideHolderH", GUIDE_COLORS.container, true, UDim2.fromScale(0.5, 0.5), 20)
+			guide(root, "GuideHolderV", GUIDE_COLORS.container, false, UDim2.fromScale(0.5, 0.5), 20)
+			local box = Instance.new("UIStroke")
+			box.Color = GUIDE_COLORS.container
+			box.Thickness = 1
+			box.Parent = root
+		end
+		-- Computed visible artwork bounds (centred in the holder).
+		for _, spec in
+			{
+				{ icon, CashIcon.ArtSize },
+				{
+					(distanceRoot:FindFirstChild("FlagHolder") :: Frame):FindFirstChildOfClass("Frame") :: Frame,
+					FlagIcon.ArtSize,
+				},
+			}
+		do
+			local art = Instance.new("Frame")
+			art.Name = "GuideArtBounds"
+			art.AnchorPoint = Vector2.new(0.5, 0.5)
+			art.Position = UDim2.fromScale(0.5, 0.5)
+			art.Size = UDim2.fromOffset(spec[2].X, spec[2].Y)
+			art.BackgroundTransparency = 1
+			art.ZIndex = 20
+			art.Parent = spec[1]
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = GUIDE_COLORS.art
+			stroke.Thickness = 1
+			stroke.Parent = art
+		end
+		-- Digit midpoint across each row (the icons' centres sit on it).
+		for _, row in { counter.Root, distanceRoot } do
+			local value = row:FindFirstChild("Value") :: Frame
+			local line = Instance.new("Frame")
+			line.Name = "GuideDigitMid"
+			line.AnchorPoint = Vector2.new(0, 0.5)
+			line.Position = UDim2.new(0, -4, value.AnchorPoint.Y, 0)
+			line.Size = UDim2.new(1, 8, 0, 1)
+			line.BackgroundColor3 = GUIDE_COLORS.digits
+			line.BorderSizePixel = 0
+			line.ZIndex = 20
+			line.Parent = value
+			local iconLine = Instance.new("Frame")
+			iconLine.Name = "GuideIconMid"
+			iconLine.AnchorPoint = Vector2.new(0, 0.5)
+			iconLine.Position = UDim2.new(0, -4, 0.5, 0)
+			iconLine.Size = UDim2.new(1, 8, 0, 1)
+			iconLine.BackgroundColor3 = GUIDE_COLORS.digits
+			iconLine.BorderSizePixel = 0
+			iconLine.ZIndex = 20
+			iconLine.Parent = (row:FindFirstChild("IconHolder") or row:FindFirstChild("FlagHolder")) :: Frame
+		end
+	end
 	local label = Instance.new("TextLabel")
-	label.AnchorPoint = Vector2.new(0.5, 0)
-	label.Position = UDim2.new(0.5, 0, 0.45, CashIcon.Size.Y * 1.5 + 16)
+	label.AnchorPoint = Vector2.new(0.5, 1)
+	label.Position = UDim2.new(0.5, 0, 1, -24)
 	label.Size = UDim2.new(1, 0, 0, 18)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.Code
 	label.TextSize = 14
 	label.TextColor3 = Color3.fromRGB(30, 30, 30)
-	label.Text = "Cash icon: actual size (left), 3x (right) - preview only"
+	label.Text = string.format("Cash and Distance enlarged %gx on white - preview only", zoomFactor)
+		.. (
+			if guides
+				then " - guides: magenta bill centre, blue band centre, orange holder, green art bounds, red midpoints"
+				else ""
+		)
 	label.Parent = card
 	gui.Parent = playerGui()
 	s.trove:Add(gui)
+end
+
+-- Holds the top row at its tightest point (preview only): the widest Cash
+-- value with the number frozen at the largest punch this screen allows, and
+-- the longest Distance. Draws the visible gap between them and labels it in
+-- rendered px. Returns the measured gap and the punch used.
+function RunHudPreview.showTopRowGap(cash: number?, distance: number?): (number?, number?)
+	local s = active()
+	if not s or not s.hud then
+		return nil, nil
+	end
+	stopCashDriver(s)
+	local existing = playerGui():FindFirstChild(GAP_GUIDE_NAME)
+	if existing then
+		existing:Destroy()
+	end
+	s.cash = cash or 1e15
+	s.distance = distance or 9999
+	render(s)
+	local hud = s.hud
+	local counter = hud._counter
+	counter:setValue(s.cash, true)
+	local gui = hud.Gui :: ScreenGui
+	local cashRoot = gui:FindFirstChild("Cash") :: Frame
+	local value = cashRoot:FindFirstChild("Value") :: Frame
+	local punchScale = value:FindFirstChild("Punch") :: UIScale
+	local limit = counter:getMaxPunch()
+	local scale = hud._scale
+	-- Measured before the punch is applied: the label box and its anchor
+	-- (the digit centre line), which the punch scales about.
+	local anchorY = value.AbsolutePosition.Y + value.AbsoluteSize.Y * value.AnchorPoint.Y
+	local belowAnchor = value.AbsoluteSize.Y * (1 - value.AnchorPoint.Y)
+	punchScale.Scale = 1 + limit
+	local face = value:FindFirstChild("Face", true) :: TextLabel
+	local width =
+		TextService:GetTextSize(face.Text, Tokens.TextSize.Cash, Enum.Font.FredokaOne, Vector2.new(4096, 4096)).X
+	local cashRight = face.AbsolutePosition.X + (width + 3.5) * scale * (1 + limit)
+	-- Lowest visible point: the label box (conservative) plus the shadow.
+	local cashBottom = anchorY + (belowAnchor + 3 * scale) * (1 + limit)
+	local distanceRoot = gui:FindFirstChild("Distance") :: Frame
+	local flagHolder = distanceRoot:FindFirstChild("FlagHolder") :: Frame
+	local flagLeft = flagHolder.AbsolutePosition.X + flagHolder.AbsoluteSize.X / 2 - FlagIcon.ArtSize.X / 2 * scale
+	local distanceTop = math.min(
+		flagHolder.AbsolutePosition.Y + flagHolder.AbsoluteSize.Y / 2 - FlagIcon.ArtSize.Y / 2 * scale,
+		(distanceRoot:FindFirstChild("Value") :: Frame).AbsolutePosition.Y
+	)
+	-- Separated if either the horizontal or the vertical gap is clear.
+	local horizontal = flagLeft - cashRight
+	local vertical = distanceTop - cashBottom
+	local secondRow = hud._distanceRow == 2
+	local gap = if secondRow then vertical else horizontal
+
+	local overlay = Instance.new("ScreenGui")
+	overlay.Name = GAP_GUIDE_NAME
+	overlay.DisplayOrder = 50
+	overlay.ResetOnSpawn = false
+	overlay.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	local function line(x: number, y: number, w: number, h: number)
+		local f = Instance.new("Frame")
+		f.Position = UDim2.fromOffset(x, y)
+		f.Size = UDim2.fromOffset(w, h)
+		f.BackgroundColor3 = Color3.fromRGB(255, 0, 200)
+		f.BorderSizePixel = 0
+		f.Parent = overlay
+	end
+	local labelY
+	if secondRow then
+		-- Horizontal lines at Cash's lowest point and Distance's top.
+		local left = flagLeft - 20
+		line(left, cashBottom, 180, 1)
+		line(left, distanceTop, 180, 1)
+		labelY = distanceTop + flagHolder.AbsoluteSize.Y + 4
+	else
+		local top = flagHolder.AbsolutePosition.Y - 6
+		local height = flagHolder.AbsoluteSize.Y + 12
+		line(cashRight, top, 1, height)
+		line(flagLeft, top, 1, height)
+		labelY = top + height + 2
+	end
+	local label = Instance.new("TextLabel")
+	label.AnchorPoint = Vector2.new(1, 0)
+	label.Position = UDim2.new(1, -4, 0, labelY)
+	label.Size = UDim2.fromOffset(300, 30)
+	label.BackgroundColor3 = Color3.new(1, 1, 1)
+	label.BackgroundTransparency = 0.2
+	label.Font = Enum.Font.Code
+	label.TextSize = 11
+	label.TextWrapped = true
+	label.TextColor3 = Color3.fromRGB(30, 30, 30)
+	label.Text = string.format(
+		"%s gap %.1f px (horizontal %.1f, vertical %.1f), punch %.2f - guide: preview only",
+		if secondRow then "Distance on 2nd row:" else "same row:",
+		gap,
+		horizontal,
+		vertical,
+		1 + limit
+	)
+	label.Parent = overlay
+	overlay.Parent = playerGui()
+	s.trove:Add(overlay)
+	return gap, 1 + limit
+end
+
+-- Plays a gain on the enlarged close-up counter (preview only).
+function RunHudPreview.closeupGain(amount: number)
+	local s = active()
+	if not s or not s.closeup then
+		return
+	end
+	local counter = s.closeup
+	counter:setValue((counter:getDebugState().value or 0) + amount)
 end
 
 function RunHudPreview.cycleMotion()
@@ -734,29 +1000,98 @@ function RunHudPreview.showControls(visible: boolean)
 	end
 end
 
--- Starts recording clicks and touches so a reviewer can check that the HUD
--- does not swallow steering input (gameProcessed stays false over HUD art).
+-- Preview-only input receiver standing in for the game's controls (Brian R's
+-- driving input is not in this place). It binds a ContextActionService action
+-- to mouse button 1 and touch, the way a game control would: Roblox does not
+-- deliver input to such an action when a GUI element sinks it. Each press
+-- the receiver gets is logged with its position and the matching
+-- UserInputService gameProcessed flag. Proves pass-through to this receiver
+-- only, not driving integration. Returns Pass so nothing else is blocked.
+local RECEIVER_ACTION = "Lane3PreviewInputReceiver"
+
 function RunHudPreview.probeInput()
 	local s = active()
 	if not s then
 		return
 	end
 	s.inputLog = {}
+	local log = s.inputLog :: { string }
+	-- Names of the HUD pieces under a point (which element was pressed).
+	local function hudUnder(position: Vector3): string
+		local names = {}
+		for _, object in playerGui():GetGuiObjectsAtPosition(position.X, position.Y) do
+			if object:IsDescendantOf(s.hud.Gui) then
+				table.insert(names, object.Name)
+			end
+		end
+		return if #names > 0 then table.concat(names, ">") else "(no HUD element)"
+	end
 	s.trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
 		local kind = input.UserInputType
 		if kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch then
 			table.insert(
-				s.inputLog,
+				log,
 				string.format(
-					"%s at (%d,%d) gameProcessed=%s",
+					"input %s at (%d,%d) gameProcessed=%s over [%s]",
 					kind.Name,
 					input.Position.X,
 					input.Position.Y,
-					tostring(processed)
+					tostring(processed),
+					hudUnder(input.Position)
 				)
 			)
 		end
 	end)
+	ContextActionService:BindAction(RECEIVER_ACTION, function(_, state: Enum.UserInputState, input: InputObject)
+		if state == Enum.UserInputState.Begin then
+			table.insert(
+				log,
+				string.format(
+					"receiver got %s at (%d,%d)",
+					input.UserInputType.Name,
+					input.Position.X,
+					input.Position.Y
+				)
+			)
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.UserInputType.MouseButton1, Enum.UserInputType.Touch)
+	s.trove:Add(function()
+		ContextActionService:UnbindAction(RECEIVER_ACTION)
+	end)
+end
+
+-- Centres of the HUD parts the pass-through test presses, in the same
+-- coordinates as InputObject.Position (GUI inset excluded), for the driver.
+function RunHudPreview.inputTargets(): { [string]: Vector2 }
+	local s = active()
+	if not s or not s.hud then
+		return {}
+	end
+	local gui = s.hud.Gui :: ScreenGui
+	local function centre(object: Instance?): Vector2
+		local o = object :: GuiObject
+		return o.AbsolutePosition + o.AbsoluteSize / 2
+	end
+	local cash = gui:FindFirstChild("Cash") :: Frame
+	local distance = gui:FindFirstChild("Distance") :: Frame
+	local body = (gui:FindFirstChild("HeatGauge") :: Frame):FindFirstChild("Body") :: Frame
+	local function textCentre(value: Frame): Vector2
+		local face = value:FindFirstChild("Face", true) :: TextLabel
+		local left = face.AbsolutePosition
+		return Vector2.new(left.X + face.TextBounds.X / 2, left.Y + face.AbsoluteSize.Y / 2)
+	end
+	local hopText = body:FindFirstChild("HopNow", true) :: Frame
+	local hopFace = hopText:FindFirstChild("Text") :: TextLabel
+	local hopRight = hopFace.AbsolutePosition + Vector2.new(hopFace.AbsoluteSize.X, hopFace.AbsoluteSize.Y / 2)
+	return {
+		CashIcon = centre(cash:FindFirstChild("IconHolder")),
+		CashNumber = textCentre(cash:FindFirstChild("Value") :: Frame),
+		DistanceFlag = centre(distance:FindFirstChild("FlagHolder")),
+		DistanceNumber = textCentre(distance:FindFirstChild("Value") :: Frame),
+		TitleTab = centre(body:FindFirstChild("TitleTab")),
+		HopNow = hopRight - Vector2.new(hopFace.TextBounds.X / 2, 0),
+	}
 end
 
 -- Read-only summary for review and tests.

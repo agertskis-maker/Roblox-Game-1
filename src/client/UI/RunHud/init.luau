@@ -31,12 +31,15 @@
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextService = game:GetService("TextService")
 local Workspace = game:GetService("Workspace")
 
 local CashIcon = require(script.Parent.CurrencyCounter.CashIcon)
 local CurrencyCounter = require(script.Parent.CurrencyCounter)
+local FlagIcon = require(script.FlagIcon)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local HeatGauge = require(script.HeatGauge)
+local OutlinedText = require(script.Parent.OutlinedText)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -55,18 +58,21 @@ export type Options = {
 	displayOrder: number?,
 	palette: Tokens.Palette?,
 	reducedMotionOverride: boolean?,
-	-- "Pill" (default, option A) or "Floating" (option B, a proposal shown
-	-- only in the preview until Adam chooses).
-	distanceStyle: ("Pill" | "Floating")?,
 }
 
--- Widest Cash strings the counter reserves room for (Format.cash never
--- produces anything wider below $1,000T).
-local CASH_WIDEST = { "$9,999", "$99.9K", "$999K", "$9.99M", "$99.9M", "$999B" }
--- Fixed Distance size (design px) so a new digit never resizes the HUD.
-local DISTANCE_SIZE = Vector2.new(164, 44)
+-- Widest Cash strings the counter reserves room for: every width class
+-- Format.cash produces, up to "$1,000T" (the first value past the T suffix).
+local CASH_WIDEST = { "$9,999", "$99.9K", "$999K", "$9.99M", "$99.9M", "$999M", "$999B", "$999T", "$1,000T" }
+-- Widest Distance values (number, unit) the HUD reserves room for.
+local DISTANCE_WIDEST = { { "9,999", "m" }, { "999.9", "km" }, { "9,999", "km" } }
+local DISTANCE_UNIT_SIZE = 22
 -- Minimum distance between the Heat panel (with its effects) and the safe-area edge.
 local SAFE_MARGIN = 24
+-- Minimum visible gap between Cash (at its largest punch) and Distance.
+local TOP_ROW_GAP = 12
+-- Narrow screens lower the Cash punch before moving Distance off centre, but
+-- never below this, so a gain still reads as a gain.
+local MIN_PUNCH = 0.06
 
 local RunHud = {}
 RunHud.__index = RunHud
@@ -90,129 +96,104 @@ local function nonInteractive(widget: GuiObject)
 	end)
 end
 
--- A cream card with a soft navy shadow. Returns the widget root and the card.
-local function card(
-	name: string,
+local function textWidthOf(text: string, size: number): number
+	return TextService:GetTextSize(text, size, Enum.Font.FredokaOne, Vector2.new(4096, 4096)).X
+end
+
+export type DistanceWidget = {
+	root: Frame,
+	number: OutlinedText.Parts,
+	unit: OutlinedText.Parts,
+	set: (metres: number) -> (),
 	size: Vector2,
-	radius: UDim,
-	palette: Tokens.Palette,
-	parent: Instance
-): (Frame, Frame)
+	artLeft: number,
+}
+
+-- Distance (approved option B): a floating white-to-cream number with the
+-- flag icon, styled like Cash (same outline, shadow and alignment rules).
+-- The unit is a second, smaller outlined label placed on the number's
+-- baseline right after it. (A single rich-text label was tried; Roblox draws
+-- a much thinner UIStroke on rich text, so the outline would not match Cash.)
+local function buildDistance(parent: Instance, palette: Tokens.Palette): DistanceWidget
+	local textSize = Tokens.TextSize.FloatDistance
+	local unitSize = DISTANCE_UNIT_SIZE
+	local outline = OutlinedText.Outline
+	local space = textWidthOf(" ", unitSize)
+	local widestNumber, widest = 0, 0
+	for _, sample in DISTANCE_WIDEST do
+		local number = textWidthOf(sample[1], textSize)
+		widestNumber = math.max(widestNumber, number)
+		widest = math.max(widest, number + space + textWidthOf(sample[2], unitSize))
+	end
+	local textWidth = math.ceil(widest + 2 * outline)
+	local textHeight = textSize + 2 * outline
+	local unitHeight = unitSize + 2 * outline
+	local side = FlagIcon.Size.X
+	local art = FlagIcon.ArtSize
+	local rowHeight = math.max(FlagIcon.Size.Y, textHeight + OutlinedText.ShadowOffset)
+	local mid = rowHeight / 2
+	local artLeft = side / 2 - art.X / 2
+	local inkLeft = OutlinedText.DigitInkLeftEm * textSize - outline
+	local textX = side / 2 + art.X / 2 + CurrencyCounter.Gap - inkLeft
+	local size = Vector2.new(textX + textWidth, rowHeight)
+	-- Baseline of the number (digits sit on it), and where the unit label's
+	-- own baseline sits inside it, from the measured digit metrics.
+	local baselineY = mid + OutlinedText.DigitHeightEm * textSize / 2
+	local unitBaselineAnchor = 0.5
+		+ (OutlinedText.DigitCentreEm + OutlinedText.DigitHeightEm / 2) * unitSize / unitHeight
+
 	local root = make("Frame", {
-		Name = name,
+		Name = "Distance",
+		AnchorPoint = Vector2.new(0.5, 0),
 		Size = UDim2.fromOffset(size.X, size.Y),
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
 	nonInteractive(root)
 	make("UIScale", { Name = "HudScale", Scale = 1, Parent = root })
-	local shadow = make("Frame", {
-		Name = "Shadow",
-		Position = UDim2.fromOffset(0, Tokens.Shadow.OffsetY),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = palette.Shadow,
-		BackgroundTransparency = Tokens.Shadow.Transparency,
-		BorderSizePixel = 0,
+	local flagHolder = make("Frame", {
+		Name = "FlagHolder",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(side / 2 / size.X, mid / size.Y),
+		Size = UDim2.fromOffset(side, side),
+		BackgroundTransparency = 1,
 		Parent = root,
 	})
-	make("UICorner", { CornerRadius = radius, Parent = shadow })
-	local face = make("Frame", {
-		Name = "Card",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = palette.Card,
-		BorderSizePixel = 0,
-		ZIndex = 2,
+	FlagIcon.build(flagHolder, palette)
+	local valueFrame = make("Frame", {
+		Name = "Value",
+		AnchorPoint = Vector2.new(0, 0.5 + OutlinedText.DigitCentreEm * textSize / textHeight),
+		Position = UDim2.fromScale(textX / size.X, mid / size.Y),
+		Size = UDim2.fromOffset(math.ceil(widestNumber + 2 * outline), textHeight),
+		BackgroundTransparency = 1,
 		Parent = root,
 	})
-	make("UICorner", { CornerRadius = radius, Parent = face })
-	make("UIStroke", {
-		Color = palette.Stroke,
-		Thickness = Tokens.Stroke.Regular,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Parent = face,
-	})
-	return root, face
-end
-
--- Floating white text with a near-black outline and a drop shadow (option B).
-local function floatingText(parent: Instance, name: string, size: number, palette: Tokens.Palette): TextLabel
-	local label = make("TextLabel", {
-		Name = name,
+	local number =
+		OutlinedText.build(valueFrame, "Text", textSize, palette.FloatText, palette.FloatTextCream, palette, 2)
+	local unitFrame = make("Frame", {
+		Name = "Unit",
+		AnchorPoint = Vector2.new(0, unitBaselineAnchor),
+		Size = UDim2.fromOffset(math.ceil(textWidthOf("km", unitSize) + 2 * outline), unitHeight),
 		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		TextSize = size,
-		TextColor3 = palette.FloatText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 3,
-		Parent = parent,
+		Parent = root,
 	})
-	make("UIStroke", {
-		Color = palette.CashOutline,
-		Thickness = 3,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		Parent = label,
-	})
-	local shadow = make("TextLabel", {
-		Name = "Shadow",
-		Position = UDim2.fromOffset(0, 3),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		TextSize = size,
-		TextColor3 = palette.CashShadow,
-		TextTransparency = 0.35,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 2,
-		Parent = label,
-	})
-	label:GetPropertyChangedSignal("Text"):Connect(function()
-		shadow.Text = label.Text
-	end)
-	label:GetPropertyChangedSignal("TextXAlignment"):Connect(function()
-		shadow.TextXAlignment = label.TextXAlignment
-	end)
-	return label
-end
-
--- Small original checkered flag on a pole (option B icon).
-local function buildFlag(parent: Instance, palette: Tokens.Palette)
-	local holder = make("Frame", {
-		Name = "Flag",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(24, 28),
-		Rotation = -8,
-		BackgroundTransparency = 1,
-		Parent = parent,
-	})
-	local pole = make("Frame", {
-		Name = "Pole",
-		Position = UDim2.fromOffset(2, 2),
-		Size = UDim2.fromOffset(4, 24),
-		BackgroundColor3 = palette.Chrome,
-		BorderSizePixel = 0,
-		Parent = holder,
-	})
-	make("UIStroke", { Color = palette.CashOutline, Thickness = 2, Parent = pole })
-	local cloth = make("Frame", {
-		Name = "Cloth",
-		Position = UDim2.fromOffset(6, 2),
-		Size = UDim2.fromOffset(16, 12),
-		BackgroundColor3 = palette.FloatText,
-		BorderSizePixel = 0,
-		Parent = holder,
-	})
-	make("UIStroke", { Color = palette.CashOutline, Thickness = 2, Parent = cloth })
-	for _, spot in { { 0, 0 }, { 8, 6 } } do
-		make("Frame", {
-			Name = "Check",
-			Position = UDim2.fromOffset(spot[1], spot[2]),
-			Size = UDim2.fromOffset(8, 6),
-			BackgroundColor3 = palette.CashOutline,
-			BorderSizePixel = 0,
-			Parent = cloth,
-		})
+	local unit = OutlinedText.build(unitFrame, "Text", unitSize, palette.FloatText, palette.FloatTextCream, palette, 2)
+	local function set(metres: number)
+		local numberText, unitText = Format.distanceParts(metres)
+		OutlinedText.setText(number, numberText)
+		OutlinedText.setText(unit, unitText)
+		-- The unit follows the number's advance width plus one space.
+		local unitX = textX + textWidthOf(numberText, textSize) + space
+		unitFrame.Position = UDim2.fromScale(unitX / size.X, baselineY / size.Y)
 	end
+	return {
+		root = root,
+		number = number,
+		unit = unit,
+		set = set,
+		size = size,
+		artLeft = artLeft,
+	}
 end
 
 function RunHud.new(parent: Instance, options: Options?)
@@ -223,8 +204,7 @@ function RunHud.new(parent: Instance, options: Options?)
 	self._override = opts.reducedMotionOverride
 	self._state = { cash = 0, distance = 0, heat = 0 } :: RunHudState
 	self._scale = 1
-
-	local font = Tokens.font()
+	self._mounted = false
 
 	local gui = make("ScreenGui", {
 		Name = opts.name or "RunHud",
@@ -243,6 +223,7 @@ function RunHud.new(parent: Instance, options: Options?)
 		palette = palette,
 		buildIcon = CashIcon.build,
 		iconSize = CashIcon.Size,
+		iconArtSize = CashIcon.ArtSize,
 		format = Format.cash,
 		widestSamples = CASH_WIDEST,
 		reducedMotion = self:isReducedMotion(),
@@ -254,62 +235,12 @@ function RunHud.new(parent: Instance, options: Options?)
 		counter:destroy()
 	end)
 
-	-- Distance, top centre. Option A (default): cream pill. Option B
-	-- (proposal, preview only): floating white number with a flag icon.
-	-- Digits are right-aligned in a fixed slot and the unit sits in its own
-	-- slot, so the unit never jumps as digits change.
-	local distanceStyle = opts.distanceStyle or "Pill"
-	self._distanceStyle = distanceStyle
-	local distanceRoot
-	if distanceStyle == "Floating" then
-		distanceRoot = make("Frame", {
-			Name = "Distance",
-			Size = UDim2.fromOffset(DISTANCE_SIZE.X, DISTANCE_SIZE.Y),
-			BackgroundTransparency = 1,
-			Parent = gui,
-		})
-		nonInteractive(distanceRoot)
-		make("UIScale", { Name = "HudScale", Scale = 1, Parent = distanceRoot })
-		buildFlag(distanceRoot, palette)
-		self._distanceText = floatingText(distanceRoot, "Value", Tokens.TextSize.FloatDistance, palette)
-		self._distanceText.Position = UDim2.fromOffset(28, 0)
-		self._distanceText.Size = UDim2.new(0, 96, 1, 0)
-		self._distanceText.TextXAlignment = Enum.TextXAlignment.Right
-		self._distanceUnit = floatingText(distanceRoot, "Unit", Tokens.TextSize.Label, palette)
-		self._distanceUnit.Position = UDim2.fromOffset(28 + 96 + Tokens.Space.XS, 4)
-		self._distanceUnit.Size = UDim2.new(0, 36, 1, 0)
-	else
-		local pill
-		distanceRoot, pill = card("Distance", DISTANCE_SIZE, Tokens.Radius.Pill, palette, gui)
-		self._distanceText = make("TextLabel", {
-			Name = "Value",
-			Position = UDim2.fromOffset(Tokens.Space.L, 0),
-			Size = UDim2.new(0, 96, 1, 0),
-			BackgroundTransparency = 1,
-			FontFace = font,
-			TextSize = Tokens.TextSize.Value,
-			TextColor3 = palette.Text,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Text = "0",
-			ZIndex = 3,
-			Parent = pill,
-		})
-		self._distanceUnit = make("TextLabel", {
-			Name = "Unit",
-			Position = UDim2.fromOffset(Tokens.Space.L + 96 + Tokens.Space.XS, 2),
-			Size = UDim2.new(0, 36, 1, 0),
-			BackgroundTransparency = 1,
-			FontFace = font,
-			TextSize = Tokens.TextSize.Label,
-			TextColor3 = palette.TextSecondary,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = "m",
-			ZIndex = 3,
-			Parent = pill,
-		})
-	end
-	distanceRoot.AnchorPoint = Vector2.new(0.5, 0)
+	-- Distance, top centre (option B, approved by Adam 2026-10-19). The number
+	-- and unit are left-aligned after the flag, like Cash after its icon, so
+	-- the flag always sits 8 px from the digits.
+	local distance = buildDistance(gui, palette)
+	local distanceRoot = distance.root
+	self._distance = distance
 	self._distanceRoot = distanceRoot
 
 	-- Heat, bottom centre.
@@ -334,18 +265,47 @@ function RunHud.new(parent: Instance, options: Options?)
 			(root:FindFirstChild("HudScale") :: UIScale).Scale = scale
 		end
 		counter.Root.Position = UDim2.fromOffset(gap, gap)
-		-- Distance stays centred unless that would touch the Cash counter's
-		-- reserved row (widest value plus punch); then it moves right just
-		-- enough to clear it, but never past the safe area. If even that is
-		-- not enough the overlap is recorded for review, not hidden.
+		-- Top row (predictable rule, all in rendered px):
+		--   1. Distance is centred.
+		--   2. If the widest Cash value at its biggest punch would come within
+		--      TOP_ROW_GAP of the flag, the Cash punch is lowered to fit.
+		--   3. Only if that would need a punch below MIN_PUNCH does Distance
+		--      move right, never past the safe area.
+		--   4. If even no punch would leave TOP_ROW_GAP at the right edge (the
+		--      narrowest phones, about 375 px and below), Distance moves to its
+		--      own row under Cash, against the right edge, and Cash keeps its
+		--      full punch. Text sizes never shrink.
+		--   5. Anything still overlapping is recorded for review, not hidden.
 		local safeWidth = gui.AbsoluteSize.X
-		local cashRight = gap + counter.ReservedSize.X * scale
-		local halfDistance = DISTANCE_SIZE.X * scale / 2
-		local wanted = math.max(safeWidth / 2, cashRight + gap + halfDistance)
+		local minGap = TOP_ROW_GAP * scale
+		local valueLeft = gap + counter.ValueX * scale
+		local inkWidth = counter.WidestInkRight * scale
+		local halfDistance = distance.size.X * scale / 2
+		local flagInset = distance.artLeft * scale
+		local function punchFor(centre: number): number
+			local room = (centre - halfDistance + flagInset) - minGap - valueLeft
+			return room / inkWidth - 1
+		end
+		local centreX = safeWidth / 2
 		local maxCentre = safeWidth - gap - halfDistance
-		local centreX = if safeWidth > 0 then math.min(wanted, maxCentre) else wanted
-		self._layoutConflict = math.max(0, (cashRight + gap) - (centreX - halfDistance))
-		distanceRoot.Position = UDim2.fromOffset(centreX, gap)
+		if punchFor(centreX) < MIN_PUNCH then
+			local needed = valueLeft + inkWidth * (1 + MIN_PUNCH) + minGap + halfDistance - flagInset
+			centreX = math.max(centreX, math.min(needed, maxCentre))
+		end
+		local punch = punchFor(centreX)
+		local distanceY = gap
+		self._distanceRow = 1
+		if punch < 0 and safeWidth > 0 then
+			centreX = maxCentre
+			punch = Tokens.Motion.CashPunchBig
+			-- Below the Cash row at its largest punch (and its shadow).
+			distanceY = gap + (counter.RowHeight + OutlinedText.ShadowOffset) * scale + minGap
+			self._distanceRow = 2
+		end
+		counter:setMaxPunch(math.clamp(punch, 0, Tokens.Motion.CashPunchBig))
+		self._layoutConflict = math.max(0, -punch * inkWidth)
+		self._topRowPunch = math.clamp(punch, 0, Tokens.Motion.CashPunchBig)
+		distanceRoot.Position = UDim2.fromOffset(centreX, distanceY)
 		-- In portrait the gauge is nearly as wide as the screen, so it would
 		-- cover both bottom corners where touch controls (the Hop button)
 		-- live. There it sits one touch row higher; landscape has room beside it.
@@ -378,13 +338,24 @@ function RunHud.new(parent: Instance, options: Options?)
 	end)
 
 	gui.Parent = parent
-	-- Show defaults for Distance and Heat; Cash stays empty until the first
-	-- real setState, which mounts it without a "gain" animation.
-	local number, unit = Format.distanceParts(0)
-	self._distanceText.Text = number
-	self._distanceUnit.Text = unit
-	gauge:set(0, nil)
+	-- Show defaults for Distance and Heat without any animation; Cash stays
+	-- empty until the first setState. The first setState then mounts every
+	-- widget at the supplied state with no gain, fill or stage transition.
+	self:_setDistance(0)
+	gauge:snap(0, nil)
 	return self
+end
+
+function RunHud._setDistance(self: any, metres: number)
+	self._distance.set(metres)
+end
+
+-- Development preview only: builds a standalone Distance widget (for the
+-- enlarged alignment close-up) showing `metres`.
+function RunHud.buildDistancePreview(parent: Instance, palette: Tokens.Palette, metres: number): DistanceWidget
+	local widget = buildDistance(parent, palette)
+	widget.set(metres)
+	return widget
 end
 
 function RunHud.isReducedMotion(self: any): boolean
@@ -405,10 +376,15 @@ function RunHud.setState(self: any, state: RunHudState)
 	self._state = state
 	-- The counter snaps on its first value and animates later changes.
 	self._counter:setValue(state.cash)
-	local number, unit = Format.distanceParts(state.distance)
-	self._distanceText.Text = number
-	self._distanceUnit.Text = unit
-	self._gauge:set(state.heat, state.stage)
+	self:_setDistance(state.distance)
+	if self._mounted then
+		self._gauge:set(state.heat, state.stage)
+	else
+		-- First supplied state: shown as it is, with no entrance fill or stage
+		-- cross-fade. An ongoing Critical or Meltdown alarm still runs.
+		self._mounted = true
+		self._gauge:snap(state.heat, state.stage)
+	end
 end
 
 -- Presentation-only bump reaction (provisional, for Lane 1). Changes no Heat.
@@ -435,9 +411,10 @@ function RunHud.getDebugState(self: any): { [string]: any }
 		cashText = self._counter:getDebugState().text,
 		cashFits = self._counter:getDebugState().textFits,
 		layoutConflict = self._layoutConflict,
-		distanceStyle = self._distanceStyle,
-		distanceText = self._distanceText.Text .. " " .. self._distanceUnit.Text,
-		distanceFits = self._distanceText.TextFits and self._distanceUnit.TextFits,
+		topRowPunch = self._topRowPunch,
+		distanceRow = self._distanceRow,
+		distanceText = self._distance.number.face.Text .. " " .. self._distance.unit.face.Text,
+		distanceFits = self._distance.number.face.TextFits and self._distance.unit.face.TextFits,
 		cashBox = box(self._cashRoot),
 		distanceBox = box(self._distanceRoot),
 		gaugeBox = box(self._gaugeRoot),
