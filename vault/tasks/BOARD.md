@@ -46,6 +46,8 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 - [ ] Lane 3 HUD checks still open after approval (not passed): real phones and phone performance; the player's own Roblox Reduce Motion setting; the 378 to 398 px one-row range on screen; the HUD over the real road and chase camera (Downtown scene review) ([[visual-direction]], [[2026-10-20]])
 
+- [ ] Give every teammate collaborator access to the now-private repository; on 2026-10-20 it listed two accounts, the owner and one teammate ([[0009-private-repository]])
+
 ## Backlog
 - [ ] _add ideas here_
 - [ ] Decide the reduced-motion mechanism with the visual direction, after the concept is chosen ([[0004-workflow-rules]])
@@ -53,6 +55,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Make the repository private (GitHub Free: no branch protection on `main`; the `main` rules are kept by our own workflow; Actions minutes now count against the private quota) - Adam ([[0009-private-repository]], [[2026-10-20]])
 - [x] Lane 3 HUD stage of the visual sample (ENGINE HEAT panel, Cash counter, Distance B), approved by Adam on 2026-10-20 at revision 4; tested in Studio's Device Simulator only, open items are under "Up next" - Adam, with Claude Code ([[2026-10-19]], [[2026-10-20]], [[visual-direction]])
 - [x] Agree on the game concept and fill in [[GDD]]: Car Hop selected by the team on 2026-10-18; `GDD.md` is `status: selected`, `concept: Car Hop`, summarised from [[car-hop-outline-v2]] - Claude Code at the repository owner's request ([[2026-10-19]], [[0007-concept-car-hop-and-lanes]])
 - [x] Prepare car-hopping concept outline as PDF and Markdown for owner/Claude review - Codex; see [[car-hopping-game-outline]] and [[2026-10-18]]
