@@ -70,6 +70,13 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 ### Visual references and UI styling
 - Allowed: imitating style traits of a reference (shape language, outlines, rounded panels, palette mood, layout patterns).
 - Not allowed: copying logos, characters, item art, icons, unlicensed fonts, names, or a near-identical recreation of a distinctive screen.
+- **Vehicles** (`vault/decisions/0010-vehicle-direction.md`): every vehicle is an original fictional or parody vehicle inspired by real automotive categories, eras and proportions. The rules above still apply in full. In addition:
+  1. No real logos, badges, emblems, manufacturer wordmarks or brand fonts anywhere, including on grilles, wheels, plates and decals.
+  2. No real model or brand name used unchanged. Every name has a visible parody twist.
+  3. Shapes are inspired by the real car (proportions, era, overall vibe), not exact copies of signature grilles, headlight shapes or body lines.
+  4. No names that mock a brand in a mean or adult way, and nothing unsuitable for children.
+  5. No police, military or emergency-service vehicles or liveries.
+  Parody names and removing logos do not establish permission or remove intellectual-property risk, which is not limited to trademarks or trade dress. No legal clearance is established; a commercial release needs a separate review. A parody name with a visible twist, as defined in rule 2, is not a copied name under the rules above.
 - "Make it like this" is strong guidance, not a mandate for the whole reference. List the qualities you plan to preserve and have the owner confirm them in the same question batch.
 - The representative sample for a visual direction is approved by the repository owner, or by the area owner once the board assigns one. Record the approval in `vault/design/visual-direction.md`. A shop or panel opened during gameplay is reviewed as an overlay on the gameplay view.
 - Fonts and touch-target size are undecided. They are proposed after the concept is chosen and the owner approves; do not hard-code them yet.
