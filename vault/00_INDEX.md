@@ -13,6 +13,7 @@ Shared notes for the team. The engineering rules live in the repo root `AGENTS.m
 - [[BOARD]]: who is doing what
 - Decisions: [[0001-profilestore-source]], [[0002-roblox-brain-skill-pack]], [[0003-blocked-tool-exit-code]], [[0004-workflow-rules]], [[0005-animation-pipeline]], [[0006-studio-mcp-rules]] (proposed, not approved), [[0007-concept-car-hop-and-lanes]], [[0008-heat-critical-meltdown]], [[0009-private-repository]]
 - Design outline: [[car-hop-outline-v2]] (approved), [[car-hopping-game-outline]] (v1, history)
+- Island base (draft, pending Adam): [[island-base]], [[plot-marker-contract]] (draft for Lane 2)
 - Log: [[2026-10-14]], [[2026-10-15]], [[2026-10-18]], [[2026-10-19]], [[2026-10-20]]
 
 ## Conventions
