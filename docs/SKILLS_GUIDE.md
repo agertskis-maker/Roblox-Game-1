@@ -134,3 +134,4 @@ Codex reads `.agents/skills/`, not `.claude/skills/`, and this repository does
 not provide that folder. Codex users rely on `AGENTS.md` for the rules, and can
 open a project skill's `SKILL.md` directly when they want its workflow. The
 shared Studio MCP entry for Codex is in `.codex/config.toml`.
+Codex users without Blender and `uv` installed may see a Blender MCP start-up error from that file; it is safe to ignore.
