@@ -25,7 +25,18 @@ status: accepted
 ## Not established by this decision
 - Parody naming and the removal of logos do not establish permission and do not remove intellectual-property risk. That risk is not limited to trademarks or trade dress; copyright or design rights can also apply. No legal clearance is established by this decision, and a commercial release needs a separate review.
 - The naming permission does not allow copying badges, logos, exact bodywork or a distinctive vehicle design unchanged.
-- No roster, car name, silhouette, rarity tier or economy value is approved by this note. The 24-car roster and the five-tier rarity guide are proposals, recorded in `vault/design/vehicles/rarity-style.md` once drafted, until Adam approves them; economy values also need Brian L (Lane 2).
+- No roster, car name, silhouette, rarity tier or economy value is approved by this note. The 24-car roster and the five-tier rarity guide are proposals (see below) until Adam approves them; economy values also need Brian L (Lane 2).
+
+## Answers recorded (Adam, 2026-10-20, with the go-ahead for the studies and one Common starter)
+- Each World's Legendary stays in the Special/Magnet slot, to protect the Heat-to-spare promise; the Special family may be any vehicle type, and each Legendary must be the single most impressive vehicle in its World.
+- Roblox's built-in smoke particle texture may be used for the hood-smoke preview.
+- Upload owner (account or group) is not decided: nothing is uploaded. If an import needs an upload, work stops and the team decides.
+- The private test place moved out of the repository to `C:\Users\agert\Documents\Car-Hop-Art\CarHop-Lane3-Test.rbxl`.
+
+## Proposals recorded, not approved
+- Five-tier rarity ladder (adding Uncommon), quality floor, budgets and feature rules: [[rarity-style]].
+- Revised 24-car roster with Adam's corrections (Legendaries above Epics, mostly 1990s to today, every Rare sportier than every Uncommon): [[roster]].
+- Uncommon economy values (Keys claim 3.5 s, Lap Pay $8, Joyride Bonus $5) are **Proposed** and flagged for Brian L (Lane 2). They are not in code, Catalog or saves.
 
 ## Superseded
 - The Pip direction approved on 2026-10-19 (a chunky toy hatchback with a cream roof, wheels about 1.3 times realistic, built from parts) is superseded for future vehicles. Its approval record stays in [[visual-direction]] as history and does not approve the revised first car or its name.

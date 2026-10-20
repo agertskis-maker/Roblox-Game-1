@@ -24,5 +24,13 @@ vault/.obsidian/graph.json
 vault/.obsidian/cache
 vault/.trash/
 
+# --- Vehicle source recipes (assets/) ---
+# Text recipes only; Python bytecode and Blender binaries stay out of Git.
+__pycache__/
+assets/**/*.blend
+assets/**/*.blend1
+assets/**/*.fbx
+assets/**/*.png
+
 # Machine-local AI settings are not shared.
 .claude/settings.local.json

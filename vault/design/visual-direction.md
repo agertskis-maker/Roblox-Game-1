@@ -9,10 +9,10 @@ status: draft
 # Visual direction (draft; HUD approved, Pip and Downtown pending)
 
 > [!warning] Draft: HUD approved, the rest pending
-> Adam approved the HUD sample (revision 4) on 2026-10-20. Pip and the Downtown scene are not built, so the direction as a whole stays draft. Approving a plan or a direction does not approve a finished look; each sample needs its own approval line at the bottom before the style spreads.
+> Adam approved the HUD sample (revision 4) on 2026-10-20. The first car (which replaces Pip) is built and pending review, and the Downtown scene is not built, so the direction as a whole stays draft. Approving a plan or a direction does not approve a finished look; each sample needs its own approval line at the bottom before the style spreads.
 
 ## Scope
-Lane 3 (World, UI & Feel, owner Adam) visual sample for Car Hop ([[GDD]], [[car-hop-outline-v2]] sections 06, 07, 09, 13; [[0008-heat-critical-meltdown]]). Order: HUD (approved 2026-10-20), then Pip, then the Downtown scene, each stopping for Adam's approval.
+Lane 3 (World, UI & Feel, owner Adam) visual sample for Car Hop ([[GDD]], [[car-hop-outline-v2]] sections 06, 07, 09, 13; [[0008-heat-critical-meltdown]]). Order: HUD (approved 2026-10-20), then the first car (replacing Pip, 0010), then the Downtown scene, each stopping for Adam's approval.
 - Proposal sketches (not Studio captures): https://claude.ai/artifact/JYVRazaaENWAkiDXw5qBTS
 - HUD review contact sheet, first version (real Studio captures): https://claude.ai/artifact/GuedwiFiS5F8rSd3tUUqmG
 - HUD review, revision 2 (ENGINE HEAT panel; real Studio captures): https://claude.ai/artifact/KBtMAZdsTca42dgsaDycqK
@@ -40,6 +40,12 @@ These pages are private to Adam until he shares them.
   - the player's own Roblox Reduce Motion setting (only the preview override was used);
   - the 378 to 398 px one-row range (calculated, not seen on screen);
   - the HUD over the real road and chase camera (Downtown scene review).
+
+## Vehicles (2026-10-20)
+- **Approved direction** ([[0010-vehicle-direction]]): original fictional or parody vehicles inspired by real categories, eras and proportions, as polished, shaped low-poly cars; the five vehicle guardrails are in `AGENTS.md` "Vehicles". Every car, including the cheapest Common, must look intentionally shaped and desirable.
+- **Proposed, pending Adam's review:** the five-tier rarity guide [[rarity-style]] (with the reference observations) and the 24-car [[roster]]. The Uncommon tier and its numbers are proposals for Brian L.
+- **First car (Downtown Common starter, study B):** built in Blender from the recipe in `assets/vehicles/downtown-starter/`; pending Adam's review. Not approved, and its proposed name (Puglet) is not approved.
+- **Superseded:** the Pip sections below (toy hatchback, cream roof, wheels about 1.3 times realistic, parts-only). They stay as history; Pip's 2026-10-19 approval does not approve the new car or its name.
 
 ## Direction
 Labels: (outline), (approved) by Adam, (my proposal, pending review), (constraint).
@@ -125,14 +131,14 @@ Adam approved the audio direction in principle on 2026-10-19. Choosing, insertin
 - **Stage values** are PascalCase strings; player labels are Cool, Hot, Too hot!, Losing control!.
 - **Preview** (`src/client/UI/Preview/RunHudPreview.luau`) is internal and not a contract.
 
-## Pip, approved sketch (for the Pip session)
-Approved by Adam on 2026-10-19 as a direction; the built model still needs review.
+## Pip, approved sketch (superseded 2026-10-20 by [[0010-vehicle-direction]]; kept as history)
+Approved by Adam on 2026-10-19 as a direction; the built model still needs review. The rig and attachment names below remain the starting point for the provisional vehicle rig; the look, dimensions, palette and wheel exaggeration are superseded.
 - **Silhouette:** two-box hatchback. Length 9.6 studs, body width 5.4, width across tires 6.0, total height about 4.4, wheelbase 5.6. Wheels 2.4 studs across (about 1.3 times realistic), 0.9 wide, poking past the body. Chamfered lower body; cabin set back with a sloped windscreen and a near-vertical rear hatch; cream roof cap; two round headlights and a short dark grille slot in front (friendly, no eyes or mouth); taillights and a cream plate at the rear; navy bumpers; dark arches behind the wheels; light hubs with a dark cross so spin is visible.
 - **Colours:** body `#3E9BFF` SmoothPlastic; roof `#FFF1D0`; trim `#1E2A4A`; glass `#1B2A45` (Glass, slight transparency); headlights `#FFF4C2`; taillights `#FF7A66`; tire `#20232E`; hub `#E8EEF8` Metal. No light objects.
 - **Budget:** about 32 parts, no unions, no meshes, no scripts from outside.
 - **Rig (provisional, for Brian R's review):** `Root` invisible part at ground under the car centre, model PrimaryPart, facing -Z, +Y up; every part Anchored (kinematic, moved with PivotTo; no Seat, no Humanoid, no welds needed). `Wheel_FL`, `Wheel_FR`, `Wheel_RL`, `Wheel_RR` models with pivots at axle centres, spin about local X. Attachments: `SeatAnchor` (rider position, faces forward; placement only), `HeadlightL`, `HeadlightR`, `HeatSteam` (hood), `HopRing` (ground centre), `KeysMeter` (above roof), `TrailL`, `TrailR` (rear corners). Every visible part carries a `ColorRole` attribute (Body, Roof, Trim, Glass, LampFront, LampRear, Tire, Hub); finishes are role-to-colour maps. Model attribute `RigVersion = "0-provisional"`.
 
-## Next session: Pip (HUD approved 2026-10-20; start only when Adam asks)
+## Next session: Pip (superseded 2026-10-20: the first car replaces Pip; kept as history)
 - Git-tracked construction recipe that builds Pip at runtime through the agreed preview launcher (a module under `src/client/Home/`, Studio-only guard, rerunnable, one named container).
 - Keep the approved silhouette, colours, rig and attachment names.
 - Localized Critical and Meltdown red emphasis on the car that never overwrites `ColorRole` or the original colours; restore the exact original appearance when the effect clears. Drive its pulse from `AlarmClock` (same phase as the HUD panel) and count its peaks in the combined 2.5-per-second ceiling.
@@ -158,10 +164,11 @@ Approved by Adam on 2026-10-19 as a direction; the built model still needs revie
 | Revision 2 at desktop 1919 x 1079, phone portrait 401 x 778, phone landscape 750 x 381 | yes | revision 2 page | not approved; revised |
 | Run HUD revision 3: thermometer fit, mirrored sirens, no-green Heat colours, 2.5 per second alarm, Cash counter, Distance A/B | yes, 2026-10-19 | revision 3 page (videos and stills) | pending Adam |
 | Run HUD revision 4: HOP NOW! pulse, centred Cash icon, clean gain fade, Meltdown hazard bar, billowing smoke, Distance B only, narrow layout, first mount, input pass-through | yes, 2026-10-19 | revision 4 page (real-time videos at 1920 x 1080, 359 x 690 and 677 x 338, stills, measurements) | approved by Adam, 2026-10-20 |
-| Pip on the shared rig | no | not captured | |
+| Pip on the shared rig | no | not captured | superseded by the first car (0010) |
+| First car: Downtown Common starter (study B), with three starter studies and five tier studies | yes (Blender), 2026-10-20 | Stop 1 revision review page | pending Adam |
 | Downtown road slice with pothole and barrier | no | not captured | |
 
-Sample approved by: Adam, 2026-10-20 (HUD, revision 4; open items listed under "Approvals recorded (Adam, 2026-10-20)"), _pending_ (Pip), _pending_ (Downtown scene).
+Sample approved by: Adam, 2026-10-20 (HUD, revision 4; open items listed under "Approvals recorded (Adam, 2026-10-20)"), _pending_ (first car; Pip superseded), _pending_ (Downtown scene).
 
 ## Choices I made (reversible)
 - Cream roof and navy trim on Pip repeat the UI's cream and navy so car and HUD read as one game.

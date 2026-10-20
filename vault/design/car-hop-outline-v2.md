@@ -44,7 +44,7 @@ Racing then gives the same car a fourth use. Nothing in the game should be added
 
 ### Inspiration and boundaries
 
-Rodeo Stampede (Featherweight / Yodo1) is the mechanical reference for hopping between rides, staying aboard to claim a new one, and a home base that earns from your collection. This is an original car-themed game. No assets, names, characters, or presentation are copied. Real car manufacturers mentioned in brainstorming were examples only; every vehicle in the game is fictional with its own name and silhouette.
+Rodeo Stampede (Featherweight / Yodo1) is the mechanical reference for hopping between rides, staying aboard to claim a new one, and a home base that earns from your collection. This is an original car-themed game. No assets, names, characters, or presentation are copied. Real car manufacturers mentioned in brainstorming were examples only; every vehicle in the game is fictional with its own name and silhouette. *(2026-10-20, decision 0010: vehicles may be original parody vehicles inspired by real categories, eras and proportions, under the guardrails in `AGENTS.md` "Vehicles".)*
 
 ### Audience, devices, tone
 
@@ -357,6 +357,8 @@ Each World's roster: Common for the Loaner and two others, three Rare, one Epic,
 
 ### Car construction standard
 
+*Superseded for vehicles by decision 0010 (2026-10-20): Blender meshes with believable proportions, wheels at most about 10% oversized, budgets in `vault/design/vehicles/rarity-style.md`. The text below is kept as history; the shared-rig idea still applies, provisionally.*
+
 - Built from parts (and MeshParts when a teammate models them), roughly 20 to 40 parts per car, no unions. Flat colors, SmoothPlastic and Metal materials, dark tinted glass. Oversized wheels (about 1.3x realistic), short wheelbases, rounded block bodies. A car must be identifiable by silhouette at run distance and attractive on a Speedway turntable.
 - One shared rig: body, four wheels that spin, a seat anchor for the avatar, a headlight pair, and attachment points for the Heat steam, Hop ring, Keys meter, and Variant trail. Every car uses the same rig so one script handles all of them.
 - Fictional names with personality ("Pip", "Boxcar Bertha", "Nitro Fox"). Names and silhouettes are **Open** for the team to approve from a proposal list before modeling starts.
@@ -452,6 +454,7 @@ Each World has 8 models, one per family. Rarity per family slot is fixed so ever
 
 - **Look:** a sunny cartoon city. Teal sky, warm grey asphalt, coral and mint block buildings, yellow crosswalk stripes, billboards with fictional ads. Lots of 90-degree shapes.
 - **Hazards:** potholes, oil slicks, construction zones with cones and a crane arm, drawbridge gaps.
+- *A revised 24-car roster with a five-tier rarity proposal replaces the three proposed rosters in this section, pending approval: `vault/design/vehicles/roster.md` (2026-10-20).*
 - **Roster (proposed names, Open for approval):** Pip (Compact hatchback, Loaner), Comet Cab (Sedan taxi), Haul Buddy (Pickup), Boxcar Bertha (Van, delivery van), Zippy (Motorcycle scooter), Big Red (Truck, city bus), Nitro Fox (Sports coupe), Stretch (Legendary stretch limo with a disco roof).
 - **Music:** upbeat brass and bouncy bass.
 - **Unlock:** available from the start.
@@ -570,7 +573,7 @@ Rules:
 
 ### Visual system
 
-- **Style:** chunky block cartoon. Rounded blocks, big wheels, flat saturated colors, thick dark outlines on UI, no realistic textures. Every World gets its own palette (section 09) while cars, UI, and effects stay consistent.
+- **Style:** chunky block cartoon. Rounded blocks, big wheels, flat saturated colors, thick dark outlines on UI, no realistic textures. Every World gets its own palette (section 09) while cars, UI, and effects stay consistent. *(Cars: superseded by decision 0010, 2026-10-20; polished, shaped low-poly vehicles with believable proportions.)*
 - **Lighting:** bright daytime in every World; no realism, no heavy post-processing. One lighting preset per World with a matching skybox. Mobile-safe settings (no expensive shadows on traffic).
 - **Readability first:** the ridden car, the Hop ring, hazards, and Variant trails get the strongest contrast on screen. Scenery is lower saturation than the road.
 - **Avatar:** the player's own Roblox avatar, so kids see themselves. It is hidden in closed cars by tinted glass and visible on open vehicles.

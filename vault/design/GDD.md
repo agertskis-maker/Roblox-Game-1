@@ -46,7 +46,7 @@ Run details (**Proposed** unless stated): private client-simulated runs checked 
 
 ## Progression
 - **Garage**: the permanent collection, with cards per World.
-- **Worlds**: three at launch, variations rather than harder levels (**Decided**): Downtown, Dusty Highway, Summit Pass. Unlocking one needs Cash plus cars owned from the previous World (**Decided**); "5 of 8" is **Tunable**. Car names and rosters are **Proposed**, and **Open** for approval before any modeling.
+- **Worlds**: three at launch, variations rather than harder levels (**Decided**): Downtown, Dusty Highway, Summit Pass. Unlocking one needs Cash plus cars owned from the previous World (**Decided**); "5 of 8" is **Tunable**. Car names and rosters are **Proposed**, and **Open** for approval before any modeling. A revised 24-car roster and a five-tier rarity proposal (adding Uncommon) are in [[roster]] and [[rarity-style]] (proposed 2026-10-20, not approved; only the first Common starter was modelled, by Adam's go-ahead).
 - **Cars**: eight families, each with one run quirk (quirks per family **Decided**; the set of eight is **Proposed**), four rarities (**Proposed**), and Gold, Chrome and Rainbow Variants (**Decided**; spawn and multiplier rules **Proposed**).
 - **Speedway growth**: Slots (start 3, max 12) and five Income Tiers that change how the plot looks (**Proposed**; counts and multipliers **Tunable**). Most spending improves the Speedway; income upgrades never affect racing (**Decided**).
 - **Missions and Goals**: three rotating missions plus a one-time checklist (**Proposed**).
@@ -89,10 +89,10 @@ One currency, **Cash** (**Proposed**: no second currency at launch). Server-auth
 Game passes from the start (**Decided**). Pass set (**Proposed**, prices **Open**): Double Lap Pay, Expanded Paddock, VIP. Passes never change Heat, Keys or race performance. No paid randomness and no Developer Products at launch. Nothing is built until the team approves a design and current Roblox policy and this account's publishing eligibility are checked (`CLAUDE.md`). Outline section 12.
 
 ## Art and audio direction
-- Chunky block cartoon: rounded blocks, big wheels, flat saturated colors, thick dark UI outlines, one palette per World, bright daytime lighting (**Proposed**).
+- Chunky block cartoon: rounded blocks, big wheels, flat saturated colors, thick dark UI outlines, one palette per World, bright daytime lighting (**Proposed**). For vehicles this is superseded by [[0010-vehicle-direction]] (**Decided**, Adam, 2026-10-20): original fictional or parody vehicles with believable proportions as polished, shaped low-poly cars; UI and World styling are unchanged.
 - UI: one panel style, icon-first labels, large numbers; the outline proposes touch targets of at least 44 px. Fonts, the final touch-target size, and the reduced-motion mechanism are **Open**, to be proposed with the visual direction for the owner's approval (`AGENTS.md`).
 - Audio: one music loop per World plus the island and Stunt Circuit, short key sounds, and no sound that carries information alone (**Proposed**).
-- Reference: Rodeo Stampede informs the mechanics only. No assets, names, characters or presentation are copied; every car is fictional. Outline section 13.
+- Reference: Rodeo Stampede informs the mechanics only. No assets, names, characters or presentation are copied; every car is fictional. Outline section 13. Cars may be parody vehicles inspired by real categories and eras, under the guardrails in `AGENTS.md` "Vehicles" ([[0010-vehicle-direction]]).
 
 ## Milestones
 Stages, not dates: there is no deadline (**Decided**). Each stage ends with the checks listed in outline section 15.
