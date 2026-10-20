@@ -46,5 +46,8 @@ These sit between lanes. They are questions, not rulings:
 - **How all-lane agreement is recorded** for a contract change. Suggestion only: a one-line "Agreed" from each lane owner on the board or in a decision note.
 - **Who the integration person is**, and who owners of Lanes 1 and 2 are.
 
+## Addendum, 2026-10-19
+Adam (the repository owner) named the lane owners: **Lane 1 Driving: Brian R. Lane 2 Data & Economy: Brian L. Lane 3 World, UI & Feel: Adam.** He also settled one open boundary above: Lane 3 owns the run HUD's presentation, while Lanes 1 and 2 supply its state and keep ownership of gameplay and authoritative data. The integration person, plot assignment, and who builds the World art remain open. The table and open list above are kept as written on 2026-10-19.
+
 ## Reverting
 Set `status: draft` and `concept: undecided` in the GDD and mark this note superseded. The lane split can be changed on its own by a new decision note.
