@@ -1,0 +1,202 @@
+---
+title: Island rework (Lane 3)
+tags:
+  - design
+  - island
+  - layout
+status: draft
+---
+
+# Island rework: half-circle hub (draft, Task 1 layout proposal, pending Adam)
+
+> [!warning] Proposal only
+> Written by Claude Code for Adam (Lane 3 owner) on 2026-10-21. Nothing here is built. Task 1 produces an approved layout and then a walkable greybox. The greybox starts only after **"Approved: island layout — build the greybox."**, and detailed environment work only after **"Approved: island greybox."** This note is the requirement ledger for the whole rework; later sessions extend it rather than starting a new one.
+
+Review page (computed diagrams and sketches, not Studio captures; private to Adam): https://claude.ai/artifact/KfFBw5PDnqN7atDDLVqHgR
+
+## Sources
+- Adam's message of 2026-10-21, "Car Hop Island Rework — Task 1: layout and spatial validation". Where it differs from earlier notes, it wins.
+- The earlier island brief (2026-10-20 session), its ledger ISL-01 to ISL-16 in [[island-base]], decision [[0011-eight-plots-per-server]], the plot-marker draft [[plot-marker-contract]], [[GDD]] and [[car-hop-outline-v2]] sections 04 and 08 (Slots, Paddock, Income Tiers).
+- **Missing evidence.** The message says an "original island brief" and four reference images are attached. Neither arrived in the session. The only island brief on record (2026-10-20) has none of the rework's numbers and says no island images were supplied. Four images were downloaded to `Downloads` at 10:36 to 10:37 on 2026-10-21, about 20 minutes before the message: a dark stone portal frame with a glowing purple field (two renderings), a steep grey rock valley with pine forest, a stylised low-poly snowy mountain with pines, and a green terrain mountain range with a waterfall and lakes. They match the portals, mountains, waterfall and lake in the brief, but are **not confirmed** as the references, so nothing below depends on them. Everything the message lists is carried here; numbers it does not give are labelled "my proposal".
+
+## Baseline (verified 2026-10-21)
+- Branch `feature/lane3-island-base`, in the worktree `Roblox-Game-1-island`: commits `27a0623` to `7b8e8f5` (Stage A recipes `35e7463`, Stage A results `7b8e8f5`). **Not merged and not pushed**: `main` (local `868842a`, remote `56e0976`) contains only the claim commit `cdfb12b` of this work.
+- Decision 0011 (8 plots, 45 degree slices, under-8-second walks) and `vault/design/island-base.md` exist only on that branch.
+- Stage A built 8 plots in `CarHop-Island-Test.rbxl`. The plot-gate-to-Downtown walk measured 8.08 s against 8 s; Adam had not answered before this rework.
+- This rework continues on `feature/lane3-island-rework`, branched from `7b8e8f5`. Stage A work is kept unchanged.
+- Studio lock: `Car-Hop-Art/STUDIO_LOCK.txt` (memory note `studio-lock-rule`). No Studio step was taken for Task 1's layout review.
+
+## Structure (from Adam)
+A stadium audience facing a stage. Six plots sit on the curved half-circle. The central park lies in front of them, and three portals stand across the straight side, facing the plots. Behind the portals are a lake, a waterfall and substantial mountains, and foothills and forest wrap the rest of the hub. Every plot is laid out the same way: **park → entrance and front facilities → oval at the outer rear → future expansion**. Downtown is the middle portal.
+
+## Recommended layout (computed; `assets/island/rework/island-layout.js`)
+Plan frame: fountain centre F at the origin, x east, y north toward the plots. Plot frame: u outward along the plot's centre line, v to the right. Units are studs.
+
+| Item | Value |
+|---|---|
+| Plots | 6, centre lines at bearings -75, -45, -15, 15, 45, 75 (Plot01 west end to Plot06 east end) |
+| Sector | 30 degrees each; plot envelopes keep **8 from each sector ray** (16 between neighbours). Usable half width: 58.0 at the entrance, 96.0 where the straights start (about 27.7 to 28.1 degrees of each 30) |
+| Entrance radius r0 | **247.2** (gate on the promenade's outer edge, facing F) |
+| Front zone | u 247.2 to 337.2 (**90 deep**, inside the brief's 80 to 100) |
+| Oval | stadium oval, **long axis radial**. Centreline turns **R 35**, straights **103.6**, path **427.1** (same lap as the approved Speedway), track 16 wide, 11 from the centreline to each clearance edge. Clearance footprint 92 x 195.6; infield 48 wide |
+| Oval position | near tip 343.2 (6-stud walkway after the front zone); straights 389.2 to 492.8; far tip 538.8 |
+| Plot outer radius | **561.1** (outer sign band); plot depth 313.9 |
+| What sets the size | the near floodlight pads at the outer corners of the 50-stud bands are the binding points, at exactly 8 from the sector rays |
+| Hub | promenade r 227.2 to 247.2 (20 wide), six radial avenues 16 wide from the promenade to the plaza, fountain basin r 12 inside a paved plaza r 40 (a 28-wide walking ring), garden ring path r 135 (8 wide) |
+| Portal row | Summit Pass (x -28), Downtown (x 0), Dusty Highway (x 28); fronts on y -56, facing north. Frames 22 wide, 16 opening, 36 tall (my proposal), 6 deep: a tight triptych with 6-stud gaps. A 14-wide approach from the plaza to each portal and a stage walk along their fronts |
+| Lake, waterfall, mountains | lake outline: ellipse centred (0, -172), 600 x 200, its shore 10 behind the portal backs; waterfall at x -120 on the far shore, 120 tall, off the portal axis so the portals never hide it; seven placeholder peaks 140 to 300 tall from y -250 to -650 |
+| Foothills and forest | band r 569 to 671 round the arc, wrapping down both ends to the mountains |
+| Whole hub | about 1,340 across and 1,320 north to south including the mountains. Stage A's island was about 511 to 569 across |
+
+### Every plot, front to back (oval radial; same in all six)
+Reservations are stored in `island-layout.js` with name, bounds, intended use, allowed occupants and height allowance. Base items exist from the start; the rest are reserved space only, and none is built. Heights and pad sizes not given in the brief are **my proposal**.
+
+| Reservation | Bounds (plot frame, v x u) | Use / allowed occupants | Height |
+|---|---|---|---|
+| Entrance court, gate, nameplate | v ±16, u r0 to r0+14 | gate arch, nameplate, planters under 3 | 10 |
+| Kiosk | v 19 to 29, u r0+3 to r0+11 | Paddock kiosk only | 9 |
+| Paddock (base) | v ±36, u r0+16 to r0+58 (72 x 42) | 15 bays of 9 x 16: row A 7, aisle 10, row B 8; 3 visible at start. Capacity reservation only; does not change Slot limits, passes or saves | 1 |
+| Pit garage pads | v ±40 to ±62, u r0+20 to r0+56 | pit garage every third Slot, up to 5 (outline 08) | 18 |
+| Front building strips | v ±5 to ±22, u r0+62 to r0+90 | income-tier front buildings | 18 |
+| Plot walkway | v ±3, r0+58 to the oval tip | players walk to the track end | 0 |
+| Pit exit / pit entry lanes (base) | 10 wide, from the Paddock's rear corners alongside the near curve to where the straights start | Lineup cars | 0 |
+| Pit building | v 58 to 82, u 355.2 to 385.2 | tier 4 pit building | 18 |
+| Big screen pad | v -82 to -58, u 375.2 to 385.2 | tier 4 big screen | 30 |
+| Oval (base) | stadium, clearance footprint 92 x 195.6 | lap path, barrier, curb, margins | 2 |
+| Elevated track envelope | the oval footprint, airspace 8 to 40 | raised deck (10 clear), ramp 72 at 1 in 6 on the right straight, supports in the 2-stud margins. **Never over the gantry segment** | 40 |
+| Start / finish gantry | left straight, u 412.1 to 418.1, spanning the track | tier 3 gantry; cars cross it heading toward the park | 22 (16 clear) |
+| Right band | v 47 to 85, the straights' length | tier 2 bleachers and crowds | 12 |
+| Left band | v -85 to -47, the straights' length | tier 2 bleachers, **replaced by** the tier 3 covered grandstand and tier 5 roof section in the same footprint | 40 |
+| Band outer walks | v ±86 to ±96, between the pads | crowd circulation | 0 |
+| Floodlight pads (4) | 10 x 10 at the outer corners of both bands | one tier 3 tower each | 60 |
+| Statue pad | infield, v ±6, u 379.2 to 391.2 | tier 5 champion statue | 20 |
+| Loop envelope | infield, 34 x 38, centred on the straights' midpoint | vertical loop, radius 16, and its supports | 40 |
+| Fireworks points (2) | infield far end, 6 x 6, open sky | tier 5 launchers | 3 |
+| Outer sign and banner band | v ±96, u 540.8 to 552.8 | signs and banners; the tier 2 flag line starts here and is replaced by signs | 20 |
+
+**Conflict check (computed):** 0 conflicts. Every footprint is inside its wedge (8 or more from both rays), and neighbouring plots never touch. Four pairs share space by rule: the oval inside its own elevated envelope; the gantry spanning the oval; the gantry inside the elevated envelope, on condition the raised deck never passes over it; and the tier 2 left bleachers replaced by the grandstand (documented replacement). No base flags, walls or banners sit in upgrade space: the flag line lives in the sign band, and the rope fence on the barrier line. Permanent trees, paths and park structures stay inside r 227.2, off every plot.
+
+**Start / finish:** with the long axis radial, the end nearest the entrance is the near curve. The start / finish line goes on the **left straight, a quarter of the way from the near end**, so cars cross it heading toward the park and it is visible from the entrance court. The oval is not rotated and its dimensions are unchanged.
+
+### Park
+| Item | Value |
+|---|---|
+| Fountain | basin r 12, rim and stone under 3 so it never blocks a corridor (a water jet is a later visual); the plaza ring is 28 wide; the six avenues and three approaches end at the plaza edge, so nothing is blocked |
+| Garage | 44 x 36, height 22, centred (0, 162), door facing the fountain, in the pocket between the middle plots' avenues; its approach path runs to the plaza |
+| Stunt Circuit gate | 30 x 10, height 16, centred (-100, -36), west of the stage, facing the fountain |
+| Leaderboards | two boards 12 x 4, 16 tall, at x ±57 on the stage line, outside the portal span |
+| Gazebo | 16 x 16, 12 tall, (-138, 80), on the garden ring; food stands (decorative) 32 x 12, 8 tall, (138, 78) |
+| Stream | an S from a spring in the north-west garden, round the north of the plaza and the south of the Garage, into the lake east of the portal row; 10 wide, at least 71 from F |
+| Bridges | **9**, one at every path crossing: avenues 2 to 6, the garden ring (twice), the east lakeside walk and the Garage approach. Each is 16 long and 2 wider than its path |
+| Viewing corridors | a triangle from each entrance to the ends of the portal row. Nothing taller than 3 may stand in one: no trees, signs or buildings. Computed: Garage, Stunt gate, gazebo, food stands and boards are **outside all six**. Kiosks and future grandstands sit inside the plots, behind the viewer |
+
+Buildings were placed by a grid search that keeps them out of every corridor, path and the stream, choosing the place with the smallest best-to-worst walking difference.
+
+## Walking routes (computed path network, WalkSpeed 16, no boosts)
+Shortest route along the promenade, avenues, plaza (round the basin), garden ring, approaches and stage walk. Times are distance / 16; Stage A showed walked times run 0.5 to 1.2 s over such estimates when a walker stops at waypoints.
+
+| Destination | Plot01 | Plot02 | Plot03 | Plot04 | Plot05 | Plot06 | Best to worst |
+|---|---|---|---|---|---|---|---|
+| Fountain (rim) | 14.6 | 14.6 | 14.6 | 14.6 | 14.6 | 14.6 | **0.0** |
+| Summit Pass | 17.3 | 18.2 | 18.9 | 19.3 | 19.2 | 18.8 | **1.97** |
+| Downtown | 17.7 | 18.4 | 18.8 | 18.8 | 18.4 | 17.7 | **1.09** |
+| Dusty Highway | 18.8 | 19.2 | 19.3 | 18.9 | 18.2 | 17.3 | **1.97** |
+| Garage | 18.5 | 14.1 | 9.7 | 9.7 | 14.1 | 18.5 | **8.8** |
+| Stunt Circuit gate | 12.1 | 16.5 | 20.3 | 21.1 | 21.6 | 21.9 | **9.8** |
+
+Studs: fountain 234.2 for every plot; Downtown 283.7 to 301.0; Garage 154.5 to 295.9; Stunt gate 193.4 to 349.6.
+
+**Targets (from the brief; the boosted target values did not arrive):**
+- Entrance to fountain at most 20 s: **met**, 14.6 s for every plot.
+- At most 2 s between the best and worst plot: **met** for the fountain and all three portals (side portals 1.97 s, a thin margin to re-measure in the greybox), **not met** for the Garage (8.8 s) or the Stunt gate (9.8 s).
+- The Stunt gate's worst route (21.9 s) and the stage-wing alternatives (22.2 s) are over 20 s.
+
+**Geometric limit (why no placement fixes it):** for plots on a half circle round F, a destination at lateral offset x and depth y from F gives a best-to-worst difference of about (1.93 |x| + 0.71 |y|) / 16 seconds. Staying within 2 s needs the destination within about 16 studs sideways and 45 along the axis of F. That zone holds the fountain and the portal triptych and nothing else; a Garage or Stunt gate there would stand in every corridor. Five plots do not change this (the factor becomes 1.90 x + 0.69 y); they shorten every walk instead.
+
+## Alternatives (numbers computed by the same script)
+| Variant | Entrance r | Plot outer r | Fountain | Portals best-worst | Garage best-worst | Stunt best-worst |
+|---|---|---|---|---|---|---|
+| **6 plots, radial oval R 35 (recommended)** | 247.2 | 561.1 | 14.6 s | 1.09 / 1.97 | 9.7 to 18.5 (8.8) | 12.1 to 21.9 (9.8) |
+| 5 plots, radial oval R 35 | 179.3 | 494.4 | 10.4 s | 1.22 / 1.93 | 7.5 to 17.7 (10.2) | 8.1 to 15.5 (7.3) |
+| 6 plots, radial oval R 30 | 233.5 | 552.4 | 13.8 s | 1.09 / 1.97 | 8.8 to 17.6 (8.8) | 11.4 to 20.8 (9.4) |
+| 6 plots, tangential oval R 35 | 299.9 | 587.9 | 17.9 s | not drawn | not drawn | not drawn |
+| 5 plots, tangential oval R 35 | 230.9 | 518.9 | 13.6 s | not drawn | not drawn | not drawn |
+| 6 plots, Garage and Stunt as stage wings | 247.2 | 561.1 | 14.6 s | 1.09 / 1.97 | 12.3 to 22.2 (9.9) | 12.3 to 22.2 (9.9) |
+
+- **Radial beats tangential** by 52.7 in entrance radius: the near curve tucks into the narrow part of the wedge.
+- **R 30** saves 13.7 in radius but leaves a 38-wide infield for the 34-wide loop envelope (2 each side).
+- **Portal spacing:** 28 centre to centre meets 2 s (1.97); 38 gives 2.3 s.
+
+## Cross-lane dependencies
+- **Lane 2 (Brian L):**
+  - `PlotCount` 6 instead of 8, and Max Players at most 6 (supersedes 0011).
+  - Plot positions and facing change; marker names can stay. `LayoutVersion` bumps.
+  - The 15-bay Paddock capacity matches outline 08 (12 Slots plus 3 from a pass) and changes nothing in Slots, passes or saves.
+- **Lanes 1 and 2:**
+  - The lap is still 427.1, so a 15 s lap still means 28.5 studs/s.
+  - Lineup cars at most 6 x 15 = 90 (was 120).
+  - Any walking boost or WalkSpeed change is theirs to coordinate; chevrons stay a visual proposal.
+- **All lanes:**
+  - The hub is about 2.4 times wider than Stage A's island, so the streaming proposal in [[island-base]] matters more. Place-wide settings are proposed only.
+  - The shared `ServerStorage` root proposal on the board still stands. The stopgap project file stays until the team decides.
+
+## Proposed decision amendment
+Draft: [[draft-0013-six-plot-half-circle-island]]. It supersedes 0011's plot count, 45 degree slices, under-8-second walk target and island footprint. It becomes a numbered decision only after Adam approves the layout.
+
+## Files and Studio objects to change (greybox, after approval only)
+- `src/island/Layout.luau`, revision 3: half-circle geometry, the reservations table (names, bounds, use, occupants, heights), routes and corridors, ported from `island-layout.js`.
+- `src/island/Recipes/Plot.luau`: the front-zone-first plot with the radial oval.
+- `src/island/Recipes/Plaza.luau` becomes `Park.luau`: plaza, promenade arc, avenues, ring, stream and bridges, Garage, Stunt gate, boards, gazebo and food stands, and the portal row with placeholder fields.
+- New `Recipes/Backdrop.luau`: lake outline, waterfall, mountain and foothill masses as labelled placeholder Parts.
+- New `Preview/ReservationOverlay.luau`: the optional debug overlay.
+- `Preview/LayoutChecks.luau`: wedge containment, overlaps and corridors.
+- `Preview/WalkTests.luau`: all 6 plots to every destination.
+- `IslandBuild.luau`, `Markers.luau` and `assets/island/README.md`: build order, marker positions (names unchanged) and rebuild notes.
+- **Studio:** only `Workspace.Lane3_IslandPreview` in `CarHop-Island-Test.rbxl`, rebuilt from the recipes.
+  - The Stage A terrain coast is removed by the existing scoped cleanup inside its measured box.
+  - The greybox uses Parts for the lake and backdrop, so no new terrain area is needed.
+  - Lighting keeps the existing capture-and-restore.
+- **Not touched:** `default.project.json`, `src/server`, `src/shared`, Lane 1 and Lane 2 code, the car checkout and the car test place.
+
+## Requirement ledger
+| ID | Requirement | Req/Opt | Source | Acceptance evidence | Status |
+|---|---|---|---|---|---|
+| IRW-01 | Half circle: 6 plots on the curved side, park in front, 3 portals across the straight side facing the plots; not a ring, not portals in the middle, not a row | Required | Adam 2026-10-21 "The structure I want" | top-down diagram; greybox capture | calculated |
+| IRW-02 | Six equal 30 degree sectors; buffers inside the sectors | Required | "Compute a layout" | containment table | calculated: 8 from each ray, all pass |
+| IRW-03 | Same orientation on every plot: park → front → oval at the outer rear → expansion; never reversed | Required | "Every plot must have the same internal orientation" | rotated copies of one template; LayoutChecks | calculated |
+| IRW-04 | Front zone 80 to 100 deep holding Paddock, parking bays, kiosk, nameplate and future front buildings; up to 15 bays as capacity | Required (planning input) | "proposed front-zone depth"; outline 08 | plot detail; bay count | calculated: 90 deep, 15 bays |
+| IRW-05 | Oval at least the approved dimensions (path 427.1, width 16, tightest turn 30 or more) | Required | "Preserve at least the existing approved oval dimensions"; [[island-base]] revision 2 | track table | calculated: R 35, 103.6 straights, 427.1 |
+| IRW-06 | Start / finish on a visible straight without rotating or resizing the oval | Required | "Show the proposed start/finish position" | plot detail; greybox capture | proposed: left straight, a quarter from the near end |
+| IRW-07 | Entrances face a common focal region near the portal-side park; paths make it evident at eye level | Required | "Plot entrances should face" | arrows on the diagram; eye-level sketches, then captures | calculated, sketched |
+| IRW-08 | Downtown in the middle, Dusty Highway and Summit Pass flanking | Required | "Downtown is the middle portal" | diagram | calculated (Summit west, Dusty east: my choice) |
+| IRW-09 | Lake, waterfall and substantial mountains behind the portals | Required | structure | backdrop masses in the greybox | placeholder footprints calculated |
+| IRW-10 | Foothills and forest round the remaining edges | Required | structure | diagram; greybox | placeholder band calculated |
+| IRW-11 | Every expansion reservation stored as data (name, bounds, use, allowed occupants), with an optional debug overlay: 50-stud side bands, grandstand height, 4 floodlight pads, gantry clearance, pit building and screen pad, outer sign band, elevated track and supports, statue and fireworks | Required | "Preserve future expansion space" | reservation table; overlay capture | calculated in JS; Luau data and overlay in the greybox |
+| IRW-12 | Conflict rules: oval inside its own elevated envelope; shared envelopes only when compatible; base items out of upgrade space unless replacement is documented; no intrusion by trees, paths, park or neighbours; no incompatible double reservations | Required | "Resolve conflicts explicitly" | overlap matrix | calculated: 0 conflicts, 4 allowed pairs with reasons |
+| IRW-13 | Park footprints: promenade about 20, avenues about 16, fountain plaza with circulation, Garage, Stunt gate, leaderboards, 3 portal approaches, garden loops, S stream with bridges at every crossing, food stands and gazebo, lake boundary, soft perimeter | Required | "Park and circulation" | diagram; greybox | calculated (one garden ring; more loops in the environment task) |
+| IRW-14 | Fountain never blocks the avenues; usable plaza round it | Required | same | plaza ring 28 wide | calculated |
+| IRW-15 | Clear viewing corridors from every entrance to the portal row, considering trees, kiosks, signs, grandstands and the Garage | Required | same | corridor check; eye-level captures | calculated: no tall object in any corridor |
+| IRW-16 | Routes measured at the default WalkSpeed on the real paths and bridges, for all 6 plots to fountain, each portal, Garage and Stunt gate | Required | "Walking fairness" | route table now; walked times in the greybox | calculated (path network); walking not yet run |
+| IRW-17 | Proposed targets: fountain at most 20 s; at most 2 s best to worst per destination; shorter boosted targets | Proposal (owner to confirm) | original brief per the message | route table | fountain and portals met; Garage and Stunt gate not met (geometric), waiting for Adam; boosted values not received |
+| IRW-18 | No speed boosts or WalkSpeed changes; chevrons only as a visual proposal | Constraint | "Do not implement speed boosts" | file list | constraint |
+| IRW-19 | Five-plot versus six-plot alternatives with numbers and a diagram if six cannot meet the important targets; keep the half circle and the oval size | Required | same | alternatives table and diagram | calculated |
+| IRW-20 | First review: annotated top-down diagram (dimensions, orientation arrows, reservations, routes, bridges, portal row, lake, boundaries, mountain footprint), eye-level sketches from a middle and an end plot, recommended layout, conflicts, alternatives, cross-lane dependencies, decision amendment, files to change | Required | "First review" | review page | done (computed, not Studio) |
+| IRW-21 | After approval: greybox with the existing construction approach; reproducible; cleanup scoped to owned objects; placeholder portal fields, lake outline, backdrop masses, park buildings, labelled as placeholders | Required, gated | "After that approval" | rebuild count, cleanup diff, captures | waiting for approval |
+| IRW-22 | Greybox evidence: walked routes, reservation tests, annotated top-down, eye level from every entrance, middle and end views toward the portals, real-time walk from an end plot to Downtown, reservation overlay | Required, gated | same | review page with video | waiting for approval |
+| IRW-23 | Process: board claim, one ledger, log, the existing Studio lock, available memory above 4 GB, only the island test place, never the car session, no merge or publish | Constraint | message; AGENTS.md | log | constraint |
+| IRW-24 | Front-zone depth and 15-bay capacity do not authorise changes to Slot limits, passes, server assignment or saved data | Constraint | "They do not authorize" | file list | constraint |
+| IRW-25 | Record the change from 8 plots as a decision amendment | Required | "The proposed decision amendment" | [[draft-0013-six-plot-half-circle-island]] | drafted |
+
+Carried forward from [[island-base]] to the detailed environment task, re-sited by this layout: the Garage with three empty turntables (ISL-04), the portal family and locked states (ISL-05), the Stunt gate, leaderboards with honest empty states, and signposts (ISL-06), the landscape kit (ISL-07), and presentation-only interactions with reduced motion (ISL-08). ISL-12's under-8-second target is superseded by IRW-17 once Adam approves.
+
+## Choices I made (reversible)
+- Summit Pass west and Dusty Highway east; Plot01 at the west end, numbered clockwise.
+- 16-stud buffer between plot envelopes; 6-stud walkway between the front zone and the oval tip.
+- Portal frames 22 wide and 36 tall so they read from about 300 studs (6.8 degrees tall from a middle entrance).
+- Pit lanes alongside the near curve; pit building on the right, big screen on the left; grandstand on the start / finish side.
+- Heights and pad sizes in the reservation table where the brief gives none.
+- The waterfall off the portal axis (x -120).
+- The stream's course; one garden ring path.
+
+## Not yet (kept visible)
+Detailed landscaping, park props, portal effects, finished scenery and lighting, the Garage interior and turntables, real cars, plot assignment and saving, upgrade tiers themselves, any audio, phone tests, streaming settings.

@@ -12,6 +12,9 @@ status: draft
 > [!warning] Proposal only
 > Written by Claude Code for Adam (Lane 3) on 2026-10-20. Nothing here is built. Revision 2 follows Adam's decision of eight plots ([[0011-eight-plots-per-server]]); the measured layout below still needs Adam's go-ahead for Stage A. The art direction and the Lane 2 marker contract ([[plot-marker-contract]]) each need their own approval. Approving the layout does not approve the finished art; the Stage B sample needs its own approval line in [[visual-direction]].
 
+> [!note] Layout superseded (2026-10-21)
+> Adam's island rework replaces this note's 8-plot ring layout with a six-plot half circle: see [[island-rework]] and [[draft-0013-six-plot-half-circle-island]]. This note and its Stage A results are kept as history.
+
 Review page (plan, computed drawings and sketches, not Studio captures; private to Adam): https://claude.ai/artifact/U2PgX5PWc9nvqHpxe4q7eh
 
 Sources: Adam's island brief and his 8-plot change (2026-10-20 session), [[GDD]], [[car-hop-outline-v2]] sections 04, 05, 08, 09, 13, 14, 15, [[visual-direction]] (HUD approved), [[0007-concept-car-hop-and-lanes]], [[0010-vehicle-direction]] as context (accepted, on the branch `feature/lane3-first-car-downtown` only), and the Speedway references `vault/design/references/speedway-progress-01-start-dirt-oval.png` and `-02-end-elevated-loop.png` (inspiration only, nothing traced or reused).
