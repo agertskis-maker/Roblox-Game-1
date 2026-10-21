@@ -34,6 +34,7 @@ These pages are private to Adam until he shares them.
 
 ## Approvals recorded (Adam, 2026-10-20)
 - **HUD approved:** "Approved: HUD (revision 4, review page B9BR7TLBSW2qyQqA9zwo89)." Adam played a clip on the review page and it worked.
+- **Figma-first UI workflow for Lane 3 approved:** "Approved: Figma-first UI workflow for Lane 3." Every new or changed Lane 3 screen, panel, HUD element or popup is planned, mocked in the Figma file "Car Hop UI", specified in `vault/design/ui/<screen-name>.md`, approved here, then built from the spec ([[0012-figma-ui-workflow]]). Screen approvals under this workflow are recorded in this section with the Figma link.
 - **Accepted as built:** the narrow-screen rule (Distance moves to its own row below about 378 px of usable width); the Distance flag at 1.33 times the digit height (an accepted exception to the 1.25 icon guide); Distance option B as the only Distance presentation.
 - **Still open, not passed** (not tested in this review):
   - real phones and phone performance (only the Device Simulator was used);

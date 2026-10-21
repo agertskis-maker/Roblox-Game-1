@@ -52,6 +52,12 @@ saves presented as finished.
 - Branch: game code is on a feature branch, starting with the first game-code
   task, and merges to `main` by pull request only after the GitHub check
   passes (`AGENTS.md`). `main` is fine for docs, vault, skills, and tooling.
+- Lane 3 UI (a new or changed screen, panel, HUD element, or popup): an
+  approved spec exists at `vault/design/ui/<screen-name>.md`, with its Figma
+  mockup approved by the owner and recorded in `vault/design/visual-direction.md`
+  (`project-visual-direction` section 5,
+  `vault/decisions/0012-figma-ui-workflow.md`). If it does not, design comes
+  first; do not build from a description alone.
 
 When a precondition fails, post the questions plus a conditional plan (what you
 would do once each answer arrives), and do no implementation until the
@@ -96,7 +102,19 @@ intake (`project-feature-intake`), then this plan.
 4. **Client.** Sends intent only. Implements loading, empty, locked,
    affordable/unaffordable, pending, success, rejection, and retry states. Local
    feedback may acknowledge a tap but never confirms ownership or purchase
-   before the server does.
+   before the server does. For Lane 3 UI, build by hand in Luau from the
+   approved spec in `vault/design/ui/`, using the token names it lists from
+   `src/shared/UI/Tokens.luau`:
+   - Never paste Figma's generated code; it targets websites and iPhone apps.
+   - Do not read Figma (the free plan allows up to 6 reads a month). Read only
+     when the owner says they edited the mockup by hand; first tell them this
+     month's count from `vault/design/ui/figma-reads.md`, then log the read and
+     update the spec from what changed.
+   - Images from the mockup are used only after export, a row in
+     `vault/design/assets.md`, and an owner-approved upload. Never invent an
+     asset ID.
+   - Where the build must differ from the spec, update the spec in the same
+     change and tell the owner.
 5. **Failure handling.** Fill the table in `references/delivery-checklist.md`:
    duplicate input, simultaneous players, malformed values, insufficient
    resources, stale state, latency, leaving mid-action, respawn, shutdown,
