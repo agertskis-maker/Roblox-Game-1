@@ -654,7 +654,9 @@ def export_fbx(path, objects):
         filepath=path,
         use_selection=True,
         object_types={"MESH"},
-        apply_unit_scale=True,
+        # Raw Blender units: Studio's importer reads them as studs (Scale Unit
+        # "Studs"). apply_unit_scale=True gave every object a 100x transform.
+        apply_unit_scale=False,
         apply_scale_options="FBX_SCALE_NONE",
         axis_forward="-Z",
         axis_up="Y",
