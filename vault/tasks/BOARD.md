@@ -33,7 +33,6 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 ## Up next
 - [ ] Name the one integration person who may connect Rojo to the shared Team Create place (lane owners are named above) ([[0007-concept-car-hop-and-lanes]])
 - [ ] Each developer: make your own private Studio test place and connect Rojo only to it. Confirm whether the open "test1" place is the owner's private place or has Team Create on ([[2026-10-18]], [[0007-concept-car-hop-and-lanes]])
-- [ ] Approve, change, or reject the proposed Studio MCP rules ([[0006-studio-mcp-rules]])
 - [ ] Lane 1 Stage 0 (proposed: the outline's Stage 0 has no driving work): empty `--!strict` module skeletons in `src/client/Run` and `src/shared/Run`, and agree with Lane 2 what a run reports to the server (run seed, Hop, Claim, run end) so Lane 2 can draft the remotes. No gameplay yet; the run prototype is Stage 1 ([[car-hop-outline-v2]] section 15)
 - [ ] Lane 2 Stage 0: the ProfileStore lifecycle module (the row below) with save schema v1 and Mock tests in `src/server`. Currency and economy fields are propose-first, and saved data needs a posted plan and an explicit go-ahead before coding ([[0007-concept-car-hop-and-lanes]])
 - [ ] Lane 2 Stage 0: catalog skeleton in `src/shared/Catalog` (the shape of a car, World, upgrade price and mission template, placeholder values only) and remote names with argument types in `src/shared/Net`; the server validates every argument
@@ -59,6 +58,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Studio MCP rules: approved by Adam on 2026-10-21 with changes (publishing exception for a private personal test place, auto-reconnect note); now the "Studio MCP" section of `AGENTS.md` ([[0006-studio-mcp-rules]])
 - [x] Make the repository private (GitHub Free: no branch protection on `main`; the `main` rules are kept by our own workflow; Actions minutes now count against the private quota) - Adam ([[0009-private-repository]], [[2026-10-20]])
 - [x] Lane 3 HUD stage of the visual sample (ENGINE HEAT panel, Cash counter, Distance B), approved by Adam on 2026-10-20 at revision 4; tested in Studio's Device Simulator only, open items are under "Up next" - Adam, with Claude Code ([[2026-10-19]], [[2026-10-20]], [[visual-direction]])
 - [x] Agree on the game concept and fill in [[GDD]]: Car Hop selected by the team on 2026-10-18; `GDD.md` is `status: selected`, `concept: Car Hop`, summarised from [[car-hop-outline-v2]] - Claude Code at the repository owner's request ([[2026-10-19]], [[0007-concept-car-hop-and-lanes]])

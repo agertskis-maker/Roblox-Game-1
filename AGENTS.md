@@ -87,6 +87,16 @@ Setup, settings, tested results and fixes: `docs/ANIMATION_PIPELINE.md`. Reasoni
 - Never publish an animation without owner approval. An animation must be owned by the user or group that owns the experience.
 - Keep `.blend`, `.fbx` and `.rbxl` test files outside the repo until the team decides where source art lives.
 
+### Studio MCP
+Reasoning: `vault/decisions/0006-studio-mcp-rules.md`.
+- The Roblox Studio MCP tools are used for inspection, playtests, console output and screenshots in your own private test place only, never the shared Team Create place.
+- Never use `multi_edit` or `execute_luau` to create or change scripts that Rojo syncs. The files under `src/` are the only source of truth.
+- No `generate_mesh`, `generate_material`, `generate_procedural_model`, `insert_asset` or `upload_image` without the owner's approval.
+- Never publish the game or any shared place. A private personal test place (Team Create off, experience private) may be published only with the owner's explicit approval; record its place ID only in that person's own project file kept out of git, never in `default.project.json`.
+- Rojo auto-reconnect only works in a published place (place ID not 0). A local `.rbxl` file always needs a manual Connect.
+- Register the server per machine at user scope (`claude mcp add --scope user Roblox_Studio -- cmd.exe /c %LOCALAPPDATA%Robloxmcp.bat` on Windows); the repository has no `.mcp.json`.
+- Studio may sit behind other windows; screenshots come back blank while Studio is minimized.
+
 ## Team workflow
 - `vault/` is the shared Obsidian vault and the source of truth for design, tasks and decisions. Start with `vault/00_INDEX.md` and `vault/tasks/BOARD.md`.
 - Before you start work, claim a task on the board. A design-only brief needs a one-line claim too. When you finish, update the board and add a short entry under `vault/log/`.
