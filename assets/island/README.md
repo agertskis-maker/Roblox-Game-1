@@ -19,16 +19,20 @@ never committed, and **must be deleted once the team decides** on the permanent 
 ## Rebuild (Studio edit mode, private island place only)
 
 1. From the island worktree: `rojo serve C:\Users\agert\Documents\Car-Hop-Art\island-preview.project.json --port 34873`, then connect the Rojo plugin in `CarHop-Island-Test.rbxl`.
-2. Command bar (edit mode): `require(game.ServerStorage.Island.IslandBuild).build()`.
+2. Command bar (edit mode): `local I = game.ServerStorage.Island:Clone()` then
+   `require(I.IslandBuild).build()`. Requiring a fresh in-memory copy matters: Studio's edit mode
+   keeps an already-required module cached after Rojo syncs a change. Nothing is added to the place.
    Rebuilding cleans up first. `build({ helpers = false })` leaves out the dimension helpers.
-3. Checks: `require(game.ServerStorage.Island.Preview.LayoutChecks).run()`.
+3. Checks: `require(I.Preview.LayoutChecks).run()`.
 4. Playtest measurements (server side): `require(game.ServerStorage.Island.Preview.WalkTests).spawnApproaches()` and `.routes()`.
 5. Lapping performance test (client side, in a playtest):
    `require(game.Players.LocalPlayer.PlayerScripts.Client.Home.Island.LappingPreview).start()`, then `.measure(10)`, then `.stop()`.
+   `start({ camera = someCFrame })` holds a fixed view (restored on stop). The Studio MCP tool resets
+   the camera after each `execute_luau` call, so start, measure and stop inside one call.
 
 ## Cleanup
 
-`require(game.ServerStorage.Island.IslandBuild).cleanup()` removes `Workspace.Lane3_IslandPreview`,
+`require(I.IslandBuild).cleanup()` (with `I` as above) removes `Workspace.Lane3_IslandPreview`,
 clears only the island's terrain box (x and z from -320 to 320, y from -16 to 4) and restores the
 terrain grass and sand colours and the water settings saved before the first build. It never
 clears Workspace or Terrain globally.

@@ -43,14 +43,17 @@ local function place(model: Model, humanoid: Humanoid, root: BasePart, at: Vecto
 	task.wait(1)
 end
 
--- Walks through the waypoints; returns reached, seconds, studs travelled (horizontal).
-local function walk(humanoid: Humanoid, root: BasePart, waypoints: { Vector3 }): (boolean, number, number)
+-- Walks through the waypoints; returns reached, seconds, studs travelled (horizontal) and
+-- the highest feet height above the surface (shows whether a bridge route went over the deck).
+local function walk(humanoid: Humanoid, root: BasePart, waypoints: { Vector3 }): (boolean, number, number, number)
 	local trove = Trove.new()
 	local travelled = 0
+	local peak = -math.huge
 	local last = root.Position
 	trove:Connect(RunService.Heartbeat, function()
 		local p = root.Position
 		travelled += Vector2.new(p.X - last.X, p.Z - last.Z).Magnitude
+		peak = math.max(peak, p.Y - standHeight(humanoid, root) - Layout.SurfaceY)
 		last = p
 	end)
 	local started = os.clock()
@@ -70,7 +73,7 @@ local function walk(humanoid: Humanoid, root: BasePart, waypoints: { Vector3 }):
 	end
 	local seconds = os.clock() - started
 	trove:Destroy()
-	return ok, seconds, travelled
+	return ok, seconds, travelled, peak
 end
 
 local function r2(n: number): number
@@ -180,13 +183,14 @@ function WalkTests.routes(): { any }
 			planned += Vector2.new(b.X - a.X, b.Z - a.Z).Magnitude
 		end
 		local remaining = table.move(route.points, 2, #route.points, 1, {})
-		local ok, seconds, studs = walk(humanoid, root, remaining)
+		local ok, seconds, studs, peak = walk(humanoid, root, remaining)
 		table.insert(results, {
 			route = route.name,
 			reached = ok,
 			seconds = r2(seconds),
 			studsWalked = r2(studs),
 			studsPlanned = r2(planned),
+			peakFeetHeight = r2(peak),
 		})
 	end
 	return { walkSpeed = humanoid.WalkSpeed, routes = results }

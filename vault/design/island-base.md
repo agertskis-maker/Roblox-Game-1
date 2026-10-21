@@ -152,22 +152,31 @@ Slow and event-driven: a Garage door that opens and returns, a Stunt gate boom t
 ## Requirement ledger (summary)
 | ID | Requirement | Req/Opt | Acceptance evidence | Status |
 |---|---|---|---|---|
-| ISL-01 | Eight plots ring the plaza, face inward, equal footprints; plot count is one config value | Required | 8 containers, unique IDs, rotated copies of one layout; `PlotCount` read from one constant | planned (decided: [[0011-eight-plots-per-server]]) |
-| ISL-02 | Each plot: Speedway, 3 visible bays, 15 reserved, nameplate, gate spawn facing the plaza, promenade access | Required | swept-path check, bay envelopes, spawn facing check, 8 spawn approaches walked | planned |
+| ISL-01 | Eight plots ring the plaza, face inward, equal footprints; plot count is one config value | Required | 8 containers, unique IDs, rotated copies of one layout; `PlotCount` read from one constant | Stage A built and checked in Studio (decided: [[0011-eight-plots-per-server]]) |
+| ISL-02 | Each plot: Speedway, 3 visible bays, 15 reserved, nameplate, gate spawn facing the plaza, promenade access | Required | swept-path check, bay envelopes, spawn facing check, 8 spawn approaches walked | Stage A: markers, bays and 8 spawn approaches checked in Studio |
 | ISL-03 | Sculpted lobed shoreline with grass, rock, sand and water transition; level build surface | Required | shoreline close-up, no stacked-block coast | planned |
 | ISL-04 | Ribbon-road Garage pavilion with 3 integrated empty turntables and a GARAGE sign | Required | Garage stills, diameter vs diagonal | planned |
 | ISL-05 | Portal family: Downtown (available preview), Dusty Highway and Summit Pass (chained, locked, placeholder requirements) | Required | portal stills, grey check of locks | planned |
 | ISL-06 | Stunt Circuit gate (coming soon), two leaderboards with honest empty states, arrow signposts at decision points | Required | stills, readable signs | planned |
 | ISL-07 | Landscape kit: 3 tree types, bushes, planting beds, rock clusters, one scenic outcrop | Required | sightline check | planned |
 | ISL-08 | Presentation-only interactions with preview messaging, bounded motion, reduced motion | Required | real-time video, repeat-trigger test | planned |
-| ISL-09 | Reproducible from Git recipes; one root; rebuild-safe; cleanup restores Lighting, camera and terrain region | Required | rebuild count, cleanup diff | planned |
+| ISL-09 | Reproducible from Git recipes; one root; rebuild-safe; cleanup restores Lighting, camera and terrain region | Required | rebuild count, cleanup diff | built from recipes in Stage A; rebuild and cleanup not yet run in Studio |
 | ISL-10 | Draft plot-marker contract for Lane 2 | Required | [[plot-marker-contract]] | drafted (revision 2) |
-| ISL-11 | Eight-plot fit proof before decoration | Required | this section, then Stage A build | calculated |
-| ISL-12 | Walking: any plot gate to any shared destination under 8 s | Required (Adam, replaces the 20 s crossing) | timed routes in Stage A | calculated (longest 6.9 s) |
+| ISL-11 | Eight-plot fit proof before decoration | Required | this section, then Stage A build | Stage A: all layout checks pass in Studio |
+| ISL-12 | Walking: any plot gate to any shared destination under 8 s | Required (Adam, replaces the 20 s crossing) | timed routes in Stage A | measured: longest 8.08 s (Plot08 to Downtown, estimate 6.9 s), just over; waiting for Adam |
 | ISL-13 | No economy, saving, assignment, rewards, teleports, remotes, audio, uploads | Required (constraint) | file list, no remotes | constraint |
 | ISL-14 | Bigger Speedways with room for the full upgrade path (dirt oval to elevated loop) inside the plot | Required (Adam) | path, width, radius, capacity table; reserve checks | calculated |
 | ISL-15 | Leftover plot space makes the plot the player's own (Paddock, viewing area, entrance), no new system | Optional proposals (Adam) | bridge, Paddock and entrance court in Stage A footprints | proposed |
-| ISL-16 | Performance plan for 8 Speedways | Required (Adam) | estimates above, measured counts in Stage C | planned |
+| ISL-16 | Performance plan for 8 Speedways | Required (Adam) | estimates above, measured counts in Stage C | Stage A lapping test measured (below); part counts in Stage C |
+
+## Stage A results (measured in Studio, 2026-10-20)
+Review page: https://claude.ai/artifact/8Mmw27F8tnXb8mS9Foyiya (private to Adam), with a real-time video of the lapping test.
+- Build: edit mode in `CarHop-Island-Test.rbxl`, 0.21 s, 1,456 island parts plus 1,112 helper parts and 20 labels (171 parts per plot). Terrain coast written inside its box only.
+- Layout checks all pass: 8 plots; path 426.9 from the samples (plan 427.1); markers match Plot01 rotated to 0.0002; spawns at 66 facing the plaza; 15 bays (3 initial) and 8 pit points per plot; outer clearance edge 241.4 and 2.5 from the dividers; swept car clear 4.56 outside and 5.15 inside; bridge deck 8, 6.8 clear; turntables 17 with 1.63 spare each side.
+- Walking (Humanoid `MoveTo`, WalkSpeed 16, waypoint to waypoint, the character stops at each): every route 0.5 to 1.2 s over its straight-line estimate. **Plot08 gate to Downtown 8.08 s, just over the 8 s target (ISL-12)**; options are with Adam. Bridge routes peaked at feet height 8.07, so the walker crossed the deck. All 8 spawn approaches reached the court in 3.02 to 3.62 s.
+- Lapping (client, one-part blocks, `BulkMoveTo`, 260-stud pause radius): 60 fps (Studio's cap) in every run; loop cost 0.63 ms for 120 blocks and 0.89 ms for 200; 0.30 ms from a Paddock, where 3 lanes stay active. From any gate all 8 lanes are within 260 studs. Instances memory 102 MB unchanged. Not measured: phones, real car models (the biggest risk), streaming.
+- Streaming proposed, not changed: plot models `Atomic`, path markers kept available to clients (`Persistent` or another route), the 260-stud pause as the client cost control. The test place reads `StreamingEnabled = false`.
+- Found: the square edge of the terrain box shows from high views; widening the water means terrain outside the measured area and needs Adam's OK.
 
 ## Not yet (kept visible)
 Income Tier plot buildings, pit garages every third Slot, decorations, Speedway upgrade tiers (the raised deck, the loop and the asphalt look), the full Stunt Circuit, the Downtown run, live leaderboards, plot assignment and saving, Lineup cars on the track, audio, Garage UI.

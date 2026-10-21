@@ -46,11 +46,13 @@ end
 
 -- True when the box holds any terrain at all.
 function Ground.regionHasTerrain(): boolean
+	-- The voxel arrays also carry a Size field, so walk them by index.
 	local _, occupancies = workspace.Terrain:ReadVoxels(Ground.region(), RES)
-	for _, plane in occupancies do
-		for _, column in plane do
-			for _, value in column do
-				if value > 0 then
+	local size: Vector3 = (occupancies :: any).Size
+	for ix = 1, size.X do
+		for iy = 1, size.Y do
+			for iz = 1, size.Z do
+				if occupancies[ix][iy][iz] > 0 then
 					return true
 				end
 			end

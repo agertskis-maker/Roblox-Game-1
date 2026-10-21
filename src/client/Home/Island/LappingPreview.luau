@@ -25,6 +25,8 @@ export type Options = {
 	plots: { number }?,
 	activeRadius: number?,
 	lapSeconds: number?,
+	-- Optional fixed view for measuring and recording; the camera is restored on stop().
+	camera: CFrame?,
 }
 
 type Lane = {
@@ -42,6 +44,7 @@ local CAR_SIZE = Vector3.new(5.7, 4.7, 12.5)
 local trove: any = nil
 local lanes: { Lane } = {}
 local frameTimes: { number } = {}
+local loopTimes: { number } = {}
 local recording = false
 local activeLanes = 0
 
@@ -110,6 +113,17 @@ function LappingPreview.start(options: Options?)
 	end
 	folder.Parent = workspace
 
+	local view = o.camera
+	local currentCamera = workspace.CurrentCamera
+	if view and currentCamera then
+		local previousType = currentCamera.CameraType
+		currentCamera.CameraType = Enum.CameraType.Scriptable
+		currentCamera.CFrame = view
+		trove:Add(function()
+			currentCamera.CameraType = previousType
+		end)
+	end
+
 	local started = os.clock()
 	local speedOf = function(lane: Lane): number
 		return lane.length / lapSeconds
@@ -117,6 +131,7 @@ function LappingPreview.start(options: Options?)
 	local parts: { BasePart } = {}
 	local cframes: { CFrame } = {}
 	trove:Connect(RunService.RenderStepped, function(dt: number)
+		local loopStarted = os.clock()
 		if recording then
 			table.insert(frameTimes, dt)
 		end
@@ -143,12 +158,17 @@ function LappingPreview.start(options: Options?)
 			end
 		end
 		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+		if recording then
+			table.insert(loopTimes, os.clock() - loopStarted)
+		end
 	end)
 end
 
--- Records frame times for `seconds` and returns frame rate, frame time and client memory.
+-- Records frame times for `seconds` and returns frame rate, frame time, the lapping loop's
+-- own cost per frame (frame rate alone hides headroom under Studio's 60 fps cap) and memory.
 function LappingPreview.measure(seconds: number): { [string]: any }
 	table.clear(frameTimes)
+	table.clear(loopTimes)
 	recording = true
 	task.wait(seconds)
 	recording = false
@@ -169,6 +189,13 @@ function LappingPreview.measure(seconds: number): { [string]: any }
 	for _, lane in lanes do
 		blocks += #lane.parts
 	end
+	local loopSorted = table.clone(loopTimes)
+	table.sort(loopSorted)
+	local loopSum = 0
+	for _, t in loopTimes do
+		loopSum += t
+	end
+	local loops = math.max(1, #loopTimes)
 	return {
 		seconds = seconds,
 		frames = n,
@@ -176,6 +203,8 @@ function LappingPreview.measure(seconds: number): { [string]: any }
 		averageFrameMs = ms(sum / n),
 		p95FrameMs = ms(sorted[math.max(1, math.ceil(n * 0.95))]),
 		worstFrameMs = ms(sorted[n]),
+		loopAverageMs = math.round(loopSum / loops * 100000) / 100,
+		loopP95Ms = math.round((loopSorted[math.max(1, math.ceil(#loopSorted * 0.95))] or 0) * 100000) / 100,
 		blocks = blocks,
 		lanes = #lanes,
 		activeLanes = activeLanes,
