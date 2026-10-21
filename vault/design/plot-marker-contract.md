@@ -15,6 +15,9 @@ status: draft
 > [!note] For Brian L: eight plots, one config value
 > Adam decided on 2026-10-20 that the island has **8 plots** and a server holds at most 8 players ([[0011-eight-plots-per-server]]); this supersedes the outline's 12. The count lives in one place, the `PlotCount` attribute on `Workspace.Island`. Lane 2 code reads it and never hard-codes 8 (or 12), so a later change of count is a layout change, not a Lane 2 code change.
 
+> [!note] Revision 3 (hub greybox, 2026-10-21), pending Brian L
+> Adam approved six plots on a half circle ([[draft-0013-six-plot-half-circle-island]]); Brian L has not agreed yet. The names, classes and attributes below are unchanged. What changes: `PlotCount` 6, `LayoutVersion` `rev3-hub`, plot bearings -75 to 75 in 30 degree steps (not `(360 / PlotCount) x (NN - 0.5)`), an oval Speedway (`MinTurnRadius` 35, `PathSampleCount` 86, start on the left straight a quarter from the park end), the Paddock in front of the oval, 5 points per pit lane (Out leaves the aisle for the right straight, In leaves the left straight for the aisle), and `NameplateAnchor` on top of the gate lintel (11.45 high). Built by `src/island/Hub`.
+
 ## Purpose
 Lane 3 builds the island and places the markers. Lane 2's server code reads them to give a joining player a plot, spawn them at its gate, and later drive Lineup visuals and bays. This note fixes names, classes, transforms and who may change what, so neither lane has to guess.
 

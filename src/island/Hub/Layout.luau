@@ -27,6 +27,8 @@ local track = Data.track
 Layout.EntranceRadius = plot.entranceRadius
 Layout.SpawnU = plot.entranceRadius + 4
 Layout.GateHalfWidth = 7
+-- The nameplate sits on top of the gate lintel, above the view from the spawn toward the portals.
+Layout.NameplateY = 11.45
 
 local SIN_H, COS_H = math.sin(math.rad(Layout.HalfSectorDeg)), math.cos(math.rad(Layout.HalfSectorDeg))
 

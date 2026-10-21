@@ -36,6 +36,9 @@ function baseParams(over) {
 			portal: { outer: 22, opening: 16, depth: 6, height: 36, spacing: 28, frontY: -56 },
 			ringR: 135, // secondary garden ring path radius
 			eye: 5,
+			// viewing corridors widen by this much each side at the portal row; with 0 the Stunt gate
+			// grazed the corridor edge and hid part of Summit Pass from Plot01 (greybox, 2026-10-21)
+			corridorMargin: 10,
 		},
 		over || {},
 	);
@@ -340,7 +343,8 @@ function layout(over) {
 		{ id: "DustyHighway", x: portal.spacing },
 	].map((q) => Object.assign(q, { front: V(q.x, portal.frontY), base: rect(q.x - portal.outer / 2, q.x + portal.outer / 2, portal.frontY - portal.depth, portal.frontY) }));
 	const span = [V(-portal.spacing - portal.outer / 2, portal.frontY), V(portal.spacing + portal.outer / 2, portal.frontY)];
-	const corridors = plots.map((p) => [p.entrance, span[0], span[1]]);
+	const m = P.corridorMargin;
+	const corridors = plots.map((p) => [p.entrance, V(span[0].x - m, span[0].y), V(span[1].x + m, span[1].y)]);
 
 	// avenues as strips from the promenade inner edge to the plaza edge
 	const avenues = plots.map((p) => ({ index: p.index, line: [polar(p.bearing, prom.inner), polar(p.bearing, P.plazaR)] }));

@@ -289,7 +289,7 @@ local function buildFront(visual: Folder, bearing: number)
 	Kit.part(
 		front,
 		Vector3.new(10, 2.5, 0.4),
-		CFrame.lookAt(W(0, r0 - 0.8, SURFACE + 7), W(0, r0 - 2, SURFACE + 7)),
+		CFrame.lookAt(W(0, r0 - 0.8, SURFACE + Layout.NameplateY), W(0, r0 - 2, SURFACE + Layout.NameplateY)),
 		{ name = "Nameplate", color = Palette.Cream, castShadow = false }
 	)
 

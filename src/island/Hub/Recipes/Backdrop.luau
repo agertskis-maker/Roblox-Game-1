@@ -116,7 +116,7 @@ local function mass(parent: Instance, name: string, centre: Vector2, radius: num
 			radius * (1 - f * 0.85) * 2,
 			height / steps,
 			topY,
-			{ name = "Step", color = stepColour(f, height), collide = true }
+			{ name = "Step", color = if k == 0 then Palette.Foliage else Palette.Grass, collide = true }
 		)
 	end
 	m.Parent = parent

@@ -41,7 +41,11 @@ function Markers.build(plot: Model, index: number): BasePart
 	anchor.CFrame = plotCFrame(bearing, Vector2.new(0, r0), toPark, SURFACE)
 
 	attach(anchor, "GateSpawn", plotCFrame(bearing, Vector2.new(0, Layout.SpawnU), toPark, SURFACE))
-	attach(anchor, "NameplateAnchor", plotCFrame(bearing, Vector2.new(0, r0 - 0.8), toPark, SURFACE + 7))
+	attach(
+		anchor,
+		"NameplateAnchor",
+		plotCFrame(bearing, Vector2.new(0, r0 - 0.8), toPark, SURFACE + Layout.NameplateY)
+	)
 
 	local count = Layout.SampleCount
 	local startPos, startDir = Layout.pointAt(Layout.StartS)

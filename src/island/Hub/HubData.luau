@@ -1017,9 +1017,9 @@ return {
 			},
 			{
 				id = "StuntGate",
-				centre = Vector2.new(-100, -36),
-				facing = Vector2.new(0.941, 0.339),
-				door = Vector2.new(-93.414, -33.629),
+				centre = Vector2.new(-106, -36),
+				facing = Vector2.new(0.947, 0.322),
+				door = Vector2.new(-99.372, -33.749),
 				width = 30,
 				depth = 10,
 				height = 16,
@@ -1035,9 +1035,9 @@ return {
 			},
 			{
 				id = "FoodStands",
-				centre = Vector2.new(138, 78),
-				facing = Vector2.new(-0.871, -0.492),
-				door = Vector2.new(131.035, 74.064),
+				centre = Vector2.new(140, 76),
+				facing = Vector2.new(-0.879, -0.477),
+				door = Vector2.new(132.969, 72.183),
 				width = 32,
 				depth = 12,
 				height = 8,
@@ -1638,8 +1638,8 @@ return {
 				kind = "StuntGateApproach",
 				width = 12,
 				points = {
-					Vector2.new(-93.414, -33.629),
-					Vector2.new(-37.635, -13.549),
+					Vector2.new(-99.372, -33.749),
+					Vector2.new(-37.875, -12.863),
 				},
 			},
 		},
@@ -1711,33 +1711,33 @@ return {
 		corridors = {
 			{
 				Vector2.new(-238.764, 63.977),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 			{
 				Vector2.new(-174.787, 174.787),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 			{
 				Vector2.new(-63.977, 238.764),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 			{
 				Vector2.new(63.977, 238.764),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 			{
 				Vector2.new(174.787, 174.787),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 			{
 				Vector2.new(238.764, 63.977),
-				Vector2.new(-39, -56),
-				Vector2.new(39, -56),
+				Vector2.new(-49, -56),
+				Vector2.new(49, -56),
 			},
 		},
 	},
@@ -1799,6 +1799,7 @@ return {
 			plot = 1,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-12.557, 3.365),
@@ -1808,6 +1809,7 @@ return {
 			plot = 1,
 			destination = "SummitPass",
 			studs = 277.013,
+			networkStuds = 277.013,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-229.105, 61.388),
@@ -1821,6 +1823,7 @@ return {
 			plot = 1,
 			destination = "Downtown",
 			studs = 283.655,
+			networkStuds = 283.655,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-229.105, 61.388),
@@ -1834,6 +1837,7 @@ return {
 			plot = 1,
 			destination = "DustyHighway",
 			studs = 300.45,
+			networkStuds = 300.45,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-229.105, 61.388),
@@ -1847,6 +1851,7 @@ return {
 			plot = 1,
 			destination = "Garage",
 			studs = 295.899,
+			networkStuds = 295.899,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-229.105, 61.388),
@@ -1932,7 +1937,8 @@ return {
 		{
 			plot = 1,
 			destination = "StuntGate",
-			studs = 193.395,
+			studs = 200.354,
+			networkStuds = 190.287,
 			points = {
 				Vector2.new(-238.764, 63.977),
 				Vector2.new(-229.105, 61.388),
@@ -1942,13 +1948,15 @@ return {
 				Vector2.new(-132.05, 28.068),
 				Vector2.new(-132.52, 25.759),
 				Vector2.new(-132.949, 23.443),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(-91.797, -31.176),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 		{
 			plot = 2,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-9.192, 9.192),
@@ -1958,6 +1966,7 @@ return {
 			plot = 2,
 			destination = "SummitPass",
 			studs = 291.5,
+			networkStuds = 291.5,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-167.716, 167.716),
@@ -1971,6 +1980,7 @@ return {
 			plot = 2,
 			destination = "Downtown",
 			studs = 294.097,
+			networkStuds = 294.097,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-167.716, 167.716),
@@ -1983,7 +1993,8 @@ return {
 		{
 			plot = 2,
 			destination = "DustyHighway",
-			studs = 307.5,
+			studs = 307.879,
+			networkStuds = 307.5,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-167.716, 167.716),
@@ -2000,6 +2011,7 @@ return {
 			plot = 2,
 			destination = "Garage",
 			studs = 225.214,
+			networkStuds = 225.214,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-167.716, 167.716),
@@ -2055,7 +2067,8 @@ return {
 		{
 			plot = 2,
 			destination = "StuntGate",
-			studs = 264.08,
+			studs = 271.039,
+			networkStuds = 260.972,
 			points = {
 				Vector2.new(-174.787, 174.787),
 				Vector2.new(-167.716, 167.716),
@@ -2095,13 +2108,15 @@ return {
 				Vector2.new(-132.05, 28.068),
 				Vector2.new(-132.52, 25.759),
 				Vector2.new(-132.949, 23.443),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(-91.797, -31.176),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 		{
 			plot = 3,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-3.365, 12.557),
@@ -2111,6 +2126,7 @@ return {
 			plot = 3,
 			destination = "SummitPass",
 			studs = 301.6,
+			networkStuds = 301.6,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-61.388, 229.105),
@@ -2123,7 +2139,8 @@ return {
 		{
 			plot = 3,
 			destination = "Downtown",
-			studs = 301.047,
+			studs = 301.46,
+			networkStuds = 301.047,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-61.388, 229.105),
@@ -2139,7 +2156,8 @@ return {
 		{
 			plot = 3,
 			destination = "DustyHighway",
-			studs = 308.477,
+			studs = 308.924,
+			networkStuds = 308.477,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-61.388, 229.105),
@@ -2156,6 +2174,7 @@ return {
 			plot = 3,
 			destination = "Garage",
 			studs = 154.529,
+			networkStuds = 154.529,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-61.388, 229.105),
@@ -2181,20 +2200,22 @@ return {
 		{
 			plot = 3,
 			destination = "StuntGate",
-			studs = 325.356,
+			studs = 330.526,
+			networkStuds = 330.526,
 			points = {
 				Vector2.new(-63.977, 238.764),
 				Vector2.new(-61.388, 229.105),
 				Vector2.new(-34.941, 130.4),
 				Vector2.new(-10.353, 38.637),
-				Vector2.new(-37.635, -13.549),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(-37.875, -12.863),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 		{
 			plot = 4,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(3.365, 12.557),
@@ -2203,7 +2224,8 @@ return {
 		{
 			plot = 4,
 			destination = "SummitPass",
-			studs = 308.477,
+			studs = 308.924,
+			networkStuds = 308.477,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(61.388, 229.105),
@@ -2219,7 +2241,8 @@ return {
 		{
 			plot = 4,
 			destination = "Downtown",
-			studs = 301.047,
+			studs = 301.46,
+			networkStuds = 301.047,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(61.388, 229.105),
@@ -2236,6 +2259,7 @@ return {
 			plot = 4,
 			destination = "DustyHighway",
 			studs = 301.6,
+			networkStuds = 301.6,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(61.388, 229.105),
@@ -2249,6 +2273,7 @@ return {
 			plot = 4,
 			destination = "Garage",
 			studs = 154.529,
+			networkStuds = 154.529,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(61.388, 229.105),
@@ -2274,20 +2299,22 @@ return {
 		{
 			plot = 4,
 			destination = "StuntGate",
-			studs = 337.365,
+			studs = 342.689,
+			networkStuds = 342.689,
 			points = {
 				Vector2.new(63.977, 238.764),
 				Vector2.new(61.388, 229.105),
 				Vector2.new(34.941, 130.4),
 				Vector2.new(10.353, 38.637),
-				Vector2.new(-37.635, -13.549),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(-37.875, -12.863),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 		{
 			plot = 5,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(9.192, 9.192),
@@ -2296,7 +2323,8 @@ return {
 		{
 			plot = 5,
 			destination = "SummitPass",
-			studs = 307.5,
+			studs = 307.879,
+			networkStuds = 307.5,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(167.716, 167.716),
@@ -2313,6 +2341,7 @@ return {
 			plot = 5,
 			destination = "Downtown",
 			studs = 294.097,
+			networkStuds = 294.097,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(167.716, 167.716),
@@ -2326,6 +2355,7 @@ return {
 			plot = 5,
 			destination = "DustyHighway",
 			studs = 291.5,
+			networkStuds = 291.5,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(167.716, 167.716),
@@ -2339,6 +2369,7 @@ return {
 			plot = 5,
 			destination = "Garage",
 			studs = 225.214,
+			networkStuds = 225.214,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(167.716, 167.716),
@@ -2394,23 +2425,25 @@ return {
 		{
 			plot = 5,
 			destination = "StuntGate",
-			studs = 345.015,
+			studs = 350.67,
+			networkStuds = 350.442,
 			points = {
 				Vector2.new(174.787, 174.787),
 				Vector2.new(167.716, 167.716),
 				Vector2.new(95.459, 95.459),
 				Vector2.new(28.284, 28.284),
 				Vector2.new(-5.809, 12.738),
-				Vector2.new(-7.501, 11.821),
-				Vector2.new(-9.052, 10.68),
-				Vector2.new(-37.635, -13.549),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(-7.394, 11.888),
+				Vector2.new(-8.857, 10.842),
+				Vector2.new(-37.875, -12.863),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 		{
 			plot = 6,
 			destination = "Fountain",
 			studs = 234.187,
+			networkStuds = 234.187,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(12.557, 3.365),
@@ -2420,6 +2453,7 @@ return {
 			plot = 6,
 			destination = "SummitPass",
 			studs = 300.45,
+			networkStuds = 300.45,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(229.105, 61.388),
@@ -2433,6 +2467,7 @@ return {
 			plot = 6,
 			destination = "Downtown",
 			studs = 283.655,
+			networkStuds = 283.655,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(229.105, 61.388),
@@ -2446,6 +2481,7 @@ return {
 			plot = 6,
 			destination = "DustyHighway",
 			studs = 277.013,
+			networkStuds = 277.013,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(229.105, 61.388),
@@ -2459,6 +2495,7 @@ return {
 			plot = 6,
 			destination = "Garage",
 			studs = 295.899,
+			networkStuds = 295.899,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(229.105, 61.388),
@@ -2544,17 +2581,18 @@ return {
 		{
 			plot = 6,
 			destination = "StuntGate",
-			studs = 349.644,
+			studs = 356.127,
+			networkStuds = 355.544,
 			points = {
 				Vector2.new(238.764, 63.977),
 				Vector2.new(229.105, 61.388),
 				Vector2.new(130.4, 34.941),
 				Vector2.new(38.637, 10.353),
 				Vector2.new(8.127, -11.399),
-				Vector2.new(4.186, -13.359),
-				Vector2.new(-0.168, -13.999),
-				Vector2.new(-37.635, -13.549),
-				Vector2.new(-93.414, -33.629),
+				Vector2.new(4.065, -13.397),
+				Vector2.new(-0.422, -13.994),
+				Vector2.new(-37.875, -12.863),
+				Vector2.new(-99.372, -33.749),
 			},
 		},
 	},

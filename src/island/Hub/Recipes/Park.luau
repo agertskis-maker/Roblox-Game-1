@@ -107,6 +107,15 @@ local function buildPaths(model: Model)
 		local bridge = Instance.new("Model")
 		bridge.Name = string.format("Bridge%02d", i)
 		bridge:SetAttribute("Path", b.path)
+		-- Where the stream crosses at a path junction, two bridges overlap; rails along one
+		-- would cut across the other path, so that junction stays open (one wider bridge later).
+		local shared = false
+		for k, other in park.bridges do
+			if k ~= i and (other.at - b.at).Magnitude < (b.span + other.deckWidth) / 2 then
+				shared = true
+			end
+		end
+		bridge:SetAttribute("SharedJunction", shared)
 		local a = W(b.at - b.dir * b.span / 2)
 		local c = W(b.at + b.dir * b.span / 2)
 		Kit.strip(
@@ -120,7 +129,7 @@ local function buildPaths(model: Model)
 			0
 		)
 		local side = Vector2.new(-b.dir.Y, b.dir.X)
-		for _, s in { -1, 1 } do
+		for _, s in if shared then {} else { -1, 1 } do
 			local off = side * s * (b.deckWidth / 2 - 0.3)
 			Kit.wall(
 				bridge,

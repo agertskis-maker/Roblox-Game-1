@@ -54,6 +54,20 @@ function bendRoundBasin(pts) {
 	return out.filter((p, i) => i === 0 || len(sub(p, out[i - 1])) > 0.5);
 }
 
+// The layout's network joins a door straight to the nearest path node, which can cut through the
+// building itself (the Stunt gate's north pillar, found by the greybox walk test). Such a last leg
+// goes round to a point in front of the door first.
+const doorBuildings = { Garage: o.garage, StuntGate: o.stunt };
+function approachDoor(pts, b) {
+	const n = pts.length;
+	if (!b || n < 2) return pts;
+	const lastLeg = [pts[n - 2], pts[n - 1]];
+	if (!L.strip(lastLeg, 1).some((q) => L.overlaps(q, b.poly))) return pts;
+	const front = add(b.door, mul(b.c, -8 / len(b.c)));
+	return [...pts.slice(0, n - 1), front, pts[n - 1]];
+}
+const polylineLength = (pts) => pts.slice(1).reduce((s, p, i) => s + len(sub(p, pts[i])), 0);
+
 const destinations = ["Fountain", "SummitPass", "Downtown", "DustyHighway", "Garage", "StuntGate"];
 const routes = [];
 for (const plot of H.plots) {
@@ -61,8 +75,8 @@ for (const plot of H.plots) {
 	for (const dest of destinations) {
 		let pts;
 		if (dest === "Fountain") pts = [plot.entrance, L.polar(plot.bearing, P.basinR + 1)];
-		else pts = bendRoundBasin(r.lines[dest]);
-		routes.push({ plot: plot.index, destination: dest, studs: r.dist[dest], points: pts });
+		else pts = approachDoor(bendRoundBasin(r.lines[dest]), doorBuildings[dest]);
+		routes.push({ plot: plot.index, destination: dest, studs: polylineLength(pts), networkStuds: r.dist[dest], points: pts });
 	}
 }
 
