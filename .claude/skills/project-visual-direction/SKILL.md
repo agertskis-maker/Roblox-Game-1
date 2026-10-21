@@ -56,8 +56,9 @@ character, sound identity, and where the spectacle lives. "Colorful" is not a
 direction; name what each color means. While no concept is selected, write the
 concept as "undecided" and keep the brief concept-neutral.
 
-Fonts and touch-target size are undecided. Write them as TBD, to be proposed
-after the concept is chosen and the owner approves; do not hard-code values.
+Use the fonts and touch-target sizes approved in `vault/design/visual-direction.md`.
+Anything not approved there is TBD, proposed for the owner's approval; never
+hard-code an unapproved value.
 
 For roles the reference does not show (danger, reward, rarity, progress),
 propose one as "my proposal" where the design needs it, or write TBD; rarity
@@ -71,8 +72,8 @@ yet are placeholders, labelled as placeholders.
   file and not in Git. This is provisional until the concept's visual direction
   is approved.
 - UI surfaces: UICorner, UIStroke, UIGradient, consistent spacing, touch
-  targets that clear mobile thumb controls and screen insets (size TBD), no
-  hover-only essentials, never color alone for meaning.
+  targets that clear mobile thumb controls and screen insets (size from the
+  approved values), no hover-only essentials, never color alone for meaning.
 - World: landmarks and paths that pull toward the next goal; collision separate
   from decoration where useful; readable at normal camera distance.
 - Lighting and effects: tie every effect to an event; keep threats readable in

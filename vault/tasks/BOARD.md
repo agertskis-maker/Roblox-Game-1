@@ -47,6 +47,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Each teammate who will animate: install Blender 5.2 LTS, `uv`, the Blender MCP server and add-on once per machine, with safe mode on (see `docs/ANIMATION_PIPELINE.md` section 3, [[0005-animation-pipeline]])
 
 - [ ] Lane 3 HUD checks still open after approval (not passed): real phones and phone performance; the player's own Roblox Reduce Motion setting; the 378 to 398 px one-row range on screen; the HUD over the real road and chase camera (Downtown scene review) ([[visual-direction]], [[2026-10-20]])
+- [ ] Update the stale header comment in `src/shared/UI/Tokens.luau`: it still says colours, spacing, radii, strokes and motion timings are pending Adam's review, but the HUD was approved on 2026-10-20. Code change, so on a feature branch ([[visual-direction]], [[2026-10-20]])
 
 - [ ] Give every teammate collaborator access to the now-private repository; on 2026-10-20 it listed two accounts, the owner and one teammate ([[0009-private-repository]])
 
