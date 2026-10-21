@@ -36,6 +36,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Lane 3 island rework, Task 2: environment and base-level dressing - Adam, with Claude Code. Intake only (ledger IRW-30 to IRW-55 in [[island-rework]]); waits for "Approved: island greybox" and the questions in [[2026-10-21]]. Private island place only; no portals, merge, publish or uploads
   - Status 2026-10-21: "Approved: island greybox."; step 1 (environment) in progress on `feature/lane3-island-environment` (from `b8b9ee4`), stopping for "Approved: island environment, continue dressing."
   - Status 2026-10-21 (16:30): environment built and checked in the private place; waiting for "Approved: island environment, continue dressing." ([[2026-10-21]], [[0014-island-environment-generation]])
+  - Status 2026-10-21 (evening): Adam approved the environment (Atmosphere A) and decision 0014, and authorised original Blender meshes and images uploaded under peskaface for this task. Revision in progress (waterfall system, lake, vegetation, wildlife, park dressing; ledger IRW-56 to IRW-81); one review at the end, before the representative plot
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 ## Up next

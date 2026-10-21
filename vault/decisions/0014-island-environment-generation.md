@@ -6,10 +6,13 @@ tags:
   - island
   - terrain
   - lighting
-status: proposed
+status: accepted
 ---
 
 # 0014: Island environment generation
+
+> [!note] Accepted 2026-10-21 (Adam)
+> "Approved: island environment with the changes below. Approved: continue dressing." with "Use Atmosphere A: Clear Alpine, bright daytime. This approval also accepts decision 0014." The note below is the one approved (same file, same title); the revision that follows (waterfall system, lake, vegetation) extends it and is recorded under "Revision" when it lands.
 
 > [!note] Proposed with the environment review
 > Written by Claude Code for Adam (Lane 3 owner) on 2026-10-21, with island rework Task 2, step 1. It records how the environment is generated and why. It is accepted with "Approved: island environment, continue dressing."; until then the method may change at the review.
