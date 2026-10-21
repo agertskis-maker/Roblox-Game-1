@@ -34,6 +34,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
   - Status 2026-10-21 (13:30): greybox built and walked in the private place (all 36 routes reached; side portals 2.08 and 2.09 s best to worst against 2 s, for Adam). Waiting for Adam's review; detailed environment only after "Approved: island greybox." ([[2026-10-21]])
   - [ ] Brian L (Lane 2): agree to the plot-contract change from 8 to 6 plots (Max Players at most 6, new plot positions and facing, marker names unchanged). **Pending**; Adam sends the message drafted in [[2026-10-21]]. Until Brian agrees, [[0011-eight-plots-per-server]] stands for Lane 2 ([[draft-0013-six-plot-half-circle-island]], [[plot-marker-contract]])
 - [ ] Lane 3 island rework, Task 2: environment and base-level dressing - Adam, with Claude Code. Intake only (ledger IRW-30 to IRW-55 in [[island-rework]]); waits for "Approved: island greybox" and the questions in [[2026-10-21]]. Private island place only; no portals, merge, publish or uploads
+  - Status 2026-10-21: "Approved: island greybox."; step 1 (environment) in progress on `feature/lane3-island-environment` (from `b8b9ee4`), stopping for "Approved: island environment, continue dressing."
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 ## Up next
