@@ -93,7 +93,11 @@ function HubBuild.build(options: Options?): { [string]: any }
 	root.Parent = workspace
 	task.wait()
 
-	Backdrop.build(scenery)
+	-- with the environment (Task 2) the terrain replaces the greybox ground and backdrop
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	if not (env and env:GetAttribute("TerrainWritten")) then
+		Backdrop.build(scenery)
+	end
 	task.wait()
 	Park.build(plaza)
 	task.wait()

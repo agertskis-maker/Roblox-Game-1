@@ -547,9 +547,12 @@ function run(over, label) {
 	// stream: an S from a spring in the north-west garden, round the north of the plaza and the
 	// south of the Garage, out to the lake east of the portal row (waypoints scale with the hub)
 	const k = H.prom.inner / 227.2;
+	// Re-routed 2026-10-21 (environment task): the first course met Avenue 2 at about 24 degrees and
+	// ran beside it, so terrain water showed under the paving. This one arcs round the plaza at
+	// r about 95 and crosses every path at 79 to 89 degrees.
 	const stream = spline([
-		...[V(-170, 160), V(-120, 96), V(-62, 74), V(0, 80), V(62, 74), V(116, 46), V(146, -2)].map((p) => mul(p, k)),
-		V(P.portal.spacing + 110, P.portal.frontY - 16),
+		...[polar(-60, 195), polar(-60, 150), polar(-58, 112), polar(-48, 96), polar(-30, 95), polar(0, 95), polar(30, 95), polar(60, 95), polar(82, 97), V(99, -18), V(101, -48)].map((p) => mul(p, k)),
+		V(104, P.portal.frontY - 26),
 	]);
 	const arcPts = (r, b0, b1) => {
 		const pts = [];

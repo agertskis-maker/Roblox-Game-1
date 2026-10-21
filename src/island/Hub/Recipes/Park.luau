@@ -19,10 +19,66 @@ local PATH_TOP = SURFACE + 0.08
 local STREAM_TOP = SURFACE + 0.06
 local BRIDGE_TOP = SURFACE + 0.35
 
-local function polyline(parent: Instance, points: { Vector2 }, width: number, topY: number, options: Kit.PartOptions)
+type Cut = { at: Vector2, half: number }
+
+-- Strips along a polyline; `cuts` leave gaps (where a bridge deck crosses open water).
+local function polyline(
+	parent: Instance,
+	points: { Vector2 },
+	width: number,
+	topY: number,
+	options: Kit.PartOptions,
+	cuts: { Cut }?
+)
 	for i = 1, #points - 1 do
-		Kit.strip(parent, W(points[i]), W(points[i + 1]), width, 0.1, topY, options, width * 0.3)
+		local a, b = points[i], points[i + 1]
+		local length = (b - a).Magnitude
+		local dir = (b - a) / length
+		-- pieces of [0, length] that stay after the cuts
+		local pieces = { { 0, length } }
+		for _, cut in cuts or {} do
+			local s = (cut.at - a):Dot(dir)
+			local off = math.abs((cut.at - a):Dot(Vector2.new(-dir.Y, dir.X)))
+			if off < 3 then
+				local kept = {}
+				for _, piece in pieces do
+					local c0, c1 = s - cut.half, s + cut.half
+					if c1 <= piece[1] or c0 >= piece[2] then
+						table.insert(kept, piece)
+					else
+						if c0 > piece[1] then
+							table.insert(kept, { piece[1], c0 })
+						end
+						if c1 < piece[2] then
+							table.insert(kept, { c1, piece[2] })
+						end
+					end
+				end
+				pieces = kept
+			end
+		end
+		for _, piece in pieces do
+			if piece[2] - piece[1] > 0.05 then
+				local cut = #pieces > 1 or piece[1] > 0 or piece[2] < length
+				Kit.strip(
+					parent,
+					W(a + dir * piece[1]),
+					W(a + dir * piece[2]),
+					width,
+					0.1,
+					topY,
+					options,
+					if cut then 0 else width * 0.3
+				)
+			end
+		end
 	end
+end
+
+-- The environment build (Task 2) writes the lake and stream as terrain water.
+local function hasTerrainWater(): boolean
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	return env ~= nil and env:GetAttribute("TerrainWritten") == true
 end
 
 -- A box on the ground at a plan-frame centre, its front (-Z of the part) facing `facing`.
@@ -78,27 +134,39 @@ local function buildPaths(model: Model)
 	local folder = Instance.new("Folder")
 	folder.Name = "Paths"
 	folder.Parent = model
+	local water = hasTerrainWater()
 	for _, p in park.paths do
 		local colour = if string.find(p.kind, "Promenade") then Palette.Promenade else Palette.Paving
+		local cuts: { Cut } = {}
+		if water then
+			for _, b in park.bridges do
+				if b.path == p.kind then
+					table.insert(cuts, { at = b.at, half = b.span / 2 - 1 })
+				end
+			end
+		end
 		polyline(
 			folder,
 			p.points,
 			p.width,
 			PATH_TOP,
-			{ name = p.kind, color = colour, collide = true, castShadow = false }
+			{ name = p.kind, color = colour, collide = true, castShadow = false },
+			cuts
 		)
 	end
 
-	local stream = Instance.new("Folder")
-	stream.Name = "Stream"
-	stream.Parent = model
-	polyline(
-		stream,
-		park.stream,
-		park.streamWidth,
-		STREAM_TOP + 0.04,
-		{ name = "Stream", color = Palette.ShallowWater, castShadow = false }
-	)
+	if not water then
+		local stream = Instance.new("Folder")
+		stream.Name = "Stream"
+		stream.Parent = model
+		polyline(
+			stream,
+			park.stream,
+			park.streamWidth,
+			STREAM_TOP + 0.04,
+			{ name = "Stream", color = Palette.ShallowWater, castShadow = false }
+		)
+	end
 
 	local bridges = Instance.new("Folder")
 	bridges.Name = "Bridges"
