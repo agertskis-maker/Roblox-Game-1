@@ -22,14 +22,19 @@ Look.TerrainColours = {
 	[Enum.Material.Sand] = rgb(230, 214, 166),
 	[Enum.Material.Limestone] = rgb(172, 170, 160),
 	[Enum.Material.Ground] = rgb(112, 132, 82),
+	[Enum.Material.Basalt] = rgb(54, 62, 72), -- wet rock by the falls, deep lake bed
+	[Enum.Material.Mud] = rgb(94, 84, 66), -- damp shore band, marsh bed
+	[Enum.Material.LeafyGrass] = rgb(84, 150, 78), -- moss on sheltered wet ledges
 }
 
+-- Rich blue water (#2B88B8) that lets the sand shelves read turquoise and the dark deep bed
+-- read deep blue; calm waves. Global: the park stream uses the same settings.
 Look.Water = {
-	WaterColor = rgb(40, 196, 188),
-	WaterTransparency = 0.5,
+	WaterColor = rgb(43, 136, 184),
+	WaterTransparency = 0.68,
 	WaterReflectance = 0.35,
-	WaterWaveSize = 0.06,
-	WaterWaveSpeed = 6,
+	WaterWaveSize = 0.04,
+	WaterWaveSpeed = 5,
 }
 
 local LIGHTING_PROPS = {
@@ -119,9 +124,8 @@ end
 
 -- Saves every original value once (later calls keep the first capture).
 function Look.capture(state: Instance)
-	if state:GetAttribute(SAVED .. "Captured") then
-		return
-	end
+	-- save() keeps the first value it sees, so a later capture only adds settings that are new
+	-- to the look (for example materials added in a revision) and never overwrites an original
 	local terrain = workspace.Terrain
 	for material in Look.TerrainColours do
 		save(state, "Material_" .. material.Name, terrain:GetMaterialColor(material))
@@ -134,7 +138,9 @@ function Look.capture(state: Instance)
 	end
 	-- existing effects we change in place (Bloom, ColorGrading); their absence is recorded too
 	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
-	state:SetAttribute(SAVED .. "HadBloom", bloom ~= nil)
+	if state:GetAttribute(SAVED .. "HadBloom") == nil then
+		state:SetAttribute(SAVED .. "HadBloom", bloom ~= nil)
+	end
 	if bloom then
 		save(state, "Bloom_Enabled", bloom.Enabled)
 		save(state, "Bloom_Intensity", bloom.Intensity)

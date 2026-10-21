@@ -8,6 +8,7 @@
 
 local GeometryService = game:GetService("GeometryService")
 
+local Cascade = require(script.Parent.Cascade)
 local Field = require(script.Parent.Field)
 local Layout = require(script.Parent.Parent.Layout)
 local TerrainWriter = require(script.Parent.TerrainWriter)
@@ -314,7 +315,7 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	for k = 0, 71 do
 		local a = k / 72 * math.pi * 2
 		local p = lake.centre + Vector2.new(math.cos(a) * lake.rx * 1.04, math.sin(a) * lake.ry * 1.04)
-		local nearFalls = (p - Field.Pool.centre).Magnitude < 34
+		local nearFalls = (p - Cascade.Pool.centre).Magnitude < 40
 		if math.abs(p.X) > 80 and not nearFalls and rng:NextNumber() < 0.75 then
 			local at = Vector3.new(p.X, TerrainWriter.heightAt(grid, p) - 0.3, -p.Y)
 			if rng:NextNumber() < 0.6 then

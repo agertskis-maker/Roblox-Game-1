@@ -121,6 +121,7 @@ function EnvironmentBuild.build(options: Options?): { [string]: any }
 	report.peakMemoryDuringWriteMb = written.peakMb
 	report.memoryEndMb = TerrainWriter.memoryMb()
 	report.gullies = gullies
+	report.flowFloorAboveGround = (TerrainWriter :: any).FlowFitWorst
 	report.flora = counts
 	report.environmentParts = parts
 	report.hubParts = hub.parts

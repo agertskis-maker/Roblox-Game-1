@@ -7,6 +7,7 @@
 
 local Stats = game:GetService("Stats")
 
+local Cascade = require(script.Parent.Cascade)
 local Field = require(script.Parent.Field)
 
 local TerrainWriter = {}
@@ -22,14 +23,15 @@ TerrainWriter.NX, TerrainWriter.NZ = NX, NZ
 export type Grid = {
 	h: { number }, -- surface height per column, index (iz - 1) * NX + ix
 	water: { number }, -- water surface, or -math.huge
-	flags: { number }, -- bit 1 lake, 2 bank, 4 channel, 8 hub, 16 gully
+	flags: { number }, -- bit 1 lake, 2 bank, 4 channel, 8 hub, 16 gully, 32 wet rock
+	zone: { string }, -- lake bed or shore zone (Field.Sample.zone)
 	far: { number },
 	slope: { number },
 	material: { Enum.Material },
 	seed: number,
 }
 
-local LAKE, BANK, CHANNEL, HUB, GULLY = 1, 2, 4, 8, 16
+local LAKE, BANK, CHANNEL, HUB, GULLY, WET = 1, 2, 4, 8, 16, 32
 
 local function index(ix: number, iz: number): number
 	return (iz - 1) * NX + ix
@@ -71,12 +73,19 @@ function TerrainWriter.flagsAt(grid: Grid, p: Vector2): number
 	local iz = math.clamp(math.floor((-p.Y - BOX.minZ) / CELL) + 1, 1, NZ)
 	return grid.flags[index(ix, iz)]
 end
-TerrainWriter.Flags = { LAKE = LAKE, BANK = BANK, CHANNEL = CHANNEL, HUB = HUB, GULLY = GULLY }
+TerrainWriter.Flags = { LAKE = LAKE, BANK = BANK, CHANNEL = CHANNEL, HUB = HUB, GULLY = GULLY, WET = WET }
+
+function TerrainWriter.zoneAt(grid: Grid, p: Vector2): string
+	local ix = math.clamp(math.floor((p.X - BOX.minX) / CELL) + 1, 1, NX)
+	local iz = math.clamp(math.floor((-p.Y - BOX.minZ) / CELL) + 1, 1, NZ)
+	return grid.zone[index(ix, iz)]
+end
 
 -- Sample the field on every column.
 local function sampleGrid(seed: number, stream: { Vector2 }, progress: (string, number) -> ()): Grid
 	local nz = Field.noiseFor(seed)
-	local grid: Grid = { h = {}, water = {}, flags = {}, far = {}, slope = {}, material = {}, seed = seed }
+	TerrainWriter.FlowFitWorst = Field.fitFlows(nz)
+	local grid: Grid = { h = {}, water = {}, flags = {}, zone = {}, far = {}, slope = {}, material = {}, seed = seed }
 	for iz = 1, NZ do
 		for ix = 1, NX do
 			local p = TerrainWriter.columnPlan(ix, iz)
@@ -92,6 +101,8 @@ local function sampleGrid(seed: number, stream: { Vector2 }, progress: (string, 
 				+ (if s.bank then BANK else 0)
 				+ (if s.channel then CHANNEL else 0)
 				+ (if s.hub then HUB else 0)
+				+ (if s.wet then WET else 0)
+			grid.zone[i] = s.zone
 		end
 		if iz % 16 == 0 then
 			progress("sample", iz / NZ)
@@ -200,12 +211,42 @@ local function classify(grid: Grid, seed: number, progress: (string, number) -> 
 			local rock = if far > 0.5 then Enum.Material.Slate else Enum.Material.Rock
 			local snowLine = 228 + 36 * math.noise(p.X / 85 + nz.ox, p.Y / 85 + nz.oy, nz.oz[3])
 			local m: Enum.Material
+			local zone = grid.zone[i]
+			local wet = bit32.band(flags, WET) ~= 0
+			-- by the falls, dry rock is slate (no wrapped banding) and wet rock is dark basalt
+			local nearFalls = math.abs(p.X - Cascade.X) < 110 and p.Y > -340 and p.Y < -255
+			if nearFalls then
+				rock = Enum.Material.Slate
+			end
 			if bit32.band(flags, LAKE) ~= 0 then
-				m = if h[i] > -6 then Enum.Material.Sand else Enum.Material.Ground
+				if zone == "deep" then
+					m = Enum.Material.Basalt
+				elseif zone == "marsh" then
+					m = Enum.Material.Mud
+				elseif zone == "rocky" then
+					m = if n > -0.2 then Enum.Material.Basalt else Enum.Material.Limestone
+				elseif zone == "shelf" then
+					m = if n > 0.3 then Enum.Material.Limestone else Enum.Material.Sand
+				else
+					m = Enum.Material.Sand
+				end
 			elseif bit32.band(flags, CHANNEL) ~= 0 then
-				m = Enum.Material.Limestone
+				m = if wet or zone == "ledge" then Enum.Material.Basalt else Enum.Material.Limestone
 			elseif bit32.band(flags, BANK) ~= 0 then
-				m = if n > 0.25 then Enum.Material.Rock else Enum.Material.Limestone
+				if zone == "damp" then
+					m = if n > 0.35 then Enum.Material.Limestone else Enum.Material.Mud
+				elseif zone == "rocky" then
+					m = if n > 0 then Enum.Material.Basalt else Enum.Material.Rock
+				elseif zone == "beach" then
+					m = Enum.Material.Sand
+				else
+					m = if n > 0.25 then Enum.Material.Rock else Enum.Material.Limestone
+				end
+			elseif wet then
+				-- spray zone: dark wet rock on the faces, moss on the sheltered ledges
+				m = if slope < 0.6 and n > -0.3 then Enum.Material.LeafyGrass else Enum.Material.Basalt
+			elseif zone == "ledge" then
+				m = if slope < 0.7 then Enum.Material.LeafyGrass else rock
 			elseif
 				h[i] > snowLine and slope < 1.3 + (h[i] - snowLine) / 120
 				or (h[i] > snowLine - 45 and slope < 0.75 and n > 0.1)
@@ -284,6 +325,46 @@ function TerrainWriter.clear(progress: (string, number) -> ())
 	end
 end
 
+-- 3D shapes a height field cannot make (Cascade.volumes): added rock blends in by its own
+-- signed distance, carved space removes rock and water. Arrays are [x][layer][z] for `region`.
+local VOLUMES = Cascade.volumes()
+local function applyVolumes(region: Region3, mats: { any }, solids: { any }, liquids: { any })
+	local min = region.CFrame.Position - region.Size / 2
+	local max = region.CFrame.Position + region.Size / 2
+	for _, v in VOLUMES do
+		local lo, hi = v.centre - v.radii - Vector3.one * CELL, v.centre + v.radii + Vector3.one * CELL
+		if lo.X < max.X and hi.X > min.X and lo.Y < max.Y and hi.Y > min.Y and lo.Z < max.Z and hi.Z > min.Z then
+			local r = math.min(v.radii.X, v.radii.Y, v.radii.Z)
+			for ix = 1, #solids do
+				for l = 1, #solids[ix] do
+					for iz = 1, #solids[ix][l] do
+						local c = min + Vector3.new((ix - 0.5) * CELL, (l - 0.5) * CELL, (iz - 0.5) * CELL)
+						local rel = c - v.centre
+						local d = (rel / v.radii).Magnitude
+						-- the shape's own radius along this direction, so the soft edge is about one voxel
+						local along = if d > 1e-6 then rel.Magnitude / d else r
+						if (d - 1) * along < CELL then
+							local f = math.clamp(0.5 - (d - 1) * along / CELL, 0, 1)
+							if v.kind == "add" then
+								if f > solids[ix][l][iz] then
+									solids[ix][l][iz] = f
+									mats[ix][l][iz] = v.material or Enum.Material.Basalt
+									liquids[ix][l][iz] = if f >= 1 then 0 else liquids[ix][l][iz]
+								end
+							else
+								solids[ix][l][iz] = math.min(solids[ix][l][iz], 1 - f)
+								if solids[ix][l][iz] <= 0 then
+									mats[ix][l][iz] = Enum.Material.Air
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
 export type WriteStats = { chunks: number, voxels: number, peakMb: number }
 
 function TerrainWriter.write(grid: Grid, progress: (string, number) -> ()): WriteStats
@@ -337,6 +418,7 @@ function TerrainWriter.write(grid: Grid, progress: (string, number) -> ()): Writ
 				table.insert(solids, sx)
 				table.insert(liquids, lx)
 			end
+			applyVolumes(region, mats, solids, liquids)
 			terrain:WriteVoxelChannels(
 				region,
 				CELL,

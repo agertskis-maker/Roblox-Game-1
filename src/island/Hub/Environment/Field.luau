@@ -17,9 +17,11 @@
 -- concave (steep near the crest, broad at the base) and they join through a smooth maximum,
 -- so neighbouring peaks share saddles instead of standing alone.
 
+local Cascade = require(script.Parent.Cascade)
+
 local Field = {}
 
-Field.VERSION = "island-env-1"
+Field.VERSION = "island-env-2" -- 2: stepped falls cliff, creek, tarn, chute, irregular lake
 Field.Cell = 4
 Field.LakeLevel = -1
 Field.HubRadius = 575
@@ -148,10 +150,19 @@ local SPINES: { Spine } = {
 		-- which cuts it, so the cliff top keeps the spur's full height)
 		name = "WaterfallSpur",
 		points = { Vector2.new(-152, -545), Vector2.new(-133, -410), Vector2.new(-121, -300), Vector2.new(-118, -262) },
-		heights = { 300, 192, 146, 140 },
-		left = { 62, 66, 88, 92 }, -- widens into the cliff band round the falls
-		right = { 46, 52, 76, 80 },
-		profile = 1.7,
+		heights = { 312, 246, 196, 190 }, -- carries the creek down to a 168-stud lip (Cascade)
+		left = { 70, 78, 104, 108 }, -- widens into the cliff band round the falls
+		right = { 54, 62, 92, 96 },
+		profile = 1.6,
+	},
+	{
+		-- the east shoulder that holds the tarn feeding the horsetail (Cascade)
+		name = "TarnShoulder",
+		points = { Vector2.new(-82, -392), Vector2.new(-74, -342), Vector2.new(-87, -316), Vector2.new(-97, -302) },
+		heights = { 180, 168, 156, 146 },
+		left = { 34, 32, 28, 24 },
+		right = { 38, 34, 30, 26 },
+		profile = 1.5,
 	},
 	-- foothills: wide and with a more concave profile, so their lower slopes are gentle and grassy
 	{
@@ -211,9 +222,17 @@ Field.Spines = SPINES
 
 -- Lake, plunge pool, waterfall and channels.
 Field.Lake = { centre = Vector2.new(0, -172), rx = 300, ry = 100, depth = 12 }
-Field.Pool = { centre = Vector2.new(-120, -268), radius = 10, floor = -6 }
-Field.Fall = { x = -120, cliffY = -280, lip = 118, notchHalf = 8, width = 16 }
-Field.Creek = { y0 = -282, y1 = -360, rise = 0.08, depth = 2.5 }
+-- Lake shoreline: inside the approved ellipse only (e < 1), pulled in by an irregular indent with
+-- a peninsula, coves, a beach near the plaza, a marsh cove at the east end and a rocky shore by
+-- the falls. Angles are in the ellipse's own frame (degrees, 0 = east, 90 = north toward the plaza).
+Field.LakeZones = {
+	beach = { from = 50, to = 90 },
+	marsh = { from = -10, to = 28 },
+	rocky = { from = -136, to = -88 },
+	peninsula = { at = -58, width = 5, depth = 0.34 },
+	spit = { at = -168, width = 4, depth = 0.16 },
+	coves = { { at = 8, width = 12 }, { at = 160, width = 10 }, { at = -100, width = 7 } },
+}
 Field.Outlet = {
 	points = {
 		Vector2.new(285, -185),
@@ -355,14 +374,69 @@ export type Sample = {
 	channel: boolean,
 	hub: boolean,
 	far: number, -- 0 near to 1 far, for the lighter far rock
+	wet: boolean, -- wet dark rock by the falls and channels
+	zone: string, -- lake bed or shore zone: "", "beach", "marsh", "rocky", "shelf", "deep", "damp", "ledge"
 }
 
--- Height and water at a plan point (before gullies, which need the whole grid).
-function Field.sample(nz: Noise, p: Vector2): Sample
-	local dF = Field.hubDistance(p)
-	local e = Field.lakeE(p)
-	local x, y = p.X, p.Y
+local function angularGauss(theta: number, at: number, width: number): number
+	local d = ((theta - at + 540) % 360) - 180
+	return math.exp(-(d / width) ^ 2)
+end
 
+-- Is p in the lake (inside the approved ellipse, minus the irregular indent)? Returns the bed
+-- height and the bed or shore zone.
+function Field.lakeShape(p: Vector2): (boolean, number, string)
+	local lake = Field.Lake
+	local nx = (p.X - lake.centre.X) / lake.rx
+	local ny = (p.Y - lake.centre.Y) / lake.ry
+	local e = math.sqrt(nx * nx + ny * ny)
+	if e >= 1 then
+		local theta = math.deg(math.atan2(ny, nx))
+		local z = Field.LakeZones
+		local zone = if theta >= z.rocky.from and theta <= z.rocky.to
+			then "rocky"
+			elseif theta >= z.beach.from and theta <= z.beach.to then "beach"
+			else ""
+		return false, 0, zone
+	end
+	local theta = math.deg(math.atan2(ny, nx))
+	local z = Field.LakeZones
+	local indent = 0.06 + 0.035 * math.sin(math.rad(3 * theta) + 1) + 0.025 * math.sin(math.rad(7 * theta) + 2.3)
+	indent += z.peninsula.depth * angularGauss(theta, z.peninsula.at, z.peninsula.width)
+	indent += z.spit.depth * angularGauss(theta, z.spit.at, z.spit.width)
+	for _, cove in z.coves do
+		indent *= 1 - 0.9 * angularGauss(theta, cove.at, cove.width)
+	end
+	local beach = theta >= z.beach.from and theta <= z.beach.to
+	local marsh = theta >= z.marsh.from and theta <= z.marsh.to
+	local rocky = theta >= z.rocky.from and theta <= z.rocky.to
+	if beach then
+		indent = math.min(indent, 0.03)
+	end
+	local shore = 1 - math.clamp(indent, 0, 0.5)
+	if e >= shore then
+		return false, 0, if rocky then "rocky" elseif beach then "beach" else ""
+	end
+	local r = e / shore -- 0 at the middle, 1 at the shore
+	if marsh then
+		return true, Field.LakeLevel - 0.3 - 1.6 * smoothstep(1, 0.35, r), "marsh"
+	end
+	local shelfStart = if beach then 0.55 else 0.72
+	local shelfDepth = if beach then 2.3 else 3.3
+	if r > shelfStart then
+		local f = smoothstep(1, shelfStart, r)
+		return true,
+			Field.LakeLevel - 0.3 - shelfDepth * f,
+			if beach then "beach" elseif rocky then "rocky" else "shelf"
+	end
+	local deep = (shelfStart - r) / shelfStart
+	return true, Field.LakeLevel - 0.3 - shelfDepth - 10.5 * deep ^ 0.8, "deep"
+end
+
+-- The mountains and near rises at p, before the waterfall system, lake and channels.
+function Field.rawHeight(nz: Noise, p: Vector2): number
+	local dF = Field.hubDistance(p)
+	local x, y = p.X, p.Y
 	-- mountains: spines joined by a smooth maximum, with irregular crests and shoulders
 	local m = 0
 	for _, spine in SPINES do
@@ -376,63 +450,106 @@ function Field.sample(nz: Noise, p: Vector2): Sample
 
 	-- near rises just outside the hub
 	local near = (17 + 12 * n2(nz, x, y, 170, 7) + 6 * n2(nz, x, y, 55, 8)) * smoothstep(0, 95, dF)
-	local h = smax(math.max(near, 0), m, 18)
+	return smax(math.max(near, 0), m, 18)
+end
 
-	-- lake shores ramp in, except at the waterfall, where a cliff stands behind a narrow bank
+-- Fits the cascade channel floors to the real ground once per build: each floor sits just
+-- under the mountain, never rises toward its outlet, and the fixed end points stay (the lip,
+-- the chute top). Returns the largest amount a floor had to stand above the ground (0 if none).
+function Field.fitFlows(nz: Noise): number
+	local worst = 0
+	for _, list in { Cascade.Creek, Cascade.SideStream } do
+		local last = list[#list]
+		for i = 1, #list - 1 do
+			local fp = list[i]
+			local ground = Field.rawHeight(nz, fp.p) - 1.4
+			local h = math.min(fp.h, ground)
+			if i > 1 then
+				local prev = list[i - 1]
+				h = math.min(h, prev.h - 0.12 * (fp.p - prev.p).Magnitude)
+			end
+			local remaining = (last.p - fp.p).Magnitude
+			h = math.max(h, last.h + 0.05 * remaining)
+			worst = math.max(worst, h - ground)
+			fp.h = h
+		end
+	end
+	-- the tarn holds its water just above the side stream it feeds
+	local outlet = Cascade.SideStream[1]
+	Cascade.Tarn.water = outlet.h + 1.3
+	Cascade.Tarn.floor = Cascade.Tarn.water - 4
+	return worst
+end
+
+-- Height and water at a plan point (before gullies, which need the whole grid).
+function Field.sample(nz: Noise, p: Vector2): Sample
+	local dF = Field.hubDistance(p)
+	local e = Field.lakeE(p)
+	local x, y = p.X, p.Y
+	local h = Field.rawHeight(nz, p)
+
+	-- the waterfall system reshapes its zone (stepped cliff, ledge basin, creek, tarn, chute)
+	local shaped = Cascade.shape(p, h)
+	local keep = 0
+	if shaped then
+		h = shaped.h
+		local band = 1 - smoothstep(Cascade.Band.full, Cascade.Band.fade, math.abs(x - Cascade.X))
+		if y <= Cascade.lowerFaceY(x) then
+			keep = band -- the cliff stands behind a narrow bank instead of ramping to the lake
+		end
+	end
 	local wLake = smoothstep(1.08, 1.5, e)
-	local cliffSide = smoothstep(95, 60, math.abs(x - Field.Fall.x))
-	local cliff = smoothstep(Field.Fall.cliffY + 3, Field.Fall.cliffY - 1, y)
-	h *= wLake + (cliff - wLake) * cliffSide
+	h *= wLake + (1 - wLake) * keep
 
-	local sample: Sample = { h = h, water = nil, lake = false, bank = false, channel = false, hub = dF <= 0, far = 0 }
+	local sample: Sample = {
+		h = h,
+		water = shaped and shaped.water or nil,
+		lake = false,
+		bank = false,
+		channel = shaped ~= nil and shaped.channel,
+		hub = dF <= 0,
+		far = 0,
+		wet = shaped ~= nil and shaped.wetRock,
+		zone = if shaped and shaped.ledge then "ledge" else "",
+	}
 	sample.far = smoothstep(-430, -600, y) + smoothstep(640, 820, math.abs(x)) * 0.6
 
-	-- lake basin and banks
-	if e < 1 then
-		sample.h = Field.LakeLevel - Field.Lake.depth * (1 - e * e) ^ 0.6
-		sample.water = Field.LakeLevel
-		sample.lake = true
-		return sample
-	elseif e < 1.1 and sample.h < 3 then
-		sample.bank = true
-	end
-
-	-- plunge pool below the falls
-	local pool = Field.Pool
+	-- the plunge pool below the falls, joined to the lake
+	local pool = Cascade.Pool
 	local dp = (p - pool.centre).Magnitude
 	if dp < pool.radius then
-		sample.h = pool.floor + (Field.LakeLevel - pool.floor) * (dp / pool.radius) ^ 3
+		sample.h = pool.floor + (Field.LakeLevel - 0.5 - pool.floor) * (dp / pool.radius) ^ 2.2
 		sample.water = Field.LakeLevel
 		sample.lake = true
+		sample.wet = true
+		sample.zone = "rocky"
 		return sample
 	end
 
-	-- notch and creek above the falls
-	local fall = Field.Fall
-	local creek = Field.Creek
-	if math.abs(x - fall.x) < fall.notchHalf and y <= creek.y0 + 2 and y > creek.y1 then
-		local floor = fall.lip + (creek.y0 - y) * creek.rise
-		if sample.h > floor then
-			sample.h = floor
-			-- the creek water stops a little short of the lip; the falling sheets carry it over
-			if y < creek.y0 - 2 then
-				sample.water = floor + creek.depth
-			end
-			sample.channel = true
-		end
+	-- the lake: irregular shore inside the approved ellipse, shelves and a deep middle
+	local inLake, floor, zone = Field.lakeShape(p)
+	if inLake then
+		sample.h = floor
+		sample.water = Field.LakeLevel
+		sample.lake = true
+		sample.zone = zone
+		return sample
+	elseif e < 1.12 and sample.h < 3 and keep < 0.5 then
+		sample.bank = true
+		sample.zone = if zone == "rocky" then "rocky" elseif zone == "beach" then "beach" else "damp"
 	end
 
 	-- outlet gorge draining east from the lake's east end
 	local outlet = Field.Outlet
 	local dO, along = Field.polylineDistance(outlet.points, p)
 	if dO < outlet.half + 30 then
-		local floor = outlet.floor0 + (outlet.floor1 - outlet.floor0) * along
+		local outletFloor = outlet.floor0 + (outlet.floor1 - outlet.floor0) * along
 		if dO < outlet.half then
-			sample.h = floor
-			sample.water = math.min(Field.LakeLevel, floor + 2.5)
+			sample.h = outletFloor
+			sample.water = math.min(Field.LakeLevel, outletFloor + 2.5)
 			sample.channel = true
 		else
-			sample.h = math.min(sample.h, floor + (dO - outlet.half) * 1.4)
+			sample.h = math.min(sample.h, outletFloor + (dO - outlet.half) * 1.4)
 			if dO < outlet.half + 4 then
 				sample.bank = true
 			end
