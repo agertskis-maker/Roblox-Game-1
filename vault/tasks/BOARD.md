@@ -14,10 +14,11 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 | Lane | Owner | Paths |
 |---|---|---|
 | 1 Driving | Brian R | `src/client/Run`, `src/shared/Run` |
-| 2 Data & Economy | Brian L | `src/server`, `src/shared/Catalog`, `src/shared/Net` |
+| 2 Data & Economy, and car modeling | Brian L | `src/server`, `src/shared/Catalog`, `src/shared/Net`, and `assets/cars` (finished cars; only Brian L edits it) |
 | 3 World, UI & Feel | Adam (repository owner) | `src/client/UI`, `src/client/Home`, `src/shared/UI`, and the shared place's Workspace |
 
 - Lane 3 owns the run HUD's presentation; Lanes 1 and 2 supply its state and keep ownership of gameplay and authoritative data ([[2026-10-19]]).
+- Car modeling moved from Lane 3 to Brian L on 2026-10-21: he approves car looks, after the save-data module; Lane 3 keeps the world, UI, HUD and Downtown scene ([[0015-car-modeling-to-brian-l]], handover pack `vault/design/cars/`).
 
 - Shared contracts (the catalog, the remotes, the save layout) are owned by Lane 2 and change only when all three lanes agree.
 - Each developer connects Rojo only to their own private Studio test place, never to the shared Team Create place, except one integration person (TBD).
@@ -25,12 +26,14 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## In progress
 - [ ] Local build connection on the repository owner's machine: tools, packages, check, Rojo plugin file and Studio MCP are done and logged; Rojo Connect waits until the owner names their private test place (Rojo goes only to a private place, [[0007-concept-car-hop-and-lanes]]) - Claude Code at the repository owner's request ([[2026-10-18]])
-- [ ] Lane 3 visual direction sample: first car, Downtown road slice, and responsive HUD - Adam, with Claude Code. Order: HUD first (approved by Adam 2026-10-20, revision 4; merged to `main` by pull request #1), then the first car (in planning: revised vehicle direction, proposed rarity guide and one Common starter car; the earlier Pip direction is superseded, not approved for this car), then the Downtown scene, each stopping for Adam's approval. Covers the Lane 3 Stage 0 visual-direction row; branches `feature/lane3-visual-sample` (HUD, merged) and `feature/lane3-first-car-downtown`; built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
-  - [ ] Car session closed without a handoff (seen 2026-10-21, read-only): `feature/lane3-first-car-downtown` (`9347ef2`) is not pushed, and the `Roblox-Game-1` checkout holds uncommitted car work (the `carkit.py` FBX unit-scale fix and two car sections of the 2026-10-20 log, including the 14 uploaded mesh asset IDs). Hand it off in a car session - Adam
+- [ ] Lane 3 visual direction sample: Downtown road slice and responsive HUD - Adam, with Claude Code. Order: HUD first (approved by Adam 2026-10-20, revision 4; merged to `main` by pull request #1), then the Downtown scene, stopping for Adam's approval. The first car moved to Brian L on 2026-10-21 ([[0015-car-modeling-to-brian-l]]); its planning material is copied to `vault/design/cars/`. Covers the Lane 3 Stage 0 visual-direction row; branches `feature/lane3-visual-sample` (HUD, merged) and `feature/lane3-first-car-downtown` (the Downtown scene continues there); built and tested only in the owner's private test place, never the shared Team Create place ([[0007-concept-car-hop-and-lanes]])
+  - [x] Car session closed without a handoff (seen 2026-10-21, read-only): `feature/lane3-first-car-downtown` (`9347ef2`) is not pushed, and the `Roblox-Game-1` checkout holds uncommitted car work (the `carkit.py` FBX unit-scale fix and two car sections of the 2026-10-20 log, including the 14 uploaded mesh asset IDs). Hand it off in a car session - Adam
+    - Update 2026-10-21 (Claude Code, car handover): the branch is now at `f309ea2` on origin, with the FBX fix and both log sections committed. The car planning material is copied to `vault/design/cars/` on `main` ([[0015-car-modeling-to-brian-l]]).
 - [ ] Lane 3 Stage 0 island base and draft plot-marker contract - Adam, with Claude Code. Measured layout and visual proposal first, then construction only after Adam's go-ahead, in stages (measured layout, representative art sample, full base), each stopping for Adam's review. Covers the "Lane 3 Stage 0: greybox island" row under "Up next", built as a preview from Git-tracked recipes in a private island-only place (`CarHop-Island-Test.rbxl`), never the shared Team Create place. The plot-marker contract is a draft for Brian L (Lane 2) to agree; no plot assignment, saving, economy or gameplay. Branch `feature/lane3-island-base` in the separate worktree `Roblox-Game-1-island`
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 ## Up next
+- [ ] Cars: car rig contract with Brian R, then the first car (Fiat 500 parody) from vault/design/cars/ - Brian L
 - [ ] Brian R and Brian L: optional hands-free Rojo setup on your own machine with your own private test place (steps in [[2026-10-21]]); publishing that place needs Adam's approval first ([[0006-studio-mcp-rules]])
 - [ ] Adam's PC, after the car session is finished: repeat the hands-free setup for `CarHop-Lane3-Test.rbxl` (steps in [[2026-10-21]])
 - [ ] Follow-up to [[0006-studio-mcp-rules]] (Adam asked to keep it for later, 2026-10-21): change `project-studio-verification` (both `.claude` and `.agents` copies) to register the Studio MCP server at user scope (`claude mcp add --scope user Roblox_Studio -- cmd.exe /c %LOCALAPPDATA%Robloxmcp.bat`) and point it at the "Studio MCP" section of `AGENTS.md`; refresh `claude-context/09_PROJECT_RULES_SNAPSHOT.md` (verbatim `AGENTS.md`, already behind) and `claude-context/10_DECISION_REGISTER.md`
@@ -58,9 +61,11 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] _add ideas here_
 - [ ] Decide the reduced-motion mechanism with the visual direction, after the concept is chosen ([[0004-workflow-rules]])
 - [ ] Decide where source `.blend` and exported `.fbx` art lives, and which account or group owns animations ([[0005-animation-pipeline]])
+  - [x] Decided for cars (Adam, 2026-10-21): car `.blend` and `.fbx` files go in the shared Google Drive folder; car meshes are uploaded under Brian L's account ([[0015-car-modeling-to-brian-l]]). Animation art and animation ownership are still open.
 - [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Car modeling handed over from Lane 3 to Brian L: handover pack `vault/design/cars/`, [[0015-car-modeling-to-brian-l]], `assets/cars/` mapped to `ReplicatedStorage.Cars`, `AGENTS.md` updated - Adam, with Claude Code ([[2026-10-21]])
 - [x] Hands-free Rojo syncing and background Studio MCP access on Adam's PC - Adam, with Claude Code. Rojo 7.7.1 (plugin matches); Studio MCP at user scope only; Adam's island test place published as a private place (Team Create off) so Rojo auto-reconnect works; Auto Reconnect on, Confirmation Behavior "Unlisted PlaceId" with the place ID only in Adam's own project file outside Git; zero-click reconnect and live sync tested 2026-10-21. Teammate steps in [[2026-10-21]] ([[0006-studio-mcp-rules]])
 - [x] Studio MCP rules: approved by Adam on 2026-10-21 with changes (publishing exception for a private personal test place, auto-reconnect note); now the "Studio MCP" section of `AGENTS.md` ([[0006-studio-mcp-rules]])
 - [x] Make the repository private (GitHub Free: no branch protection on `main`; the `main` rules are kept by our own workflow; Actions minutes now count against the private quota) - Adam ([[0009-private-repository]], [[2026-10-20]])
