@@ -1,19 +1,32 @@
 ---
-title: "0006: Studio MCP rules (PROPOSED, not approved)"
+title: "0006: Studio MCP rules"
 date: 2026-10-18
 tags:
   - decision
   - tooling
   - studio
-status: proposed
+status: accepted
 ---
 
-# 0006: Studio MCP rules (PROPOSED, not approved)
+# 0006: Studio MCP rules
 
-> [!warning] Not approved
-> Proposed by Claude Code at the repository owner's request on 2026-10-18. Until the owner replies with an explicit "Approved", `AGENTS.md` and the skills are unchanged and nothing below is a rule.
+> [!note] Accepted 2026-10-21, with changes
+> Proposed by Claude Code at the repository owner's request on 2026-10-18. Adam approved it on 2026-10-21 ("Approved: the AGENTS.md \"Studio MCP\" section and decision 0006, with these changes"). The rules in force are the "Studio MCP" section of `AGENTS.md`, quoted under "Accepted rules" below; the proposal table is kept as history.
 
-## Proposed decision
+## Accepted rules (2026-10-21)
+- The Roblox Studio MCP tools are used for inspection, playtests, console output and screenshots in your own private test place only, never the shared Team Create place.
+- Never use `multi_edit` or `execute_luau` to create or change scripts that Rojo syncs. The files under `src/` are the only source of truth.
+- No `generate_mesh`, `generate_material`, `generate_procedural_model`, `insert_asset` or `upload_image` without the owner's approval.
+- Never publish the game or any shared place. A private personal test place (Team Create off, experience private) may be published only with the owner's explicit approval; record its place ID only in that person's own project file kept out of git, never in `default.project.json`.
+- Rojo auto-reconnect only works in a published place (place ID not 0). A local `.rbxl` file always needs a manual Connect.
+- Register the Studio MCP server per machine at user scope; the repository has no `.mcp.json`. Studio may sit behind other windows; screenshots come back blank while Studio is minimized (tested 2026-10-21).
+
+Differences from the proposal: proposed rule 3's asset log and proposed rule 4 (no live player data) were not part of the approved text. Rule 4 is already covered by `AGENTS.md` ("Use `ProfileStore.Mock` for tests"). The publishing and auto-reconnect rules are new.
+
+Why the publishing exception exists: Rojo 7.7.1 saves a reconnect address per place ID and skips place ID 0 (`plugin/src/ignorePlaceIds.lua`), so a local `.rbxl` file can never auto-reconnect.
+
+## Proposal (2026-10-18, history)
+
 For this and every future session that uses the Roblox Studio MCP tools:
 
 | # | Proposed rule | Relation to existing rules |
@@ -37,8 +50,8 @@ Wording choices made by Claude, reversible, change them if you disagree:
 - These are conventions followed by the agent, not tool permissions. Nothing stops a call; a reviewer reading the session catches a breach.
 - Whether Studio can reach live DataStores for a published place depends on a game setting ("Studio access to API services") that this session did not read. Check it before any data work.
 
-## If approved
-Add a short "Studio MCP" section to `AGENTS.md`, refresh `claude-context/09_PROJECT_RULES_SNAPSHOT.md` (verbatim `AGENTS.md`) and `claude-context/10_DECISION_REGISTER.md`, point `project-studio-verification` at it, and change `status` here to `accepted` with the approval date.
+## Applied
+2026-10-21: the "Studio MCP" section added to `AGENTS.md` and `status` set to `accepted`. Not yet done: refreshing `claude-context/09_PROJECT_RULES_SNAPSHOT.md` and `10_DECISION_REGISTER.md` (both already behind `AGENTS.md`), and changing `project-studio-verification`, whose setup command still registers the server at local scope.
 
 ## Reverting
 Delete this note. If it was approved and applied, also remove the `AGENTS.md` section.

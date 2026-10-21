@@ -1,6 +1,6 @@
 ---
 name: project-visual-direction
-description: Interprets reference images and style notes into one cohesive visual direction for this Roblox project, covering UI system, world composition, lighting, animation, effects, and sound, then proves it on a small representative sample before it spreads. Use when a request includes reference images, asks for a look, mood, or style, or adds a new screen, region, or reward moment.
+description: Interprets reference images and style notes into one cohesive visual direction for this Roblox project, covering UI system, world composition, lighting, animation, effects, and sound, then proves it on a small representative sample before it spreads. Lane 3 UI is Figma-first: plan, Figma mockup and repository spec, owner approval, then build. Use when a request includes reference images, asks for a look, mood, or style, or adds or changes a screen, panel, HUD element, popup, region, or reward moment.
 when_to_use: Also when reviewing whether UI, world, lighting, motion, and audio feel like one game, or when a ChatGPT prompt describes visuals in detail.
 argument-hint: "[feature or screen name]"
 ---
@@ -56,8 +56,9 @@ character, sound identity, and where the spectacle lives. "Colorful" is not a
 direction; name what each color means. While no concept is selected, write the
 concept as "undecided" and keep the brief concept-neutral.
 
-Fonts and touch-target size are undecided. Write them as TBD, to be proposed
-after the concept is chosen and the owner approves; do not hard-code values.
+Use the fonts and touch-target sizes approved in `vault/design/visual-direction.md`.
+Anything not approved there is TBD, proposed for the owner's approval; never
+hard-code an unapproved value.
 
 For roles the reference does not show (danger, reward, rarity, progress),
 propose one as "my proposal" where the design needs it, or write TBD; rarity
@@ -71,8 +72,8 @@ yet are placeholders, labelled as placeholders.
   file and not in Git. This is provisional until the concept's visual direction
   is approved.
 - UI surfaces: UICorner, UIStroke, UIGradient, consistent spacing, touch
-  targets that clear mobile thumb controls and screen insets (size TBD), no
-  hover-only essentials, never color alone for meaning.
+  targets that clear mobile thumb controls and screen insets (size from the
+  approved values), no hover-only essentials, never color alone for meaning.
 - World: landmarks and paths that pull toward the next goal; collision separate
   from decoration where useful; readable at normal camera distance.
 - Lighting and effects: tie every effect to an event; keep threats readable in
@@ -87,13 +88,56 @@ yet are placeholders, labelled as placeholders.
 For API detail load the matching third-party skill: roblox-gui, roblox-lighting,
 roblox-animation-vfx, roblox-audio, roblox-building, roblox-camera.
 
-## 5. Prove it on a sample before spreading it
+## 5. Lane 3 UI: Figma first
+
+Every new or changed Lane 3 screen, panel, HUD element, or popup follows this
+order (`vault/decisions/0012-figma-ui-workflow.md`). Lane 1 and Lane 2 work does
+not need Figma.
+
+1. **Plan the screen**: purpose, entry and exit, every state (loading, empty,
+   locked, can't afford, pending, success, error) and every button's behavior,
+   to the interface standard in `claude-context/04_VISUAL_UI_AND_GAME_FEEL.md`.
+2. **Mock it** in the one shared Figma file "Car Hop UI", one page per screen,
+   with frames for phone portrait, phone landscape, and 1080p desktop. A panel
+   opened during play is drawn as an overlay on a gameplay view. Colors,
+   spacing, corner radius, and stroke are Figma variables named and valued as in
+   `src/shared/UI/Tokens.luau`; draw nothing outside the module's values without
+   listing it as a proposal. Frame sizes (my proposal, reversible): design
+   pixels at UIScale 1.0, so phone portrait 390 x 844, phone landscape 844 x
+   390, and desktop 1280 x 720, which is 1920 x 1080 at the module's 1.5 scale.
+   Before drawing, load Figma's `figma-use` skill (and `figma-generate-design`
+   for a screen, `figma-generate-library` for variables), as Figma requires.
+3. **Spec it at the same time** in `vault/design/ui/<screen-name>.md` from
+   `references/ui-spec-template.md`: every size, position, color token, font,
+   state, button behavior, and animation timing, plus the Figma link. The build
+   reads this file, so building never spends Figma reads.
+4. **Review**: give the owner the Figma link and a short summary, and wait for
+   approval. Record it in `vault/design/visual-direction.md` and in the spec.
+5. **Figma reads are rationed** (free plan: up to 6 read tool calls a month;
+   writes are exempt during the beta). Do not read to check your own writes,
+   and do not call `get_screenshot`: the owner checks the mockup in Figma.
+   Read only when the owner says they edited the mockup by hand; first report
+   this month's count from `vault/design/ui/figma-reads.md`, then log the read
+   there.
+6. **Never paste Figma's generated code** into the game; it targets websites
+   and iPhone apps. The Luau is written by hand from the spec
+   (`project-feature-delivery`).
+7. **Images drawn in Figma** that the game needs are exported, listed in
+   `vault/design/assets.md`, and uploaded only with the owner's approval. Never
+   invent an asset ID.
+
+Fonts and touch-target sizes never come from a Figma default: use only values
+the live record (`vault/design/visual-direction.md`, `AGENTS.md`) treats as
+approved, and write TBD for anything it leaves undecided.
+
+## 6. Prove it on a sample before spreading it
 
 Mock or build the representative moments the request touches: for example one
 panel, one reward moment, and one locked to unlocked (or unaffordable to
 affordable) transition, plus the gameplay view when the feature lives in or
 opens during gameplay. A shop or panel opened during play is reviewed as an
-overlay on that view. A mock can be a described layout or sketch; mark it "not
+overlay on that view. For Lane 3 UI the mock is the Figma mockup and spec from
+section 5. Otherwise a mock can be a described layout or sketch; mark it "not
 captured" and capture it after an authorized build.
 
 Building under `src/` needs the current request to authorize implementation
@@ -106,7 +150,7 @@ The repository owner, or the area owner once the board assigns one, approves
 the sample. Record the approval in `vault/design/visual-direction.md`. Only
 then apply the style widely.
 
-## 6. Record
+## 7. Record
 
 Offer to save the brief as `vault/design/visual-direction.md`, and save it when
 the owner wants it kept. Keep `Status: draft` until the owner approves it, then
@@ -121,6 +165,9 @@ non-obvious choice as a decision note.
   art, icons, unlicensed fonts, names, or a near-identical recreation of a
   distinctive screen.
 - Never invent an asset ID. Check that assets load for the actual game owner.
+- Never paste Figma's generated code into the game, never read Figma without
+  the owner's hand-edit trigger and a reported count, and never buy or upgrade a
+  Figma plan.
 - Content suits a mainly young audience. No FOMO, coercive scarcity, streak
   pressure, or paid-luck tactics; monetization and paid randomness need an
   approved team design and current Roblox policy (`CLAUDE.md`).

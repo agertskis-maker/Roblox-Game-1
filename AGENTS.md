@@ -72,8 +72,9 @@ ProfileStore is **vendored, not installed by Wally**: a verbatim copy of `MadStu
 - Not allowed: copying logos, characters, item art, icons, unlicensed fonts, names, or a near-identical recreation of a distinctive screen.
 - "Make it like this" is strong guidance, not a mandate for the whole reference. List the qualities you plan to preserve and have the owner confirm them in the same question batch.
 - The representative sample for a visual direction is approved by the repository owner, or by the area owner once the board assigns one. Record the approval in `vault/design/visual-direction.md`. A shop or panel opened during gameplay is reviewed as an overlay on the gameplay view.
-- Fonts and touch-target size are undecided. They are proposed after the concept is chosen and the owner approves; do not hard-code them yet.
-- The reduced-motion mechanism is an open item, decided with the visual direction after the concept is chosen.
+- **Lane 3 UI is Figma-first** (`vault/decisions/0012-figma-ui-workflow.md`): every new or changed Lane 3 screen, panel, HUD element or popup is mocked in the shared Figma file "Car Hop UI" and specified in `vault/design/ui/<screen-name>.md`, approved by the Lane 3 owner, then built by hand in Luau from that spec. Lane 1 and Lane 2 teammates do not need a Figma account.
+- **Fonts and touch targets** (approved by Adam on 2026-10-19, recorded in `vault/design/visual-direction.md`): Fredoka One for game text at 36 display / 24 value / 18 label / 16 minimum; touch targets 48 px minimum and 56 px for primary buttons. The values live in `src/shared/UI/Tokens.luau`. Any other font, size or target is undecided: propose it and get the owner's approval before hard-coding it.
+- **Reduced motion** (approved by Adam on 2026-10-19, recorded in `vault/design/visual-direction.md`): follow Roblox's own Reduce Motion setting (`GuiService.ReducedMotionEnabled`), plus a preview-only override that is never saved. Any other reduced-motion mechanism is undecided: propose it and get the owner's approval first.
 - **Provisional:** UI style tokens (colors, fonts, spacing, corner radius, stroke) live in one shared module in `src/shared`, not in the Studio Style Editor, because that data lives in the place file and is not in Git. Revisit when the concept's visual direction is approved.
 
 ### Animation
@@ -85,6 +86,16 @@ Setup, settings, tested results and fixes: `docs/ANIMATION_PIPELINE.md`. Reasoni
 - Test imports go into a local test place, not the Team Create place, with "Upload to Roblox" unticked unless the owner approved the upload.
 - Never publish an animation without owner approval. An animation must be owned by the user or group that owns the experience.
 - Keep `.blend`, `.fbx` and `.rbxl` test files outside the repo until the team decides where source art lives.
+
+### Studio MCP
+Reasoning: `vault/decisions/0006-studio-mcp-rules.md`.
+- The Roblox Studio MCP tools are used for inspection, playtests, console output and screenshots in your own private test place only, never the shared Team Create place.
+- Never use `multi_edit` or `execute_luau` to create or change scripts that Rojo syncs. The files under `src/` are the only source of truth.
+- No `generate_mesh`, `generate_material`, `generate_procedural_model`, `insert_asset` or `upload_image` without the owner's approval.
+- Never publish the game or any shared place. A private personal test place (Team Create off, experience private) may be published only with the owner's explicit approval; record its place ID only in that person's own project file kept out of git, never in `default.project.json`.
+- Rojo auto-reconnect only works in a published place (place ID not 0). A local `.rbxl` file always needs a manual Connect.
+- Register the server per machine at user scope (`claude mcp add --scope user Roblox_Studio -- cmd.exe /c %LOCALAPPDATA%Robloxmcp.bat` on Windows); the repository has no `.mcp.json`.
+- Studio may sit behind other windows; screenshots come back blank while Studio is minimized.
 
 ## Team workflow
 - `vault/` is the shared Obsidian vault and the source of truth for design, tasks and decisions. Start with `vault/00_INDEX.md` and `vault/tasks/BOARD.md`.

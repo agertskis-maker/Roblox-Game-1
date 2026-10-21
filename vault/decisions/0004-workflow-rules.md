@@ -68,3 +68,6 @@ The repository owner confirmed the branch wording as applied: feature branches s
 | B2 | The feature-branch rule is stated in delivery's Preconditions, not only in step 7. | feature-delivery; AGENTS.md "Branches" |
 | B3 | When a precondition fails, post the questions plus a conditional plan (what you would do once each answer arrives), and do no implementation until the precondition is met. | AGENTS.md; feature-delivery; feature-intake; both examples; guide |
 | B4 | If another session already wrote board or log entries for this work, read them first, merge rather than duplicate, never rewrite their text, and say in your entry that you built on them. | AGENTS.md; team-handoff and example; guide |
+
+## Amendment (Adam, 2026-10-19, recorded later)
+Rule 10 and open item A8 are settled for Car Hop: Fredoka One (36 / 24 / 18, 16 minimum), touch targets of 48 px (56 px primary), and reduced motion that follows Roblox's Reduce Motion setting (`GuiService.ReducedMotionEnabled`) plus a preview-only override that is never saved, as recorded in [[visual-direction]]. Values not recorded there stay undecided.

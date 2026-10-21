@@ -26,3 +26,6 @@ vault/.trash/
 
 # Machine-local AI settings are not shared.
 .claude/settings.local.json
+
+# Playwright MCP browser-tool output (local only).
+/.playwright-mcp/

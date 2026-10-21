@@ -90,7 +90,7 @@ Game passes from the start (**Decided**). Pass set (**Proposed**, prices **Open*
 
 ## Art and audio direction
 - Chunky block cartoon: rounded blocks, big wheels, flat saturated colors, thick dark UI outlines, one palette per World, bright daytime lighting (**Proposed**).
-- UI: one panel style, icon-first labels, large numbers; the outline proposes touch targets of at least 44 px. Fonts, the final touch-target size, and the reduced-motion mechanism are **Open**, to be proposed with the visual direction for the owner's approval (`AGENTS.md`).
+- UI: one panel style, icon-first labels, large numbers. **Decided** (Adam, 2026-10-19, [[visual-direction]]): Fredoka One for game text (36 / 24 / 18, 16 minimum); touch targets 48 px minimum, 56 px for primary buttons, replacing the outline's 44 px; reduced motion follows Roblox's Reduce Motion setting (`GuiService.ReducedMotionEnabled`), plus a preview-only override that is never saved.
 - Audio: one music loop per World plus the island and Stunt Circuit, short key sounds, and no sound that carries information alone (**Proposed**).
 - Reference: Rodeo Stampede informs the mechanics only. No assets, names, characters or presentation are copied; every car is fictional. Outline section 13.
 
