@@ -1,27 +1,58 @@
 --!strict
--- Island environment planting for the environment stage (Lane 3, build-time): clustered pines,
--- shrubs and rocks on the near rises, forest masses on the foothills and lower flanks, boulders
--- on the slopes, reeds and stones on the lake and stream banks. Each kind is one Studio union
--- made once and cloned, so a tree is one part. Placement is seeded and deterministic, and keeps
--- off the hub, the lake, the channels, the snow and steep rock. The park's own trees and
--- flowers come later (park dressing), not here.
+-- Island environment planting (Lane 3, build-time): mesh trees and shrubs from the island kit
+-- (KitAssets), boulders, and reeds on the lake and stream banks. Each tree is a Model of a trunk
+-- MeshPart, a canopy MeshPart and an invisible trunk collider. Placement is seeded and
+-- deterministic and keeps off the hub, the lake, the channels, the snow and steep rock.
+--
+-- Grounding: every kit trunk continues `sink` studs below its ground line (y 0 in mesh space)
+-- with roots that run along the ground and then dive in. A tree is set at the LOWEST ground
+-- under its root spread (24 samples), so on a slope the downhill roots still touch and the
+-- uphill side is simply buried deeper; spots where that would bury too much trunk get no tree.
+-- The grass under each tree is darkened into a forest floor patch with an uneven edge.
+--
+-- Habitats: pines on the foothills and flanks (saplings at forest edges); mixed broadleaf
+-- clusters on the near rises; willows and birches by the lake; bushes as understory. The park's
+-- own trees and flowers are placed by the park dressing, not here.
 
 local GeometryService = game:GetService("GeometryService")
+local HttpService = game:GetService("HttpService")
 
 local Cascade = require(script.Parent.Cascade)
 local Field = require(script.Parent.Field)
+local KitAssets = require(script.Parent.KitAssets)
+local KitManifest = require(script.Parent.KitManifest)
 local Layout = require(script.Parent.Parent.Layout)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local Flora = {}
 
 local rgb = Color3.fromRGB
-local GREENS = {
-	{ rgb(44, 104, 68), rgb(58, 128, 78), rgb(80, 150, 88) },
-	{ rgb(38, 96, 72), rgb(52, 118, 84), rgb(72, 140, 92) },
-	{ rgb(52, 110, 62), rgb(70, 134, 72), rgb(96, 158, 82) },
+
+local VARIANTS: { [string]: { string } } = {
+	Oak = { "OakA", "OakB", "OakC" },
+	Tiered = { "TieredA", "TieredB", "TieredC" },
+	Umbrella = { "UmbrellaA", "UmbrellaB", "UmbrellaC" },
+	Birch = { "BirchA", "BirchB", "BirchC" },
+	Blossom = { "BlossomA", "BlossomB", "BlossomC" },
+	Willow = { "WillowA", "WillowB", "WillowC" },
+	Fruit = { "FruitA", "FruitB", "FruitC" },
+	Pine = { "PineA", "PineB", "PineC" },
 }
-local BARK = rgb(116, 84, 58)
+local BUSHES = { "BushSmall", "BushMedium", "BushLarge", "BerryBush", "FloweringShrub" }
+-- canopy sway strength per family (read by the client motion script near the camera)
+local SWAY: { [string]: number } = {
+	Oak = 0.6,
+	Tiered = 0.5,
+	Umbrella = 0.55,
+	Birch = 1,
+	Blossom = 0.8,
+	Willow = 1.1,
+	Fruit = 0.7,
+	Pine = 0.35,
+	PineSapling = 0.6,
+}
+-- forest floor under trees: the terrain's own forest-floor material (Look.TerrainColours)
+local FLOOR = Enum.Material.Ground
 
 -- Unions the parts into one part (falls back to a model of parts if unions are unavailable).
 local function union(parts: { BasePart }, name: string): BasePart | Model
@@ -62,38 +93,6 @@ local function block(size: Vector3, cf: CFrame, colour: Color3, material: Enum.M
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	return p
-end
-
--- A layered pine 20 tall: trunk and four square tiers turned alternately (reference 2's
--- chunky stacked silhouette).
-local function pineTemplate(widthRatio: number, greens: { Color3 }, name: string): BasePart | Model
-	local H = 20
-	local W = H * widthRatio
-	local parts: { BasePart } = { block(Vector3.new(1.6, H * 0.3, 1.6), CFrame.new(0, H * 0.15, 0), BARK) }
-	local scales = { 1, 0.76, 0.53, 0.3 }
-	for k, s in scales do
-		local y = H * (0.22 + 0.19 * (k - 1))
-		local colour = greens[math.min(k, #greens)]
-		table.insert(
-			parts,
-			block(
-				Vector3.new(W * s, H * 0.22, W * s),
-				CFrame.new(0, y + H * 0.11, 0) * CFrame.Angles(0, math.rad(if k % 2 == 0 then 45 else 0), 0),
-				colour
-			)
-		)
-	end
-	return union(parts, name)
-end
-
-local function shrubTemplate(name: string): BasePart | Model
-	local parts: { BasePart } = {}
-	for k, spec in { { 0, 1.6, 0, 3.4 }, { 1.6, 1.2, 0.6, 2.6 }, { -1.3, 1.1, -0.8, 2.4 } } do
-		local ball = block(Vector3.one * spec[4], CFrame.new(spec[1], spec[2], spec[3]), GREENS[1][math.min(k + 1, 3)])
-		ball.Shape = Enum.PartType.Ball
-		table.insert(parts, ball)
-	end
-	return union(parts, name)
 end
 
 local function rockTemplate(name: string, seed: number): BasePart | Model
@@ -160,17 +159,218 @@ terrainOnly.FilterType = Enum.RaycastFilterType.Include
 terrainOnly.FilterDescendantsInstances = { workspace.Terrain }
 
 -- The rendered surface (a ray down onto the terrain), or the computed height if the terrain has
--- not finished building its collision yet; the lower of the two, so nothing floats on a slope.
-local function groundAt(grid: TerrainWriter.Grid, p: Vector2, sink: number): Vector3
+-- not finished building its collision yet; the lower of the two, so nothing floats.
+local function surfaceY(grid: TerrainWriter.Grid, p: Vector2): number
 	local h = TerrainWriter.heightAt(grid, p)
 	local hit = workspace:Raycast(Vector3.new(p.X, h + 40, -p.Y), Vector3.new(0, -80, 0), terrainOnly)
 	if hit then
 		h = math.min(h, hit.Position.Y)
 	end
-	return Vector3.new(p.X, h - sink, -p.Y)
+	return h
 end
 
-export type Counts = { pines: number, shrubs: number, rocks: number, reeds: number, clusters: number }
+local function groundAt(grid: TerrainWriter.Grid, p: Vector2, sink: number): Vector3
+	return Vector3.new(p.X, surfaceY(grid, p) - sink, -p.Y)
+end
+
+-- The lowest and highest ground under a root spread of radius `reach` (centre, two rings of 12).
+local function footprint(grid: TerrainWriter.Grid, p: Vector2, reach: number): (number, number)
+	local lo = surfaceY(grid, p)
+	local hi = lo
+	for k = 0, 11 do
+		local a = k * math.pi / 6
+		local d = Vector2.new(math.cos(a), math.sin(a))
+		for _, f in { 0.5, 1 } do
+			local y = surfaceY(grid, p + d * reach * f)
+			lo = math.min(lo, y)
+			hi = math.max(hi, y)
+		end
+	end
+	return lo, hi
+end
+
+export type Patch = { x: number, z: number, y: number, r: number }
+
+-- Turns the grass within an uneven radius into forest floor (material only; occupancy is kept).
+-- With `restore`, turns forest floor back into the material each column was generated with.
+local function forestFloor(
+	centre: Vector3,
+	radius: number,
+	from: Enum.Material,
+	to: Enum.Material,
+	restore: ((Vector2) -> Enum.Material)?
+): boolean
+	local terrain = workspace.Terrain
+	local region = Region3.new(
+		Vector3.new(centre.X - radius, centre.Y - 10, centre.Z - radius),
+		Vector3.new(centre.X + radius, centre.Y + 8, centre.Z + radius)
+	):ExpandToGrid(4)
+	local materials, occupancy = terrain:ReadVoxels(region, 4)
+	local size = materials.Size
+	local corner = region.CFrame.Position - region.Size / 2
+	local changed = false
+	for x = 1, size.X do
+		local wx = corner.X + (x - 0.5) * 4
+		for z = 1, size.Z do
+			local wz = corner.Z + (z - 0.5) * 4
+			local d = math.sqrt((wx - centre.X) ^ 2 + (wz - centre.Z) ^ 2)
+			local edge = radius * (0.72 + 0.3 * math.noise(wx / 7.3, wz / 7.3, 0.37))
+			if d < edge then
+				local target = if restore then restore(Vector2.new(wx, -wz)) else to
+				for y = 1, size.Y do
+					if materials[x][y][z] == from and occupancy[x][y][z] > 0 and target ~= from then
+						materials[x][y][z] = target
+						changed = true
+					end
+				end
+			end
+		end
+	end
+	if changed then
+		terrain:WriteVoxels(region, 4, materials, occupancy)
+	end
+	return changed
+end
+
+export type Counts = {
+	trees: number,
+	pines: number,
+	broadleaf: number,
+	bushes: number,
+	rocks: number,
+	reeds: number,
+	clusters: number,
+	skippedSteep: number,
+	floorPatches: number,
+	triangles: number,
+	byVariant: { [string]: number },
+}
+
+type Planter = {
+	grid: TerrainWriter.Grid,
+	counts: Counts,
+	patches: { Patch },
+}
+
+-- Plants one kit tree or bush with its ground line on the lowest ground under its roots.
+local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2, scale: number, yaw: number): Model?
+	-- bushes are one mesh; trees are a trunk and a canopy
+	local single = KitManifest[variant] ~= nil
+	local trunkName = if single then variant else variant .. "_Trunk"
+	local info = KitAssets.info(trunkName)
+	local meta = info.meta
+	local reach = (meta.root_reach or 1) * scale
+	local lo, hi = footprint(pl.grid, p, reach)
+	-- the uphill side may bury at most this much of the trunk before the spot is too steep
+	local maxBury = if single then 0.9 * scale else math.min(3.2, 0.3 * (meta.canopy_base or 6) * scale + 1.2)
+	if hi - lo > maxBury then
+		pl.counts.skippedSteep += 1
+		return nil
+	end
+	local base = CFrame.new(p.X, lo - 0.12, -p.Y) * CFrame.Angles(0, yaw, 0)
+	local model = Instance.new("Model")
+	model.Name = variant
+	local family = info.family
+	local triangles = info.triangles
+	if single then
+		local bush = KitAssets.place(variant, base, scale)
+		bush.Name = "Foliage"
+		bush:SetAttribute("Sway", 0.5)
+		bush.Parent = model
+	else
+		local trunk = KitAssets.place(trunkName, base, scale)
+		trunk.Name = "Trunk"
+		trunk.Parent = model
+		local canopy = KitAssets.place(variant .. "_Canopy", base, scale)
+		canopy.Name = "Canopy"
+		canopy:SetAttribute("Sway", SWAY[family] or 0.6)
+		canopy:SetAttribute("SwayPivotY", lo + (meta.canopy_base or 4) * scale)
+		canopy.Parent = model
+		triangles += KitAssets.info(variant .. "_Canopy").triangles
+		-- a simple invisible trunk collider instead of mesh collision
+		local r = (meta.trunk_radius or 0.6) * scale
+		local h = math.max(6, (meta.canopy_base or 6) * scale)
+		local collider = Instance.new("Part")
+		collider.Name = "Collider"
+		collider.Shape = Enum.PartType.Cylinder
+		collider.Size = Vector3.new(h, r * 2.2, r * 2.2)
+		collider.CFrame = CFrame.new(p.X, lo + h / 2 - 0.5, -p.Y) * CFrame.Angles(0, 0, math.pi / 2)
+		collider.Anchored = true
+		collider.Transparency = 1
+		collider.CastShadow = false
+		collider.CanTouch = false
+		collider.Parent = model
+	end
+	model:SetAttribute("Family", family)
+	model:SetAttribute("GroundDrop", math.round((hi - lo) * 100) / 100)
+	model.WorldPivot = base
+	model.Parent = parent
+	local c = pl.counts
+	c.byVariant[variant] = (c.byVariant[variant] or 0) + 1
+	c.triangles += triangles
+	if single then
+		c.bushes += 1
+	else
+		c.trees += 1
+		if family == "Pine" or family == "PineSapling" then
+			c.pines += 1
+		else
+			c.broadleaf += 1
+		end
+		local floorR = math.max(3, reach * 1.25)
+		if forestFloor(Vector3.new(p.X, lo, -p.Y), floorR, Enum.Material.Grass, FLOOR) then
+			table.insert(pl.patches, { x = p.X, z = -p.Y, y = lo, r = floorR })
+			c.floorPatches += 1
+		end
+	end
+	return model
+end
+
+local function pick(rng: Random, list: { string }): string
+	return list[rng:NextInteger(1, #list)]
+end
+
+local function weighted(rng: Random, weights: { [string]: number }): string
+	local total = 0
+	local keys = {}
+	for k, w in weights do
+		table.insert(keys, k)
+		total += w
+	end
+	table.sort(keys)
+	local roll = rng:NextNumber() * total
+	for _, k in keys do
+		roll -= weights[k]
+		if roll <= 0 then
+			return k
+		end
+	end
+	return keys[#keys]
+end
+
+local function treeVariant(rng: Random, family: string): string
+	if family == "PineSapling" then
+		return "PineSapling"
+	end
+	return pick(rng, VARIANTS[family])
+end
+
+-- Returns the forest floor patches written by an earlier planting to the generated material.
+function Flora.revertFloor(previous: Instance?, grid: TerrainWriter.Grid)
+	local flora = previous and previous:FindFirstChild("Flora")
+	local text = flora and flora:GetAttribute("FloorPatches")
+	if type(text) ~= "string" then
+		return
+	end
+	local ok, patches = pcall(HttpService.JSONDecode, HttpService, text)
+	if ok and type(patches) == "table" then
+		for _, q in patches :: { Patch } do
+			forestFloor(Vector3.new(q.x, q.y, q.z), q.r + 4, FLOOR, Enum.Material.Grass, function(p: Vector2)
+				return TerrainWriter.materialAt(grid, p)
+			end)
+		end
+	end
+end
 
 function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): Counts
 	-- give the new terrain a moment to build collision so the rays below can land on it
@@ -186,28 +386,38 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	local forest = Instance.new("Folder")
 	forest.Name = "Forest"
 	forest.Parent = folder
+	local lakeside = Instance.new("Folder")
+	lakeside.Name = "Lakeside"
+	lakeside.Parent = folder
 	local banks = Instance.new("Folder")
 	banks.Name = "Banks"
 	banks.Parent = folder
-	local counts: Counts = { pines = 0, shrubs = 0, rocks = 0, reeds = 0, clusters = 0 }
-
-	local pines = {
-		pineTemplate(0.42, GREENS[1], "PineSlim"),
-		pineTemplate(0.5, GREENS[2], "PineMedium"),
-		pineTemplate(0.6, GREENS[3], "PineBroad"),
+	local counts: Counts = {
+		trees = 0,
+		pines = 0,
+		broadleaf = 0,
+		bushes = 0,
+		rocks = 0,
+		reeds = 0,
+		clusters = 0,
+		skippedSteep = 0,
+		floorPatches = 0,
+		triangles = 0,
+		byVariant = {},
 	}
-	local shrub = shrubTemplate("Shrub")
+	local pl: Planter = { grid = grid, counts = counts, patches = {} }
 	local rocks = { rockTemplate("RockA", seed + 1), rockTemplate("RockB", seed + 2), rockTemplate("RockC", seed + 3) }
 	local reed = reedTemplate("Reeds")
 
-	-- Near-edge clusters: a large focal pine, smaller pines round it, shrubs and a rock or two.
+	-- Near-edge clusters: a large broadleaf focal tree, smaller trees of mixed families round it,
+	-- understory bushes and a rock or two. Blossom and fruit trees only close to the hub.
 	local centres: { Vector2 } = {}
 	local tries = 0
 	while #centres < 46 and tries < 4000 do
 		tries += 1
 		local p = Vector2.new(rng:NextNumber(-860, 860), rng:NextNumber(-760, 740))
 		local dF = Field.hubDistance(p)
-		local ok = dF > 24 and dF < 175 and plantable(grid, p, 0.55)
+		local ok = dF > 24 and dF < 175 and plantable(grid, p, 0.5)
 		if ok then
 			for _, q in centres do
 				if (q - p).Magnitude < 62 then
@@ -217,56 +427,72 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 			end
 		end
 		if ok then
-			table.insert(centres, p)
 			local cluster = Instance.new("Model")
-			cluster.Name = string.format("Cluster%02d", #centres)
-			place(
-				pines[rng:NextInteger(1, 3)],
-				cluster,
-				groundAt(grid, p, 0.6),
-				rng:NextNumber(1.25, 1.55),
-				rng:NextNumber(0, 6.28)
-			)
-			counts.pines += 1
-			for _ = 1, rng:NextInteger(3, 7) do
-				local q = p + Vector2.new(rng:NextNumber(-22, 22), rng:NextNumber(-22, 22))
-				if plantable(grid, q, 0.6) and Field.hubDistance(q) > 16 then
-					place(
-						pines[rng:NextInteger(1, 3)],
-						cluster,
-						groundAt(grid, q, 0.6),
-						rng:NextNumber(0.6, 1.1),
-						rng:NextNumber(0, 6.28)
-					)
-					counts.pines += 1
+			cluster.Name = string.format("Cluster%02d", #centres + 1)
+			local focal = weighted(rng, {
+				Oak = 4,
+				Umbrella = 2.5,
+				Tiered = 2.5,
+				Birch = 1.5,
+				Blossom = if dF < 70 then 1.2 else 0,
+				Fruit = if dF < 70 then 0.8 else 0,
+			})
+			if plant(pl, cluster, treeVariant(rng, focal), p, rng:NextNumber(1.15, 1.4), rng:NextNumber(0, 6.28)) then
+				table.insert(centres, p)
+				for _ = 1, rng:NextInteger(2, 5) do
+					local q = p + Vector2.new(rng:NextNumber(-24, 24), rng:NextNumber(-24, 24))
+					if (q - p).Magnitude > 11 and plantable(grid, q, 0.55) and Field.hubDistance(q) > 16 then
+						local fam = weighted(rng, {
+							Pine = 3,
+							PineSapling = 1,
+							Oak = 1,
+							Birch = 1.5,
+							Tiered = 1,
+							[focal] = 2,
+						})
+						plant(
+							pl,
+							cluster,
+							treeVariant(rng, fam),
+							q,
+							rng:NextNumber(0.75, 1.05),
+							rng:NextNumber(0, 6.28)
+						)
+					end
 				end
-			end
-			for _ = 1, rng:NextInteger(1, 3) do
-				local q = p + Vector2.new(rng:NextNumber(-14, 14), rng:NextNumber(-14, 14))
-				if plantable(grid, q, 0.6) and Field.hubDistance(q) > 12 then
-					place(shrub, cluster, groundAt(grid, q, 0.8), rng:NextNumber(0.8, 1.4), rng:NextNumber(0, 6.28))
-					counts.shrubs += 1
+				for _ = 1, rng:NextInteger(2, 4) do
+					local a = rng:NextNumber(0, 6.28)
+					local q = p + Vector2.new(math.cos(a), math.sin(a)) * rng:NextNumber(5, 16)
+					if plantable(grid, q, 0.6) and Field.hubDistance(q) > 12 then
+						plant(pl, cluster, pick(rng, BUSHES), q, rng:NextNumber(1.4, 2.4), rng:NextNumber(0, 6.28))
+					end
 				end
-			end
-			for _ = 1, rng:NextInteger(0, 2) do
-				local q = p + Vector2.new(rng:NextNumber(-16, 16), rng:NextNumber(-16, 16))
-				if plantable(grid, q, 0.8) and Field.hubDistance(q) > 12 then
-					place(
-						rocks[rng:NextInteger(1, 3)],
-						cluster,
-						groundAt(grid, q, 1),
-						rng:NextNumber(0.8, 1.6),
-						rng:NextNumber(0, 6.28)
-					)
-					counts.rocks += 1
+				for _ = 1, rng:NextInteger(0, 2) do
+					local q = p + Vector2.new(rng:NextNumber(-16, 16), rng:NextNumber(-16, 16))
+					if plantable(grid, q, 0.8) and Field.hubDistance(q) > 12 then
+						place(
+							rocks[rng:NextInteger(1, 3)],
+							cluster,
+							groundAt(grid, q, 1),
+							rng:NextNumber(0.8, 1.6),
+							rng:NextNumber(0, 6.28)
+						)
+						counts.rocks += 1
+					end
 				end
+				cluster.Parent = near
+				counts.clusters += 1
+			else
+				cluster:Destroy()
 			end
-			cluster.Parent = near
-			counts.clusters += 1
+		end
+		if tries % 200 == 0 then
+			task.wait()
 		end
 	end
 
-	-- Forest masses on the foothills and lower flanks, in patches rather than an even scatter.
+	-- Forest masses on the foothills and lower flanks, in patches: pines, with oak and tiered
+	-- trees mixed in low down, saplings and bushes at the patch edges.
 	local nz = Field.noiseFor(seed + 5)
 	for gx = Field.Box.minX + 10, Field.Box.maxX - 10, 15 do
 		for gy = -Field.Box.maxZ + 10, -Field.Box.minZ - 10, 15 do
@@ -281,13 +507,50 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 					+ 0.35 * math.noise(p.X / 70 + nz.ox, p.Y / 70 + nz.oy, nz.oz[2])
 				local treeLine = 1 - Field.smoothstep(120, 175, h)
 				if h > 12 and mask > 0.08 and rng:NextNumber() < 0.85 * treeLine and plantable(grid, p, 0.7) then
-					local scale = rng:NextNumber(1.0, 1.7) * (1 - 0.3 * Field.smoothstep(60, 170, h))
-					place(pines[rng:NextInteger(1, 3)], forest, groundAt(grid, p, 0.8), scale, rng:NextNumber(0, 6.28))
-					counts.pines += 1
+					local edge = mask < 0.16
+					local scale = rng:NextNumber(1.0, 1.6) * (1 - 0.3 * Field.smoothstep(60, 170, h))
+					local fam = if edge and rng:NextNumber() < 0.4
+						then "PineSapling"
+						elseif h < 55 and rng:NextNumber() < 0.18 then (if rng:NextNumber() < 0.6
+							then "Oak"
+							else "Tiered")
+						else "Pine"
+					if fam == "PineSapling" then
+						scale *= 1.6
+					elseif fam ~= "Pine" then
+						scale *= 0.9
+					end
+					plant(pl, forest, treeVariant(rng, fam), p, scale, rng:NextNumber(0, 6.28))
+					if edge and rng:NextNumber() < 0.3 then
+						local q = p + Vector2.new(rng:NextNumber(-6, 6), rng:NextNumber(-6, 6))
+						if plantable(grid, q, 0.7) then
+							plant(pl, forest, pick(rng, BUSHES), q, rng:NextNumber(1.6, 2.6), rng:NextNumber(0, 6.28))
+						end
+					end
 				end
 			end
 		end
 		task.wait()
+	end
+
+	-- Lakeside: willows leaning over the beach and marsh sides, birches on the rocky shore, kept
+	-- out of the portal view (|x| < 80) and the falls.
+	local lake = Field.Lake
+	local lakeTrees = 0
+	tries = 0
+	while lakeTrees < 16 and tries < 800 do
+		tries += 1
+		local a = rng:NextNumber(0, math.pi * 2)
+		local e = rng:NextNumber(1.3, 1.55)
+		local p = lake.centre + Vector2.new(math.cos(a) * lake.rx * e, math.sin(a) * lake.ry * e)
+		local nearFalls = (p - Cascade.Pool.centre).Magnitude < 55
+		if math.abs(p.X) > 80 and not nearFalls and plantable(grid, p, 0.45) then
+			local zone = TerrainWriter.zoneAt(grid, p)
+			local fam = if zone == "rocky" then "Birch" elseif rng:NextNumber() < 0.65 then "Willow" else "Birch"
+			if plant(pl, lakeside, treeVariant(rng, fam), p, rng:NextNumber(1.0, 1.3), rng:NextNumber(0, 6.28)) then
+				lakeTrees += 1
+			end
+		end
 	end
 
 	-- Boulders on the slopes below the snow.
@@ -311,7 +574,6 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	counts.rocks += boulders
 
 	-- Reeds and stones on the lake banks, kept out of the portal view (|x| > 80) and the falls.
-	local lake = Field.Lake
 	for k = 0, 71 do
 		local a = k / 72 * math.pi * 2
 		local p = lake.centre + Vector2.new(math.cos(a) * lake.rx * 1.04, math.sin(a) * lake.ry * 1.04)
@@ -352,14 +614,12 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 		end
 	end
 
-	for _, t in pines do
-		t:Destroy()
-	end
-	shrub:Destroy()
 	reed:Destroy()
 	for _, r in rocks do
 		r:Destroy()
 	end
+	folder:SetAttribute("FloorPatches", HttpService:JSONEncode(pl.patches))
+	folder:SetAttribute("MeshSources", HttpService:JSONEncode(KitAssets.sources()))
 	folder.Parent = parent
 	return counts
 end

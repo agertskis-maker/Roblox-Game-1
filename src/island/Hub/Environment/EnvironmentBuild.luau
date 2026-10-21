@@ -137,6 +137,25 @@ function EnvironmentBuild.setPreset(name: string): string
 	return "preset " .. name
 end
 
+-- Replaces the planting only, on the terrain already written by build(): the grid is recomputed
+-- (not rewritten), the old forest floor patches are returned to grass, and Flora is rebuilt.
+function EnvironmentBuild.replant(): { [string]: any }
+	guard()
+	local s = EnvironmentBuild.state()
+	assert(s and s:GetAttribute("TerrainWritten"), "Build the environment first")
+	assert(s:GetAttribute("GeneratorVersion") == Field.VERSION, "The terrain is from another generator version")
+	local started = os.clock()
+	local seed = s:GetAttribute("Seed") :: number
+	local grid = TerrainWriter.compute(seed, Layout.Data.park.stream, function() end)
+	local old = s:FindFirstChild("Flora")
+	Flora.revertFloor(s, grid)
+	if old then
+		old:Destroy()
+	end
+	local counts = Flora.build(s, grid, seed)
+	return { flora = counts, seconds = math.round((os.clock() - started) * 100) / 100 }
+end
+
 function EnvironmentBuild.cleanup(): string
 	guard()
 	local s = EnvironmentBuild.state()

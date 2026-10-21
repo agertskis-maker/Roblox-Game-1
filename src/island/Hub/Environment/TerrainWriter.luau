@@ -75,6 +75,13 @@ function TerrainWriter.flagsAt(grid: Grid, p: Vector2): number
 end
 TerrainWriter.Flags = { LAKE = LAKE, BANK = BANK, CHANNEL = CHANNEL, HUB = HUB, GULLY = GULLY, WET = WET }
 
+-- The surface material classify() chose for the column under p.
+function TerrainWriter.materialAt(grid: Grid, p: Vector2): Enum.Material
+	local ix = math.clamp(math.floor((p.X - BOX.minX) / CELL) + 1, 1, NX)
+	local iz = math.clamp(math.floor((-p.Y - BOX.minZ) / CELL) + 1, 1, NZ)
+	return grid.material[index(ix, iz)]
+end
+
 function TerrainWriter.zoneAt(grid: Grid, p: Vector2): string
 	local ix = math.clamp(math.floor((p.X - BOX.minX) / CELL) + 1, 1, NX)
 	local iz = math.clamp(math.floor((-p.Y - BOX.minZ) / CELL) + 1, 1, NZ)

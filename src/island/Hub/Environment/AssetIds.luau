@@ -28,4 +28,11 @@ AssetIds.Textures = {
 	Current = id(103576178978702),
 }
 
+-- The kit palette (assets/island/kit/kitlib.py, 16 x 16 swatches), uploaded 2026-10-21.
+AssetIds.Palette = id(112727480640146)
+
+-- Kit meshes (assets/island/kit/, KitManifest), by mesh name. A mesh not listed here is built as a
+-- session-only preview from its mesh data (KitAssets).
+AssetIds.Meshes = {} :: { [string]: string }
+
 return AssetIds
