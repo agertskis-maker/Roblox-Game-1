@@ -13,6 +13,9 @@ status: proposed
 > [!warning] Proposed, not accepted
 > Drafted by Claude Code for Adam (Lane 3 owner) on 2026-10-21. It becomes `0013-six-plot-half-circle-island.md` with `status: accepted` only after Adam approves the layout ("Approved: island layout — build the greybox."). Until then [[0011-eight-plots-per-server]] stands. The plot count and server size also need Brian L (Lane 2) to agree, since they change a shared contract ([[plot-marker-contract]]).
 
+> [!note] Lane 3 approval, 2026-10-21
+> Adam approved the layout: "Approved: island layout, build the greybox, with 6 plots, in my private place only." He accepted the Garage and Stunt gate walking spread as a relaxed Tunable target (no best-to-worst limit, worst route at most 25 s). This note stays a draft until Brian L agrees to the plot-count change; the message for him is in [[2026-10-21]]. Switch-back if he objects: `node assets/island/rework/export-luau.js --plots 8` keeps the half circle with 8 plots (entrance radius 381.6, fountain walk 23 s), or the Stage A build in `IslandBuild` restores the eight-plot island.
+
 ## Proposed decision
 - The island hub is a **half circle**: six plots on the curved side face a central park, and the three portals stand across the straight side facing the plots (Downtown in the middle). A lake, a waterfall and mountains lie behind the portals; foothills and forest wrap the rest.
 - **6 plots, at most 6 players per server.** Each plot is a 30 degree sector with an 8-stud buffer inside it on each side. The plot count stays one config value (`PlotCount`).

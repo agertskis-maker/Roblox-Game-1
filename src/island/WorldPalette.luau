@@ -20,6 +20,17 @@ return {
 	Yellow = rgb(247, 206, 88),
 	Cream = rgb(255, 244, 220),
 
+	-- Hub greybox placeholders (revision 3). Portal colours are one swatch per World,
+	-- proposed for the environment task, not approved.
+	PortalDowntown = rgb(186, 92, 255),
+	PortalDustyHighway = rgb(255, 150, 60),
+	PortalSummitPass = rgb(110, 210, 255),
+	Snow = rgb(244, 248, 252),
+	Bark = rgb(122, 86, 60),
+	Chain = rgb(120, 124, 132),
+	Checker = rgb(28, 28, 32),
+	HelperBase = rgb(128, 216, 189),
+
 	-- Stage A helpers (hidden or removed after review)
 	HelperCentre = rgb(247, 206, 88),
 	HelperClearance = rgb(255, 138, 31),
