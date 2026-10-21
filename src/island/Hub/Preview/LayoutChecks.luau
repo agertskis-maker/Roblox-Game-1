@@ -153,6 +153,12 @@ function LayoutChecks.run(): { [string]: any }
 		end
 	end
 	scan((island:FindFirstChild("Plaza") :: Instance):GetDescendants(), nil)
+	-- the park dressing (kit meshes) and the island planting near the hub
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	local dressing = env and env:FindFirstChild("ParkDressing")
+	if dressing then
+		scan(dressing:GetDescendants(), nil)
+	end
 	for index = 1, plotCount do
 		local plot = plots:FindFirstChild(string.format("Plot%02d", index)) :: Model
 		local front = (plot:FindFirstChild("Visual") :: Folder):FindFirstChild("Front") :: Folder

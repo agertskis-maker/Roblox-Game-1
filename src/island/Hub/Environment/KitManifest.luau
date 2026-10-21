@@ -21,6 +21,22 @@ local KitManifest: { [string]: Entry } = {
 		max = Vector3.new(1.055, 1.743, 1.522),
 		meta = { height = 2, sink = 0.8 },
 	},
+	BedOval = {
+		family = "props/Park",
+		group = "props",
+		triangles = 429,
+		min = Vector3.new(-9.367, -0.2, -3.999),
+		max = Vector3.new(9.35, 0.84, 3.999),
+		meta = { height = 0.84, rx = 9, ry = 3.6, soil = 0.64 },
+	},
+	BedRound = {
+		family = "props/Park",
+		group = "props",
+		triangles = 273,
+		min = Vector3.new(-4.889, -0.2, -4.883),
+		max = Vector3.new(4.85, 0.84, 4.883),
+		meta = { height = 0.84, rx = 4.5, ry = 4.5, soil = 0.64 },
+	},
 	Bench = {
 		family = "props/Park",
 		group = "props",
@@ -173,6 +189,14 @@ local KitManifest: { [string]: Entry } = {
 		max = Vector3.new(11.21, 2.948, 9.6),
 		meta = { height = 3.1, span = 16, deck = 18, length = 22 },
 	},
+	BridgeAvenueOpen = {
+		family = "props/Bridge",
+		group = "props",
+		triangles = 336,
+		min = Vector3.new(-11.014, -2.1, -9.6),
+		max = Vector3.new(11.21, 0.824, 9.6),
+		meta = { height = 3.1, span = 16, deck = 18, length = 22 },
+	},
 	BridgeGarden = {
 		family = "props/Bridge",
 		group = "props",
@@ -188,6 +212,14 @@ local KitManifest: { [string]: Entry } = {
 		min = Vector3.new(-11.014, -2.1, -6.6),
 		max = Vector3.new(11.21, 2.945, 6.6),
 		meta = { height = 3.1, span = 16, deck = 12, length = 22 },
+	},
+	BuntingString = {
+		family = "props/Park",
+		group = "props",
+		triangles = 131,
+		min = Vector3.new(-0.009, -2.091, -0.04),
+		max = Vector3.new(16.023, 0.033, 0.04),
+		meta = { length = 16, sag = 1.2 },
 	},
 	BushLarge = {
 		family = "Bush",

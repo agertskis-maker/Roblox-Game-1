@@ -68,14 +68,35 @@ function KitAssets.sources(): { [string]: string }
 	return table.clone(sources)
 end
 
--- A clone of the template with the mesh's ground line (y 0 in mesh space) at `base`.
-function KitAssets.place(name: string, base: CFrame, scale: number): MeshPart
+-- A clone of the template with the mesh's ground line (y 0 in mesh space) at `base`. Kit parts
+-- do not collide unless `solid` (then with box collision); dressing adds simple colliders.
+function KitAssets.place(name: string, base: CFrame, scale: number, solid: boolean?): MeshPart
 	local entry = KitAssets.info(name)
 	local part = KitAssets.template(name):Clone()
 	local centre = (entry.min + entry.max) / 2
 	part.Size = (entry.max - entry.min) * scale
 	part.CFrame = base * CFrame.new(centre * scale)
+	if solid then
+		part.CanCollide = true
+		part.CanQuery = true
+	end
 	return part
+end
+
+-- The plan-frame corners (x, -z) of a mesh's bounds placed at `base`, and its top height.
+function KitAssets.footprint(name: string, base: CFrame, scale: number): ({ Vector2 }, number)
+	local entry = KitAssets.info(name)
+	local lo, hi = entry.min * scale, entry.max * scale
+	local corners = {}
+	local top = -math.huge
+	for _, x in { lo.X, hi.X } do
+		for _, z in { lo.Z, hi.Z } do
+			local w = base:PointToWorldSpace(Vector3.new(x, hi.Y, z))
+			table.insert(corners, Vector2.new(w.X, -w.Z))
+			top = math.max(top, w.Y)
+		end
+	end
+	return corners, top
 end
 
 function KitAssets.clear()

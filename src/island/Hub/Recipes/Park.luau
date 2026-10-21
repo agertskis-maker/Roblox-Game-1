@@ -81,6 +81,21 @@ local function hasTerrainWater(): boolean
 	return env ~= nil and env:GetAttribute("TerrainWritten") == true
 end
 
+-- With the park dressing built (Workspace.Lane3_IslandEnvironment.ParkDressing), the fountain,
+-- bridges, gazebo and food stands here stay only as invisible colliders under the kit objects.
+local function dressed(): boolean
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	return env ~= nil and env:FindFirstChild("ParkDressing") ~= nil
+end
+
+local function hidden(o: Kit.PartOptions): Kit.PartOptions
+	if dressed() then
+		o.transparency = 1
+		o.castShadow = false
+	end
+	return o
+end
+
 -- A box on the ground at a plan-frame centre, its front (-Z of the part) facing `facing`.
 local function standing(
 	parent: Instance,
@@ -110,8 +125,11 @@ local function buildPlaza(model: Model)
 		park.basinRadius * 2,
 		1.6,
 		SURFACE + 1.6,
-		{ name = "FountainRim", color = Palette.Cream, collide = true }
+		hidden({ name = "FountainRim", color = Palette.Cream, collide = true })
 	)
+	if dressed() then
+		return
+	end
 	Kit.disc(
 		model,
 		Vector3.zero,
@@ -193,7 +211,7 @@ local function buildPaths(model: Model)
 			b.deckWidth,
 			0.3,
 			BRIDGE_TOP,
-			{ name = "Deck", color = Palette.Cream, collide = true, castShadow = false },
+			hidden({ name = "Deck", color = Palette.Cream, collide = true, castShadow = false }),
 			0
 		)
 		local side = Vector2.new(-b.dir.Y, b.dir.X)
@@ -206,7 +224,7 @@ local function buildPaths(model: Model)
 				0.5,
 				2.2,
 				BRIDGE_TOP,
-				{ name = "Rail", color = Palette.Navy, collide = true }
+				hidden({ name = "Rail", color = Palette.Navy, collide = true })
 			)
 		end
 		bridge.Parent = bridges
@@ -265,7 +283,7 @@ local function buildBuildings(model: Model)
 				b.facing,
 				Vector3.new(b.width, 0.6, b.depth),
 				SURFACE,
-				{ name = "Floor", color = Palette.Cream, collide = true }
+				hidden({ name = "Floor", color = Palette.Cream, collide = true })
 			)
 			for _, sx in { -1, 1 } do
 				for _, sz in { -1, 1 } do
@@ -275,9 +293,13 @@ local function buildBuildings(model: Model)
 						b.facing,
 						Vector3.new(1, b.height - 1.5, 1),
 						SURFACE + 0.6,
-						{ name = "Post", color = Palette.Cream, collide = true }
+						hidden({ name = "Post", color = Palette.Cream, collide = true })
 					)
 				end
+			end
+			if dressed() then
+				building.Parent = folder
+				continue
 			end
 			standing(
 				building,
@@ -287,7 +309,7 @@ local function buildBuildings(model: Model)
 				SURFACE + b.height - 1.5,
 				{ name = "Roof", color = Palette.Coral }
 			)
-		else -- FoodStands: three stalls
+		elseif not dressed() then -- FoodStands: three stalls (the dressing has its own stands)
 			for k = -1, 1 do
 				standing(
 					building,

@@ -19,7 +19,10 @@ local Field = require(script.Parent.Field)
 local Flora = require(script.Parent.Flora)
 local HubBuild = require(script.Parent.Parent.HubBuild)
 local Layout = require(script.Parent.Parent.Layout)
+local GroundCover = require(script.Parent.GroundCover)
+local LakeDressing = require(script.Parent.LakeDressing)
 local Look = require(script.Parent.Look)
+local ParkDressing = require(script.Parent.ParkDressing)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 local Waterfall = require(script.Parent.Waterfall)
 
@@ -103,6 +106,10 @@ function EnvironmentBuild.build(options: Options?): { [string]: any }
 	local counts = Flora.build(s, grid, seed)
 	Waterfall.build(s)
 	phase("planting")
+	report.lake = LakeDressing.build(s, seed)
+	report.groundCover = GroundCover.build(s, grid, seed)
+	report.park = ParkDressing.build(s, grid, seed)
+	phase("dressing")
 
 	local hub = HubBuild.build()
 	phase("hubParts")
@@ -137,6 +144,21 @@ function EnvironmentBuild.setPreset(name: string): string
 	return "preset " .. name
 end
 
+-- Rebuilds the lake dressing, ground cover and park dressing (and the hub, so its placeholders
+-- hide under the park dressing), without touching the terrain or the trees.
+function EnvironmentBuild.redress(): { [string]: any }
+	guard()
+	local s = EnvironmentBuild.state()
+	assert(s and s:GetAttribute("TerrainWritten"), "Build the environment first")
+	local seed = s:GetAttribute("Seed") :: number
+	local grid = TerrainWriter.compute(seed, Layout.Data.park.stream, function() end)
+	local lake = LakeDressing.build(s, seed)
+	local ground = GroundCover.build(s, grid, seed)
+	local park = ParkDressing.build(s, grid, seed)
+	local hub = HubBuild.build()
+	return { lake = lake, groundCover = ground, park = park, hubParts = hub.parts }
+end
+
 -- Replaces the planting only, on the terrain already written by build(): the grid is recomputed
 -- (not rewritten), the old forest floor patches are returned to grass, and Flora is rebuilt.
 function EnvironmentBuild.replant(): { [string]: any }
@@ -153,6 +175,8 @@ function EnvironmentBuild.replant(): { [string]: any }
 		old:Destroy()
 	end
 	local counts = Flora.build(s, grid, seed)
+	-- the understory follows the trees
+	GroundCover.build(s, grid, seed)
 	return { flora = counts, seconds = math.round((os.clock() - started) * 100) / 100 }
 end
 

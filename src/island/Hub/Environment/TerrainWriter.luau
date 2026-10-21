@@ -75,6 +75,13 @@ function TerrainWriter.flagsAt(grid: Grid, p: Vector2): number
 end
 TerrainWriter.Flags = { LAKE = LAKE, BANK = BANK, CHANNEL = CHANNEL, HUB = HUB, GULLY = GULLY, WET = WET }
 
+-- The water surface over the column under p, or -math.huge where there is none.
+function TerrainWriter.waterAt(grid: Grid, p: Vector2): number
+	local ix = math.clamp(math.floor((p.X - BOX.minX) / CELL) + 1, 1, NX)
+	local iz = math.clamp(math.floor((-p.Y - BOX.minZ) / CELL) + 1, 1, NZ)
+	return grid.water[index(ix, iz)]
+end
+
 -- The surface material classify() chose for the column under p.
 function TerrainWriter.materialAt(grid: Grid, p: Vector2): Enum.Material
 	local ix = math.clamp(math.floor((p.X - BOX.minX) / CELL) + 1, 1, NX)

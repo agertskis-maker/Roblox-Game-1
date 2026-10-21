@@ -350,7 +350,7 @@ def signpost(name, boards):
     return b, {"height": 8.6, "boards": boards}
 
 
-def bridge(name, span, deck):
+def bridge(name, span, deck, rails=True):
     rng = random.Random(seed_of(name))
     b = Builder(name)
     # arched deck along x over a 16-stud stream crossing; abutments run into the banks
@@ -365,7 +365,7 @@ def bridge(name, span, deck):
         box(b, Vector((x, 0, -1.0)), Vector((2.4, deck + 1.2, 2.2)), ["stone_light", "rock"])
     # rails: posts with rounded caps and two curved rails per side
     posts = 7
-    for y in (-deck / 2 + 0.25, deck / 2 - 0.25):
+    for y in (-deck / 2 + 0.25, deck / 2 - 0.25) if rails else ():
         tops = []
         for i in range(posts):
             x = -L / 2 + 0.6 + (L - 1.2) * i / (posts - 1)
@@ -376,6 +376,36 @@ def bridge(name, span, deck):
         for h, r in ((1.8, 0.13), (1.0, 0.09)):
             tube(b, [t + Vector((0, 0, h)) for t in tops], [r] * posts, 5, ["plank"])
     return b, {"height": arch + 2.8, "span": span, "deck": deck, "length": L}
+
+
+def bed_border(name, rx, ry, height=0.8):
+    """A raised flower-bed border: a ring of rounded kerb stones with soil inside."""
+    rng = random.Random(seed_of(name))
+    b = Builder(name)
+    n = max(10, int(2 * math.pi * math.sqrt((rx * rx + ry * ry) / 2) / 1.3))
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        p = Vector((math.cos(a) * rx, math.sin(a) * ry, height * 0.4))
+        box(b, p, Vector((1.25, 0.7, height * 1.3)), ["stone_light", "stone_light", "rock"], rot_z=a + math.pi / 2)
+    soil = [Vector((math.cos(2 * math.pi * k / n) * (rx - 0.3), math.sin(2 * math.pi * k / n) * (ry - 0.3), height * 0.75)) for k in range(n)]
+    c = Vector((0, 0, height * 0.8))
+    for k in range(n):
+        b.tri(soil[k], soil[(k + 1) % n], c, "dirt")
+    return b, {"height": height * 1.05, "rx": rx, "ry": ry, "soil": height * 0.8}
+
+
+def bunting(name, length, sag):
+    """A rope with triangular pennants, hung from x 0 to x length at y 0 (attach to posts)."""
+    b = Builder(name)
+    n = 16
+    pts = [Vector((length * i / n, 0, -sag * (1 - (2 * i / n - 1) ** 2))) for i in range(n + 1)]
+    tube(b, pts, [0.04] * (n + 1), 3, ["rope"])
+    colours = ["bunting_red", "bunting_yellow", "bunting_blue", "bunting_green"]
+    for i in range(n):
+        a, c = pts[i], pts[i + 1]
+        m = (a + c) / 2
+        b.face2([a.lerp(c, 0.12), c.lerp(a, 0.12), m - Vector((0, 0, 0.9))], colours[i % 4])
+    return b, {"length": length, "sag": sag}
 
 
 def fence(name, length):
@@ -452,5 +482,9 @@ def build_all(emit):
     emit(*bridge("BridgeAvenue", 16, 18), P + "Bridge")
     emit(*bridge("BridgeLakeside", 16, 12), P + "Bridge")
     emit(*bridge("BridgeGarden", 16, 10), P + "Bridge")
+    emit(*bridge("BridgeAvenueOpen", 16, 18, rails=False), P + "Bridge")
+    emit(*bed_border("BedRound", 4.5, 4.5), P + "Park")
+    emit(*bed_border("BedOval", 9, 3.6), P + "Park")
+    emit(*bunting("BuntingString", 16, 1.2), P + "Park")
     emit(*fence("FenceSegment", 8), P + "Park")
     emit(*gazebo("Gazebo"), P + "Park")

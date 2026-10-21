@@ -14,7 +14,6 @@
 -- clusters on the near rises; willows and birches by the lake; bushes as understory. The park's
 -- own trees and flowers are placed by the park dressing, not here.
 
-local GeometryService = game:GetService("GeometryService")
 local HttpService = game:GetService("HttpService")
 
 local Cascade = require(script.Parent.Cascade)
@@ -25,8 +24,6 @@ local Layout = require(script.Parent.Parent.Layout)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local Flora = {}
-
-local rgb = Color3.fromRGB
 
 local VARIANTS: { [string]: { string } } = {
 	Oak = { "OakA", "OakB", "OakC" },
@@ -54,88 +51,12 @@ local SWAY: { [string]: number } = {
 -- forest floor under trees: the terrain's own forest-floor material (Look.TerrainColours)
 local FLOOR = Enum.Material.Ground
 
--- Unions the parts into one part (falls back to a model of parts if unions are unavailable).
-local function union(parts: { BasePart }, name: string): BasePart | Model
-	local holder = Instance.new("Model")
-	holder.Name = "Lane3_EnvTemplate"
-	for _, p in parts do
-		p.Parent = holder
-	end
-	holder.Parent = workspace
-	local ok, result = pcall(function()
-		return GeometryService:UnionAsync(parts[1], table.move(parts, 2, #parts, 1, {}), {
-			CollisionFidelity = Enum.CollisionFidelity.Box,
-			RenderFidelity = Enum.RenderFidelity.Automatic,
-			SplitApart = false,
-		})
-	end)
-	if ok and result and result[1] then
-		local u = result[1] :: BasePart
-		u.Name = name
-		u.UsePartColor = false
-		u.Anchored = true
-		u.Parent = nil
-		holder:Destroy()
-		return u
-	end
-	holder.Name = name
-	holder.Parent = nil
-	return holder
-end
-
-local function block(size: Vector3, cf: CFrame, colour: Color3, material: Enum.Material?): Part
-	local p = Instance.new("Part")
-	p.Size = size
-	p.CFrame = cf
-	p.Color = colour
-	p.Material = material or Enum.Material.SmoothPlastic
-	p.Anchored = true
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	return p
-end
-
-local function rockTemplate(name: string, seed: number): BasePart | Model
-	local rng = Random.new(seed)
-	local parts: { BasePart } = {}
-	for _ = 1, 3 do
-		local s = Vector3.new(rng:NextNumber(3, 6), rng:NextNumber(2, 4), rng:NextNumber(3, 5))
-		local cf = CFrame.new(rng:NextNumber(-1.5, 1.5), s.Y / 2 - 0.6, rng:NextNumber(-1.5, 1.5))
-			* CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, math.pi), rng:NextNumber(-0.4, 0.4))
-		table.insert(parts, block(s, cf, rgb(132, 138, 144), Enum.Material.Slate))
-	end
-	return union(parts, name)
-end
-
-local function reedTemplate(name: string): BasePart | Model
-	local parts: { BasePart } = {}
-	local rng = Random.new(11)
-	for k = 1, 7 do
-		local h = rng:NextNumber(1.6, 2.7)
-		local cf = CFrame.new(rng:NextNumber(-0.9, 0.9), h / 2, rng:NextNumber(-0.9, 0.9))
-			* CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15))
-		table.insert(
-			parts,
-			block(Vector3.new(0.25, h, 0.25), cf, if k % 3 == 0 then rgb(150, 140, 86) else rgb(96, 140, 70))
-		)
-	end
-	return union(parts, name)
-end
-
-local function place(template: BasePart | Model, parent: Instance, at: Vector3, scale: number, yaw: number): Instance
-	local c = template:Clone()
-	if c:IsA("BasePart") then
-		c.Size *= scale
-		c.CFrame = CFrame.new(at + Vector3.new(0, c.Size.Y / 2, 0)) * CFrame.Angles(0, yaw, 0)
-		c.CanTouch = false
-		c.CastShadow = true
-	elseif c:IsA("Model") then
-		c:ScaleTo(scale)
-		local _, size = c:GetBoundingBox()
-		c:PivotTo(CFrame.new(at + Vector3.new(0, size.Y / 2, 0)) * CFrame.Angles(0, yaw, 0))
-	end
-	c.Parent = parent
-	return c
+-- Places a kit rock or reed clump with its ground line at `at` (rocks collide, reeds do not).
+local function place(name: string, parent: Instance, at: Vector3, scale: number, yaw: number): Instance
+	local solid = string.find(name, "Boulder") ~= nil
+	local part = KitAssets.place(name, CFrame.new(at) * CFrame.Angles(0, yaw, 0), scale, solid)
+	part.Parent = parent
+	return part
 end
 
 local LAKE_OR_WATER = TerrainWriter.Flags.LAKE + TerrainWriter.Flags.CHANNEL
@@ -246,13 +167,34 @@ export type Counts = {
 	byVariant: { [string]: number },
 }
 
-type Planter = {
+export type Planter = {
 	grid: TerrainWriter.Grid,
 	counts: Counts,
 	patches: { Patch },
 }
 
 -- Plants one kit tree or bush with its ground line on the lowest ground under its roots.
+local function newCounts(): Counts
+	return {
+		trees = 0,
+		pines = 0,
+		broadleaf = 0,
+		bushes = 0,
+		rocks = 0,
+		reeds = 0,
+		clusters = 0,
+		skippedSteep = 0,
+		floorPatches = 0,
+		triangles = 0,
+		byVariant = {},
+	}
+end
+
+-- A planter for other dressing modules (the park): its own counts and floor patches.
+function Flora.newPlanter(grid: TerrainWriter.Grid): Planter
+	return { grid = grid, counts = newCounts(), patches = {} }
+end
+
 local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2, scale: number, yaw: number): Model?
 	-- bushes are one mesh; trees are a trunk and a canopy
 	local single = KitManifest[variant] ~= nil
@@ -326,6 +268,18 @@ local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2,
 	return model
 end
 
+-- Plants one kit tree (variant, e.g. "OakA") or bush grounded on its lowest root point.
+Flora.plant = plant
+Flora.plantable = plantable
+Flora.surfaceY = surfaceY
+Flora.Variants = VARIANTS
+Flora.Bushes = BUSHES
+
+-- The patches a planter wrote, for Flora.revertFloor (stored as a JSON attribute on `folder`).
+function Flora.recordPatches(folder: Instance, pl: Planter)
+	folder:SetAttribute("FloorPatches", HttpService:JSONEncode(pl.patches))
+end
+
 local function pick(rng: Random, list: { string }): string
 	return list[rng:NextInteger(1, #list)]
 end
@@ -358,7 +312,14 @@ end
 -- Returns the forest floor patches written by an earlier planting to the generated material.
 function Flora.revertFloor(previous: Instance?, grid: TerrainWriter.Grid)
 	local flora = previous and previous:FindFirstChild("Flora")
-	local text = flora and flora:GetAttribute("FloorPatches")
+	if flora then
+		Flora.revertPatches(flora, grid)
+	end
+end
+
+-- Returns the forest floor patches recorded on `folder` to the generated material.
+function Flora.revertPatches(folder: Instance, grid: TerrainWriter.Grid)
+	local text = folder:GetAttribute("FloorPatches")
 	if type(text) ~= "string" then
 		return
 	end
@@ -392,22 +353,10 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	local banks = Instance.new("Folder")
 	banks.Name = "Banks"
 	banks.Parent = folder
-	local counts: Counts = {
-		trees = 0,
-		pines = 0,
-		broadleaf = 0,
-		bushes = 0,
-		rocks = 0,
-		reeds = 0,
-		clusters = 0,
-		skippedSteep = 0,
-		floorPatches = 0,
-		triangles = 0,
-		byVariant = {},
-	}
-	local pl: Planter = { grid = grid, counts = counts, patches = {} }
-	local rocks = { rockTemplate("RockA", seed + 1), rockTemplate("RockB", seed + 2), rockTemplate("RockC", seed + 3) }
-	local reed = reedTemplate("Reeds")
+	local pl = Flora.newPlanter(grid)
+	local counts = pl.counts
+	local rocks = { "BoulderA", "BoulderB", "BoulderC" }
+	local reed = "Reeds"
 
 	-- Near-edge clusters: a large broadleaf focal tree, smaller trees of mixed families round it,
 	-- understory bushes and a rock or two. Blossom and fruit trees only close to the hub.
@@ -614,11 +563,7 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 		end
 	end
 
-	reed:Destroy()
-	for _, r in rocks do
-		r:Destroy()
-	end
-	folder:SetAttribute("FloorPatches", HttpService:JSONEncode(pl.patches))
+	Flora.recordPatches(folder, pl)
 	folder:SetAttribute("MeshSources", HttpService:JSONEncode(KitAssets.sources()))
 	folder.Parent = parent
 	return counts
