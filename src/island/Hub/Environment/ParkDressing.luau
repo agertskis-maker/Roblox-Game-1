@@ -373,10 +373,29 @@ local function buildStands(ctx: Ctx)
 		local offset = (k - 2.5) * 8
 		put(ctx, "FoodStands", name, f.centre + side * offset, yawFacing(f.facing), 1, { solid = true })
 	end
-	-- bunting on three slim poles in front of the stands
+	-- bunting on three slim poles in front of the stands, or behind them where the front reaches
+	-- into a viewing corridor (the poles and strings are taller than 3); none if both do
+	local offset: number? = nil
+	for _, o in { f.depth / 2 + 1.5, -(f.depth / 2 + 1.5) } do
+		local clear = true
+		for t = -1, 1, 0.25 do
+			if inCorridor(f.centre + side * t * 16 + f.facing * o) then
+				clear = false
+			end
+		end
+		if clear then
+			offset = o
+			break
+		end
+	end
+	if not offset then
+		ctx.rejected.corridor = (ctx.rejected.corridor or 0) + 1
+		table.insert(ctx.taken, { p = f.centre, r = f.width / 2 + 3 })
+		return
+	end
 	local poles = {}
 	for k = -1, 1 do
-		local p = f.centre + side * k * 16 + f.facing * (f.depth / 2 + 1.5)
+		local p = f.centre + side * k * 16 + f.facing * (offset :: number)
 		local y = groundY(p)
 		local pole = Instance.new("Part")
 		pole.Name = "BuntingPole"

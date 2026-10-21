@@ -220,7 +220,8 @@ def box(b, centre, size, swatch, rot_z=0.0):
     hx, hy, hz = size.x / 2, size.y / 2, size.z / 2
     m = Matrix.Rotation(rot_z, 3, "Z")
     c = [centre + m @ Vector((sx * hx, sy * hy, sz * hz)) for sz in (-1, 1) for sy in (-1, 1) for sx in (-1, 1)]
-    faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    # wound counter-clockwise seen from outside, so every face points out
+    faces = [(0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5)]
     for f in faces:
         b.face([c[i] for i in f], swatch if isinstance(swatch, str) else swatch[faces.index(f) % len(swatch)])
 

@@ -55,7 +55,8 @@ function KitAssets.template(name: string): MeshPart
 			module and module:IsA("ModuleScript"),
 			name .. " has no uploaded id and no preview data (ServerStorage.Lane3_KitData)"
 		)
-		part = KitMesh.previewPart((require :: any)(module), AssetIds.Palette)
+		-- a fresh copy, so a rebuilt mesh is not served from the module cache
+		part = KitMesh.previewPart((require :: any)(module:Clone()), AssetIds.Palette)
 		sources[name] = "preview"
 	end
 	finish(part, name)
