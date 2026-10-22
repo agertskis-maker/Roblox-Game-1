@@ -37,6 +37,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
   - Status 2026-10-21: "Approved: island greybox."; step 1 (environment) in progress on `feature/lane3-island-environment` (from `b8b9ee4`), stopping for "Approved: island environment, continue dressing."
   - Status 2026-10-21 (16:30): environment built and checked in the private place; waiting for "Approved: island environment, continue dressing." ([[2026-10-21]], [[0014-island-environment-generation]])
   - Status 2026-10-21 (evening): Adam approved the environment (Atmosphere A) and decision 0014, and authorised original Blender meshes and images uploaded under peskaface for this task. Revision in progress (waterfall system, lake, vegetation, wildlife, park dressing; ledger IRW-56 to IRW-81); one review at the end, before the representative plot
+  - Status 2026-10-21 (late evening): revision built, uploaded (137 meshes under peskaface) and checked; stopped for Adam's review (https://claude.ai/artifact/Xq4MuXjCxzwE9TeGYWWx5L). Open for Adam: the "Car Hop UI" Figma link for the signs, food stand header text, the game's owner. Next after approval: the representative racetrack plot ([[2026-10-21]])
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 ## Up next
