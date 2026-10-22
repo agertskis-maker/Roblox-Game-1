@@ -235,7 +235,9 @@ end
 
 local function buildFountain(ctx: Ctx)
 	local y = SURFACE
-	put(ctx, "Fountain", "FountainTiered", Vector2.zero, 0, 1, { solid = true, y = y, r = park.basinRadius + 2 })
+	-- not solid: its box collider has square corners past the round rim and stopped walkers coming
+	-- in on a diagonal (WalkTests, 2026-10-21); the greybox rim stays as the invisible collider
+	put(ctx, "Fountain", "FountainTiered", Vector2.zero, 0, 1, { y = y, r = park.basinRadius + 2 })
 	put(ctx, "Fountain", "FountainWater", Vector2.zero, 0, 1, {
 		y = y,
 		material = Enum.Material.Glass,

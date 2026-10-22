@@ -36,3 +36,17 @@ status: accepted
 
 ## Reverting
 `EnvironmentBuild.cleanup()` clears the box and restores the saved look; `HubBuild.build()` then brings back the greybox backdrop. To return to the Task 1 stream, restore the old waypoint line in `island-layout.js` (git history) and re-run `export-luau.js`.
+
+## Revision 2026-10-21 (evening): kit meshes, the upload route and the dressing
+Built on the accepted note above (unchanged). Ledger IRW-56 to IRW-81 in [[island-rework]].
+
+- **Original Blender kit, not terrain or parts, for everything that grows or is built**: `assets/island/kit/` (recipes in Git, art in `Car-Hop-Art/island-kit/`), 137 meshes, 81,226 unique triangles, coloured by one 256 × 256 palette image that every face's UVs point into. Headless Blender (`--background --factory-startup`), no MCP.
+- **Uploads go through the 3D Importer as an OBJ.** `AssetService:CreateAssetAsync` is not available in this Studio build, even to a local plugin. The importer reads the Blender FBX at 100 studs per Blender unit and checks its size limit on the file as read, before its own Scale Factor applies (and reloading resets the factor), so the FBX could not go up cleanly. An OBJ has no unit, but the importer splits it by group (`g`), not by object, so `build_kit.py` writes one group per mesh.
+- **Uploaded meshes arrive turned 180 degrees about Y** from the recipe frame (vertex centroids have x and z negated; not mirrored). `KitAssets` turns uploaded meshes back; previews need no turn.
+- **Previews before the upload** were EditableMeshes built from the mesh data. A MeshPart draws an EditableMesh about the mesh origin while an uploaded mesh is centred on its bounds, so `KitMesh` centres the vertices; `require` caches per ModuleScript, so fresh data needs `require(module:Clone())`. EditableMesh content does not replicate to a playtest, which is why the upload was needed before any client feature.
+- **Trees sit on the lowest ground under their roots** (24 samples), trunks continue 2 studs into the ground, and a spot that would bury too much trunk gets no tree (121 skipped).
+- **Corridor rule in practice**: anything taller than 3 studs is rejected inside a viewing corridor (63 placements rejected); the tiered fountain's stone stays under 3 studs and its jets give it height.
+- **Box colliders with square corners block walkers.** The kit fountain was solid with a box collider and stopped the Plot02 walker 4 studs short (WalkTests). It is now not solid; the round greybox rim is the collider.
+- **Wildlife and sway are client only** and read build-time anchors (`WildlifeAnchors`) and hidden templates (`WildlifeKit`); nothing replicates from the client.
+
+Reverting: `EnvironmentBuild.redress()` and `replant()` rebuild the dressing and planting; with `AssetIds.Meshes` emptied, `KitAssets` falls back to session-only previews (Adam's island preview project only).
