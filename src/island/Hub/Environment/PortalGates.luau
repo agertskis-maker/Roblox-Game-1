@@ -3,8 +3,9 @@
 -- round each existing field, from the Task 4 `gates` kit family (concepts/gates/README.md,
 -- "Production"): Downtown gold art deco, Dusty Highway red sandstone, Summit Pass pale alpine
 -- stone with ice. Per World, a Model "<World>Gate" holding:
---   the gate meshes (Plinth, Columns, Crest, Crown), placed with their origin on the field's centre
---   line on the ground and their front toward the plots. They never collide: their box collision
+--   the gate meshes (Plinth, Columns, Crest, Crown), placed with their origin on the ground
+--   park.portal.gateSetback behind the field's centre line (so the field is drawn in front of its
+--   frame) and their front toward the plots. They never collide: their box collision
 --   would wall off the opening, so invisible colliders stand in for the plinths and the columns;
 --   the three inlay band meshes (InlayLow, InlayMid, InlayHigh, attribute Band 1 to 3) on the
 --   neutral swatch, for each client to colour: dark while locked, lit in the World colour when
@@ -23,6 +24,7 @@
 
 local KitAssets = require(script.Parent.KitAssets)
 local KitManifest = require(script.Parent.KitManifest)
+local Layout = require(script.Parent.Parent.Layout)
 
 local PortalGates = {}
 
@@ -72,7 +74,7 @@ local CREST: { [string]: CrestStyle } = {
 	},
 }
 
--- Part stand-in colours per theme (Play fallback only): plinth, column, capital, crest.
+-- Part stand-in colours per theme (Play fallback only): plinth, column, (unused), crest.
 local STAND_IN: { [string]: { Color3 } } = {
 	Downtown = { hex("1E2A4A"), hex("FFF6E0"), hex("F2C14E"), hex("F2C14E") },
 	DustyHighway = { hex("9A4530"), hex("C8643F"), hex("E39A6B"), hex("9A4530") },
@@ -283,8 +285,9 @@ local function setPoints(target: Instance, info: KitManifest.Entry)
 	end
 end
 
--- Builds one World's gate into `parent`. `origin` is the gate frame: on the ground at the field's
--- centre line, its +Z (the mesh front) toward the plots. Returns the triangles placed.
+-- Builds one World's gate into `parent`. `origin` is on the ground at the field's centre line, its
+-- +Z (the mesh front) toward the plots; the gate itself stands gateSetback behind it. Returns
+-- the triangles placed.
 function PortalGates.build(
 	world: string,
 	origin: CFrame,
@@ -297,7 +300,12 @@ function PortalGates.build(
 	model.Name = world .. "Gate"
 	model:SetAttribute("World", world)
 	model:SetAttribute("Theme", theme)
+	-- the frame stands park.portal.gateSetback behind the field plane (away from the plots; the
+	-- mesh's -Z), so the field is drawn in front of its own columns and never clipped by them
+	local setback = Layout.Data.park.portal.gateSetback or 0
+	origin = origin * CFrame.new(0, 0, -setback)
 	model:SetAttribute("Origin", origin)
+	model:SetAttribute("Setback", setback) -- the field plane is at +Setback in the gate frame
 	local triangles = 0
 	for _, piece in PIECES do
 		local name = "Gate" .. theme .. piece
@@ -343,7 +351,6 @@ function PortalGates.build(
 	local section = columns.meta["column_section.1"] or 4
 	local outer = columns.meta.outer_face_x or 15.4
 	local top = columns.max.Y
-	local capital = 2.4
 	local colours = STAND_IN[world]
 	local standIn = Instance.new("Folder")
 	standIn.Name = "StandIn"
@@ -363,20 +370,13 @@ function PortalGates.build(
 		local x = side * axisX
 		local label = if side < 0 then "Left" else "Right"
 		block("Plinth" .. label, Vector3.new(plinthW, plinthTop, 5), Vector3.new(x, plinthTop / 2, 0), colours[1], true)
-		local shaftTop = top - capital
+		-- the column runs up to the crest (no separate capital), so nothing crosses the opening
 		block(
 			"Column" .. label,
-			Vector3.new(section, shaftTop - plinthTop, section),
-			Vector3.new(x, (plinthTop + shaftTop) / 2, 0),
+			Vector3.new(section, top - plinthTop, section),
+			Vector3.new(x, (plinthTop + top) / 2, 0),
 			colours[2],
 			true
-		)
-		block(
-			"Capital" .. label,
-			Vector3.new(plinthW, capital, 5),
-			Vector3.new(x, shaftTop + capital / 2, 0),
-			colours[3],
-			false
 		)
 	end
 	local crest = KitAssets.info("Gate" .. theme .. "Crest")

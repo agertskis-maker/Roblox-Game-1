@@ -963,6 +963,15 @@ local function run(trove: Trove.Trove, rig: Instance)
 		local fallback = gate:GetAttribute("Source") == "preview"
 		local standIn = gate:FindFirstChild("StandIn")
 		if fallback and standIn then
+			-- a preview MeshPart reaches Play without its mesh and would draw as a solid box over
+			-- the whole gate, opening included: hide the gate meshes and show the stand-in
+			-- (plinths, columns, crest and medallion only; nothing crosses the opening)
+			for _, d in gate:GetChildren() do
+				if d:IsA("MeshPart") then
+					d.Transparency = 1
+					d.CastShadow = false
+				end
+			end
 			for _, d in standIn:GetChildren() do
 				if d:IsA("BasePart") then
 					d.Transparency = 0
@@ -1033,7 +1042,11 @@ local function run(trove: Trove.Trove, rig: Instance)
 
 	type Diagonal = { a: string, b: string, offset: number }
 	-- the X: left high to right low, and left low to right high set 0.7 toward the plots so the two
-	-- pass each other at chain_cross (the gates README, "Key meta")
+	-- pass each other at the crossing (the gates README, "Key meta")
+	-- The gate stands its Setback behind the field plane, so the X, the padlock and the LOCKED
+	-- plaque are brought this far in front of the field plane (toward the plots), clear of the
+	-- field's frontmost layer (1.6 in front), so they read across the field. Tunable, reversible.
+	local LOCK_AHEAD = 2
 	local DIAGONALS: { Diagonal } = {
 		{ a = "left_high", b = "right_low", offset = 0 },
 		{ a = "left_low", b = "right_high", offset = 0.7 },
@@ -1049,10 +1062,6 @@ local function run(trove: Trove.Trove, rig: Instance)
 		if typeof(gateFrame) ~= "CFrame" then
 			return
 		end
-		local function gatePoint(key: string): Vector3?
-			local v = gate:GetAttribute("pt_" .. key)
-			return if typeof(v) == "Vector3" then gateFrame:PointToWorldSpace(v) else nil
-		end
 		local lt = p.trove:Extend()
 		p.lockTrove = lt
 		local model = lt:Add(Instance.new("Model"))
@@ -1066,6 +1075,13 @@ local function run(trove: Trove.Trove, rig: Instance)
 		local chains, padlock, shackle, plaque =
 			group("Chains"), group("Padlock"), group("Shackle"), group("RequirementPlaque")
 		local front = gateFrame:VectorToWorldSpace(Vector3.zAxis) -- the gate front, toward the plots
+		local setback = gate:GetAttribute("Setback")
+		-- the gate-frame z of the field plane, and of the X's plane in front of it
+		local fieldZ = if type(setback) == "number" then setback else 0
+		local function localPoint(key: string): Vector3?
+			local v = gate:GetAttribute("pt_" .. key)
+			return if typeof(v) == "Vector3" then v else nil
+		end
 
 		-- a wrap on each chain neck, its lug to the front
 		for _, key in { "left_low", "left_high", "right_low", "right_high" } do
@@ -1074,32 +1090,46 @@ local function run(trove: Trove.Trove, rig: Instance)
 				placePiece("GateChainWrap", gateFrame * CFrame.new(at), chains)
 			end
 		end
-		-- each diagonal: whole pre-linked runs (run_pitch apart), centred between its two anchors
+		-- each diagonal: whole pre-linked runs (run_pitch apart), centred between its two anchors.
+		-- The end runs leave the wrap lugs on the columns and angle forward; the middle runs lie in
+		-- the X's plane, LOCK_AHEAD in front of the field plane
 		local runPitch = kitNumber("GateChainRun", "run_pitch", 11)
 		local runLength = kitPoint("GateChainRun", "last_link_centre", Vector3.new(8.8, 0, 0)).X
 		local runs = 0
+		local crossZ = fieldZ + LOCK_AHEAD
 		for _, d in DIAGONALS do
-			local a, b = gatePoint("chain_anchors_" .. d.a), gatePoint("chain_anchors_" .. d.b)
-			if a and b then
-				a += front * d.offset
-				b += front * d.offset
+			local la, lb = localPoint("chain_anchors_" .. d.a), localPoint("chain_anchors_" .. d.b)
+			if la and lb then
+				local a, b = gateFrame:PointToWorldSpace(la), gateFrame:PointToWorldSpace(lb)
+				local ahead = math.max(0, fieldZ + LOCK_AHEAD + d.offset - la.Z)
+				crossZ = math.max(crossZ, la.Z)
 				local dir = (b - a).Unit
 				local length = (b - a).Magnitude
 				local count = math.max(1, math.floor((length - runLength) / runPitch) + 1)
 				local start = (length - ((count - 1) * runPitch + runLength)) / 2
-				local up = front:Cross(dir).Unit -- so the run's +Z is the gate front
+				local finish = start + (count - 1) * runPitch + runLength
+				local function along(s0: number): Vector3
+					local ramp = math.clamp(math.min((s0 - start) / runLength, (finish - s0) / runLength), 0, 1)
+					return a + dir * s0 + front * (ahead * ramp)
+				end
 				for r = 0, count - 1 do
-					placePiece("GateChainRun", CFrame.fromMatrix(a + dir * (start + r * runPitch), dir, up), chains)
+					local s0 = start + r * runPitch
+					local p0, p1 = along(s0), along(s0 + runLength)
+					local runDir = (p1 - p0).Unit
+					local up = front:Cross(runDir).Unit -- the run's links stay square to the gate front
+					placePiece("GateChainRun", CFrame.fromMatrix(p0, runDir, up), chains)
 					runs += 1
 				end
 			end
 		end
 		-- the padlock hangs from the crossing (its shackle between the two chains), the LOCKED plaque
 		-- from the padlock's eyes (each hang ring 0.5 below its eye)
-		local cross = gatePoint("chain_cross")
-		if cross then
+		local crossLocal = localPoint("chain_cross")
+		if crossLocal then
+			-- between the two chains' middle runs (0.35 is half their 0.7 spacing)
+			local cross = gateFrame:PointToWorldSpace(Vector3.new(crossLocal.X, crossLocal.Y, crossZ + 0.35))
 			local below = kitNumber("GatePadlockBody", "assembly_body_centre_below_cross", 4.5)
-			local body = CFrame.new(cross + front * 0.35 - Vector3.new(0, below, 0)) * gateFrame.Rotation
+			local body = CFrame.new(cross - Vector3.new(0, below, 0)) * gateFrame.Rotation
 			placePiece("GatePadlockBody", body, padlock)
 			local face, size = faceOf("GatePadlockBody", body, "PadlockEmblem", padlock)
 			if face then

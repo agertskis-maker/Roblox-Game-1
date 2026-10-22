@@ -9,14 +9,13 @@
 #                      4 deep, underside 10, top 18, gantry centre line y = -17.
 #   StuntApron         the asphalt apron (22 wide) from the envelope front to the end pedestal.
 #   StuntGridMarkings  separate thin paint: start-line checker and three grid boxes facing +y.
-#   StuntEndBarrier    the closed end: a low stone pedestal (top 4.4) with the
+#   StuntEndBarrier    the closed end: a stone pedestal (top 4.4) carrying the loop, with the
 #                      COMING SOON bezel on its front, and low curb rails to the tyre walls.
 # Meshes with their own origin (placed by meta "layout" on StuntGantry):
 #   StuntStartLightHousing / StuntStartLightLens   5 each; the lens is dark (inlay_off) when off.
 #   StuntTireRow       four stacks of three tyres along local x (5 used along the apron sides).
-#   StuntLoop          the loop-the-loop on its own small plinth, origin at the plinth footprint centre on
-#                      the ground; loop in the local xz plane. Placed in the right side strip (the only
-#                      sightline-clear spot: x 13.4..18.3, y -10..2), turned -90 so it faces the apron.
+#   StuntLoop          the loop-the-loop, origin at the pedestal top centre; loop in the local xz plane,
+#                      placed on the closed-end pedestal on the axis, face-on to the gantry and plaza.
 #   StuntPodium        the 1/2/3 podium with a trophy on the gold step.
 #   StuntCone          a traffic cone (4 used at the apron mouth).
 #   StuntFlag          a checkered flag on a pole, cloth toward +x (2 used, the left one turned 180).
@@ -284,7 +283,7 @@ def gantry(name):
         put("StuntStartLightLens", (x, LIGHT_Y, LIGHT_Z))
     for x, y in TIRE_ROWS:
         put("StuntTireRow", (x, y, 0), 90.0)
-    put("StuntLoop", (LOOP_AT[0], LOOP_AT[1], 0), LOOP_ROT, note="right side strip (sightline-clear box x 13.4..18.3, y -10..2); faces the apron, oblique from the plaza")
+    put("StuntLoop", (LOOP_AT[0], LOOP_AT[1], LOOP_Z), LOOP_ROT, note="on the closed-end pedestal, on the axis, face-on to the gantry and the plaza")
     put("StuntPodium", (PODIUM_AT[0], PODIUM_AT[1], 0), PODIUM_ROT, note="faces the apron (+x); gap in the left tyre wall")
     for x, y in CONES:
         put("StuntCone", (x, y, APRON_TOP), 0.0)
@@ -407,7 +406,7 @@ def end_barrier(name):
             xb = s * (x0 + (k + 1) * w)
             quad_y(b, min(xa, xb), max(xa, xb), 0.2, 1.0, PED_Y0 - 0.02, RED if k % 2 == 0 else WHITE, -1)
     return b, {"origin": "envelope centre on the ground",
-               "pedestal": {"x": [-PED_HW, PED_HW], "y": [PED_Y0, PED_Y1], "top": PED_TOP},
+               "pedestal": {"x": [-PED_HW, PED_HW], "y": [PED_Y0, PED_Y1], "top": PED_TOP, "loop_seat": [0.0, PED_YC, PED_TOP]},
                "rails": {"x": [PED_HW, PX0 + 0.2], "y": [PED_Y0, PED_Y0 + 1.4], "top": 1.2}, "height": PED_TOP,
                "note": "the COMING SOON text face is StuntSignFaceComingSoon (see StuntGantry text_faces)"}
 
@@ -448,9 +447,10 @@ def tire_row(name):
 
 
 # ---------------------------------------------------------------- loop sculpture
-LOOP_R, RIB_W, RIB_T, RAIL_H, RAIL_W, LANE = 4.9, 2.2, 0.35, 0.45, 0.2, 1.15
-LOOP_PLINTH_L, LOOP_PLINTH_W, LOOP_PLINTH_TOP, LOOP_HALF = 11.8, 4.7, 1.0, 5.7
-LOOP_AT, LOOP_ROT = (15.85, -4.0), -90.0
+LOOP_R, RIB_W, RIB_T, RAIL_H, RAIL_W, LANE = 3.9, 2.4, 0.35, 0.45, 0.2, 1.25
+LOOP_HALF = 7.6
+# on the closed-end pedestal, on the axis, face-on to the gantry and the plaza (sightline-clear)
+LOOP_AT, LOOP_Z, LOOP_ROT = (0.0, PED_YC), PED_TOP, 0.0
 
 
 def track_sweep(b, path):
@@ -492,12 +492,10 @@ def track_sweep(b, path):
 
 def loop_sculpture(name):
     b = Builder(name)
-    cbox(b, V(0, 0, (LOOP_PLINTH_TOP - 0.2) / 2), (LOOP_PLINTH_L, LOOP_PLINTH_W, LOOP_PLINTH_TOP + 0.2), STONE, c=0.15)
-    cbox(b, V(0, 0, -0.05), (LOOP_PLINTH_L + 0.1, LOOP_PLINTH_W + 0.1, 0.3), NAVY, c=0.06)
-    pz = LOOP_PLINTH_TOP
+    pz = 0.0
     z0 = pz + RIB_T
     cz = z0 + LOOP_R
-    seg = 28
+    seg = 26
     path = [V(-LOOP_HALF, -LANE, z0)]
     for i in range(seg + 1):
         phi = 2 * math.pi * i / seg
@@ -508,20 +506,19 @@ def loop_sculpture(name):
     track_sweep(b, path)
     for s in (-1, 1):
         y = s * (-LANE + 2 * LANE * 0.15625)
-        x = s * (LOOP_R + RIB_T + 0.3)
-        cyl(b, V(x, y, pz - 0.05), 0.35, 0.34, 8, CREAM)
+        x = s * (LOOP_R + RIB_T + 0.35)
+        cyl(b, V(x, y, pz - 0.05), 0.35, 0.42, 8, CREAM)
         cyl(b, V(x, y, pz + 0.3), cz - pz - 0.05, 0.28, 8, NAVY)
         cbox(b, V(s * (LOOP_R + RIB_T + 0.15), y, cz), (0.5, 0.5, 0.6), NAVY, c=0.08)
     top = cz + LOOP_R + RIB_T
     # a fixed scale car upside down at the top of the loop (meta only, no car mesh)
     seat = (0.0, 0.0, round(cz + LOOP_R, 3))
-    return b, {"origin": "plinth footprint centre on the ground", "front": "-y (placed rot_z -90: faces the apron, -x)",
-               "plinth": [LOOP_PLINTH_L, LOOP_PLINTH_W, LOOP_PLINTH_TOP],
+    return b, {"origin": "pedestal top centre (the track underside rests on z 0)", "front": "-y (face-on to the gantry and the plaza)",
                "loop_centre": [0.0, 0.0, round(cz, 3)], "loop_radius": LOOP_R, "height": round(top, 3),
                "ribbon": {"width": RIB_W, "thickness": RIB_T, "rails": RAIL_H, "inner_width": round(RIB_W - 2 * RAIL_W, 3), "lane_offset": 2 * LANE},
                "car_seat": {"position": list(seat), "up": [0, 0, -1], "forward": [-1, 0, 0], "scale": 0.3,
-                            "envelope_position": [LOOP_AT[0], LOOP_AT[1], seat[2]], "envelope_forward": [0, 1, 0],
-                            "note": "local axes; envelope_* are after the placement (rot_z -90). A 13 x 6 x 4.5 car at scale 0.3 (3.9 x 1.8 x 1.35) fits the 1.8 between the rails, wheels on the driving surface at the top; any angle phi: position = (R sin phi, y, cz - R cos phi), up = toward the loop centre"}}
+                            "envelope_position": [LOOP_AT[0], LOOP_AT[1], round(LOOP_Z + seat[2], 3)], "envelope_forward": [-1, 0, 0],
+                            "note": "local axes; envelope_* are after the placement (on the pedestal, rot_z 0). A 13 x 6 x 4.5 car at scale 0.3 (3.9 x 1.8 x 1.35) fits the 2.0 between the rails, wheels on the driving surface at the top; any angle phi: position = (R sin phi, y, cz - R cos phi), up = toward the loop centre"}}
 
 
 # ---------------------------------------------------------------- podium

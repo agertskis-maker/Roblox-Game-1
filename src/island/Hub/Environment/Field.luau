@@ -151,7 +151,14 @@ local SPINES: { Spine } = {
 		-- spur from the landmark peak north to the waterfall cliff (it runs past the cliff line,
 		-- which cuts it, so the cliff top keeps the spur's full height)
 		name = "WaterfallSpur",
-		points = { Vector2.new(-152, -545), Vector2.new(-133, -410), Vector2.new(-121, -300), Vector2.new(-118, -262) },
+		-- Task 4: its north end moved east with the falls (Cascade.Shift); the -410 node follows
+		-- the creek's bend into the moved lip notch
+		points = {
+			Vector2.new(-152, -545),
+			Vector2.new(-129, -410),
+			Vector2.new(-121 + Cascade.Shift, -300),
+			Vector2.new(-118 + Cascade.Shift, -262),
+		},
 		heights = { 312, 246, 196, 190 }, -- carries the creek down to a 168-stud lip (Cascade)
 		left = { 70, 78, 104, 108 }, -- widens into the cliff band round the falls
 		right = { 54, 62, 92, 96 },
@@ -160,7 +167,12 @@ local SPINES: { Spine } = {
 	{
 		-- the east shoulder that holds the tarn feeding the horsetail (Cascade)
 		name = "TarnShoulder",
-		points = { Vector2.new(-82, -392), Vector2.new(-74, -342), Vector2.new(-87, -316), Vector2.new(-97, -302) },
+		points = {
+			Vector2.new(-82 + Cascade.Shift, -392),
+			Vector2.new(-74 + Cascade.Shift, -342),
+			Vector2.new(-87 + Cascade.Shift, -316),
+			Vector2.new(-97 + Cascade.Shift, -302),
+		},
 		heights = { 180, 168, 156, 146 },
 		left = { 34, 32, 28, 24 },
 		right = { 38, 34, 30, 26 },
@@ -455,7 +467,10 @@ function Field.rawHeight(nz: Noise, p: Vector2): number
 	-- mountains: spines joined by a smooth maximum, with irregular crests and shoulders
 	local m = 0
 	for _, spine in SPINES do
-		m = smax(m, spineHeight(spine, p), 22)
+		-- the tarn shoulder exists only to hold the side falls' tarn (Cascade.SideFalls)
+		if Cascade.SideFalls or spine.name ~= "TarnShoulder" then
+			m = smax(m, spineHeight(spine, p), 22)
+		end
 	end
 	local wx = x + 45 * n2(nz, x, y, 320, 1)
 	local wy = y + 45 * n2(nz, y, x, 320, 1)
@@ -473,7 +488,11 @@ end
 -- the chute top). Returns the largest amount a floor had to stand above the ground (0 if none).
 function Field.fitFlows(nz: Noise): number
 	local worst = 0
-	for _, list in { Cascade.Creek, Cascade.SideStream } do
+	local lists = { Cascade.Creek }
+	if Cascade.SideFalls then
+		table.insert(lists, Cascade.SideStream)
+	end
+	for _, list in lists do
 		local last = list[#list]
 		for i = 1, #list - 1 do
 			local fp = list[i]

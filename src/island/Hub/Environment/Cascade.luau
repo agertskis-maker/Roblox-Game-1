@@ -12,56 +12,67 @@
 
 local Cascade = {}
 
-Cascade.X = -120 -- falls centre line
+-- Falls centre line. Task 4 (2026-10-22): the whole waterfall system moved 18 studs east (from
+-- x -120) so the portal gates no longer hide it from Plots 4 and 5 (the lead's sightline sweep).
+-- Everything below that belongs to the falls is placed from X (or Cascade.Shift for the side
+-- falls), so a later move is this one line.
+Cascade.Shift = 18 -- studs east of the original (Task 2) falls line, x -120
+local X = -120 + Cascade.Shift
+Cascade.X = X
 Cascade.Band = { full = 72, fade = 105 } -- half widths of the cliff band (in x) and its blend
 Cascade.UpperFaceY = -292
 Cascade.LowerFaceY = -276
 Cascade.LipHeight = 168.5 -- water leaves the lip here
 Cascade.LipEdgeY = -289 -- the projecting lip's north edge
-Cascade.Ledge = { height = 82, basin = Vector2.new(-118, -284), basinRadius = 9.5, basinFloor = 76.5, water = 81.2 }
+Cascade.Ledge = { height = 82, basin = Vector2.new(X + 2, -284), basinRadius = 9.5, basinFloor = 76.5, water = 81.2 }
 Cascade.LowerLip = { height = 81.2, y = -276 }
 -- The main curtain off the second ledge: 14 wide (research: 12 to 16), on the falls line.
-Cascade.Curtain = { x = -120, width = 14 }
+Cascade.Curtain = { x = X, width = 14 }
 -- The landing pool: 40 across (about 2.9 curtain widths, research 2.5 to 3), 26 north-south,
 -- joined to the lake and stopping at the lower face. `radius` is the larger semi-axis, for
 -- code that wants a round keep-out.
-Cascade.Pool = { centre = Vector2.new(-121, -265), rx = 20, ry = 13, radius = 20, floor = -9 }
--- The side tarn, its stream and the horsetail chute (IRW-65). False removes their terrain,
--- water and beams, leaving the curtain as the only fall below the ledge.
-Cascade.SideFalls = true
-Cascade.Tarn = { centre = Vector2.new(-74, -338), radius = 9, floor = 149.5, water = 153.5 }
+Cascade.Pool = { centre = Vector2.new(X - 1, -265), rx = 20, ry = 13, radius = 20, floor = -9 }
+-- The side tarn, its stream and the horsetail chute (IRW-65). Off since Task 4 (the lead,
+-- 2026-10-22: the brief asks for one main curtain, and after the move east the chute would run
+-- into it). Off removes their terrain, water and beams, and the tarn shoulder (Field). Their
+-- data below moved east with the falls, so Cascade.check() stays consistent if it is turned on.
+Cascade.SideFalls = false
+local SX = Cascade.Shift
+Cascade.Tarn = { centre = Vector2.new(-74 + SX, -338), radius = 9, floor = 149.5, water = 153.5 }
 
 export type FlowPoint = { p: Vector2, h: number }
 
--- Main creek: snowfield to the lip notch (floor heights descend).
+-- Main creek: snowfield to the lip notch (floor heights descend; Field.fitFlows fits them to the
+-- ground). The upper creek keeps its course; from y -388 down it bends east into the moved lip
+-- notch (+9, +14, then the full shift).
 Cascade.Creek = {
 	{ p = Vector2.new(-158, -508), h = 262 },
 	{ p = Vector2.new(-148, -468), h = 244 },
 	{ p = Vector2.new(-138, -428), h = 226 },
-	{ p = Vector2.new(-131, -388), h = 210 },
-	{ p = Vector2.new(-126, -350), h = 195 },
-	{ p = Vector2.new(-122, -318), h = 181 },
-	{ p = Vector2.new(-120, -300), h = 171.5 },
-	{ p = Vector2.new(-120, -292), h = 168.5 },
+	{ p = Vector2.new(-131 + 9, -388), h = 210 },
+	{ p = Vector2.new(-126 + 14, -350), h = 195 },
+	{ p = Vector2.new(X - 2, -318), h = 181 },
+	{ p = Vector2.new(X, -300), h = 171.5 },
+	{ p = Vector2.new(X, -292), h = 168.5 },
 } :: { FlowPoint }
 Cascade.CreekHalf = 3.6
 
 -- Side stream: tarn outlet to the top of the horsetail chute.
 Cascade.SideStream = {
-	{ p = Vector2.new(-79, -329), h = 152.5 },
-	{ p = Vector2.new(-87, -316), h = 146 },
-	{ p = Vector2.new(-95, -305), h = 136 },
+	{ p = Vector2.new(-79 + SX, -329), h = 152.5 },
+	{ p = Vector2.new(-87 + SX, -316), h = 146 },
+	{ p = Vector2.new(-95 + SX, -305), h = 136 },
 } :: { FlowPoint }
 Cascade.SideHalf = 2.6
 
 -- Horsetail chute: the water slides on the rock, with bumps and small steps.
 Cascade.Horsetail = {
-	{ p = Vector2.new(-95, -305), h = 136 },
-	{ p = Vector2.new(-99, -300), h = 122 },
-	{ p = Vector2.new(-103, -295.5), h = 109 },
-	{ p = Vector2.new(-106, -292), h = 98 },
-	{ p = Vector2.new(-108.5, -289), h = 89 },
-	{ p = Vector2.new(-111, -287), h = 82.5 },
+	{ p = Vector2.new(-95 + SX, -305), h = 136 },
+	{ p = Vector2.new(-99 + SX, -300), h = 122 },
+	{ p = Vector2.new(-103 + SX, -295.5), h = 109 },
+	{ p = Vector2.new(-106 + SX, -292), h = 98 },
+	{ p = Vector2.new(-108.5 + SX, -289), h = 89 },
+	{ p = Vector2.new(-111 + SX, -287), h = 82.5 },
 } :: { FlowPoint }
 Cascade.ChuteHalf = 4.5
 
@@ -78,8 +89,8 @@ end
 -- with shallow bays between them, as { centre x, recess (studs, toward more negative y), width }.
 -- Bay widths of 14 to 16 studs read as separate rock masses from the park; the falls line
 -- itself stays on the face line, so the lip, ledge and curtain keep their positions.
-local UPPER_BAYS = { { -166, 5, 16 }, { -84, 4, 15 }, { -50, 3, 14 } }
-local LOWER_BAYS = { { -158, 4, 15 }, { -84, 4.5, 14 } }
+local UPPER_BAYS = { { X - 46, 5, 16 }, { X + 36, 4, 15 }, { X + 70, 3, 14 } }
+local LOWER_BAYS = { { X - 38, 4, 15 }, { X + 36, 4.5, 14 } }
 
 function Cascade.upperFaceY(x: number): number
 	local y = Cascade.UpperFaceY
@@ -134,7 +145,8 @@ export type Shape = { h: number, water: number?, channel: boolean, wetRock: bool
 -- Returns nil outside it.
 function Cascade.shape(p: Vector2, h: number): Shape?
 	local x, y = p.X, p.Y
-	if x < -260 or x > 10 or y > -262 or y < -540 then
+	-- the cascade zone, from the falls line (x -140 to +130 of it)
+	if x < X - 140 or x > X + 130 or y > -262 or y < -540 then
 		return nil
 	end
 	local dx = math.abs(x - Cascade.X)
@@ -237,9 +249,8 @@ export type Volume = { kind: "add" | "carve", centre: Vector3, radii: Vector3, m
 -- the curtain on the lower face (Task 4: a few large masses instead of the small knobs and the
 -- rocks that split the old three lower streams), and the grotto behind the curtain.
 -- World studs (X = x, Z = -y). The buttresses stay outside the curtain and the sightline
--- targets (x -134 to -108).
+-- targets (14 west to 12 east of the falls line).
 function Cascade.volumes(): { Volume }
-	local X = Cascade.X
 	local vols: { Volume } = {
 		{
 			kind = "add",

@@ -34,7 +34,8 @@ const T4 = {
 	board: { w: 12, d: 4, h: 14 },
 	clear: { avenue: 6, ring: 4, river: 6, promenade: 6, plaza: 10 },
 	field: { w: 20, h: 30, bottom: 2.8 },
-	falls: { lower: { x0: -131, x1: -111, h0: 4, h1: 70 }, upper: { x0: -128, x1: -114, h0: 70, h1: 130 }, y: -271 },
+	// the falls moved 18 east in Task 4 (Cascade.X -120 -> -102) so its sight lines pass between the gates
+	falls: { lower: { x0: -113, x1: -93, h0: 4, h1: 70 }, upper: { x0: -110, x1: -96, h0: 70, h1: 130 }, y: -271 },
 };
 
 // ---------- rays ----------
@@ -65,17 +66,40 @@ function blocks(eye, tgt, poly, h, z0 = -1e9) {
 	const ys = poly.map((q) => q.y);
 	if (Math.max(eye.p.x, tgt.p.x) < Math.min(...xs) || Math.min(eye.p.x, tgt.p.x) > Math.max(...xs)) return false;
 	if (Math.max(eye.p.y, tgt.p.y) < Math.min(...ys) || Math.min(eye.p.y, tgt.p.y) > Math.max(...ys)) return false;
+	// exact: clip the segment to the convex footprint (Cyrus-Beck), then test the ray height over
+	// the clipped interval against [z0, h). The first version sampled 40 points along a ray about
+	// 480 studs long (12 studs apart) and stepped over thin columns and boards (Task 4, found when
+	// Studio's PortalSight disagreed with this model).
 	const d = sub(tgt.p, eye.p);
-	const n = 40;
-	for (let i = 1; i < n; i++) {
-		const t = i / n;
-		const p = add(eye.p, mul(d, t));
-		if (inside(p, poly)) {
-			const z = eye.z + (tgt.z - eye.z) * t;
-			if (z < h && z >= z0) return true;
-		}
+	let t0 = 0;
+	let t1 = 1;
+	const n = poly.length;
+	let area2 = 0;
+	for (let i = 0; i < n; i++) {
+		const a1 = poly[i];
+		const b1 = poly[(i + 1) % n];
+		area2 += a1.x * b1.y - b1.x * a1.y;
 	}
-	return false;
+	const sgn = area2 >= 0 ? 1 : -1;
+	for (let i = 0; i < n; i++) {
+		const a1 = poly[i];
+		const b1 = poly[(i + 1) % n];
+		const nx = -(b1.y - a1.y) * sgn; // inward edge normal
+		const ny = (b1.x - a1.x) * sgn;
+		const num = nx * (eye.p.x - a1.x) + ny * (eye.p.y - a1.y); // >= 0 inside
+		const den = nx * d.x + ny * d.y;
+		if (Math.abs(den) < 1e-12) {
+			if (num < 0) return false;
+			continue;
+		}
+		const t = -num / den;
+		if (den > 0) t0 = Math.max(t0, t);
+		else t1 = Math.min(t1, t);
+		if (t0 > t1) return false;
+	}
+	const za = eye.z + (tgt.z - eye.z) * t0;
+	const zb = eye.z + (tgt.z - eye.z) * t1;
+	return Math.min(za, zb) < h && Math.max(za, zb) >= z0;
 }
 function blockedFraction(entrances, targets, boxes) {
 	let total = 0;
@@ -275,7 +299,7 @@ function check(over = {}) {
 		// plinths and capitals, |x| 10.6 to 15.4 from the field centre line, 5 deep, top 33; the
 		// crest band x ±15, z 33 to 44, and the crown x ±10, up to 50
 		...H.portals.flatMap((q) => {
-			const y = q.front.y - P.portal.depth / 2;
+			const y = q.front.y - P.portal.depth / 2 - (C.gateSetback || 0); // gate frame behind the field plane
 			return [
 				{ id: q.id + "ColumnW", poly: rect(q.x - 15.4, q.x - 10.6, y - 2.5, y + 2.5), h: 33 },
 				{ id: q.id + "ColumnE", poly: rect(q.x + 10.6, q.x + 15.4, y - 2.5, y + 2.5), h: 33 },
@@ -284,14 +308,14 @@ function check(over = {}) {
 			];
 		}),
 		// the Stunt loop sculpture on its pedestal at the closed end of the apron (kit_stunt
-		// production placed it at x -8..8, y 14.2..19.8 and it hid 2 % of Plot 1's lower falls at any height, so the loop stands in the side strip x 13.4..18.3, y -10..2, top 12.9; its low pedestal, top 4.4, stays at the closed end) and the two checkered flags
+		// production placed it at x -8..8, y 14.2..19.8 and it hid 2 % of Plot 1's lower falls at any height, so it went to a side strip; with the falls moved 18 east (Task 4 exact-ray sweep) the axis spot is clear again and the loop is back on its pedestal at the closed end) and the two checkered flags
 		// (x Â±9.6, y 17, top 10.1); envelope-local +y runs away from the fountain
 		...(() => {
 			const s = o.stunt;
 			const at = (x, y) => add(add(s.c, mul(s.side, x)), mul(s.dir, -y));
 			const box = (x0, x1, y0, y1) => [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)];
 			return [
-				{ id: "StuntLoop", poly: box(13.4, 18.3, -10, 2), h: 12.9 },
+				{ id: "StuntLoop", poly: box(-8, 8, 14.2, 19.8), h: 12.9 },
 				{ id: "StuntPedestal", poly: box(-8, 8, 14.2, 19.8), h: 4.4 },
 				{ id: "StuntFlagL", poly: box(-10.1, -9.1, 16.5, 17.5), h: 10.1 },
 				{ id: "StuntFlagR", poly: box(9.1, 10.1, 16.5, 17.5), h: 10.1 },

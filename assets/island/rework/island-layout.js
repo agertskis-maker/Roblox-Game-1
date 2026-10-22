@@ -33,7 +33,7 @@ function baseParams(over) {
 			basinR: 12, // fountain basin; walkers keep 1 stud off it
 			promenadeW: 20,
 			avenueW: 16,
-			portal: { outer: 22, opening: 16, depth: 6, height: 36, spacing: 44, frontY: -60 }, // Task 4: 28 -> 44 and 4 studs toward the lake: with the gate family (columns to |x| 15.4, crests to 44) this keeps the most waterfall in view (task4-layout.js sweep: Plot 4 and Plot 5 lose 3.5 % and 4.5 %, every other check passes)
+			portal: { outer: 22, opening: 16, depth: 6, height: 36, spacing: 58, frontY: -56 }, // Task 4: 28 -> 58 with the gates set back (task4.gateSetback) and the falls 18 east: no gate hides a portal field or the falls from any entrance (exact-ray sweep, gate-sweep2)
 			ringR: 135, // secondary garden ring path radius
 			eye: 5,
 			// viewing corridors widen by this much each side at the portal row; with 0 the Stunt gate
@@ -43,6 +43,7 @@ function baseParams(over) {
 			// task4-layout.js (see vault/design/island-rework.md, IRW-127 onward)
 			task4: {
 				axisX: 0, // the one centre axis: every mirrored pair is (x, y) and (-x, y)
+				gateSetback: 2.6, // portal gate frames stand this far behind their field plane, so a field is never clipped by its own columns from an oblique entrance
 				riverR: 157, // river loop centre line between the garden ring and the wings
 				riverTurn: 78, // bearing where the loop leaves the circle and runs down to the lake
 				riverLeg: [
@@ -57,7 +58,10 @@ function baseParams(over) {
 				wingR: 195,
 				garage: { w: 62, d: 40, h: 26, top: 34 },
 				stunt: { w: 37, d: 40, h: 18 }, // same depth as the Garage so the doors mirror
-				board: { w: 18, d: 4, h: 15, along: 10 }, // display about 18 x 14 (research note); along is the gap from the Garage corner
+				// display about 18 x 14 (research note). Placed beside the approach path, 0.59 of the way from
+				// the plaza to the door, 14 off on the lake side (exact-ray sweep: beside the Garage it hid
+				// half of Plot 6's waterfall); along / side are kept for the forecourt alternative
+				board: { w: 18, d: 4, h: 15, along: 10, mode: "approach", k: 0.59, off: -14 },
 				snack: { bearing: 34, r: 192, w: 30, d: 28, h: 10 }, // 60 hid Plot 2's lower falls (47 %), 30 hid 1 % of Plot 3's
 				gazebo: { r: 196, w: 16, d: 16, h: 12 },
 			},
@@ -482,9 +486,16 @@ function network(H, extras) {
 		];
 		for (const o of options) edge(dn, o.n, o.d === null ? undefined : o.d, "spur");
 		if (b.lakeside) edge(dn, b.door.x < 0 ? stage[0] : stage[stage.length - 1], undefined, "stage");
+		// a link follows its walk through its waypoints, so route lines stay on the walk
 		for (const k of b.links || []) {
 			const to = { stage: b.door.x < 0 ? stage[0] : stage[stage.length - 1], prom: b.door.x < 0 ? westEnd : eastEnd }[k.to];
-			edge(dn, to, k.w, k.kind);
+			let prev = dn;
+			for (const v of k.via || []) {
+				const n = node(v, k.kind);
+				edge(prev, n, undefined, k.kind);
+				prev = n;
+			}
+			edge(prev, to, undefined, k.kind);
 		}
 		dest[b.id] = dn;
 	}
@@ -605,7 +616,16 @@ function run(over, label) {
 	// leaderboards: Most Cars Owned beside the Garage (north end of its forecourt), Fastest Stunt
 	// Circuit at the mirrored spot beside the Stunt entrance
 	const north = garage.side.y > 0 ? garage.side : mul(garage.side, -1);
-	const boardC = add(add(garage.c, mul(garage.dir, T4.garage.d / 2 + 3)), mul(north, T4.garage.w / 2 + T4.board.along));
+	const boardSide = T4.board.side === -1 ? mul(north, -1) : north; // north (1) or south (-1) of the Garage
+	let boardC = add(add(garage.c, mul(garage.dir, T4.garage.d / 2 + 3)), mul(boardSide, T4.garage.w / 2 + T4.board.along));
+	if (T4.board.mode === "approach") {
+		// beside the wing's approach path, a fraction k of the way from the plaza mouth to the door,
+		// off to one side, facing walkers coming from the plaza
+		const m = mul(garage.door, P.plazaR / len(garage.door));
+		const way = sub(garage.door, m);
+		const perp = mul(V(-way.y, way.x), 1 / len(way));
+		boardC = add(add(m, mul(way, T4.board.k)), mul(perp, T4.board.off));
+	}
 	const boards = [
 		Object.assign(facingBox(boardC, T4.board.w, T4.board.d), { id: "LeaderboardGarage", h: T4.board.h }),
 		Object.assign(facingBox(mirror(boardC), T4.board.w, T4.board.d), { id: "LeaderboardStunt", h: T4.board.h }),
@@ -624,10 +644,14 @@ function run(over, label) {
 	walks.ForecourtWest = walks.ForecourtEast.map(mirror);
 	const polyLen = (pts) => pts.slice(1).reduce((t, q, i) => t + len(sub(q, pts[i])), 0);
 	H.wingsRoute = true;
-	const wingLinks = [
-		{ to: "stage", kind: "lakeside", w: polyLen(walks.LakesideEast) + len(sub(garage.door, joinOf(garage))) },
-		{ to: "prom", kind: "lakeside", w: len(sub(garage.door, fore)) + polyLen(walks.ForecourtEast) },
-	];
+	const linksFor = (east) => {
+		const m = east ? (p) => p : mirror;
+		return [
+			{ to: "stage", kind: "lakeside", via: [m(joinOf(garage))] },
+			{ to: "prom", kind: "lakeside", via: [m(fore), m(foreN)] },
+		];
+	};
+
 	const boardX = P.portal.spacing + P.portal.outer / 2 + 18;
 	// alternatives for the review: Garage and Stunt gate as wings at the ends of the stage
 	const wing = (x) => {
@@ -640,8 +664,8 @@ function run(over, label) {
 		{ id: "StuntEastWing", door: wing(wingX).door, lakeside: true },
 	]);
 	const extras = [
-		{ id: "Garage", door: garage.door, links: wingLinks },
-		{ id: "StuntGate", door: stunt.door, links: wingLinks },
+		{ id: "Garage", door: garage.door, links: linksFor(true) },
+		{ id: "StuntGate", door: stunt.door, links: linksFor(false) },
 	];
 	const net = network(H, extras);
 	// bridges where the stream crosses a path centre line

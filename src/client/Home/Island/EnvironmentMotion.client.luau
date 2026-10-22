@@ -129,7 +129,7 @@ end
 
 local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 	local host = waterfall:WaitForChild("WaterHost") :: BasePart
-	local centre = Vector3.new(-120, 60, 280)
+	local centre = Vector3.new(-102, 60, 280) -- the falls (Task 4: moved 18 east, Cascade.X)
 	local last = 0
 	local lanes: { Beam } = {}
 	local lanesFolder: Instance? = nil

@@ -5,11 +5,15 @@
 -- wedge from each entrance to the lower falls' width, inside which nothing may rise above the
 -- sight ray from eye height (5.5) to the bottom of the falls (4 above the plunge pool).
 
+local Cascade = require(script.Parent.Cascade)
 local Layout = require(script.Parent.Parent.Layout)
 
 local Sightlines = {}
 
-local FALLS_LEFT, FALLS_RIGHT = Vector2.new(-134, -272), Vector2.new(-108, -272)
+-- The lower falls' width as seen from the park: 14 studs west to 12 east of the falls line, 4 in
+-- front of the lower face (Task 4: x -116 to -90 after the move east; was -134 to -108).
+local FALLS_Y = Cascade.LowerFaceY + 4
+local FALLS_LEFT, FALLS_RIGHT = Vector2.new(Cascade.X - 14, FALLS_Y), Vector2.new(Cascade.X + 12, FALLS_Y)
 local FALLS_BOTTOM, EYE = 4, 5.5
 
 local function cross(a: Vector2, b: Vector2): number

@@ -38,7 +38,7 @@ function backdrop(o) {
 		{ c: V(445, -355), r: 170, h: 200 },
 		{ c: V(650, -250), r: 150, h: 140 },
 	];
-	const waterfall = { top: V(-120, -268), base: V(-120, -258), width: 20, height: 120 };
+	const waterfall = { top: V(-102, -268), base: V(-102, -258), width: 20, height: 120 }; // Task 4: falls moved 18 east
 	const foot = { inner: rMax + 8, outer: rMax + 110, h: [30, 90] };
 	return { lake, peaks, waterfall, foot };
 }

@@ -10,6 +10,7 @@
 --   require(I.Hub.Preview.EnvChecks).river()       -- layout and height-field checks only
 --   require(I.Hub.Preview.EnvChecks).river(true)   -- plus water in the written terrain
 
+local Cascade = require(script.Parent.Parent.Environment.Cascade)
 local EnvironmentBuild = require(script.Parent.Parent.Environment.EnvironmentBuild)
 local Field = require(script.Parent.Parent.Environment.Field)
 local Layout = require(script.Parent.Parent.Layout)
@@ -55,6 +56,44 @@ local function along(points: { Vector2 }, step: number): { Vector2 }
 		end
 	end
 	return out
+end
+
+-- The built main curtain sits on the falls line (Task 4 moved it to Cascade.Curtain.x): its
+-- beams exist and their mean x at the lip is within a quarter width of the line.
+function EnvChecks.curtain(): { [string]: any }
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	local waterfall = env and env:FindFirstChild("Waterfall")
+	local folder = waterfall and waterfall:FindFirstChild("Curtain")
+	if not folder then
+		return { ok = false, failure = "no Lane3_IslandEnvironment.Waterfall.Curtain" }
+	end
+	local beams, sumX = 0, 0
+	for _, d in folder:GetChildren() do
+		if d:IsA("Beam") and d.Attachment0 then
+			beams += 1
+			sumX += d.Attachment0.WorldPosition.X
+		end
+	end
+	if beams == 0 then
+		return { ok = false, failure = "the Curtain folder has no beams" }
+	end
+	local meanX = sumX / beams
+	local off = math.abs(meanX - Cascade.Curtain.x)
+	local ok = off <= Cascade.Curtain.width / 4
+	return {
+		ok = ok,
+		beams = beams,
+		meanX = math.round(meanX * 10) / 10,
+		expectedX = Cascade.Curtain.x,
+		failure = if ok
+			then nil
+			else string.format(
+				"curtain centre x %.1f is %.1f from the falls line %.1f",
+				meanX,
+				off,
+				Cascade.Curtain.x
+			),
+	}
 end
 
 export type RiverReport = {
@@ -319,7 +358,7 @@ function EnvChecks.run(): { [string]: any }
 		noGroundBelow = unsupported,
 		examples = examples,
 		waterLakeCentre = liquidAt(Vector2.new(0, -172)),
-		waterPool = liquidAt(Vector2.new(-120, -268)),
+		waterPool = liquidAt(Cascade.Pool.centre + Vector2.new(1, -3)),
 		waterStreamMiddle = liquidAt(stream[math.floor(#stream / 2)]),
 		waterUnderBridges = (function()
 			local wet = 0
@@ -331,6 +370,7 @@ function EnvChecks.run(): { [string]: any }
 			return string.format("%d of %d", wet, #Layout.Data.park.bridges)
 		end)(),
 		waterfall = env ~= nil and env:FindFirstChild("Waterfall") ~= nil,
+		curtain = EnvChecks.curtain(),
 		-- Task 4 river loop: continuity, lake ends, mirror, a bridge at every crossing, water
 		-- in the height field and in the written terrain along the centre line
 		river = EnvChecks.river(env ~= nil and env:GetAttribute("TerrainWritten") == true),

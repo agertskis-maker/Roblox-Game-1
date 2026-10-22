@@ -4,7 +4,7 @@
 -- failure names the object:
 --   envelope   every placed part inside its destination's envelope (frame-local, from the
 --              model's EnvelopeMin / EnvelopeMax; Garage forecourt pieces use ForecourtMin / Max)
---   loop       the stunt loop inside its sightline-clear box in the right side strip
+--   loop       the stunt loop inside its sightline-clear box on the axis pedestal
 --   gantry     the built gantry beam centre against HubData park.gantry
 --   textFaces  every SignFace on a mesh face lies within FaceTolerance of the recorded face
 --              (recomputed from KitManifest and the model's Frame) and faces the same way

@@ -1023,9 +1023,9 @@ local function buildStunt(root: Instance, report: Report): Model
 	model:SetAttribute("Frame", base)
 	model:SetAttribute("EnvelopeMin", Vector3.new(-18.5, -0.35, -20))
 	model:SetAttribute("EnvelopeMax", Vector3.new(18.5, 18, 20))
-	-- the loop's sightline-clear box in the right side strip (stunt README): x 13.4..18.3,
-	-- Blender y -10..2, top 12.9 or less
-	local lo, hi = blenderBox(13.4, 18.3, -10, 2, -0.35, 12.9)
+	-- the loop's sightline-clear box on the axis pedestal at the closed end (task4-layout.js, after
+	-- the falls moved east): x -8..8, Blender y 14.2..19.8, top 12.9 or less
+	local lo, hi = blenderBox(-8, 8, 14.2, 19.8, -0.35, 12.9)
 	model:SetAttribute("LoopBoxMin", lo)
 	model:SetAttribute("LoopBoxMax", hi)
 	model:SetAttribute("Spec", "brief section 10; concepts/stunt/README.md Production")

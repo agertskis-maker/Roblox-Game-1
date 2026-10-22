@@ -15,6 +15,7 @@
 
 local AssetService = game:GetService("AssetService")
 
+local Cascade = require(script.Parent.Parent.Environment.Cascade)
 local Layout = require(script.Parent.Parent.Layout)
 
 local PortalSight = {}
@@ -171,20 +172,25 @@ function PortalSight.run(): { [string]: any }
 		end
 	end
 	-- the lower falls from each entrance: eye 5.5 at the entrance and 2 studs either side, to 25
-	-- points across the lower falls (x -131 to -111, 4 to 70 up, in front of the cliff)
+	-- points across the lower falls (11 west to 9 east of the falls line, 4 to 70 up, in front of
+	-- the cliff; Task 4: x -113 to -93 after the move east, was -131 to -111)
+	local aimX = Cascade.X - 1
+	local aimZ = -(Cascade.LowerFaceY + 4)
+	local targetZ = -(Cascade.LowerFaceY + 5)
 	local falls = {}
 	for i, tri in park.corridors do
 		local e = Vector3.new(tri[1].X, Layout.SurfaceY + 5.5, -tri[1].Y)
-		local toFalls = (Vector3.new(-121, 0, 272) - e) * Vector3.new(1, 0, 1)
+		local toFalls = (Vector3.new(aimX, 0, aimZ) - e) * Vector3.new(1, 0, 1)
 		local side = Vector3.new(-toFalls.Unit.Z, 0, toFalls.Unit.X)
 		local total, blocked = 0, 0
 		local by: { [string]: number } = {}
 		for _, s2 in { -2, 0, 2 } do
-			for _, x in { -131, -126, -121, -116, -111 } do
+			for _, dx in { -10, -5, 0, 5, 10 } do
+				local x = aimX + dx
 				for _, y in { 4, 15, 30, 50, 70 } do
 					total += 1
 					local eye = e + side * s2
-					local hit = workspace:Raycast(eye, Vector3.new(x, y, 271) - eye, params)
+					local hit = workspace:Raycast(eye, Vector3.new(x, y, targetZ) - eye, params)
 					if hit then
 						blocked += 1
 						local key = if hit.Instance == workspace.Terrain then "Terrain" else hit.Instance:GetFullName()

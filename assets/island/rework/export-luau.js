@@ -168,7 +168,7 @@ const data = {
 		basinRadius: P.basinR,
 		promenade: { inner: H.prom.inner, outer: H.prom.outer, centre: H.prom.centre },
 		ringRadius: P.ringR,
-		portal: { width: P.portal.outer, opening: P.portal.opening, depth: P.portal.depth, height: P.portal.height, spacing: P.portal.spacing, frontY: P.portal.frontY },
+		portal: { width: P.portal.outer, opening: P.portal.opening, depth: P.portal.depth, height: P.portal.height, spacing: P.portal.spacing, frontY: P.portal.frontY, gateSetback: P.task4.gateSetback },
 		portals: H.portals.map((q) => ({ id: q.id, x: q.x })),
 		buildings,
 		boards,

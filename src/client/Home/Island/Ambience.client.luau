@@ -21,7 +21,7 @@ local ROOT_NAME = "Lane3_IslandEnvironment"
 local FALLS_SOUND = "rbxassetid://9120552550" -- Waterfall Steady Stream 1 (SFX), Pro Sound Effects
 local BIRDS_SOUND = "rbxassetid://9113444360" -- Birds Park 2 (SFX), Pro Sound Effects
 local QUACK_SOUND = "rbxassetid://1845012569" -- Quack Duck, APM
-local FALLS_AT = Vector3.new(-121, 22, 270)
+local FALLS_AT = Vector3.new(-103, 22, 270) -- the landing pool (Task 4: falls moved 18 east)
 local PARK_AT = Vector3.new(0, 12, -20)
 local QUACK_MIN, QUACK_MAX = 20, 40 -- seconds between quacks (Tunable)
 -- The proposed asset is a 63.05-second track of many quacks (measured in a playtest, 2026-10-21).

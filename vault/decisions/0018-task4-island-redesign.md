@@ -29,8 +29,25 @@ This note supersedes, for the island preview only:
   - inside about r 130, every spot hides part of a portal field from at least one entrance;
   - the flanks beside the portal row hide all of Plot 6's waterfall view (and the mirror spot cuts Plot 2's);
   - the gaps between avenues near the ring fit at most a 47-stud front, too narrow for a two-level Garage with a workshop and a three-turntable showroom.
-- **Cost:** the walking goals (worst at most 12 s boosted, spread at most 4 s) are not met: planned boosted worst 22.6 s, spread 12.0 s. The brief makes these goals, "not permission to break sightlines". At the Task 3 positions the worst boosted walk was 15.6 s (Garage) and 18.3 s (Stunt gate), with a waterfall obstruction.
+- **Cost:** the walking goals (worst at most 12 s boosted, spread at most 4 s) are not met: measured in a Studio playtest with the boost, worst 22.5 s and spread 9.5 s (both buildings, mirrored). The brief makes these goals, "not permission to break sightlines". At the Task 3 positions the worst boosted walk was 15.6 s (Garage) and 18.3 s (Stunt gate), with a waterfall obstruction.
 - **Alternative for Adam:** a narrower Garage (about 46 wide) on the north axis between corridors 3 and 4 walks like Task 3, but cannot be mirrored with the Stunt entrance.
+
+## 2b. Portal row, gate setback and the waterfall (revised the same day)
+The first checker sampled each sight ray at 40 points (about 12 studs apart) and stepped over thin
+objects; Studio's PortalSight then showed the new gate columns hiding up to half of Plot 5's
+waterfall and 7–15 % of the field edges from Plots 1 and 6. With an exact ray test
+(`task4-layout.js`, Cyrus-Beck clipping) and a sweep over spacing, row position, gate setback and
+the falls position:
+- **Portal spacing 58** (was 28 in Task 3), row front at y -56.
+- **Gate setback 2.6**: each gate frame stands behind its field plane, so the field is drawn in
+  front of its own columns and is never clipped from an oblique entrance.
+- **The waterfall moves 18 studs east** (falls line x -120 to -102) so every entrance's view of the
+  falls passes between two gates; the side falls (tarn, side stream, horsetail) are switched off
+  (`Cascade.SideFalls = false`), leaving the one main curtain the brief asks for.
+- **The Most Cars Owned board** stands beside the Garage approach path (0.59 of the way from the
+  plaza, 14 studs off on the lake side): beside the Garage itself it hid half of Plot 6's falls.
+- Result in the model: 0 % of any portal field and 0 % of the lower or upper falls hidden from any
+  entrance. Studio re-measure: see the review page.
 
 ## 3. River loop
 One continuous loop, lake to lake: a circle of radius 157 about the fountain from bearing -78 to 78, with legs down to the lake on both sides, 16 wide, mirrored. Eight bridges: the six avenues and the two wing approaches. The lakeside walks now join the wing approaches before their bridges, so no other path crosses the river.

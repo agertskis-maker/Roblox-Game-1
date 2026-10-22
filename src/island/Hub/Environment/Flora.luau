@@ -562,7 +562,26 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	end
 
 	-- Lakeside: willows leaning over the beach and marsh sides, birches on the rocky shore, kept
-	-- out of the portal view (|x| < 80) and the falls.
+	-- out of the portal view and the falls. Task 4: the portal view is the viewing corridors
+	-- themselves (a canopy-wide margin), not a fixed |x| < 80 (the wider portal row put a birch in
+	-- front of Dusty Highway for Plot 6).
+	local function inPortalView(p: Vector2, r: number): boolean
+		for _, tri in Layout.Data.park.corridors do
+			local a, b, c = tri[1], tri[2], tri[3]
+			for _, off in { Vector2.zero, Vector2.new(r, 0), Vector2.new(-r, 0), Vector2.new(0, r), Vector2.new(0, -r) } do
+				local q = p + off
+				local d1 = (b.X - a.X) * (q.Y - a.Y) - (b.Y - a.Y) * (q.X - a.X)
+				local d2 = (c.X - b.X) * (q.Y - b.Y) - (c.Y - b.Y) * (q.X - b.X)
+				local d3 = (a.X - c.X) * (q.Y - c.Y) - (a.Y - c.Y) * (q.X - c.X)
+				local neg = d1 < 0 or d2 < 0 or d3 < 0
+				local pos = d1 > 0 or d2 > 0 or d3 > 0
+				if not (neg and pos) then
+					return true
+				end
+			end
+		end
+		return false
+	end
 	local lake = Field.Lake
 	local lakeTrees = 0
 	tries = 0
@@ -572,7 +591,7 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 		local e = rng:NextNumber(1.3, 1.55)
 		local p = lake.centre + Vector2.new(math.cos(a) * lake.rx * e, math.sin(a) * lake.ry * e)
 		local nearFalls = (p - Cascade.Pool.centre).Magnitude < 55
-		if math.abs(p.X) > 80 and not nearFalls and plantable(grid, p, 0.45) then
+		if math.abs(p.X) > 80 and not nearFalls and not inPortalView(p, 6) and plantable(grid, p, 0.45) then
 			local zone = TerrainWriter.zoneAt(grid, p)
 			local fam = if zone == "rocky" then "Birch" elseif rng:NextNumber() < 0.65 then "Willow" else "Birch"
 			if plant(pl, lakeside, treeVariant(rng, fam), p, rng:NextNumber(1.0, 1.3), rng:NextNumber(0, 6.28)) then

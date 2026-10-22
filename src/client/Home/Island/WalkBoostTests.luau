@@ -456,7 +456,7 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 	c.update(leftAt + 0.75)
 	check("left +0.75 s: easing (about 20)", approx(hum.WalkSpeed, base * 1.25, 0.01), hum.WalkSpeed)
 	c.update(leftAt + 0.95)
-	check("left +0.95 s: nearly back", hum.WalkSpeed > base and hum.WalkSpeed < base + 0.2, hum.WalkSpeed)
+	check("left +0.95 s: nearly back", hum.WalkSpeed > base and hum.WalkSpeed < base + 0.4, hum.WalkSpeed) -- smoothstep at 90 % of the ease: 1.014 x = 16.22
 	c.update(leftAt + 1.0)
 	check("left +1.0 s: exactly 16", hum.WalkSpeed == base, hum.WalkSpeed)
 	check("back at base: no modifier state left", SpeedModifiers.multiplier(hum) == 1)
