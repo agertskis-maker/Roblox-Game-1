@@ -93,6 +93,19 @@ function Scenarios.new(api: any)
 	return self
 end
 
+-- FIXTURE district plan (explicit, unequal boundaries in metres; proposals for Lane 1, not rules).
+-- Lengths come from the Downtown B fixture route at the provisional 1 stud = 0.28 m.
+Scenarios.DistrictPlan = table.freeze({
+	repeats = true,
+	districts = {
+		{ id = "MainStreet", name = "Main Street", length = 170 },
+		{ id = "CityHall", name = "City Hall", length = 150 },
+		{ id = "HarborBridge", name = "Harbor Bridge", length = 135 },
+		{ id = "Midtown", name = "Midtown", length = 190 },
+		{ id = "SkylinePark", name = "Skyline Park", length = 160 },
+	},
+})
+
 function Scenarios.startRunState(self: any)
 	self.store:set("run", {
 		distance = 0,
@@ -105,6 +118,10 @@ function Scenarios.startRunState(self: any)
 		hopCooldown01 = 0,
 		dash = nil,
 		best = 1100,
+		districtPlan = Scenarios.DistrictPlan,
+		claims = {},
+		pendingClaim = nil,
+		warning = nil,
 	})
 end
 
@@ -558,6 +575,76 @@ steps["Home tour"] = function(self)
 	steps["Cash gains and spends"](self)
 	steps["Menus and badges"](self)
 	steps["Toasts"](self)
+end
+
+-- Worker scenario files (playground/hud/scripts/scenarios/<Area>.luau, HUD rebuild 2026-10-22):
+-- each returns { [name] = function(host) }. They run through the same cancellable thread as
+-- the built-in steps, with a small host API (vault/design/specs/hud-rebuild-worker-guide.md).
+local function makeHost(self: any): { [string]: any }
+	local seq = self._seq
+	return {
+		store = self.store,
+		api = self.api,
+		wait = function(seconds: number)
+			task.wait(seconds)
+			if self._seq ~= seq then
+				-- cancelled while waiting: stop this scenario's thread quietly
+				coroutine.yield()
+			end
+		end,
+		emit = function(kind: string, fields: { [string]: any }?): boolean
+			local e = fields or {}
+			e.id = e.id or (kind .. "-" .. tostring(os.clock()) .. "-" .. tostring(math.random(1, 1e6)))
+			e.kind = kind
+			return self.store:emit(e)
+		end,
+		runPatch = function(patch: { [string]: any })
+			runPatch(self.store, patch)
+		end,
+		car = car,
+		enterRun = function()
+			enterRun(self)
+		end,
+		log = function(text: string)
+			self.api.harness(text)
+		end,
+	}
+end
+
+function Scenarios.loadExtras(self: any, folder: Instance?)
+	if not folder then
+		return
+	end
+	local names = {}
+	for _, module in folder:GetChildren() do
+		if module:IsA("ModuleScript") then
+			table.insert(names, module)
+		end
+	end
+	table.sort(names, function(a, b)
+		return a.Name < b.Name
+	end)
+	for _, module in names do
+		local ok, result = pcall(require, module)
+		if not ok or type(result) ~= "table" then
+			warn("[Lane3Hud] scenario file " .. module.Name .. " failed: " .. tostring(result))
+			continue
+		end
+		local keys = {}
+		for name in result :: any do
+			table.insert(keys, name)
+		end
+		table.sort(keys)
+		for _, name in keys do
+			local fn = (result :: any)[name]
+			if type(fn) == "function" and not steps[name] then
+				steps[name] = function(s: any)
+					fn(makeHost(s))
+				end
+				table.insert(self.list, name)
+			end
+		end
+	end
 end
 
 function Scenarios.play(self: any, name: string): boolean

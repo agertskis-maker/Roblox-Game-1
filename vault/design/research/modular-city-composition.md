@@ -1,0 +1,108 @@
+---
+title: Modular city composition for an endless Downtown road
+tags: [research, downtown, lane3]
+date: 2026-10-22
+status: research
+---
+
+# Modular city composition for an endless Downtown road
+
+Research only. Nothing here is approved or picks a direction. It builds on [[downtown-plan]], [[downtown-lookdev-fixture]] and [[downtown-ref-environment]] and does not repeat them. Segments, streaming, hazards as gameplay and the run camera belong to Brian R (Lane 1). Every number below is a **proposal** for him and Adam to accept or change. Sources were read on 2026-10-22. In each section, **Source** is what a source says and **Inference** is my reasoning.
+
+## Sources
+
+| # | Source | Used for |
+|---|---|---|
+| R1 | Joel Burgess, ["Skyrim's Modular Approach to Level Design"](https://www.gamedeveloper.com/design/skyrim-s-modular-approach-to-level-design), Game Developer, 2013-05-01 (the S4 GDC talk) | kit grammar, glue kits, repetition |
+| R2 | Jon Davis, ["Shuffle Bags: Making Random() Feel More Random"](https://code.tutsplus.com/shuffle-bags-making-random-feel-more-random--gamedev-1249t), Envato Tuts+, 2012-10-24 | seeded variety |
+| R3 | Roblox Creator Docs: [Instance streaming](https://create.roblox.com/docs/workspace/streaming), [Model](https://create.roblox.com/docs/reference/engine/classes/Model), [Improve performance](https://create.roblox.com/docs/performance-optimization/improve), [Mesh specifications](https://create.roblox.com/docs/art/modeling/specifications) | streaming, LOD, budgets |
+| R4 | Roblox Creator Docs: [EditableMesh](https://create.roblox.com/docs/reference/engine/classes/EditableMesh), [AssetService](https://create.roblox.com/docs/reference/engine/classes/AssetService) | runtime meshes |
+| R5 | Roblox Creator Docs: [Lighting (guide)](https://create.roblox.com/docs/environment/lighting), [Lighting class](https://create.roblox.com/docs/reference/engine/classes/Lighting), [Atmosphere](https://create.roblox.com/docs/environment/atmosphere) | daylight and haze |
+| R6 | Prior note [[downtown-ref-environment]]: S2 Kenney City Kit, S3 Synty POLYGON City, S5 TF2 NPAR paper | base, middle and top; prop silhouettes; quiet facades |
+
+**Could not read:** the UDK "Modular Environment Creation" page (HTTP 403), the Polycount wiki "Modular environments" page (connection refused) and the Game Developer "Creating Modular Game Art" feature (no article text came back). Nothing here relies on them. The Roblox pages came from direct fetches of create.roblox.com rather than context7, because context7 only mirrors the docs and the live pages are current.
+
+## 1. Kit grammar for streets
+
+**Source (R1):** Kits are systems. "Footprints should be multiples of each other." Keep "grid snap sizes as large as possible." Pivots usually sit on the ground plane, and "changing pivots later can be a huge problem, requiring manual updates to hundreds of instances." "Avoid attempting to create a kit which tiles on all axes." Glue kits are "small-scope kits which exist primarily to create transitions" between kits. **Source (R6):** S2 and S3 stack a dark base, a pale middle with windows and a thick cap. **Source (R3):** a Model's pivot comes from its PrimaryPart if one is set, otherwise from WorldPivot. `PivotTo` moves a model by its pivot.
+
+**Inference (proposed grammar):**
+- **Grid.** A 12-stud bay with a 4-stud sub-grid. Facade modules are 1, 2 or 3 bays wide (12, 24 or 36 studs). Segment lengths are multiples of 48 studs, so every segment holds whole bays.
+- **Segment sockets.** Each segment Model has two Attachments, `Start` and `End`, on the road centreline at y = 0, with -Z pointing along the direction of travel. The builder calls `next:PivotTo(prev.End.WorldCFrame)` with the segment's pivot equal to `Start`. Curves join with no gaps because only these two frames matter.
+- **Frontage slots.** Each side has slot Attachments named `L_00…`, `R_00…`, one per bay, on the frontage line at 37.8 studs from the centreline (25 for half the carriageway, 0.8 for the kerb, 12 for the sidewalk). Each slot's look vector points at the road. The segment owns the slots. The kit only fills them.
+- **Module pivot.** The pivot sits at the bottom centre of the module's front face, on the frontage line. Setback is never baked into a mesh. The placer applies it as a slot offset: 0 normally, 2–4 studs for a recessed building, and up to 8–12 studs for a plaza or alley. Furniture uses a second row of slots 2 studs inside the kerb (see [[downtown-ref-environment]], O11).
+- **Stacking.** A building is `base (16) + middle × n (12 each) + top (3–4)`. Each piece has the same width, so any base fits under any middle in its width class. Roof props sit on the top piece's roof plane, on no more than 1 roof in 3.
+- **Corners and returns.** Use three piece families: *face* (the front only), *return-end* (the front plus a dressed side wall 1 bay deep, used next to an alley or gap) and *corner* (the front on two sides, used at intersections, with a 45° chamfer option for the theatre). At chase angles the camera sees the side walls of buildings ahead of an alley gap and on the outside of curves, so those walls must be dressed.
+- **Orientation families.** Only the front faces the road. Backs face away and are seen only through alleys and from the midground band. Each module is a closed mesh with a plain painted back and top, never an open shell, because single-sided faces vanish when seen from behind. Midground masses are four-sided with no "front". Skyline blocks are four-sided and windowless.
+- **Curves.** On the outside of a 300-stud-radius curve, 12-stud bays at 37.8 studs off the centreline open wedges of about 0.7 studs at the back of a 20-stud-deep building (2° per bay). On the inside they overlap by the same amount. Add a 1–2-stud pilaster glue piece every 2–3 bays on curve segments to hide this, following R1's glue-kit idea. Do not bend the meshes.
+- **Glue kit (R1).** Alley gaps (8–12 studs), a small plaza or park, a bridge abutment and the corners of a cross street. These pieces also act as district boundaries (section 2).
+
+## 2. Variety without visible repetition (deterministic)
+
+**Source (R2):** "A Shuffle Bag is a technique for controlling randomness to create the distribution we desire." Weighting means adding an item to the bag several times. `Next()` picks a random index among the items not yet drawn, swaps it to the end and refills when the bag is empty, so every cycle contains a fixed number of each item. **Source (R1):** players "were quicker to react negatively to repeated detail elements, as opposed to broad architectural repetition"; the hero piece "is only used a few times".
+
+**Inference (rules):**
+- **Seed.** Use one `Random.new(runSeed)` stream, and generate segments strictly in index order. Bag state carries from one segment to the next, so the same seed gives the same street. If any segment must ever be rebuilt alone, seed it with `hash(runSeed, segmentIndex)` and keep its bags local. Choose one model and keep to it.
+- **Bags per slot family.** Keep separate weighted shuffle bags for bases, middles, tops, roof props, signs and furniture, per side and per district. Weight is the number of copies in the bag.
+- **No immediate repeat.** The same base or top module may not appear within 3 bays on the same side. The same whole stack (base, middle and top combination) may not appear within 2 segments. When the bag refills, reject a draw that equals the last item drawn. R2's bag on its own can repeat across a refill boundary.
+- **Detail before architecture (R1).** Spend the variety budget on what the player notices first: awnings, signs, ground-floor colour and roof props. Middles can repeat more.
+- **Left/right pairing.** Opposite slots at the same distance along the road may not hold the same stack, and the two sides may not mirror each other. Alternate tall and low across the road so the horizon line zig-zags. Break each side every 3–5 bays with a height change of 8 studs or more, an alley or a setback (from O8 in the prior note).
+- **Landmark rhythm.** Landmarks are scheduled, not random: one every N segments with ±1 segment of jitter, on alternating sides, never at a hazard or a Milestone, and never the same landmark within the repeat window.
+- **District palettes.** A district is a weight table over the modules and the swatch palette. Accent colours come from the district's 2–3 accents only. Road and hazard swatches never change ([[downtown-ref-environment]], O12).
+- **Gradual transitions.** Change district weights over 3 segments (75/25, then 50/50, then 25/75), anchored by a glue piece such as a plaza, a bridge or an intersection, so the boundary looks planned rather than like a hard cut.
+
+## 3. Endless-runner streaming in Roblox
+
+**Source (R3, streaming):** `StreamingEnabled` is on by default for new places and "cannot be set in a script". StreamingMinRadius defaults to 64 and StreamingTargetRadius to 1024. Models are Nonatomic by default. In an `Atomic` model "all of its initial descendants are streamed in together". "Persistent models are intended for very rare circumstances." `StreamOutBehavior = Opportunistic` lets the client "aggressively garbage collect content". Instances created or cloned by client scripts are "exempted from streaming out unless they are parented under a server-created instance".
+**Source (R3, Model):** `LevelOfDetail = StreamingMesh` renders a "colored, coarse mesh that wraps around all child parts" outside the streaming radius. It has no texture support, physics, collision or raycasting. The Improve page also suggests setting world models' LevelOfDetail "to SLIM".
+**Source (R3, performance):** "multiple meshes with the same MeshContent are handled in a single draw call" when their SurfaceAppearances or TextureContents are identical. Set `RenderFidelity` to Automatic or Performance. Decorative parts should have CanCollide, CanTouch and CanQuery set to false. Box collision fidelity has "the lowest memory overhead". "Disable shadows on moving objects." Transparency causes overdraw. Rather than destroying an object, "send [it] to a pool". Meshes "can not exceed 20,000 triangles". The docs give **no** numeric part, triangle or memory budget for mobile.
+**Source (R4):** an EditableMesh is limited to "60,000 vertices and 20,000 triangles". "Editable assets are currently expensive for memory usage". Client memory budgets are strict, and creation "will fail and … return nil" when the device-specific budget is used up. The mesh is shown through `AssetService:CreateMeshPartAsync` or `MeshPart:ApplyMesh`, and several MeshParts can share one EditableMesh. It "fails by default in published games" until the Mesh / Image APIs setting is turned on, and loading an asset requires owner or share permission.
+
+**Inference:**
+- **MeshPart, not EditableMesh, for scenery.** Uploaded MeshParts that all share one palette TextureID are instanced (one draw call per mesh) and cost no editable-memory budget. EditableMesh would add a per-device failure path (a nil return), a publish setting and permission checks, and gives nothing a static kit needs. The JSON-to-Studio preview builder stays a preview tool. Production goes through the 3D Importer upload and AssetIds (see [[downtown-plan]], section 5).
+- **Window.** Keep 1 segment behind (the camera is only 12 studs behind, but hop arcs and the curve sight line need a margin), the current segment and 4 ahead. At 192 studs per segment that is about 960 studs of road. Recycle a segment once its `End` is more than 1 segment behind the car.
+- **Pool, don't destroy.** Each mesh type gets its own pool, and segment bodies get pools per segment type. A recycled module is moved to its new slot by CFrame (`workspace:BulkMoveTo` for batches; I did not check this API's page this session, so confirm it). Time-slice construction to a few ms per frame so that one new segment arrives every 1.7–2.7 s at 70–110 studs/s without a hitch.
+- **Who builds.** If scenery is purely cosmetic and seeded, the client can build it with no replication and no streaming. Client-made instances are exempt from stream-out, so the window logic above *is* the streaming system. If Lane 1 builds segments on the server, use one `Atomic` Model per segment so a segment never arrives half built, set `StreamOutBehavior = Opportunistic`, and do **not** use Persistent. `LevelOfDetail` impostors are untextured and apply only to server-streamed models, so they are no substitute for a hand-made skyline. Brian R decides.
+- **Per-part settings.** Scenery is Anchored with CanCollide, CanTouch and CanQuery all false, RenderFidelity Performance (Automatic for the landmark) and CollisionFidelity Box. CastShadow is off for furniture under about 4 studs, for midground and for the skyline. There is no Transparency anywhere on scenery.
+
+**Lighting (R5).** The `Technology` property is now deprecated and "superseded by LightingStyle". LightingStyle is `Soft` ("the stylized look") or `Realistic`, and `PrioritizeLightingQuality` trades "advanced shadows" against "view distance". The current docs give **no** cost figures for Future against ShadowMap. The Improve page says the engine disables shadows "altogether at quality levels below 4". `EnvironmentSpecularScale` defaults to 0 and drives environment reflections (relevant to the oil sheen in section 6). **Inference:** test `LightingStyle = Soft` with `PrioritizeLightingQuality = false` first, keeping the fixture's ClockTime 13.5 and Brightness 2.2. Budget the look so it still reads with **no** shadows: give ground and doorway recesses painted ambient occlusion in the swatch texture, because low-end phones lose shadows anyway. Any claim about the cost of Future or ShadowMap needs a phone test; I found no current source for it.
+
+## 4. Depth layering and haze
+
+**Source (R5):** Atmosphere `Density`: higher values mean "the more in-game objects/terrain will be obscured". A higher `Offset` gives a horizon silhouette; a lower one blends distant objects into the sky. `Haze` adds haziness "above the horizon and into the distance". The docs advise balancing Offset against Density. **Source (R6, S5):** a lower-detail distant backdrop avoids "high-frequency noise".
+**Inference:**
+- **Bands** ([[downtown-lookdev-fixture]]): frontage 0–25 studs from the road edge, midground 60–140, skyline 300–900. The skyline is a separate ring of 12–40-triangle blocks in two parallax layers. It moves with the car along Z, at about 0.9–1.0 of the car's speed for the far layer and 1.0 for the near layer, and is not tied to segments, so it never pops. Those blocks are the impostors: give them the band's hazed colour baked into the swatch.
+- **Haze is not the pop-in fix.** Atmosphere fades contrast but does not hard-clip geometry, so a segment appearing at 960 studs is still visible against open sky. Hide pop-in with distance and geometry instead: new segments enter beyond the point where the frontage rooflines first show (80–130 studs ahead, per the prior note) and well inside the skyline ring. Curves and landmarks also block the end of the road. Then tune Density and Offset so frontage at 700–960 studs is within about 10 value points of the skyline colour. Test this in Studio; no number came from the docs.
+- **Midground** is 4–8 boxy masses per segment side with a cap and no openings, roughly 40–120 triangles each, standing in the gaps between frontage buildings.
+
+## 5. Landmark readability at speed
+
+**Source:** none of R1–R6 covers sign legibility directly. The sign-trade rules of thumb I found conflict (1 inch per 10 ft against 1 inch per 30 ft), so I did not use them. **Inference (geometry):**
+- **Angular size.** With a 70° vertical field of view on a 720-pixel-tall phone viewport, an object h studs tall at d studs is about 514·h/d pixels. Taking 16 px as the minimum readable glyph (the same floor as the UI tokens), letters need h ≥ d/32: about 4 studs at 120 studs ahead and 6–7 studs at 200 (2 s of warning at 100 studs/s).
+- **Foreshortening is the bigger problem.** At 200 studs ahead, a facade 37.8 studs off the centreline sits at about 11° to the view, so a sign flat on the facade is squeezed to roughly 0.19 of its width. **Signs and marquees meant to be read at speed must face the camera:** vertical blade signs perpendicular to the facade, double-sided, 30–40 × 6–8 studs, carrying 4–6 letters 5–7 studs tall or one pictogram, with the bottom edge at 16 studs or higher.
+- **Theatre (B).** It sits at the near-right corner of the intersection, so its cross-street face points away from the camera. Use the 45° chamfered corner piece, a marquee wrapping the chamfer (its front faces the approach), a canopy 10–12 studs deep and the blade sign on the chamfer.
+- **Silhouette first.** The landmark's roofline should be at least 1.5× its neighbours' height, or have a unique top shape (dome, rooftop prop, tower), so it reads against the sky from about 300 studs out, before any text. Keep 1 bay of quiet frontage on each side of it. Give saturated accents to the landmark only in its segment.
+
+## 6. Hazard art: geometry, not flat decals
+
+**Inference (no source covers hazard art; synthesis):** at the fixture camera (6 studs up, looking 12° down), the road 30–60 studs ahead is seen at about 6–11°. A flat 3.5-stud-long decal is squeezed to about 0.4–0.7 studs on screen, so a decal pothole reads as a smudge.
+- **Pothole.** Make it a small MeshPart sitting on the road surface, about 4–6 studs across and stretched 1.3× along the road. Add a raised, broken rim 0.15–0.25 studs tall that is at least 15 value points lighter than the asphalt, and a dark interior disc about 0.1 below the rim's top. Paint a darker far inner wall band so it reads as the side of the hole facing the camera. The raised rim makes the interior read as recessed without cutting the road mesh. There is no separate shadow decal: the darkness is painted in.
+- **Oil slick.** Make it a flat mesh about 0.05 studs above the road, 6–10 studs across, near-black, with a thin teal or rainbow rim painted in the texture. For sheen, use a low-roughness SurfaceAppearance or Reflectance, which needs `EnvironmentSpecularScale > 0` (R5). It must have no rim shadow and no Transparency, to avoid overdraw and so it stays distinct from cool, soft, rimless shadows.
+- **Both** are kept on the shared hazard swatches, and each has a 4–6-stud clear area of quiet road around it, with no lane decals ([[downtown-ref-environment]], O10).
+
+## Actionable findings (proposals; Brian R owns segment, streaming and camera numbers)
+
+1. **Bay** 12 studs with a 4-stud sub-grid. Modules are 1, 2 or 3 bays. A storey is 12 studs, a shop base 16 and a cap 3–4.
+2. **Segment length** 192 studs (16 bays, 4 × 48). That is 1.7–2.7 s at 70–110 studs/s. A curve segment of the same length at radius 300 turns about 37°.
+3. **Sockets.** `Start` and `End` Attachments on the road centreline (pivot = Start), plus per-bay frontage slot Attachments on each side at 37.8 studs from the centreline, facing the road. Set the module pivot at the bottom centre of its front face, and apply setback as a slot offset (0, 2–4, or 8–12 for plazas).
+4. **Piece families:** face, return-end, corner and 45° chamfer corner. All are closed meshes with painted backs. Add a 1–2-stud pilaster glue piece every 2–3 bays on curves.
+5. **Variety.** Use one seeded `Random` stream with segments generated in order, and weighted shuffle bags per slot family, per side and per district. Reject a repeat across a bag refill. The same module may not appear within 3 bays, the same stack within 2 segments, and the two sides may not mirror each other.
+6. **Rhythm.** Break each side every 3–5 bays. Alternate tall and low across the road.
+7. **Landmark spacing.** One landmark every 4 segments ±1 (576–960 studs, about 6–12 s), on alternating sides, never at a hazard or Milestone, and no repeat of the same landmark within 8 segments.
+8. **District transitions** run over 3 segments (75/25, 50/50, 25/75), anchored by a glue piece such as a plaza, bridge or intersection.
+9. **Window.** Keep 1 segment behind, the current one and 4 ahead (about 960 studs). Pool and move pieces rather than destroying them, and time-slice building to a few ms per frame.
+10. **Triangle budget** per segment of 10k or less: frontage on both sides 7k (an average bay stack of about 220 triangles, so B's 400-triangle modules must be trimmed or made 2 bays wide), furniture 1.2k, midground 1.2k, road and markings 0.6k. A landmark can add 3k, and its segment then drops the midground. The shared skyline ring costs 3k or less. Total in view is about 55–58k, which stays under the plan's 60k.
+11. **Instances** per segment 100 MeshParts or fewer. Use one shared palette TextureID across all scenery so identical meshes batch, and give no scenery any Transparency.
+12. **MeshPart, not EditableMesh,** for every piece of scenery. EditableMesh has a 20k-triangle and 60k-vertex cap, a device memory budget that can return nil, and needs a publish setting and asset permissions.
+13. **Lighting test.** Test `LightingStyle = Soft` with `PrioritizeLightingQuality = false` first, with painted ambient occlusion so the look survives with no shadows. CastShadow should be on for frontage only. Results come from a phone, not from docs.
+14. **Signs and hazards.** Signs read at speed are blade or chamfer-facing, with letters at least d/32 (6–7 studs for 200 studs of warning). Potholes need a raised light rim, a dark interior and a stretch of 1.3× along the road. Oil uses a specular sheen with `EnvironmentSpecularScale > 0`.

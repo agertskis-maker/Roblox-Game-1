@@ -28,6 +28,7 @@ local Prototype = script.Parent.Parent:WaitForChild("Client"):WaitForChild("UI")
 local Screen = require(Prototype:WaitForChild("Screen"))
 local Store = require(Prototype:WaitForChild("Store"))
 local Motion = require(Prototype:WaitForChild("Motion"))
+local Priority = require(Prototype:WaitForChild("Priority"))
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
@@ -51,6 +52,10 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local screen = Screen.new(gui, "Desktop")
 local store = Store.new()
+local priority = Priority.new()
+trove:Add(function()
+	priority:destroy()
+end)
 local backdrop = Backdrop.build()
 trove:Add(function()
 	backdrop.destroy()
@@ -85,7 +90,13 @@ local function mount(key: string, path: { string }, layerName: string, options: 
 			assert(node, "missing " .. table.concat(path, "/"))
 		end
 		local module = require(node :: ModuleScript) :: any
-		local ctx = { store = store, screen = screen, layer = layers[layerName], world = backdrop.world }
+		local ctx = {
+			store = store,
+			screen = screen,
+			layer = layers[layerName],
+			world = backdrop.world,
+			priority = priority,
+		}
 		return module.new(ctx, options)
 	end)
 	if ok then
@@ -171,6 +182,8 @@ api.layers = layers
 -- Scenario host (scripted playback, cancellable, reproducible)
 local scenarios = Scenarios.new(api)
 api.scenarios = scenarios
+api.priority = priority
+scenarios:loadExtras(script.Parent:FindFirstChild("scenarios"))
 trove:Add(function()
 	scenarios:destroy()
 end)
@@ -416,6 +429,7 @@ function api.setProfile(name: string)
 end
 function api.reset()
 	scenarios:cancel()
+	priority:clear()
 	for _, k in { "settings", "garage", "portalCard", "welcome", "shop" } do
 		api.close(k)
 	end
@@ -445,6 +459,7 @@ control.OnInvoke = function(command: string, ...: any): any
 	local args = { ... }
 	if command == "debug" then
 		local out: { [string]: any } = { mode = store:get().mode, profile = screen:profile().name, failures = failures }
+		out.priority = priority:getDebugState()
 		for key, c in components do
 			if c.getDebugState then
 				local ok, d = pcall(function()

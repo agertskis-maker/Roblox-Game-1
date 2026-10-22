@@ -31,9 +31,29 @@ export type CarRef = {
 	variant: Variant,
 	family: string, -- family label, e.g. "Hatch", "Truck"
 	quirk: string, -- one short line
-	owned: boolean,
+	-- authoritative ownership as supplied; nil = unknown (never shown as NEW!). Treat only
+	-- `owned == false` as unowned.
+	owned: boolean?,
 	unseen: boolean?, -- earned but not looked at yet (Garage badge)
 	model: string?, -- a model under ReplicatedStorage.Cars, or nil (loading / unavailable)
+}
+
+-- A district inside one World run (fixture). Lengths are explicit boundary data in metres (the
+-- HUD unit); they are proposals for Lane 1, never equal spans invented by the HUD.
+export type District = {
+	id: string, -- "MainStreet" | "CityHall" | "HarborBridge" | "Midtown" | "SkylinePark"
+	name: string,
+	length: number, -- metres
+}
+export type DistrictPlan = {
+	districts: { District },
+	repeats: boolean, -- true: the cycle starts again after the last district (endless run)
+}
+
+-- A confirmed claim this run (the tray shows these; count = #claims).
+export type Claim = {
+	id: string, -- capture id (dedupe key)
+	car: CarRef,
 }
 
 export type Tutorial = {
@@ -47,9 +67,19 @@ export type Tutorial = {
 }
 
 export type KeysState = {
+	id: string?, -- capture id (identity for ordering and dedupe); fixtures always supply one
 	target: CarRef,
 	progress: number, -- 0..1 as supplied; 1 alone is NOT ownership
-	status: "Holding" | "Pending" | "Confirmed" | "Lost",
+	-- Holding: filling; Pending: full, waiting for confirmation (SECURING…); Confirmed: only after
+	-- a KeysConfirmed event; Lost / Canceled: ended without a claim (reason optional)
+	status: "Holding" | "Pending" | "Confirmed" | "Lost" | "Canceled",
+	reason: string?, -- truthful short reason for Canceled, e.g. "You hopped off"
+}
+
+-- An advance warning, only when the owning lane really supplies one.
+export type Warning = {
+	id: string,
+	reason: string, -- "TooHot" | ... (mapped to display text with a truthful fallback)
 }
 
 export type RunState = {
@@ -63,6 +93,10 @@ export type RunState = {
 	hopCooldown01: number, -- 0 ready .. 1 just used
 	dash: number?, -- remaining 0..1 while a Foot Dash runs, nil otherwise
 	best: number,
+	districtPlan: DistrictPlan?, -- explicit boundaries (fixture); nil hides the district strip
+	claims: { Claim }?, -- confirmed this run, in arrival order
+	pendingClaim: Claim?, -- shown as a distinct pending slot; never counted
+	warning: Warning?, -- nil when no advance warning exists
 }
 
 export type Results = {
@@ -72,6 +106,9 @@ export type Results = {
 	newBest: boolean,
 	claimed: { CarRef },
 	earnings: number,
+	endReason: string?, -- "Overheated" | ... ; nil = ended normally / unknown
+	joyride: number?, -- dollars, synthetic fixture
+	milestones: number?,
 }
 
 export type State = {
@@ -82,7 +119,10 @@ export type State = {
 	garage: { owned: number, total: number, unseen: number },
 	missionsClaimable: number,
 	tutorial: Tutorial?,
-	settings: { music: number, sfx: number },
+	-- local preview settings; musicOn is the Home toggle row (a real local setting, not saved)
+	settings: { music: number, sfx: number, musicOn: boolean? },
+	-- off-by-default proposals shown only in captioned review captures
+	proposals: { timers: boolean }?,
 	run: RunState?,
 	results: Results?,
 }
@@ -91,6 +131,15 @@ export type Event = {
 	id: string,
 	kind: string, -- "CashGain" | "CashSpend" | "Toast" | "LapPay" | "Milestone" | "KeysConfirmed"
 	-- | "AlreadyOwned" | "TutorialComplete" | "Unlock"
+	-- | "KeysStart" | "KeysCanceled" | "DistrictEnter" | "RareArrival" | "RunWarning"
+	-- | "Dismounted" | "RunEnded" | "ArrivedHome"
+	-- KeysStart / KeysConfirmed / KeysCanceled / AlreadyOwned carry `captureId` (the identity
+	-- of one capture); the event `id` stays unique per delivery for dedupe.
+	captureId: string?,
+	reason: string?, -- KeysCanceled, RunWarning, Dismounted, RunEnded
+	district: string?, -- DistrictEnter: District.id
+	cycle: number?, -- DistrictEnter: fixture-local cycle index (1 = first pass)
+	instanceId: string?, -- RareArrival: traffic car instance identity
 	amount: number?,
 	text: string?,
 	tone: string?, -- toasts: "Success" | "Info" | "Unlock"
@@ -114,7 +163,8 @@ function Store.baseline(): State
 		garage = { owned = 3, total = 12, unseen = 1 },
 		missionsClaimable = 1,
 		tutorial = nil,
-		settings = { music = 0.5, sfx = 0.6 },
+		settings = { music = 0.5, sfx = 0.6, musicOn = true },
+		proposals = { timers = false },
 		run = nil,
 		results = nil,
 	}
@@ -195,6 +245,7 @@ function Store.reset(self: StoreObject, state: State?)
 			"missionsClaimable",
 			"tutorial",
 			"settings",
+			"proposals",
 			"run",
 			"results",
 		}

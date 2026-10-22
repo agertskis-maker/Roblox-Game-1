@@ -105,6 +105,111 @@ PreviewTokens.Motion = table.freeze({
 	BigGainCooldown = 8,
 })
 
+-- ARCADE block (HUD rebuild, 2026-10-22; vault/design/specs/hud-rebuild-downtown-b.md). Scoped
+-- tokens for the rebuilt look measured from Adam's two new HUD references
+-- (vault/design/research/hud-ref-arcade-translation.md). Design px at scale 1.0; 1080p shows
+-- them at 1.5x. Every value is a preview choice; the approved shared Tokens are unchanged.
+local function seq(...: Color3): ColorSequence
+	local colours = { ... }
+	local points = {}
+	for i, c in colours do
+		table.insert(points, ColorSequenceKeypoint.new((i - 1) / (#colours - 1), c))
+	end
+	return ColorSequence.new(points)
+end
+
+PreviewTokens.Arcade = table.freeze({
+	-- Outlines: near-black navy everywhere; major 2.5 design px (≈3.75 px at 1080p), minor 1.75.
+	Ink = rgb(14, 20, 38),
+	OutlineMajor = 2.5,
+	OutlineMinor = 1.75,
+	OutlineButton = 3, -- the dark button boundary (≈4.5 px at 1080p)
+	-- Text roles (TextSize in design px). Display/Label use Fredoka One; Number/Timer use the
+	-- italic candidate (Nunito Black Italic, verified installed).
+	Text = table.freeze({
+		Display = 36, -- headings (approved display size)
+		Button = 28, -- wide button labels (measured cap 0.30–0.35 of the body height)
+		ButtonSmall = 18, -- Settings
+		Value = 40, -- Cash (approved counter size), car count
+		ValueRun = 28, -- Cash / count while driving
+		Earning = 22, -- the italic earning line (measured ≈ 0.6–0.85 of the numbers)
+		Label = 18,
+		Small = 16, -- minimum
+		Badge = 16,
+	}),
+	-- Buttons (design px). Wide ≈ 2.3:1 from the references; phones keep ≥ 48 hit height.
+	Button = table.freeze({
+		WideW = 150, -- measured 2.2–2.5:1 (ref-04 236×105 px, ref-03 199×79 px at 1080p)
+		WideH = 60,
+		CompactW = 124, -- phones/tablet portrait
+		CompactH = 50,
+		SmallW = 84, -- Settings (measured 35 design px tall: too small to touch, so the hit box is 48)
+		SmallH = 40, -- visual body; hit box padded to 48
+		Radius = 5, -- limited rounding (measured ≈ 0.075 × height)
+		Gap = 8, -- measured stack gap ≈ 6–9
+		IconScale = 0.74, -- icon box / body height (measured 0.41–0.74)
+		IconOverhang = 0, -- measured: icons stay inside the outer edge
+		GlossHeight = 0.22, -- narrow gloss band, fraction of body height
+		DepthOffset = 4, -- shallow dark lip under the body
+		Badge = 26,
+	}),
+	Stats = table.freeze({
+		IconCash = 48, -- measured ≈ 1.6–1.9 × number cap height
+		IconCars = 46,
+		RowGap = 4,
+		MarginLeft = 12,
+		MarginBottom = 12,
+	}),
+	-- Fills (top -> bottom gradients; rotation 90). Rainbow drifts sideways.
+	Fill = table.freeze({
+		Rainbow = seq(
+			rgb(255, 72, 72),
+			rgb(255, 170, 40),
+			rgb(255, 230, 60),
+			rgb(80, 220, 90),
+			rgb(60, 170, 255),
+			rgb(170, 90, 255),
+			rgb(255, 72, 200)
+		),
+		Garage = seq(rgb(110, 236, 255), rgb(30, 170, 240), rgb(20, 110, 220)),
+		Missions = seq(rgb(255, 196, 70), rgb(255, 140, 30), rgb(240, 96, 16)),
+		Settings = seq(rgb(255, 92, 92), rgb(222, 38, 46), rgb(176, 22, 34)),
+		Retry = seq(rgb(255, 196, 70), rgb(255, 140, 30), rgb(240, 96, 16)),
+		Home = seq(rgb(120, 245, 225), rgb(20, 196, 180), rgb(0, 140, 140)),
+		Gold = seq(rgb(255, 236, 120), rgb(255, 200, 40), rgb(230, 150, 0)),
+		Green = seq(rgb(150, 255, 120), rgb(60, 210, 80), rgb(24, 160, 58)),
+		Disabled = seq(rgb(196, 202, 212), rgb(150, 158, 172), rgb(120, 128, 142)),
+	}),
+	-- Number faces (gradients on the glyphs, dark outline around them)
+	Face = table.freeze({
+		Cash = seq(rgb(170, 255, 120), rgb(70, 230, 80), rgb(30, 186, 60)),
+		Cars = seq(rgb(150, 245, 255), rgb(50, 214, 250), rgb(20, 160, 230)),
+		Keys = seq(rgb(255, 240, 140), rgb(255, 206, 50), rgb(240, 160, 0)),
+		White = seq(rgb(255, 255, 255), rgb(255, 255, 255), rgb(228, 236, 248)),
+		Heat = seq(rgb(255, 236, 90), rgb(255, 150, 30), rgb(232, 60, 50)),
+		Danger = seq(rgb(255, 120, 100), rgb(240, 60, 50), rgb(200, 30, 40)),
+	}),
+	Badge = rgb(232, 36, 44), -- earned badges and the Settings red (requested treatments)
+	Motion = table.freeze({
+		RainbowDriftSeconds = 9, -- one slow sideways cycle; stopped in reduced motion
+		Press = 0.08,
+		Release = 0.12,
+	}),
+	-- Keys capture (proposal values; tune in recorded gameplay)
+	Keys = table.freeze({
+		Segments = 8, -- brief's 8–12 range, low end for phone clarity
+		RingSize = 92, -- design px, clamped per device
+		AlmostAt = 0.75,
+		ReleaseSeconds = 0.15,
+		RibbonHoldSeconds = 1.6,
+	}),
+})
+
+PreviewTokens.FontItalicNumber = function(): Font
+	-- verified in Studio's bundled font families (Nunito: "Black Italic", weight 900 = Enum.FontWeight.Heavy)
+	return Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+end
+
 PreviewTokens.Font = Tokens.font
 PreviewTokens.FontBody = function(): Font
 	-- readable label face candidate (verified Roblox family; preview choice)
