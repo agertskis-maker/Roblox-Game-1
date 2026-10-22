@@ -16,9 +16,11 @@ Rules:
 
 | Month | Reads used | Limit |
 |---|---|---|
-| 2026-10 | 0 | 6 |
+| 2026-10 | 2 | 6 |
 
 ## Read log
 
 | Date | Tool | Screen / file | Why (Adam's hand edit) | Running count |
 |---|---|---|---|---|
+| 2026-10-21 | `whoami` | none (account and plan lookup) | Not a hand edit: Adam asked for the "Car Hop UI" file to be created for the island signs, and creating a file needs the plan key, which only `whoami` returns. Counted as a read per [[0012-figma-ui-workflow]] | 1 |
+| 2026-10-21 | `use_figma` with `node.screenshot()` (one call, screenshots of several frames) | "Car Hop UI", page "Island signs" ([[island-signs]]) | Not a hand edit: one visual check of the newly drawn header pictures and a signpost board before sending the link to Adam, allowed by the session's 2-read budget. The four header pictures and "Signpost board – DUSTY HIGHWAY" came back; the stand front frames did not appear in the result and were not visually checked | 2 |

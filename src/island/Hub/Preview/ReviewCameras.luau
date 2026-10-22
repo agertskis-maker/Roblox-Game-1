@@ -14,7 +14,8 @@ local ReviewCameras: { View } = {
 	{ name = "WaterfallBase", position = Vector3.new(-100, 14, 205), lookAt = Vector3.new(-120, 62, 280) },
 	{ name = "MidLedgeBasin", position = Vector3.new(-78, 86, 232), lookAt = Vector3.new(-124, 70, 286) },
 	{ name = "TreeGroup", position = Vector3.new(-118, 7, -150), lookAt = Vector3.new(-170, 8, -60) },
-	{ name = "FlowerMeadow", position = Vector3.new(96, 5, -138), lookAt = Vector3.new(150, 2, -70) },
+	-- re-aimed 2026-10-21 at a real drift (red tulips south-west of the hub; the old camera saw lawn)
+	{ name = "FlowerMeadow", position = Vector3.new(-376.3, 22.8, -689.7), lookAt = Vector3.new(-383, 18, -702) },
 	{ name = "Overview", position = Vector3.new(0, 420, -860), lookAt = Vector3.new(0, 40, 200) },
 }
 

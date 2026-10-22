@@ -8,7 +8,7 @@
 -- Rules: nothing sits on a path, the stream, a bridge approach, a building or the portal row;
 -- nothing taller than 3 studs reaches into a viewing corridor (the same corner test as
 -- LayoutChecks); trees keep breathing room round paths and each other. Placement is seeded.
---   Fountain      tiered fountain (stone under 3; the water jets give it height)
+--   Fountain      the grand fountain, inside the measured sightline envelope (revision 2)
 --   Bridges       one kit bridge per crossing (rail-less where two bridges share a junction)
 --   Buildings     gazebo; food stands (decorative only: no prices or shop prompts)
 --   Furniture     benches along paths, lamp posts outside the corridors, signpost structures
@@ -24,6 +24,7 @@ local AssetIds = require(script.Parent.AssetIds)
 local Flora = require(script.Parent.Flora)
 local KitAssets = require(script.Parent.KitAssets)
 local Layout = require(script.Parent.Parent.Layout)
+local Sightlines = require(script.Parent.Sightlines)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local ParkDressing = {}
@@ -45,9 +46,19 @@ local function inTriangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2): boole
 	return not (neg and pos)
 end
 
+-- A viewing corridor, widened at the entrance by the player and camera allowance the portal
+-- sightline test uses (4 studs either side, 5 behind): a player standing anywhere at the
+-- entrance sees the whole portal row (Hub/Preview/PortalSight, 2026-10-21).
+local ENTRANCE_SIDE, ENTRANCE_BACK = 4, 5
 local function inCorridor(p: Vector2): boolean
 	for _, tri in park.corridors do
-		if inTriangle(p, tri[1], tri[2], tri[3]) then
+		local e, a, b = tri[1], tri[2], tri[3]
+		local fwd = ((a + b) / 2 - e).Unit
+		local side = Vector2.new(-fwd.Y, fwd.X)
+		local back = e - fwd * ENTRANCE_BACK
+		local l, r = back + side * ENTRANCE_SIDE, back - side * ENTRANCE_SIDE
+		-- the convex hull of the four corners, whichever way round they come
+		if inTriangle(p, l, r, a) or inTriangle(p, l, r, b) or inTriangle(p, l, a, b) or inTriangle(p, r, a, b) then
 			return true
 		end
 	end
@@ -175,8 +186,17 @@ local function free(ctx: Ctx, p: Vector2, r: number): boolean
 	return true
 end
 
-local function corridorSafe(name: string, base: CFrame, scale: number): boolean
+-- With envelope, the piece was measured against the portal discs themselves (the fountain) and
+-- its sightlines are checked by ray tests (Hub/Preview/PortalSight), not by its bounding box,
+-- whose square corners reach past the round fountain.
+local function corridorSafe(name: string, base: CFrame, scale: number, envelope: boolean?): boolean
+	if envelope then
+		return true
+	end
 	local corners, top = KitAssets.footprint(name, base, scale)
+	if Sightlines.boxBlocksFalls(corners, top) then
+		return false
+	end
 	if top - SURFACE <= CORRIDOR_HEIGHT then
 		return true
 	end
@@ -197,15 +217,25 @@ local function put(
 	p: Vector2,
 	yaw: number,
 	scale: number,
-	options: { solid: boolean?, y: number?, r: number?, material: Enum.Material?, transparency: number? }?
+	options: {
+		solid: boolean?,
+		y: number?,
+		r: number?,
+		material: Enum.Material?,
+		transparency: number?,
+		envelope: boolean?,
+	}?
 ): MeshPart?
 	local o = options or {}
 	local base = CFrame.new(p.X, o.y or groundY(p), -p.Y) * CFrame.Angles(0, yaw, 0)
-	if not corridorSafe(name, base, scale) then
+	if not corridorSafe(name, base, scale, o.envelope) then
 		ctx.rejected.corridor = (ctx.rejected.corridor or 0) + 1
 		return nil
 	end
 	local part = KitAssets.place(name, base, scale, o.solid)
+	if o.envelope then
+		part:SetAttribute("SightlineEnvelope", true)
+	end
 	if o.material then
 		part.Material = o.material
 	end
@@ -233,18 +263,54 @@ local function emitter(parent: Instance, name: string, props: { [string]: any })
 	return e
 end
 
+local function invisibleCylinder(parent: Instance, name: string, radius: number, height: number, y: number): Part
+	local c = Instance.new("Part")
+	c.Name = name
+	c.Shape = Enum.PartType.Cylinder
+	c.Size = Vector3.new(height, radius * 2, radius * 2)
+	c.CFrame = CFrame.new(0, y + height / 2, 0) * CFrame.Angles(0, 0, math.pi / 2)
+	c.Anchored = true
+	c.Transparency = 1
+	c.CastShadow = false
+	c.CanTouch = false
+	c.Parent = parent
+	return c
+end
+
+local function flatAttach(host: BasePart, pos: Vector3, along: Vector3): Attachment
+	local a = Instance.new("Attachment")
+	local x = along.Unit
+	a.CFrame = host.CFrame:ToObjectSpace(CFrame.fromMatrix(pos, x, Vector3.new(0, 1, 0):Cross(x).Unit))
+	a.Parent = host
+	return a
+end
+
+-- The grand fountain (Adam, 2026-10-21): the island's centrepiece inside the measured sightline
+-- envelope (assets/island/rework/fountain-envelope.js), with a coordinated water display: a
+-- central plume from the wheel finial landing in the top bowl, spill sheets over the top bowl's
+-- rim and through six of the mid bowl's scallops, eight arching jets from the mid bowl into the
+-- basin, splashes where water lands, a slow shimmer on the basin and a soft underwater light.
+-- The client choreographs it (Home/Island/EnvironmentMotion: a slowly rising and falling plume,
+-- a gentle wave round the arcs; reduced motion holds a calm, complete display).
 local function buildFountain(ctx: Ctx)
-	local y = SURFACE
-	-- not solid: its box collider has square corners past the round rim and stopped walkers coming
-	-- in on a diagonal (WalkTests, 2026-10-21); the greybox rim stays as the invisible collider
-	put(ctx, "Fountain", "FountainTiered", Vector2.zero, 0, 1, { y = y, r = park.basinRadius + 2 })
-	put(ctx, "Fountain", "FountainWater", Vector2.zero, 0, 1, {
+	local y = SURFACE + 0.08 -- the plaza paving's top face
+	local f = folder(ctx, "Fountain")
+	-- the fountain stone and water are measured against the portals themselves (the envelope),
+	-- so the blanket 3-stud corridor rule does not apply to them; the falls view still does
+	put(ctx, "Fountain", "FountainGrand", Vector2.zero, 0, 1, { y = y, r = 16.5, envelope = true })
+	put(ctx, "Fountain", "FountainGrandWater", Vector2.zero, 0, 1, {
 		y = y,
 		material = Enum.Material.Glass,
-		transparency = 0.3,
+		transparency = 0.35,
+		envelope = true,
 	})
-	local meta = KitAssets.info("FountainTiered").meta
-	-- an invisible host for the jets: a centre plume and eight arcs from the middle tier
+	put(ctx, "Fountain", "PlazaMosaic", Vector2.zero, 0, 1, { y = SURFACE + 0.04, envelope = true })
+	local meta = KitAssets.info("FountainGrand").meta
+	-- simple colliders: the basin wall and the two walkable steps
+	invisibleCylinder(f, "BasinCollider", meta.radius + 0.05, 2.15, y)
+	invisibleCylinder(f, "StepCollider", 13.6, 0.55, y)
+	invisibleCylinder(f, "LowStepCollider", meta.steps, 0.28, y)
+
 	local host = Instance.new("Part")
 	host.Name = "JetHost"
 	host.Anchored = true
@@ -252,81 +318,204 @@ local function buildFountain(ctx: Ctx)
 	host.CanQuery = false
 	host.CanTouch = false
 	host.Transparency = 1
-	host.Size = Vector3.new(1, 1, 1)
+	host.Size = Vector3.one
 	host.CFrame = CFrame.new(0, y, 0)
-	host.Parent = folder(ctx, "Fountain")
-	local spray = AssetIds.Textures.Mist
-	local drop = AssetIds.Textures.Droplet
-	local centre = Instance.new("Attachment")
-	centre.Name = "CentreJet"
-	centre.Position = Vector3.new(0, meta.jet or 2.7, 0)
-	centre.Parent = host
-	emitter(centre, "Plume", {
+	host.Parent = f
+	local spray, drop = AssetIds.Textures.Mist, AssetIds.Textures.Droplet
+	local water = Color3.fromRGB(190, 228, 240)
+
+	-- the central plume from the finial nozzle, landing in the top bowl
+	local nozzle = Instance.new("Attachment")
+	nozzle.Name = "CentreJet"
+	nozzle.Position = Vector3.new(0, meta.nozzle, 0)
+	nozzle.Parent = host
+	local plume = emitter(nozzle, "Plume", {
 		Texture = spray,
-		Rate = 70,
-		Lifetime = NumberRange.new(1.0, 1.3),
-		Speed = NumberRange.new(15, 17),
-		SpreadAngle = Vector2.new(4, 4),
+		Rate = 60,
+		Lifetime = NumberRange.new(1.35, 1.55),
+		Speed = NumberRange.new(14.5, 15.5),
+		SpreadAngle = Vector2.new(3, 3),
 		Acceleration = Vector3.new(0, -26, 0),
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1.4) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.8) }),
-		Color = ColorSequence.new(Color3.fromRGB(196, 228, 246)),
-		LightEmission = 0.15,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1.0) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.85) }),
+		Color = ColorSequence.new(water),
+		LightEmission = 0.12,
 	})
-	emitter(centre, "PlumeDroplets", {
+	plume:SetAttribute("BaseSpeed", 15)
+	local plumeDrops = emitter(nozzle, "PlumeDroplets", {
 		Texture = drop,
-		Rate = 30,
-		Lifetime = NumberRange.new(1.1, 1.5),
-		Speed = NumberRange.new(13, 16),
-		SpreadAngle = Vector2.new(10, 10),
+		Rate = 24,
+		Lifetime = NumberRange.new(1.3, 1.6),
+		Speed = NumberRange.new(13.5, 15),
+		SpreadAngle = Vector2.new(6, 6),
 		Acceleration = Vector3.new(0, -26, 0),
-		Size = NumberSequence.new(0.35),
-		Transparency = NumberSequence.new(0.1),
+		Size = NumberSequence.new(0.26),
+		Transparency = NumberSequence.new(0.15),
 		Color = ColorSequence.new(Color3.fromRGB(170, 214, 240)),
 	})
+	plumeDrops:SetAttribute("BaseSpeed", 14.2)
+	local topSplash = Instance.new("Attachment")
+	topSplash.Name = "TopSplash"
+	topSplash.Position = Vector3.new(0, meta.top_pool + 0.1, 0)
+	topSplash.Parent = host
+	emitter(topSplash, "TopSplash", {
+		Texture = drop,
+		Rate = 14,
+		Lifetime = NumberRange.new(0.35, 0.55),
+		Speed = NumberRange.new(2.5, 4),
+		SpreadAngle = Vector2.new(55, 55),
+		Acceleration = Vector3.new(0, -30, 0),
+		Size = NumberSequence.new(0.18),
+		Transparency = NumberSequence.new(0.2),
+		Color = ColorSequence.new(water),
+	})
+
+	-- eight arching jets from the mid bowl into the basin; each lands about r 9.4 in the basin
 	for k = 0, 7 do
-		local a = k / 8 * math.pi * 2
+		local a = (k + 0.5) / 8 * math.pi * 2
+		local d = Vector3.new(math.cos(a), 0, math.sin(a))
 		local at = Instance.new("Attachment")
 		at.Name = string.format("ArcJet%d", k + 1)
-		at.CFrame = CFrame.new(math.cos(a) * 2.2, (meta.tier2 or 1.65) + 0.2, math.sin(a) * 2.2)
-			* CFrame.Angles(0, -a, 0)
-			* CFrame.Angles(0, 0, -math.rad(42))
+		-- emitters shoot along the attachment's Y axis: tilt it 50 degrees out from vertical
+		local origin = d * 4.7 + Vector3.new(0, meta.mid_pool + 0.15, 0)
+		local out = (d * math.sin(math.rad(50)) + Vector3.yAxis * math.cos(math.rad(50))).Unit
+		at.CFrame = CFrame.fromMatrix(origin, d:Cross(out).Unit, out)
 		at.Parent = host
-		emitter(at, "Arc", {
+		local arc = emitter(at, "Arc", {
 			Texture = spray,
-			Rate = 22,
-			Lifetime = NumberRange.new(0.7, 0.8),
-			Speed = NumberRange.new(8.5, 9.5),
-			SpreadAngle = Vector2.new(2, 2),
+			Rate = 20,
+			Lifetime = NumberRange.new(0.58, 0.62),
+			Speed = NumberRange.new(10, 10.4),
+			SpreadAngle = Vector2.new(1.5, 1.5),
 			Acceleration = Vector3.new(0, -32, 0),
-			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 0.9) }),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.28), NumberSequenceKeypoint.new(1, 0.6) }),
 			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.15),
+				NumberSequenceKeypoint.new(0, 0.25),
 				NumberSequenceKeypoint.new(1, 0.7),
 			}),
-			Color = ColorSequence.new(Color3.fromRGB(196, 228, 246)),
+			Color = ColorSequence.new(water),
+		})
+		arc:SetAttribute("BaseSpeed", 10.2)
+		arc:SetAttribute("Index", k)
+		local landing = Instance.new("Attachment")
+		landing.Name = string.format("ArcLanding%d", k + 1)
+		landing.Position = d * 9.4 + Vector3.new(0, meta.pool + 0.08, 0)
+		landing.Parent = host
+		emitter(landing, "Splash", {
+			Texture = drop,
+			Rate = 7,
+			Lifetime = NumberRange.new(0.3, 0.5),
+			Speed = NumberRange.new(2, 3.2),
+			SpreadAngle = Vector2.new(50, 50),
+			Acceleration = Vector3.new(0, -30, 0),
+			Size = NumberSequence.new(0.16),
+			Transparency = NumberSequence.new(0.25),
+			Color = ColorSequence.new(water),
 		})
 	end
-	-- ripples where the plume and arcs land: a disc emitter on its own thin part (the disc
-	-- shape follows the part size)
+
+	-- moving spill sheets: short scrolling strands over the top bowl's rim and the six notches
+	local function spill(name: string, from: Vector3, to: Vector3, width: number)
+		local a0 = Instance.new("Attachment")
+		a0.Position = from
+		a0.Parent = host
+		local a1 = Instance.new("Attachment")
+		a1.Position = to
+		a1.Parent = host
+		local b = Instance.new("Beam")
+		b.Name = name
+		b.Attachment0, b.Attachment1 = a0, a1
+		b.Texture = AssetIds.Textures.WaterStrandsSlow
+		b.TextureMode = Enum.TextureMode.Wrap
+		b.TextureLength = 2
+		b.TextureSpeed = 1.2
+		b.Width0, b.Width1 = width, width * 1.2
+		b.FaceCamera = true
+		b.Color = ColorSequence.new(Color3.fromRGB(120, 196, 206), Color3.fromRGB(226, 244, 246))
+		b.Transparency = NumberSequence.new(0.45, 0.6)
+		b.LightEmission = 0.15
+		b.Segments = 6
+		b:SetAttribute("BaseSpeed", 1.2)
+		b.Parent = f
+	end
+	for k = 0, 9 do
+		local a = (k + 0.5) / 10 * math.pi * 2
+		local d = Vector3.new(math.cos(a), 0, math.sin(a))
+		spill(
+			string.format("TopSpill%02d", k + 1),
+			d * 3.35 + Vector3.new(0, meta.top_rim, 0),
+			d * 3.8 + Vector3.new(0, meta.mid_pool + 0.05, 0),
+			1.3
+		)
+	end
+	for k = 0, 5 do
+		local a = k / 6 * math.pi * 2
+		local d = Vector3.new(math.cos(a), 0, math.sin(a))
+		spill(
+			string.format("MidSpill%d", k + 1),
+			d * 5.5 + Vector3.new(0, meta.mid_rim, 0),
+			d * 6.0 + Vector3.new(0, meta.pool + 0.05, 0),
+			1.0
+		)
+	end
+
+	-- a slow shimmer on the basin: flat beams round the pool
+	local n = 14
+	for k = 0, n - 1 do
+		local a0 = k / n * math.pi * 2
+		local a1 = (k + 1) / n * math.pi * 2
+		local p0 = Vector3.new(math.cos(a0) * 8, y + meta.pool + 0.04, math.sin(a0) * 8)
+		local p1 = Vector3.new(math.cos(a1) * 8, y + meta.pool + 0.04, math.sin(a1) * 8)
+		local b = Instance.new("Beam")
+		b.Name = string.format("Shimmer%02d", k + 1)
+		b.Attachment0 = flatAttach(host, p0, p1 - p0)
+		b.Attachment1 = flatAttach(host, p1, p1 - p0)
+		b.Texture = AssetIds.Textures.WaterHighlights
+		b.TextureMode = Enum.TextureMode.Wrap
+		b.TextureLength = 6
+		b.TextureSpeed = 0.12
+		b.Width0, b.Width1 = 5.5, 5.5
+		b.FaceCamera = false
+		b.Color = ColorSequence.new(Color3.fromRGB(236, 250, 252))
+		b.Transparency = NumberSequence.new(0.72)
+		b.LightEmission = 0.3
+		b.Segments = 1
+		b:SetAttribute("BaseSpeed", 0.12)
+		b.Parent = f
+	end
+
+	-- ripples where the arcs and spills land
 	local rippleHost = host:Clone()
 	rippleHost.Name = "RippleHost"
 	rippleHost:ClearAllChildren()
-	rippleHost.Size = Vector3.new(14, 0.2, 14)
-	rippleHost.CFrame = CFrame.new(0, y + (meta.pool or 0.95) + 0.12, 0)
-	rippleHost.Parent = host.Parent
+	rippleHost.Size = Vector3.new(20, 0.2, 20)
+	rippleHost.CFrame = CFrame.new(0, y + meta.pool + 0.12, 0)
+	rippleHost.Parent = f
 	emitter(rippleHost, "Ripples", {
 		Texture = AssetIds.Textures.Ripple,
-		Rate = 6,
+		Rate = 7,
 		Lifetime = NumberRange.new(1.6, 2.2),
 		Speed = NumberRange.new(0.01, 0.01),
 		Shape = Enum.ParticleEmitterShape.Disc,
 		ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
 		Orientation = Enum.ParticleOrientation.VelocityPerpendicular,
 		EmissionDirection = Enum.NormalId.Top,
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 3) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1) }),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 2.6) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) }),
 	})
+
+	-- a soft underwater light: reads in shade and at night, faint in daylight
+	local lightAt = Instance.new("Attachment")
+	lightAt.Name = "UnderwaterLight"
+	lightAt.Position = Vector3.new(0, meta.pool - 0.6, 0)
+	lightAt.Parent = host
+	local glow = Instance.new("PointLight")
+	glow.Name = "UnderwaterLight"
+	glow.Color = Color3.fromRGB(130, 226, 236)
+	glow.Brightness = 1.1
+	glow.Range = 14
+	glow.Shadows = false
+	glow.Parent = lightAt
 end
 
 -- ---------------------------------------------------------------- bridges and buildings

@@ -131,7 +131,8 @@ function LayoutChecks.run(): { [string]: any }
 	local corridors = Layout.Data.park.corridors
 	local function scan(parts: { Instance }, ownPlot: number?)
 		for _, d in parts do
-			if d:IsA("BasePart") and d.Transparency < 1 then
+			-- the grand fountain is held to its measured sightline envelope instead (PortalSight)
+			if d:IsA("BasePart") and d.Transparency < 1 and not d:GetAttribute("SightlineEnvelope") then
 				local top = -math.huge
 				local cs = corners(d)
 				for _, c in cs do

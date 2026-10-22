@@ -26,6 +26,8 @@ AssetIds.Textures = {
 	Sparkle = id(87030054749344),
 	Glow = id(109290330063558),
 	Current = id(103576178978702),
+	-- boost-lane chevron (textures.js chevron.png), uploaded 2026-10-21 (revision 2)
+	Chevron = id(136467391577760),
 }
 
 -- The kit palette (assets/island/kit/kitlib.py, 16 x 16 swatches), uploaded 2026-10-21.

@@ -253,6 +253,25 @@ function current(seed, w = 512, h = 128) {
 	});
 }
 
+// Boost-lane chevron: one soft white chevron per tile pointing along +U (the beam's direction),
+// with clear space before and after, so a beam repeats it down the lane. Soft edges, a slightly
+// brighter core, transparent elsewhere.
+function chevron(w = 128, h = 64) {
+	const seg = (px, py, ax, ay, bx, by) => {
+		const dx = bx - ax, dy = by - ay;
+		const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
+		return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+	};
+	return image(w, h, (u, v) => {
+		// in tile units: u 0..1 along, v 0..1 across, aspect 2:1
+		const x = u * 2, y = v;
+		const d = Math.min(seg(x, y, 0.62, 0.14, 1.22, 0.5), seg(x, y, 0.62, 0.86, 1.22, 0.5));
+		const a = 1 - smooth(0.055, 0.095, d);
+		const core = 1 - smooth(0, 0.05, d);
+		return [1, 1, 1, clamp(0.85 * a + 0.15 * core)];
+	});
+}
+
 const jobs = [
 	["water-body.png", () => streaks({ seed: SEED + 1, strands: 26, gapBias: 0.25, softness: 0.7, brokenness: 0.15 })],
 	["water-strands-fast.png", () => streaks({ seed: SEED + 2, strands: 18, gapBias: 0.5, softness: 0.5, brokenness: 0.45 })],
@@ -268,6 +287,7 @@ const jobs = [
 	["sparkle.png", () => sparkle()],
 	["glow.png", () => glow()],
 	["current.png", () => current(SEED + 9)],
+	["chevron.png", () => chevron()],
 ];
 
 fs.mkdirSync(OUT, { recursive: true });

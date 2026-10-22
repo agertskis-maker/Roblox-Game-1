@@ -6,7 +6,9 @@
 --     distance and off far away (the beams keep a moving impression from every plot);
 --   reduced motion: beam scroll slowed but still flowing, spray, droplets and whitewater cut
 --     back hard, mist and ripples halved, fireflies off;
---   rainbow: strongest when the sun is behind the viewer, faded otherwise and far away.
+--   rainbow: strongest when the sun is behind the viewer, faded otherwise and far away;
+--   boost lanes: the avenue chevrons flow toward where they point and breathe softly; reduced
+--     motion holds them still and steady (the route stays marked).
 -- Reduced motion follows GuiService.ReducedMotionEnabled (the player's Roblox setting); the
 -- development preview may set the LocalPlayer attribute "Lane3ReducedMotionOverride" (never
 -- saved), which wins while it is set. Settings refresh four times a second, not every frame.
@@ -88,12 +90,87 @@ local function restoreEmitters(host: Instance)
 	end
 end
 
+-- The grand fountain's slow choreography (after the distance and reduced-motion rates): the
+-- plume rises and falls over 14 s (its lifetime follows, so it still lands in the top bowl); a
+-- gentle wave runs round the eight arcs every 9 s, each arc a little fuller and longer as it
+-- passes. Reduced motion holds the plume at a steady middle height and keeps every other arc
+-- running, steady, so the display stays complete but calm.
+local PLUME_PERIOD, WAVE_PERIOD = 14, 9
+local G, PLUME_DROP = 26, 2.75 -- the plume's gravity and its fall from the nozzle to the top pool
+local function choreograph(fountain: Instance, now: number, calm: boolean)
+	local rise = if calm then 0.5 else 0.5 + 0.5 * math.sin(now * 2 * math.pi / PLUME_PERIOD)
+	for _, d in fountain:GetDescendants() do
+		if d:IsA("ParticleEmitter") then
+			local base = d:GetAttribute("BaseSpeed")
+			if type(base) == "number" then
+				if d.Name == "Plume" or d.Name == "PlumeDroplets" then
+					local v = base * (0.82 + 0.36 * rise)
+					d.Speed = NumberRange.new(v - 0.5, v + 0.5)
+					local life = (v + math.sqrt(v * v + 2 * G * PLUME_DROP)) / G
+					d.Lifetime = NumberRange.new(life * 0.95, life * 1.02)
+				elseif d.Name == "Arc" then
+					local k = d:GetAttribute("Index") :: number? or 0
+					if calm then
+						d.Speed = NumberRange.new(base - 0.2, base + 0.2)
+						if k % 2 == 1 then
+							d.Rate = 0
+						end
+					else
+						local w = 0.5 + 0.5 * math.sin(now * 2 * math.pi / WAVE_PERIOD - k * math.pi / 4)
+						local v = base * (0.95 + 0.06 * w)
+						d.Speed = NumberRange.new(v - 0.2, v + 0.2)
+						d.Rate *= 0.6 + 0.4 * w
+					end
+				end
+			end
+		end
+	end
+end
+
 local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 	local host = waterfall:WaitForChild("WaterHost") :: BasePart
 	local centre = Vector3.new(-120, 60, 280)
 	local last = 0
+	local lanes: { Beam } = {}
+	local lanesFolder: Instance? = nil
+	local calmLanes: boolean? = nil
 	trove:Connect(RunService.RenderStepped, function()
 		local now = os.clock()
+		-- boost lanes, every frame (a few dozen beams): a slow breathing glow
+		local folder = root:FindFirstChild("BoostLanes")
+		if folder ~= lanesFolder then
+			lanesFolder = folder
+			calmLanes = nil
+			table.clear(lanes)
+			if folder then
+				for _, d in folder:GetChildren() do
+					if d:IsA("Beam") then
+						table.insert(lanes, d)
+					end
+				end
+			end
+		end
+		local calmNow = reducedMotion()
+		if calmNow then
+			if calmLanes ~= true then
+				for _, b in lanes do
+					b.TextureSpeed = 0
+					b.Transparency = NumberSequence.new(0.25)
+				end
+				calmLanes = true
+			end
+		else
+			if calmLanes ~= false then
+				for _, b in lanes do
+					b.TextureSpeed = b:GetAttribute("BaseSpeed") :: number? or 0.6
+				end
+				calmLanes = false
+			end
+			for _, b in lanes do
+				local phase = (b:GetAttribute("Avenue") :: number? or 0) * 0.9
+				b.Transparency = NumberSequence.new(0.18 + 0.16 * (0.5 + 0.5 * math.sin(now * 2.1 + phase)))
+			end
+		end
 		if now - last < REFRESH then
 			return
 		end
@@ -112,6 +189,13 @@ local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 		if fountain then
 			local d = (camera.CFrame.Position - FOUNTAIN_AT).Magnitude
 			scaleEmitters(fountain, 1 - math.clamp((d - FOUNTAIN_NEAR) / (FOUNTAIN_FAR - FOUNTAIN_NEAR), 0, 1), calm)
+			choreograph(fountain, now, calm)
+			for _, b in fountain:GetDescendants() do
+				if b:IsA("Beam") and type(b:GetAttribute("BaseSpeed")) == "number" then
+					local speed = b:GetAttribute("BaseSpeed") :: number
+					b.TextureSpeed = if calm then speed * 0.45 else speed
+				end
+			end
 		end
 		for _, d in waterfall:GetDescendants() do
 			if d:IsA("Beam") then
@@ -121,11 +205,13 @@ local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 				end
 				local baseT = d:GetAttribute("BaseTransparency")
 				if type(baseT) == "number" then
-					-- a rainbow shows with the sun behind the viewer, looking into the spray
+					-- the mist rainbow: always faintly there by day (the sun stands north of the
+					-- falls, so a strictly physical rainbow would never show from the park), a
+					-- little stronger with the sun behind the viewer, fading out far away
 					local view = (centre - camera.CFrame.Position).Unit
 					local antiSun = -Lighting:GetSunDirection()
-					local align = math.clamp((view:Dot(antiSun) - 0.35) / 0.45, 0, 1)
-					local visible = align * (1 - math.clamp((distance - 500) / 400, 0, 1))
+					local align = math.clamp((view:Dot(antiSun) + 0.2) / 0.8, 0, 1)
+					local visible = (0.7 + 0.3 * align) * (1 - math.clamp((distance - 650) / 350, 0, 1))
 					local t = 1 - (1 - baseT) * visible
 					d.Transparency = NumberSequence.new(t)
 				end

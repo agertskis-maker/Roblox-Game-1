@@ -23,10 +23,14 @@ local Waterfall = {}
 local rgb = Color3.fromRGB
 local TEX = AssetIds.Textures
 
--- Palette (Adam's suggestion, tuned by eye)
+-- Palette (Adam's suggestion, tuned by eye). Revision 2 (Adam, 2026-10-21): the main drop is
+-- blue-green and see-through in the middle; white belongs at the lip, the broken edges, narrow
+-- streaks, turbulence and the impact.
 Waterfall.Palette = {
-	Lip = rgb(44, 127, 179),
-	Body = rgb(58, 147, 196),
+	LipWhite = rgb(226, 244, 246),
+	Lip = rgb(52, 140, 150),
+	Body = rgb(64, 156, 158),
+	Lower = rgb(118, 186, 190),
 	Aerated = rgb(220, 239, 248),
 	Foam = rgb(244, 251, 255),
 	FoamShadow = rgb(191, 216, 230),
@@ -34,7 +38,8 @@ Waterfall.Palette = {
 local P = Waterfall.Palette
 
 -- Colour along one full drop, t from 0 (source) to 1 (impact at the lake).
-local STOPS: { { any } } = { { 0, P.Lip }, { 0.22, P.Body }, { 0.62, P.Aerated }, { 1, P.Foam } }
+local STOPS: { { any } } =
+	{ { 0, P.LipWhite }, { 0.05, P.Lip }, { 0.22, P.Body }, { 0.78, P.Lower }, { 0.94, P.Aerated }, { 1, P.Foam } }
 local function colourAt(t: number): Color3
 	t = math.clamp(t, 0, 1)
 	for i = 2, #STOPS do
@@ -138,10 +143,10 @@ end
 -- A layered free fall between two points: body, fast and slow strands, highlights.
 local FALL_LAYERS: { { any } } = {
 	-- name, texture, width0, width1, speed, repeat length, transparency top, bottom, whiten, arc
-	{ "Body", TEX.WaterBody, 1.0, 1.3, 1.6, 10, 0.2, 0.32, 0, 0 },
-	{ "FastStrands", TEX.WaterStrandsFast, 1.1, 1.5, 3.1, 8, 0.22, 0.12, 0.12, 0.8 },
-	{ "SlowStrands", TEX.WaterStrandsSlow, 1.15, 1.5, 1.15, 15, 0.42, 0.3, 0.05, -0.6 },
-	{ "Highlights", TEX.WaterHighlights, 0.75, 1.1, 3.7, 6, 0.38, 0.3, 0.5, 0.3 },
+	{ "Body", TEX.WaterBody, 1.0, 1.3, 1.6, 10, 0.42, 0.5, 0, 0 },
+	{ "FastStrands", TEX.WaterStrandsFast, 0.8, 1.15, 3.1, 8, 0.3, 0.22, 0.55, 0.8 },
+	{ "SlowStrands", TEX.WaterStrandsSlow, 1.1, 1.45, 1.15, 15, 0.5, 0.42, 0, -0.6 },
+	{ "Highlights", TEX.WaterHighlights, 0.45, 0.7, 3.7, 6, 0.42, 0.34, 0.85, 0.3 },
 }
 
 local function fall(
@@ -177,6 +182,26 @@ local function fall(
 			curve1 = (bottom - top).Magnitude * 0.38,
 			light = if k == 4 then 0.45 else 0.12,
 			z = k * 0.02,
+		})
+	end
+	-- broken white edges: a narrow fast streak down each side of the fall
+	for k, side in { -1, 1 } do
+		local edge = side * 0.5 * scale
+		local a0 = attach(host, top + Vector3.new(edge, 0, 0), out)
+		local a1 = attach(host, bottom + Vector3.new(edge * 1.25, 0, 0), Vector3.new(0, -1, 0))
+		beam(folder, a0, a1, {
+			name = name .. "Edge" .. k,
+			texture = TEX.WaterStrandsFast,
+			width0 = 0.16 * scale,
+			width1 = 0.24 * scale,
+			speed = 3.4 + rng:NextNumber() * 0.6,
+			length = 7 + rng:NextNumber() * 3,
+			colour = gradient(t0, t1, 0.8),
+			transparency = fade(0.2, 0.3),
+			curve0 = arc,
+			curve1 = (bottom - top).Magnitude * 0.38,
+			light = 0.35,
+			z = 0.1,
 		})
 	end
 end
@@ -565,9 +590,11 @@ function Waterfall.build(parent: Instance): Model
 		Color = ColorSequence.new(rgb(232, 255, 170)),
 	})
 
-	-- a faint mist rainbow across the lower falls' spray (the client fades it by viewpoint)
-	local left = Vector3.new(X - 17, 4, -(pool.centre.Y + 5))
-	local right = Vector3.new(X + 15, 4, -(pool.centre.Y + 5))
+	-- a soft mist rainbow beside the lower falls (the client fades it by distance and viewpoint).
+	-- It rises from the plunge pool's spray on the west side, so its arc stands against the dark
+	-- wet cliff rather than over the white water; only its right foot meets the spray.
+	local left = Vector3.new(X - 38, 2.5, -(pool.centre.Y + 9))
+	local right = Vector3.new(X - 5, 2.5, -(pool.centre.Y + 9))
 	-- curves bend along X (up); the band faces the camera, so it keeps its width over the top of
 	-- the arc, and the texture is stretched once along it
 	local r0 = Instance.new("Attachment")
@@ -579,24 +606,24 @@ function Waterfall.build(parent: Instance): Model
 	local bow = beam(folders.Rainbow, r0, r1, {
 		name = "MistRainbow",
 		texture = TEX.Rainbow,
-		width0 = 3.2,
-		width1 = 3.2,
+		width0 = 4.2,
+		width1 = 4.2,
 		speed = 0,
 		length = 40,
 		colour = ColorSequence.new(Color3.new(1, 1, 1)),
-		transparency = fade(0.82, 0.82),
-		curve0 = 19,
-		curve1 = -19,
+		transparency = fade(0.55, 0.55),
+		curve0 = 22,
+		curve1 = -22,
 		faceCamera = true,
 		light = 0.6,
 		-- drawn over the falls behind it (it hangs in the spray in front of them)
 		z = 2,
 	})
-	bow:SetAttribute("BaseTransparency", 0.82)
+	bow:SetAttribute("BaseTransparency", 0.55)
 	bow.TextureMode = Enum.TextureMode.Stretch
 	bow.TextureLength = 1
 
-	model:SetAttribute("Version", "falls-3")
+	model:SetAttribute("Version", "falls-4")
 	model:SetAttribute("TotalDrop", Cascade.LipHeight - Field.LakeLevel)
 	model.Parent = parent
 	return model

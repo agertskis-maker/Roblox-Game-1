@@ -284,6 +284,185 @@ def fountain_water(name):
     return b, {"height": 2.7}
 
 
+# ---------------------------------------------------------------- the grand fountain (revision 2)
+# Adam, 2026-10-21: the island's centrepiece, grander and slightly larger, inside the measured
+# sightline envelope (assets/island/rework/fountain-envelope.js: every solid part stays 0.25 to
+# 0.6 below the tallest height that keeps all three portal discs fully visible from all six
+# entrances). Solid basin wall at radius 12.4 (the walking routes pass at 13 to 14), two low
+# walkable steps to 15.6, a scalloped rim, wheel medallions on the basin wall, a fluted pedestal
+# with scroll brackets, a scalloped mid bowl (r 5.4, rim 2.9), a top bowl (r 3.2, rim 4.0), a
+# column and a wheel-rosette finial (6.6). Ornament vocabulary: scallops, wheels, mosaic.
+# Heights in studs above the plaza paving (ground line y 0).
+
+def scallop_ring(z, radius, sides, lobes, depth, phase=0.0):
+    pts = []
+    for k in range(sides):
+        a = phase + 2 * math.pi * k / sides
+        r = radius - depth * (1 - abs(math.cos(a * lobes / 2)))
+        pts.append(Vector((math.cos(a) * r, math.sin(a) * r, z)))
+    return pts
+
+
+def band(b, lower, upper, swatch):
+    n = len(lower)
+    for k in range(n):
+        k2 = (k + 1) % n
+        b.quad(lower[k], lower[k2], upper[k2], upper[k], swatch)
+
+
+def annulus_step(b, z, r_in, r_out, sides, top_sw, side_sw):
+    top_out = ring(Vector((0, 0, z)), Vector((0, 0, 1)), r_out, sides)
+    top_in = ring(Vector((0, 0, z)), Vector((0, 0, 1)), r_in, sides)
+    foot = ring(Vector((0, 0, -0.1)), Vector((0, 0, 1)), r_out + 0.05, sides)
+    band(b, foot, top_out, side_sw)
+    # chamfered nose
+    nose = ring(Vector((0, 0, z + 0.04)), Vector((0, 0, 1)), r_out - 0.12, sides)
+    band(b, top_out, nose, top_sw)
+    band(b, nose, top_in, top_sw)
+
+
+def scalloped_bowl(b, z_floor, z_rim, radius, rim_w, lobes, sides, under_r, under_z, swatch, inner_sw, trim_sw):
+    """A bowl with a scalloped lip, a rolled rim, an inner wall and a conical underside down to a
+    pedestal of radius under_r at height under_z."""
+    lip = scallop_ring(z_rim, radius, sides, lobes, 0.28)
+    roll = scallop_ring(z_rim - 0.22, radius + 0.12, sides, lobes, 0.28)
+    inner_top = scallop_ring(z_rim - 0.05, radius - rim_w, sides, lobes, 0.22)
+    inner_bot = ring(Vector((0, 0, z_floor)), Vector((0, 0, 1)), (radius - rim_w) * 0.82, sides)
+    belly = ring(Vector((0, 0, z_rim - 0.55)), Vector((0, 0, 1)), radius * 0.9, sides)
+    neck = ring(Vector((0, 0, under_z)), Vector((0, 0, 1)), under_r, sides)
+    band(b, neck, belly, swatch)
+    band(b, belly, roll, trim_sw)
+    band(b, roll, lip, trim_sw)
+    band(b, lip, inner_top, trim_sw)
+    band(b, inner_top, inner_bot, inner_sw)
+    c = Vector((0, 0, z_floor))
+    for k in range(sides):
+        b.tri(inner_bot[k], inner_bot[(k + 1) % sides], c, inner_sw)
+
+
+def wheel(b, centre, normal, radius, spokes=5):
+    """A small car wheel: tyre band, rim and spokes, facing along `normal`."""
+    n = normal.normalized()
+    disc(b, centre, radius, 12, "black", normal=n, thickness=0.22)
+    disc(b, centre + n * 0.02, radius * 0.62, 10, "metal", normal=n, thickness=0.04)
+    up = Vector((0, 0, 1)) if abs(n.z) < 0.9 else Vector((1, 0, 0))
+    u = n.cross(up).normalized()
+    v = n.cross(u).normalized()
+    for s in range(spokes):
+        a = 2 * math.pi * s / spokes
+        d = u * math.cos(a) + v * math.sin(a)
+        tube(b, [centre + n * 0.05 + d * radius * 0.12, centre + n * 0.05 + d * radius * 0.56], [0.05, 0.05], 4, ["cart_white"], cap=False)
+    disc(b, centre + n * 0.07, radius * 0.16, 8, "cart_white", normal=n)
+
+
+def fountain_grand(name):
+    b = Builder(name)
+    S = 48
+    # two low walkable steps round the basin
+    annulus_step(b, 0.28, 13.5, 15.6, S, "stone_light", "sign_board")
+    annulus_step(b, 0.55, 12.3, 13.6, S, "stone_light", "sign_board")
+    # the basin: outer wall with a plinth and a cornice, scalloped rim, inner wall and floor
+    wall_foot = ring(Vector((0, 0, 0.5)), Vector((0, 0, 1)), 12.45, S)
+    wall_mid = ring(Vector((0, 0, 0.75)), Vector((0, 0, 1)), 12.2, S)
+    wall_top = ring(Vector((0, 0, 1.7)), Vector((0, 0, 1)), 12.2, S)
+    cornice = ring(Vector((0, 0, 1.85)), Vector((0, 0, 1)), 12.45, S)
+    band(b, wall_foot, wall_mid, "sign_board")
+    band(b, wall_mid, wall_top, "stone_light")
+    band(b, wall_top, cornice, "sign_board")
+    cornice2 = ring(Vector((0, 0, 1.85)), Vector((0, 0, 1)), 12.45, S * 2)
+    lip = scallop_ring(2.15, 12.35, S * 2, 24, 0.3)
+    band(b, cornice2, lip, "stone_light")
+    inner = scallop_ring(2.05, 11.25, S * 2, 24, 0.22)
+    band(b, lip, inner, "stone_light")
+    floor = ring(Vector((0, 0, 0.35)), Vector((0, 0, 1)), 10.9, S * 2)
+    band(b, inner, floor, "rock")
+    for k in range(S * 2):
+        b.tri(floor[k], floor[(k + 1) % (S * 2)], Vector((0, 0, 0.35)), "rock")
+    # wheel medallions on the outer wall, between the scallops
+    for k in range(8):
+        a = 2 * math.pi * (k + 0.5) / 8
+        d = Vector((math.cos(a), math.sin(a), 0))
+        wheel(b, d * 12.26 + Vector((0, 0, 1.22)), d, 0.42)
+    # fluted pedestal with four scroll brackets
+    flutes = []
+    for z in (0.35, 2.3):
+        pts = []
+        for k in range(24):
+            a = 2 * math.pi * k / 24
+            r = 1.45 if k % 2 == 0 else 1.25
+            pts.append(Vector((math.cos(a) * r, math.sin(a) * r, z)))
+        flutes.append(pts)
+    band(b, flutes[0], flutes[1], "stone_light")
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + math.pi / 4
+        d = Vector((math.cos(a), math.sin(a), 0))
+        path = [d * 1.35 + Vector((0, 0, 1.0)), d * 2.0 + Vector((0, 0, 1.25)), d * 2.6 + Vector((0, 0, 1.75)), d * 2.75 + Vector((0, 0, 2.25)), d * 2.45 + Vector((0, 0, 2.4))]
+        tube(b, path, [0.16, 0.2, 0.18, 0.14, 0.1], 6, ["sign_board", "stone_light"], cap=True)
+    # mid bowl, top bowl, column and finial
+    scalloped_bowl(b, 2.45, 2.9, 5.4, 0.5, 12, 36, 1.4, 2.2, "stone_light", "rock", "sign_board")
+    cyl(b, Vector((0, 0, 2.45)), 1.15, 1.0, 16, "stone_light", r_top=0.95)
+    cyl(b, Vector((0, 0, 3.0)), 0.25, 1.2, 16, "sign_board")
+    scalloped_bowl(b, 3.6, 4.0, 3.2, 0.38, 10, 30, 0.9, 3.3, "stone_light", "rock", "sign_board")
+    cyl(b, Vector((0, 0, 3.6)), 2.2, 0.72, 12, "stone_light", r_top=0.55)
+    cyl(b, Vector((0, 0, 4.6)), 0.2, 0.85, 12, "sign_board")
+    cyl(b, Vector((0, 0, 5.2)), 0.25, 0.85, 12, "sign_board")
+    # the finial: a horizontal wheel rosette and a nozzle
+    wheel(b, Vector((0, 0, 5.95)), Vector((0, 0, 1)), 0.68, spokes=6)
+    cyl(b, Vector((0, 0, 5.7)), 0.25, 0.3, 10, "metal")
+    cyl(b, Vector((0, 0, 6.15)), 0.45, 0.16, 8, "metal", r_top=0.08)
+    return b, {"height": 6.6, "radius": 12.4, "steps": 15.6, "pool": 1.6, "mid_rim": 2.9, "mid_pool": 2.75,
+               "mid_r": 5.4, "top_rim": 4.0, "top_pool": 3.85, "top_r": 3.2, "nozzle": 6.6}
+
+
+def fountain_grand_water(name):
+    """Water surfaces of the grand fountain's three pools and thin spill sheets over the top bowl's
+    rim and through six of the mid bowl's scallops (two-sided faces)."""
+    b = Builder(name)
+    for z, r, n in ((1.6, 11.3, 48), (2.75, 4.95, 30), (3.85, 2.85, 24)):
+        disc(b, Vector((0, 0, z)), r, n, "fountain_water")
+    # the top bowl spills all round into the mid bowl
+    n = 30
+    top = scallop_ring(3.98, 3.3, n, 10, 0.28)
+    bot = ring(Vector((0, 0, 2.8)), Vector((0, 0, 1)), 3.75, n)
+    for k in range(n):
+        k2 = (k + 1) % n
+        b.face2([top[k], top[k2], bot[k2], bot[k]], "fountain_water")
+    # the mid bowl spills through six scallops into the basin
+    for s in range(6):
+        a = 2 * math.pi * s / 6
+        d = Vector((math.cos(a), math.sin(a), 0))
+        side = Vector((-d.y, d.x, 0)) * 0.55
+        t0, t1 = d * 5.45 + Vector((0, 0, 2.88)), d * 5.95 + Vector((0, 0, 1.62))
+        b.face2([t0 - side, t0 + side, t1 + side * 1.25, t1 - side * 1.25], "fountain_water")
+    return b, {"height": 4.0}
+
+
+def plaza_mosaic(name):
+    """A patterned paving ring round the fountain steps (r 15.6 to 24): a blue wave band between
+    warm and light stone, with a darker border; a thin slab (0.06) laid on the plaza paving."""
+    b = Builder(name)
+    S = 96
+    rings_r = [15.6, 16.4, 19.2, 20.6, 23.2, 24.0]
+    sw = ["rock", "stone_light", None, "stone_light", "rock"]
+    for i in range(len(rings_r) - 1):
+        r0, r1 = rings_r[i], rings_r[i + 1]
+        for k in range(S):
+            a0, a1 = 2 * math.pi * k / S, 2 * math.pi * (k + 1) / S
+            if sw[i] is None:
+                # the wave band: blue, aqua and warm tiles in runs
+                swatch = ("wild_blue", "fountain_water", "sign_board")[(k // 2) % 3]
+            else:
+                swatch = sw[i] if k % 2 == 0 else ("sign_board" if sw[i] == "stone_light" else "rock_dark")
+            p = [Vector((math.cos(a0) * r0, math.sin(a0) * r0, 0.06)), Vector((math.cos(a1) * r0, math.sin(a1) * r0, 0.06)),
+                 Vector((math.cos(a1) * r1, math.sin(a1) * r1, 0.06)), Vector((math.cos(a0) * r1, math.sin(a0) * r1, 0.06))]
+            b.quad(p[0], p[1], p[2], p[3], swatch)
+    # the outer edge face
+    outer = ring(Vector((0, 0, 0.06)), Vector((0, 0, 1)), 24.0, S)
+    foot = ring(Vector((0, 0, -0.02)), Vector((0, 0, 1)), 24.0, S)
+    band(b, foot, outer, "rock")
+    return b, {"height": 0.06, "inner": 15.6, "outer": 24.0}
+
+
 def hedge(name, length, height, depth):
     rng = random.Random(seed_of(name))
     b = Builder(name)
@@ -473,6 +652,9 @@ def build_all(emit):
     emit(*stand("LemonadeStand", "lemonade"), P + "Food")
     emit(*fountain("FountainTiered"), P + "Park")
     emit(*fountain_water("FountainWater"), P + "Park")
+    emit(*fountain_grand("FountainGrand"), P + "Park")
+    emit(*fountain_grand_water("FountainGrandWater"), P + "Park")
+    emit(*plaza_mosaic("PlazaMosaic"), P + "Park")
     emit(*hedge("HedgeStraight", 8, 2.6, 2.2), P + "Hedge")
     emit(*hedge("HedgeLow", 6, 1.6, 1.6), P + "Hedge")
     emit(*topiary("TopiaryBall", "ball"), P + "Hedge")

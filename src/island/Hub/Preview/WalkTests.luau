@@ -3,17 +3,20 @@
 -- island place only. For one destination, six test walkers (default R15 rigs made for the test,
 -- removed after it) start at every plot's GateSpawn at the same time and walk the planned
 -- route at the default WalkSpeed with Humanoid:MoveTo. Each walker aims at the next waypoint
--- before it arrives, so it does not stop at every point. Nothing here changes WalkSpeed, adds
--- teleports for players or assigns plots; the playtest discards the walkers and the group.
+-- before it arrives, so it does not stop at every point. Nothing here changes a player's
+-- WalkSpeed, adds teleports for players or assigns plots; only the test walkers' own WalkSpeed
+-- changes, in the boost preview. The playtest discards the walkers and the group.
 --
 --   local Walk = require(game.ServerStorage.Island.Hub.Preview.WalkTests)
 --   Walk.run("Downtown")   -- Fountain, SummitPass, Downtown, DustyHighway, Garage, StuntGate
+--   Walk.run("Garage", { boost = true })   -- the avenue boost-lane preview (proposal values)
 
 local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local BoostLanes = require(script.Parent.Parent.Environment.BoostLanes)
 local Layout = require(script.Parent.Parent.Layout)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -72,8 +75,24 @@ local function makeWalker(trove: any, name: string, at: CFrame): (Model, Humanoi
 	return model, humanoid, root
 end
 
--- Walks one walker along its waypoints; resolves with reached, seconds and studs walked.
-local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 })
+-- PREVIEW boost (not the integrated mechanic): with options.boost, a test walker on an avenue
+-- boost strip walks at the proposed multiplier, and for the proposed linger after stepping off;
+-- it never stacks (one state per walker) and starts from the walker's own default WalkSpeed.
+local strips = BoostLanes.strips()
+local function onStrip(p: Vector2): boolean
+	for _, s in strips do
+		local ab = s.to - s.from
+		local t = math.clamp((p - s.from):Dot(ab) / ab:Dot(ab), 0, 1)
+		if (p - (s.from + ab * t)).Magnitude <= BoostLanes.HalfWidth then
+			return true
+		end
+	end
+	return false
+end
+
+-- Walks one walker along its waypoints; resolves with reached, seconds, studs walked and the
+-- seconds spent boosted.
+local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 }, boost: boolean)
 	return Promise.new(function(resolve)
 		local trove = Trove.new()
 		local i = 1
@@ -81,17 +100,31 @@ local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 })
 		local last = root.Position
 		local started = os.clock()
 		local issued = started
+		local base = humanoid.WalkSpeed
+		local boostedUntil, boostedTime, lastTick = -math.huge, 0, started
 		humanoid:MoveTo(points[1])
 		trove:Connect(RunService.Heartbeat, function()
 			local p = root.Position
 			travelled += (flat(p) - flat(last)).Magnitude
 			last = p
 			local now = os.clock()
+			if boost then
+				if onStrip(Vector2.new(p.X, -p.Z)) then
+					boostedUntil = now + BoostLanes.ProposedLinger
+				end
+				local boosted = now < boostedUntil
+				humanoid.WalkSpeed = if boosted then base * BoostLanes.ProposedMultiplier else base
+				if boosted then
+					boostedTime += now - lastTick
+				end
+			end
+			lastTick = now
 			local final = i == #points
 			local distance = (flat(p) - flat(points[i])).Magnitude
 			if final and distance < FINISH then
 				trove:Destroy()
-				resolve(true, now - started, travelled)
+				humanoid.WalkSpeed = base
+				resolve(true, now - started, travelled, boostedTime)
 				return
 			end
 			if not final and distance < ARRIVE then
@@ -104,13 +137,15 @@ local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 })
 			end
 			if now - started > TIMEOUT then
 				trove:Destroy()
-				resolve(false, now - started, travelled)
+				humanoid.WalkSpeed = base
+				resolve(false, now - started, travelled, boostedTime)
 			end
 		end)
 	end)
 end
 
-function WalkTests.run(destination: string): { [string]: any }
+function WalkTests.run(destination: string, options: { boost: boolean? }?): { [string]: any }
+	local boost = (options and options.boost) == true
 	assert(
 		RunService:IsStudio() and RunService:IsServer() and RunService:IsRunning(),
 		"Run during a Studio playtest, server side"
@@ -143,11 +178,12 @@ function WalkTests.run(destination: string): { [string]: any }
 			}
 			table.insert(rows, row)
 			table.insert(starts, function()
-				return walk(humanoid, root, waypoints(points)):andThen(
-					function(reached: boolean, seconds: number, studs: number)
+				return walk(humanoid, root, waypoints(points), boost):andThen(
+					function(reached: boolean, seconds: number, studs: number, boosted: number)
 						row.reached = reached
 						row.seconds = r2(seconds)
 						row.studsWalked = r2(studs)
+						row.boostedSeconds = r2(boosted)
 					end
 				)
 			end)
@@ -172,7 +208,14 @@ function WalkTests.run(destination: string): { [string]: any }
 			worst = math.max(worst, row.seconds)
 		end
 	end
-	return { destination = destination, plots = rows, best = r2(best), worst = r2(worst), spread = r2(worst - best) }
+	return {
+		destination = destination,
+		boost = if boost then BoostLanes.ProposedMultiplier else false,
+		plots = rows,
+		best = r2(best),
+		worst = r2(worst),
+		spread = r2(worst - best),
+	}
 end
 
 return WalkTests

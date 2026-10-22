@@ -6,6 +6,11 @@
 --   local I = game.ServerStorage.Island:Clone()
 --   require(I.Hub.HubBuild).build()      -- (re)builds Workspace.Lane3_IslandPreview
 --   require(I.Hub.HubBuild).cleanup()    -- removes it
+--   require(I.Hub.HubBuild).showHelpers() -- draws the planning overlay (reservations, sector
+--   require(I.Hub.HubBuild).hideHelpers() --   rays, viewing corridors), edit mode only
+-- The planning overlay is off by default (Adam, 2026-10-21): it is drawn only by showHelpers()
+-- or build({ helpers = true }), and Home/Island/HideHelpers.client.luau removes it on every
+-- client, so it never shows during Play or in a published game.
 --
 -- One root: Workspace.Lane3_IslandPreview, shared with the Stage A build in IslandBuild. If
 -- the root holds the Stage A build, its own cleanup runs first (that clears only the Stage A
@@ -110,12 +115,12 @@ function HubBuild.build(options: Options?): { [string]: any }
 		Markers.build(plot, index)
 		PlotRecipe.build(plot, index)
 		plot.Parent = plots
-		if o.helpers ~= false then
+		if o.helpers == true then
 			Overlay.buildPlot(helpers, index, index == 1)
 		end
 		task.wait()
 	end
-	if o.helpers ~= false then
+	if o.helpers == true then
 		Overlay.buildHub(helpers)
 	else
 		helpers:Destroy()
@@ -134,6 +139,33 @@ function HubBuild.build(options: Options?): { [string]: any }
 		trackSegmentsPerPlot = PlotRecipe.SegmentCount,
 		plotCount = Layout.PlotCount,
 	}
+end
+
+-- Draws the planning overlay into the existing hub preview (edit mode only).
+function HubBuild.showHelpers(): number
+	guard()
+	local root = workspace:FindFirstChild(ROOT_NAME)
+	assert(root and root:GetAttribute("PreviewOf") == PREVIEW_OF, "Build the hub preview first")
+	HubBuild.hideHelpers()
+	local helpers = Instance.new("Folder")
+	helpers.Name = "Helpers"
+	for index = 1, Layout.PlotCount do
+		Overlay.buildPlot(helpers, index, index == 1)
+	end
+	Overlay.buildHub(helpers)
+	helpers.Parent = root
+	return countParts(helpers)
+end
+
+function HubBuild.hideHelpers(): string
+	guard()
+	local root = workspace:FindFirstChild(ROOT_NAME)
+	local helpers = root and root:FindFirstChild("Helpers")
+	if helpers then
+		helpers:Destroy()
+		return "planning overlay removed"
+	end
+	return "no planning overlay"
 end
 
 return HubBuild

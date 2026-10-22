@@ -381,12 +381,48 @@ end
 
 export type WriteStats = { chunks: number, voxels: number, peakMb: number }
 
+-- The material below a column's three surface layers, which is what a steep cliff face shows:
+--   wet: dark basalt in the spray zone of the falls (behind and beside the upper fall, round the
+--     ledge basin and the lower falls, low round the plunge pool) and in a band at the lake's
+--     waterline under the lakeside cliffs;
+--   damp: a few moss pockets (leafy grass) beside the spray zone, from a high noise threshold so
+--     they stay sparse;
+--   dry: broad Rock and Slate masses from large-scale noise, so neighbouring faces differ in tone
+--     without small repeating detail.
+local function deepMaterial(grid: Grid, ix: number, iz: number, yb: number, nz: Field.Noise): Enum.Material
+	local p = TerrainWriter.columnPlan(ix, iz)
+	local dx = math.abs(p.X - Cascade.X)
+	local cliffBand = p.Y > -345 and p.Y < -250
+	if cliffBand then
+		local spray = (dx < 16 and yb < Cascade.LipHeight + 4)
+			or (dx < 28 and yb < Cascade.Ledge.height + 10)
+			or (dx < 42 and yb < 26)
+		if spray then
+			return Enum.Material.Basalt
+		end
+		if dx < 60 and yb < Cascade.Ledge.height + 30 then
+			local m = math.noise(p.X / 9 + nz.ox, yb / 9, p.Y / 9 + nz.oy)
+			if m > 0.42 then
+				return Enum.Material.LeafyGrass
+			end
+			if m < -0.3 then
+				return Enum.Material.Basalt
+			end
+		end
+	end
+	if bit32.band(grid.flags[index(ix, iz)], BANK) ~= 0 and yb < Field.LakeLevel + 6 then
+		return Enum.Material.Basalt
+	end
+	local broad = math.noise(p.X / 150 + nz.ox, yb / 70 + nz.oz[5], p.Y / 150 + nz.oy)
+	return if broad > 0.08 then Enum.Material.Slate else Enum.Material.Rock
+end
+
 function TerrainWriter.write(grid: Grid, progress: (string, number) -> ()): WriteStats
 	local terrain = workspace.Terrain
 	local cxN, czN = chunkCounts()
 	local stats: WriteStats = { chunks = 0, voxels = 0, peakMb = TerrainWriter.memoryMb() }
 	local AIR = Enum.Material.Air
-	local ROCK = Enum.Material.Rock
+	local nz = Field.noiseFor(grid.seed + 11)
 	for cz = 1, czN do
 		for cx = 1, cxN do
 			-- height of the chunk's highest surface or water, rounded up to the grid
@@ -420,7 +456,7 @@ function TerrainWriter.write(grid: Grid, progress: (string, number) -> ()): Writ
 						if solid > 0 then
 							-- the surface material runs three layers deep: a half-filled surface voxel over a full
 							-- rock voxel otherwise shows rock patches through grass (seen in Studio, 2026-10-21)
-							m = if h - yb < 3 * CELL then grid.material[i] else ROCK
+							m = if h - yb < 3 * CELL then grid.material[i] else deepMaterial(grid, ix, iz, yb, nz)
 						end
 						table.insert(my, m)
 						table.insert(sy, solid)

@@ -24,7 +24,7 @@ Look.TerrainColours = {
 	[Enum.Material.Ground] = rgb(112, 132, 82),
 	[Enum.Material.Basalt] = rgb(54, 62, 72), -- wet rock by the falls, deep lake bed
 	[Enum.Material.Mud] = rgb(94, 84, 66), -- damp shore band, marsh bed
-	[Enum.Material.LeafyGrass] = rgb(84, 150, 78), -- moss on sheltered wet ledges
+	[Enum.Material.LeafyGrass] = rgb(86, 128, 66), -- moss on sheltered wet ledges and damp pockets by the falls
 }
 
 -- Rich blue water (#2B88B8) that lets the sand shelves read turquoise and the dark deep bed

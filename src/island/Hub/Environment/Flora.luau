@@ -21,6 +21,7 @@ local Field = require(script.Parent.Field)
 local KitAssets = require(script.Parent.KitAssets)
 local KitManifest = require(script.Parent.KitManifest)
 local Layout = require(script.Parent.Parent.Layout)
+local Sightlines = require(script.Parent.Sightlines)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local Flora = {}
@@ -162,6 +163,8 @@ export type Counts = {
 	reeds: number,
 	clusters: number,
 	skippedSteep: number,
+	fallsView: number,
+	recovery: { attempted: number, recovered: number, stillSteep: number, crowded: number, unplantable: number },
 	floorPatches: number,
 	triangles: number,
 	byVariant: { [string]: number },
@@ -171,6 +174,7 @@ export type Planter = {
 	grid: TerrainWriter.Grid,
 	counts: Counts,
 	patches: { Patch },
+	placed: { { p: Vector2, r: number } },
 }
 
 -- Plants one kit tree or bush with its ground line on the lowest ground under its roots.
@@ -184,6 +188,8 @@ local function newCounts(): Counts
 		reeds = 0,
 		clusters = 0,
 		skippedSteep = 0,
+		fallsView = 0,
+		recovery = { attempted = 0, recovered = 0, stillSteep = 0, crowded = 0, unplantable = 0 },
 		floorPatches = 0,
 		triangles = 0,
 		byVariant = {},
@@ -192,8 +198,32 @@ end
 
 -- A planter for other dressing modules (the park): its own counts and floor patches.
 function Flora.newPlanter(grid: TerrainWriter.Grid): Planter
-	return { grid = grid, counts = newCounts(), patches = {} }
+	return { grid = grid, counts = newCounts(), patches = {}, placed = {} }
 end
+
+-- The plan radius a plant's foliage covers, for spacing recovered plants.
+local function crownRadius(variant: string, scale: number): number
+	local name = if KitManifest[variant] ~= nil then variant else variant .. "_Canopy"
+	local e = KitAssets.info(name)
+	return math.max(e.max.X - e.min.X, e.max.Z - e.min.Z) / 2 * scale
+end
+
+local function crowded(pl: Planter, q: Vector2, r: number): boolean
+	for _, other in pl.placed do
+		if (other.p - q).Magnitude < 0.75 * (other.r + r) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Steep-spot recovery (Adam, 2026-10-21): a skipped spot searches a short ring of nearby points
+-- (2.5, 5 and 7.5 studs, eight directions starting from an angle set by the spot) for ground that
+-- passes the same trunk-grounding rule, on plantable ground no closer to the hub, and clear of
+-- the crowns already planted. The first point that passes is used; otherwise the spot stays
+-- empty, counted by its reason.
+local RECOVERY_RINGS = { 2.5, 5, 7.5 }
+Flora.RecoverSteep = true -- set false (on a required copy) to measure the old planting
 
 local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2, scale: number, yaw: number): Model?
 	-- bushes are one mesh; trees are a trunk and a canopy
@@ -205,10 +235,59 @@ local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2,
 	local lo, hi = footprint(pl.grid, p, reach)
 	-- the uphill side may bury at most this much of the trunk before the spot is too steep
 	local maxBury = if single then 0.9 * scale else math.min(3.2, 0.3 * (meta.canopy_base or 6) * scale + 1.2)
+	local crown = crownRadius(variant, scale)
 	if hi - lo > maxBury then
 		pl.counts.skippedSteep += 1
+		if not Flora.RecoverSteep then
+			return nil
+		end
+		local rec = pl.counts.recovery
+		rec.attempted += 1
+		local found: Vector2? = nil
+		local anyPlantable, sawCrowded = false, false
+		local start = (p.X * 0.731 + p.Y * 0.377) % (math.pi * 2)
+		local hub = Field.hubDistance(p)
+		for _, ring in RECOVERY_RINGS do
+			for k = 0, 7 do
+				local a = start + k * math.pi / 4
+				local q = p + Vector2.new(math.cos(a), math.sin(a)) * ring
+				if plantable(pl.grid, q, 0.7) and Field.hubDistance(q) >= math.min(hub, 160) - 1 then
+					anyPlantable = true
+					local qlo, qhi = footprint(pl.grid, q, reach)
+					if qhi - qlo <= maxBury then
+						if crowded(pl, q, crown) then
+							sawCrowded = true
+						else
+							found, lo, hi = q, qlo, qhi
+							break
+						end
+					end
+				end
+			end
+			if found then
+				break
+			end
+		end
+		if not found then
+			if sawCrowded then
+				rec.crowded += 1
+			elseif anyPlantable then
+				rec.stillSteep += 1
+			else
+				rec.unplantable += 1
+			end
+			return nil
+		end
+		rec.recovered += 1
+		p = found :: Vector2
+	end
+	-- keep the lower falls in view from every plot entrance
+	local topName = if single then variant else variant .. "_Canopy"
+	if Sightlines.blocksFalls(p, crown, lo + KitAssets.info(topName).max.Y * scale) then
+		pl.counts.fallsView += 1
 		return nil
 	end
+	table.insert(pl.placed, { p = p, r = crown })
 	local base = CFrame.new(p.X, lo - 0.12, -p.Y) * CFrame.Angles(0, yaw, 0)
 	local model = Instance.new("Model")
 	model.Name = variant
