@@ -209,6 +209,73 @@ end
 api.goHome = goHome
 api.goRun = goRun
 
+-- Downtown B as the real backdrop (HUD rebuild V-01, X-06): builds the preview city on this
+-- client (EditableMesh kit; labelled proxies for anything missing), hides the neutral road, and
+-- moves the backdrop traffic and chase camera along the city route. Preview only.
+local city: any = nil
+function api.useCity(on: boolean, seed: number?): string
+	if city then
+		backdrop.setPath(nil)
+		city:destroy()
+		city = nil
+	end
+	backdrop.setNeutralRoad(not on)
+	if not on then
+		return "neutral road"
+	end
+	local lookDev = ReplicatedStorage:FindFirstChild("LookDev")
+	local module = lookDev and lookDev:FindFirstChild("Downtown") and lookDev.Downtown:FindFirstChild("City")
+	if not module then
+		backdrop.setNeutralRoad(true)
+		return "city modules are not mapped in this place"
+	end
+	local City = require(module :: ModuleScript) :: any
+	local Route = require((module :: Instance):WaitForChild("Route") :: ModuleScript) :: any
+	local ok, err = pcall(function()
+		city = City.new({
+			parent = backdrop.folder,
+			kit = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2"),
+			kitData = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2Data"),
+			seed = seed or 2207,
+			preview = true,
+			lighting = true,
+			traffic = false, -- the playground's own fixture traffic carries the HUD cues
+			streetLife = true,
+			controlCamera = false,
+			chaseLabel = false,
+		})
+		city:build(0)
+	end)
+	if not ok then
+		backdrop.setNeutralRoad(true)
+		city = nil
+		return "city failed: " .. tostring(err)
+	end
+	local segments = city.plan.segments
+	local length = 0
+	for _, seg in segments do
+		length += seg.length
+	end
+	backdrop.setPath(
+		function(s: number, x: number, y: number): CFrame
+			return Route.frame(segments, s, x, y)
+		end,
+		length,
+		function(s: number)
+			city:setStation(s)
+		end
+	)
+	return "city built: seed " .. tostring(seed or 2207) .. ", " .. math.floor(length) .. " studs"
+end
+function api.cityStats(): any
+	return if city then city:stats() else nil
+end
+trove:Add(function()
+	if city then
+		city:destroy()
+	end
+end)
+
 -- RunEnd hand-off: Results from the current run state (preview: the HUD never computes rewards;
 -- the fixture fills what Lane 1 / Lane 2 would supply). Confirmed claims stay; a capture the
 -- ribbon could not show is merged once.

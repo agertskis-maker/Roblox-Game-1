@@ -12,6 +12,27 @@
       },
       "Lane3Playground": {
         "$path": "hud/Lane3Playground.model.json"
+      },
+      "LookDev": {
+        "$path": "../src/lookdev"
+      },
+      "Lane3_DowntownKitB2": {
+        "$path": {
+          "optional": "../../Car-Hop-Art/downtown-kit-b2/meshes"
+        }
+      },
+      "Lane3_DowntownKitB2Data": {
+        "$className": "Folder",
+        "manifest": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-b2/manifest.json"
+          }
+        },
+        "swatches": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-b2/swatches.json"
+          }
+        }
       }
     },
     "StarterPlayer": {

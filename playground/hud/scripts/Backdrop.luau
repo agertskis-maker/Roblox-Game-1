@@ -52,6 +52,8 @@ export type Backdrop = {
 	ride: Model,
 	target: Model,
 	setRunCamera: (on: boolean) -> (),
+	setPath: (((number, number, number) -> CFrame)?, number?, ((number) -> ())?) -> (),
+	setNeutralRoad: (on: boolean) -> (),
 	destroy: () -> (),
 }
 
@@ -126,6 +128,14 @@ function Backdrop.build(): Backdrop
 		end
 	end
 
+	-- everything so far is the neutral road and blocks: hidden when the Downtown B city is the
+	-- backdrop (HUD rebuild V-01: real world backdrops)
+	local neutral: { BasePart } = {}
+	for _, child in folder:GetChildren() do
+		if child:IsA("BasePart") then
+			table.insert(neutral, child)
+		end
+	end
 	-- the Home lot: dummy Garage, kiosk and portal beside the start of the road
 	local lot = CFrame.new(-120, 0, 40)
 	part(
@@ -207,6 +217,11 @@ function Backdrop.build(): Backdrop
 		starts[m] = m:GetPivot()
 	end
 	local travelled = 0
+	-- optional path (the Downtown B route): fn(s, x, y) -> CFrame along the road, with its length;
+	-- onStation(s) lets the city move its active window with the ridden car
+	local path: ((number, number, number) -> CFrame)? = nil
+	local pathLength = ROAD_LENGTH
+	local onStation: ((number) -> ())? = nil
 	local function setRunCamera(on: boolean)
 		local camera = Workspace.CurrentCamera
 		if runConn then
@@ -220,18 +235,50 @@ function Backdrop.build(): Backdrop
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.FieldOfView = 70
 		runConn = RunService.RenderStepped:Connect(function(dt)
-			travelled = (travelled + speed * dt) % (ROAD_LENGTH - 300)
+			travelled = (travelled + speed * dt) % (pathLength - 300)
 			for i, m in traffic do
 				local rate = if i <= 2 then 1 else 0.85 + 0.04 * i
-				m:PivotTo(starts[m] * CFrame.new(0, 0, -travelled * rate))
+				local start = starts[m]
+				if path then
+					local s = (-start.Position.Z + travelled * rate) % (pathLength - 1)
+					m:PivotTo((path :: any)(s, start.Position.X, start.Position.Y))
+				else
+					m:PivotTo(start * CFrame.new(0, 0, -travelled * rate))
+				end
 			end
-			local p = ride:GetPivot().Position
-			camera.CFrame = CFrame.lookAt(p + Vector3.new(0, 6, 12), p + Vector3.new(0, 1.5, -20))
+			if onStation then
+				(onStation :: any)(-starts[ride].Position.Z + travelled)
+			end
+			-- FIXTURE chase camera: 12 behind, 6 up, looking 20 ahead (labelled in the review)
+			local pivot = ride:GetPivot()
+			local look = Vector3.new(pivot.LookVector.X, 0, pivot.LookVector.Z)
+			look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, -1)
+			local p = pivot.Position
+			camera.CFrame = CFrame.lookAt(p - look * 12 + Vector3.new(0, 6, 0), p + look * 20 + Vector3.new(0, 1.5, 0))
 		end)
 	end
 	trove:Add(function()
 		setRunCamera(false)
 	end)
+
+	local function setPath(fn: ((number, number, number) -> CFrame)?, length: number?, station: ((number) -> ())?)
+		path = fn
+		pathLength = if fn then math.max(length or ROAD_LENGTH, 400) else ROAD_LENGTH
+		onStation = station
+		travelled = 0
+		if not fn then
+			for _, m in traffic do
+				m:PivotTo(starts[m])
+			end
+		end
+	end
+	local function setNeutralRoad(on: boolean)
+		for _, p in neutral do
+			p.Transparency = if on then 0 else 1
+			p.CanCollide = on
+			p.CanQuery = on
+		end
+	end
 
 	return {
 		folder = folder,
@@ -244,6 +291,8 @@ function Backdrop.build(): Backdrop
 		ride = ride,
 		target = target,
 		setRunCamera = setRunCamera,
+		setPath = setPath,
+		setNeutralRoad = setNeutralRoad,
 		destroy = function()
 			trove:Destroy()
 		end,

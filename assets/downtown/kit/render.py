@@ -445,4 +445,7 @@ def main():
         print("chase frames written to", folder)
 
 
-main()
+# run when Blender executes this file (--python); importing it (kit_b2_render.py) only shares the
+# lighting, materials, mesh loader and proxy car
+if __name__ == "__main__":
+    main()
