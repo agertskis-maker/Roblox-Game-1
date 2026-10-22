@@ -109,7 +109,7 @@ def build(L, rng, M):
     t_still = M.vadd(c, M.rot(yaw, (-8.0, 47.0, -1.6)))
     p0 = M.vadd(c, M.rot(yaw, (-260.0, 47.0, -1.6)))
     p1 = M.vadd(c, M.rot(yaw, (260.0, 47.0, -1.6)))
-    L.add("C_Train", t_still, yaw, band="landmark", overhead=True, anim={"type": "slide", "from": p0, "to": p1, "period": 12.0, "pass_time": 5.0, "offset": 2.2})
+    L.add("C_Train", t_still, yaw, band="landmark", overhead=True, anim={"type": "slide", "from": p0, "to": p1, "period": 12.0, "pass_time": 5.0, "offset": 2.5})
     # the plaza under the crossing on the right: trees and benches
     for s, off in ((302, 46), (338, 46), (306, 62), (334, 64)):
         L.add("TreeRound", F.point(s, off), 0.0, band="park")

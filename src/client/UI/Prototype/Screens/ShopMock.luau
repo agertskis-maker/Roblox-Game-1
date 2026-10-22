@@ -240,6 +240,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local name = Overlay.text(textCol, pass.name, 22, C.Ink, nil, 8)
 		name.LayoutOrder = 1
 		local tag = Overlay.text(textCol, ShopMock.ConceptLabel, 16, C.InkSoft, nil, 8)
+		tag:SetAttribute("PreviewCaption", true)
 		tag.LayoutOrder = 2
 		table.insert(conceptLabels, tag)
 		local does = Overlay.paragraph(textCol, pass.does, 16, C.Ink, 8)

@@ -217,6 +217,11 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local distanceRow = statRow(1, "Flag", "Distance")
 	local coinsRow = statRow(2, "Coin", "Coins")
 	local bestRow = statRow(3, "Medal", "Best")
+	-- Joyride bonuses and milestones (outline v2: Results lists both); optional in the payload
+	local joyrideRow = statRow(3, "Key", "Joyride bonuses")
+	joyrideRow.frame.Name = "Row_Joyride"
+	local milestonesRow = statRow(3, "Flag", "Milestones")
+	milestonesRow.frame.Name = "Row_Milestones"
 	local bestSub = Overlay.text(bestRow.frame, "", 16, C.InkSoft, Enum.TextXAlignment.Right, 7)
 	bestSub.AnchorPoint = Vector2.new(1, 1)
 	bestSub.Position = UDim2.new(1, -12, 1, -1) -- inside the row, under the value
@@ -300,6 +305,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		Parent = carRow,
 	})
 	local footnote = Overlay.text(body, "Preview values", 16, C.InkSoft, Enum.TextXAlignment.Center, 6)
+	footnote:SetAttribute("PreviewCaption", true) -- harness caption, hidden for player-facing captures
 	footnote.LayoutOrder = 6
 
 	-- footer buttons (pinned)
@@ -375,7 +381,16 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		results:skip()
 	end)
 
-	local rowsInOrder: { GuiObject } = { distanceRow.frame, coinsRow.frame, bestRow.frame, earnFrame, carsFrame }
+	-- ordered by name within LayoutOrder 3 ("Row_Best" < "Row_Joyride" < "Row_Milestones")
+	local rowsInOrder: { GuiObject } = {
+		distanceRow.frame,
+		coinsRow.frame,
+		bestRow.frame,
+		joyrideRow.frame,
+		milestonesRow.frame,
+		earnFrame,
+		carsFrame,
+	}
 	local rowsVisible = #rowsInOrder
 
 	local function setEarningsText(n: number)
@@ -427,6 +442,9 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		bestSub.Visible = showPrevious
 		bestRow.frame.Size = UDim2.new(1, 0, 0, if showPrevious then 58 else 42)
 		bestRow.value.Position = UDim2.new(1, -12, 0, if showPrevious then 20 else 21)
+		local extra = r :: any
+		joyrideRow.value.Text = if type(extra.joyride) == "number" then Format.cash(extra.joyride) else "$0"
+		milestonesRow.value.Text = if type(extra.milestones) == "number" then tostring(extra.milestones) else "0"
 		earnings = math.max(0, math.floor(r.earnings))
 		cardsTrove:Clean()
 		noCars.Visible = #cars == 0

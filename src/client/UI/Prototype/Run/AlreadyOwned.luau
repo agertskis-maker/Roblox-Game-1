@@ -99,7 +99,7 @@ function AlreadyOwned.new(ctx: RunLayout.Ctx)
 
 	self._trove:Connect(ctx.store.Event, function(event: Store.Event)
 		if event.kind == "AlreadyOwned" then
-			self:show(event.car)
+			self:show(event.car, event.amount)
 		end
 	end)
 	self._trove:Connect(self._slot.Preempted, function(owner: string)
@@ -136,7 +136,15 @@ function AlreadyOwned.layout(self: AlreadyOwned)
 	self._note.Position = UDim2.fromOffset(d.X / 2, RunLayout.messageY(ctx))
 end
 
-function AlreadyOwned.show(self: AlreadyOwned, car: Store.CarRef?)
+function AlreadyOwned.show(self: AlreadyOwned, car: Store.CarRef?, amount: number?)
+	-- the Joyride Bonus is decided (GDD core loop); its amount comes from the event (synthetic
+	-- in the playground, the server's in production) and is never computed here
+	local label = self._note:FindFirstChildWhichIsA("TextLabel", true)
+	if label then
+		label.Text = if type(amount) == "number" and amount > 0
+			then string.format("JOYRIDE BONUS +$%d", math.floor(amount))
+			else TEXT
+	end
 	if not self._slot.claim(OWNER, PRIORITY) then
 		self._skipped += 1
 		return

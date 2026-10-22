@@ -120,8 +120,26 @@ Fixtures.EarningPerLap = 120
 
 -- Results fixtures
 Fixtures.Results = {
-	Typical = { distance = 1240, coins = 86, best = 1100, newBest = true, claimed = { "rev6" }, earnings = 340 },
-	NoRewards = { distance = 85, coins = 0, best = 1100, newBest = false, claimed = {}, earnings = 0 },
+	Typical = {
+		distance = 1240,
+		coins = 86,
+		best = 1100,
+		newBest = true,
+		claimed = { "rev6" },
+		earnings = 340,
+		joyride = 50,
+		milestones = 2,
+	},
+	NoRewards = {
+		distance = 85,
+		coins = 0,
+		best = 1100,
+		newBest = false,
+		claimed = {},
+		earnings = 0,
+		joyride = 0,
+		milestones = 0,
+	},
 	Many = {
 		distance = 4820,
 		coins = 412,
@@ -129,6 +147,8 @@ Fixtures.Results = {
 		newBest = true,
 		claimed = { "rangy", "rev6", "zoomurai", "hurrikan", "hyperion" },
 		earnings = 2150,
+		joyride = 150,
+		milestones = 5,
 	},
 }
 

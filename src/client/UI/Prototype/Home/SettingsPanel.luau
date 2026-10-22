@@ -582,7 +582,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 
 	-- Footer
 	local footer = make("TextLabel", {
-		Name = "Footer",
+		Name = "PreviewNote", -- harness caption (hidden in player-facing captures)
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(PAD, 66 + total + 10),
 		Size = UDim2.new(1, -2 * PAD, 0, 20),

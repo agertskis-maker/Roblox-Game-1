@@ -198,7 +198,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 
 	-- earnings
 	local earnBlock = make("Frame", { Name = "Earnings", BackgroundTransparency = 1, ZIndex = 5, Parent = panel })
-	local earnLabel = Overlay.text(earnBlock, "Preview earnings", 18, C.InkSoft, Enum.TextXAlignment.Center, 6)
+	local earnLabel = Overlay.text(earnBlock, "While you were away", 18, C.InkSoft, Enum.TextXAlignment.Center, 6)
 	earnLabel.Position = UDim2.fromOffset(0, 0)
 	local earnValue = Gloss.title(earnBlock, "$0", 48, C.CashLight, C.CashDeep)
 	earnValue.Position = UDim2.fromOffset(0, 26)

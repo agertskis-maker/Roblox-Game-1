@@ -177,7 +177,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local ghostValue = Overlay.text(ghost, "", 20, C.Ink, Enum.TextXAlignment.Center, 6)
 	ghostValue.Position = UDim2.fromOffset(0, 2)
 	ghostValue.Size = UDim2.new(1, 0, 0, 28)
-	local ghostLabel = Overlay.text(ghost, "ghost (mock)", 16, C.InkSoft, Enum.TextXAlignment.Center, 6)
+	local ghostLabel = Overlay.text(ghost, "ghost", 16, C.InkSoft, Enum.TextXAlignment.Center, 6)
 	ghostLabel.Position = UDim2.fromOffset(0, 30)
 	ghostLabel.Size = UDim2.new(1, 0, 0, 20)
 
@@ -230,6 +230,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		medalTimes[m.key] = t
 	end
 	local medalCaption = Overlay.text(medalList, "placeholder times", 16, C.InkSoft, Enum.TextXAlignment.Right, 6)
+	medalCaption:SetAttribute("PreviewCaption", true)
 	medalCaption.LayoutOrder = 10
 	medalCaption.Size = UDim2.new(1, 0, 0, 20)
 
@@ -261,7 +262,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 				if behind then "behind" else "ahead"
 			)
 			ghost.BackgroundColor3 = if behind then Color3.fromRGB(255, 226, 190) else Color3.fromRGB(200, 246, 236)
-			ghostLabel.Text = "ghost (mock)"
+			ghostLabel.Text = "ghost"
 		end
 		for _, m in MEDALS do
 			medalTimes[m.key].Text = StuntMock.formatTime((medals :: any)[m.key])

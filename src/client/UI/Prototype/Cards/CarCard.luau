@@ -648,6 +648,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 
 	local proxyTag, _ = pill(stage, "ProxyTag", "PROXY", 10)
+	proxyTag:SetAttribute("PreviewCaption", true) -- harness caption
 	proxyTag.AnchorPoint = Vector2.new(1, 1)
 	proxyTag.Position = UDim2.new(1, -4, 1, -4)
 	proxyTag.BackgroundTransparency = 0.2

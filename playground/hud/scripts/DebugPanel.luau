@@ -75,7 +75,7 @@ function DebugPanel.new(gui: ScreenGui, api: any)
 	header(frame, "PREVIEW PLAYGROUND (Studio only)", nextOrder())
 	local status = Instance.new("TextLabel")
 	status.LayoutOrder = nextOrder()
-	status.Size = UDim2.new(1, 0, 0, 30)
+	status.Size = UDim2.new(1, 0, 0, 44)
 	status.BackgroundTransparency = 1
 	status.TextColor3 = Color3.fromRGB(200, 210, 230)
 	status.Font = Enum.Font.Gotham
@@ -116,6 +116,9 @@ function DebugPanel.new(gui: ScreenGui, api: any)
 			run:setHeatVariant(if d.heatVariant == "Proposal" then "Approved" else "Proposal")
 		end
 	end)
+	button(frame, "Preview captions: toggle", nextOrder(), function()
+		api.setCaptions(not api.captions)
+	end)
 	button(frame, "Reset to baseline", nextOrder(), function()
 		api.reset()
 	end)
@@ -139,14 +142,15 @@ function DebugPanel.new(gui: ScreenGui, api: any)
 			local p = api.screen:profile()
 			local reduced = game:GetService("Players").LocalPlayer:GetAttribute("Lane3ReducedMotionOverride")
 			status.Text = string.format(
-				"%s x%.2f (scale %.2f)\nmode %s  RM %s  fail %d\n%s",
+				"%s x%.2f (scale %.2f)\nmode %s  RM %s  fail %d\n%s\n%s",
 				p.name,
 				api.screen:fitScale(),
 				api.screen:uiScale(),
 				api.store:get().mode,
 				tostring(reduced),
 				failures,
-				api.scenarios.current or "idle"
+				api.scenarios.current or "idle",
+				api.lastAction or ""
 			)
 			task.wait(0.5)
 		end

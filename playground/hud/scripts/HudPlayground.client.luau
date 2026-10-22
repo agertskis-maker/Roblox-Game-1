@@ -97,6 +97,64 @@ local function mount(key: string, path: { string }, layerName: string, options: 
 end
 
 local api: { [string]: any } = {}
+
+-- Harness log: preview-only button results (Retry, GO, Drive, prompts, Hop intent) are reported
+-- here and on the debug panel, never as player-facing toasts.
+api.lastAction = ""
+function api.harness(text: string)
+	api.lastAction = text
+	print("[Lane3Hud] preview action: " .. text)
+end
+
+-- Preview captions ("PROXY", "Preview values", "placeholder times", "Pass concept (not approved)",
+-- "Preview: not saved") are harness labels: hidden in the player-facing view by default and shown
+-- with setCaptions(true) for annotated review captures. A watermark outside the device frame
+-- always says this is a preview.
+api.captions = false
+local function applyCaptions(root: Instance)
+	for _, d in root:GetDescendants() do
+		if d:IsA("GuiObject") and (d:GetAttribute("PreviewCaption") == true or d.Name == "PreviewNote") then
+			d.Visible = api.captions
+		end
+	end
+end
+function api.setCaptions(on: boolean)
+	api.captions = on
+	applyCaptions(gui)
+end
+trove:Connect(gui.DescendantAdded, function(d)
+	if d:IsA("GuiObject") and (d:GetAttribute("PreviewCaption") == true or d.Name == "PreviewNote") then
+		task.defer(function()
+			d.Visible = api.captions
+		end)
+	end
+end)
+do
+	local mark = Instance.new("TextLabel")
+	mark.Name = "PreviewWatermark"
+	mark.AnchorPoint = Vector2.new(1, 1)
+	mark.Position = UDim2.new(1, -6, 1, -4)
+	mark.Size = UDim2.fromOffset(260, 16)
+	mark.BackgroundTransparency = 1
+	mark.Font = Enum.Font.GothamMedium
+	mark.TextSize = 11
+	mark.TextColor3 = Color3.new(1, 1, 1)
+	mark.TextStrokeTransparency = 0.4
+	mark.TextXAlignment = Enum.TextXAlignment.Right
+	mark.Text = "LANE 3 HUD PREVIEW · synthetic fixtures · not production"
+	mark.ZIndex = 200
+	mark.Parent = gui
+end
+
+-- Hide or show the run HUD (the Stunt Circuit mock has its own HUD)
+function api.setRunHudVisible(on: boolean)
+	for _, key in { "run", "ride", "keys", "hop", "dash" } do
+		local c = components[key]
+		if c and c.setVisible then
+			c:setVisible(on)
+		end
+	end
+end
 api.store = store
 api.screen = screen
 api.backdrop = backdrop
@@ -135,12 +193,7 @@ mount("menu", { "Home", "LeftMenu" }, "Hud", {
 		api.open("shop")
 	end,
 	onMissions = function()
-		store:emit({
-			id = "missions-" .. os.clock(),
-			kind = "Toast",
-			text = "Missions (mock): nothing to claim yet",
-			tone = "Info",
-		})
+		api.harness("Missions (mock): nothing to claim yet")
 	end,
 	onSettings = function()
 		local menu = components.menu
@@ -159,22 +212,12 @@ mount("settings", { "Home", "SettingsPanel" }, "Modal", {
 -- Screens and cards
 mount("garage", { "Screens", "GarageMock" }, "Overlay", {
 	onDrive = function(car: any)
-		store:emit({
-			id = "drive-" .. os.clock(),
-			kind = "Toast",
-			text = "Drive " .. tostring(car and car.name) .. " (preview only)",
-			tone = "Info",
-		})
+		api.harness("Drive " .. tostring(car and car.name) .. " (preview only)")
 	end,
 })
 mount("portalCard", { "Screens", "PortalCardMock" }, "Overlay", {
 	onGo = function()
-		store:emit({
-			id = "go-" .. os.clock(),
-			kind = "Toast",
-			text = "GO pressed (preview: no teleport)",
-			tone = "Info",
-		})
+		api.harness("GO pressed (preview: no teleport)")
 	end,
 })
 mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {})
@@ -200,12 +243,7 @@ mount("capture", { "Run", "CaptureCelebration" }, "Feedback")
 mount("owned", { "Run", "AlreadyOwned" }, "Feedback")
 mount("hop", { "Run", "HopButton" }, "Run", {
 	onHopIntent = function()
-		store:emit({
-			id = "hopintent-" .. os.clock(),
-			kind = "Toast",
-			text = "Hop intent (preview only)",
-			tone = "Info",
-		})
+		api.harness("Hop intent (preview only)")
 	end,
 })
 mount("dash", { "Run", "FootDash" }, "Run")
@@ -215,12 +253,7 @@ mount("lapPay", { "World", "LapPay" }, "Feedback", { cars = backdrop.lapCars })
 mount("prompts", { "World", "Prompts" }, "Feedback", {
 	props = backdrop.props,
 	onTriggered = function(name: string)
-		store:emit({
-			id = "prompt-" .. name .. os.clock(),
-			kind = "Toast",
-			text = name .. " (preview: no action)",
-			tone = "Info",
-		})
+		api.harness(name .. " (preview: no action)")
 	end,
 })
 
@@ -247,12 +280,7 @@ do
 	local hop = components.hop
 	if hop and hop.setHopIntent then
 		hop:setHopIntent(function()
-			store:emit({
-				id = "hopintent-" .. os.clock(),
-				kind = "Toast",
-				text = "Hop intent sent (preview only)",
-				tone = "Info",
-			})
+			api.harness("Hop intent sent (preview only)")
 		end)
 	end
 	-- dummy prompts on the playground props (presentation only; triggering does nothing real)
@@ -275,12 +303,7 @@ do
 			pp.Style = Enum.ProximityPromptStyle.Custom
 			pp.Parent = spec[1]
 			prompts:attach(pp, function()
-				store:emit({
-					id = "prompt-" .. spec[3] .. os.clock(),
-					kind = "Toast",
-					text = spec[3] .. " (preview: no action)",
-					tone = "Info",
-				})
+				api.harness(spec[3] .. " (preview: no action)")
 			end)
 		end
 		api.promptsList = specs

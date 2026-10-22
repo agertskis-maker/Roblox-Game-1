@@ -386,6 +386,8 @@ steps["Run: Keys capture"] = function(self)
 	enterRun(self)
 	local s = self.store
 	local target = car("rev6")
+	-- the Keys meter fills while riding the unowned car, so the ride chip names it from the start
+	runPatch(s, { ride = target })
 	for p = 0, 1, 0.1 do
 		runPatch(s, { keys = { target = target, progress = p, status = "Holding" } })
 		task.wait(0.25)
@@ -403,7 +405,8 @@ steps["Run: Already owned"] = function(self)
 	enterRun(self)
 	local target = car("puglet")
 	runPatch(self.store, { keys = { target = target, progress = 1, status = "Confirmed" } })
-	emit(self.store, "AlreadyOwned", { car = target })
+	-- the Joyride Bonus is decided (GDD); +$50 is a SYNTHETIC fixture amount (Brian L owns it)
+	emit(self.store, "AlreadyOwned", { car = target, amount = 50 })
 	task.wait(2.5)
 	runPatch(self.store, { keys = nil })
 end
@@ -420,7 +423,7 @@ steps["Run: Hop, Dash, milestones"] = function(self)
 		task.wait(1.6)
 	end
 	runPatch(s, { hopCooldown01 = 1 })
-	emit(s, "Toast", { text = "Hop! (preview)", tone = "Info" })
+	self.api.harness("Hop (fixture: the cooldown sweep starts)")
 	task.wait(1.8)
 	runPatch(s, { dash = 1 })
 	task.wait(3)
@@ -445,6 +448,8 @@ local function results(self: any, key: string)
 		newBest = f.newBest,
 		claimed = claimed,
 		earnings = f.earnings,
+		joyride = f.joyride,
+		milestones = f.milestones,
 	}
 	self.store:set("results", res)
 	self.store:setMode("Results")
@@ -490,6 +495,11 @@ end
 
 steps["Stunt mock"] = function(self)
 	local st = self.api.components.stunt
+	if self.store:get().mode == "Results" then
+		self.store:set("results", nil)
+		self.store:setMode("Run")
+	end
+	self.api.setRunHudVisible(false)
 	if st and st.open then
 		st:open()
 	end
@@ -500,6 +510,7 @@ steps["Stunt mock"] = function(self)
 	if st and st.close then
 		st:close()
 	end
+	self.api.setRunHudVisible(self.store:get().mode == "Run")
 end
 
 steps["Reduced motion mid-effect"] = function(self)
@@ -510,7 +521,7 @@ steps["Reduced motion mid-effect"] = function(self)
 	task.wait(0.15)
 	Motion.setOverride(true)
 	task.wait(2)
-	emit(s, "Toast", { text = "Reduce Motion is on (preview)", tone = "Info" })
+	emit(s, "Toast", { text = "Reduce Motion is on", tone = "Info" })
 	enterRun(self)
 	steps["Run: Keys capture"](self)
 	Motion.setOverride(nil)
@@ -554,6 +565,11 @@ function Scenarios.play(self: any, name: string): boolean
 		return false
 	end
 	self:cancel()
+	-- a new scenario starts from a clean overlay stack (a cancelled one cannot close its own)
+	for _, key in { "settings", "garage", "portalCard", "welcome", "shop", "stunt" } do
+		self.api.close(key)
+	end
+	self.api.setRunHudVisible(self.store:get().mode == "Run")
 	local seq = self._seq
 	self.current = name
 	self._thread = task.spawn(function()
