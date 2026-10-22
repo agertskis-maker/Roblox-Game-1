@@ -359,25 +359,25 @@ def fountain_grand(name):
     b = Builder(name)
     S = 48
     # two low walkable steps round the basin
-    annulus_step(b, 0.28, 13.5, 15.6, S, "stone_light", "sign_board")
-    annulus_step(b, 0.55, 12.3, 13.6, S, "stone_light", "sign_board")
+    annulus_step(b, 0.28, 13.5, 15.6, S, "rock", "rock_dark")
+    annulus_step(b, 0.55, 12.3, 13.6, S, "sign_board", "rock")
     # the basin: outer wall with a plinth and a cornice, scalloped rim, inner wall and floor
     wall_foot = ring(Vector((0, 0, 0.5)), Vector((0, 0, 1)), 12.45, S)
     wall_mid = ring(Vector((0, 0, 0.75)), Vector((0, 0, 1)), 12.2, S)
     wall_top = ring(Vector((0, 0, 1.7)), Vector((0, 0, 1)), 12.2, S)
     cornice = ring(Vector((0, 0, 1.85)), Vector((0, 0, 1)), 12.45, S)
-    band(b, wall_foot, wall_mid, "sign_board")
-    band(b, wall_mid, wall_top, "stone_light")
-    band(b, wall_top, cornice, "sign_board")
+    band(b, wall_foot, wall_mid, "rock")
+    band(b, wall_mid, wall_top, "sign_board")
+    band(b, wall_top, cornice, "rock")
     cornice2 = ring(Vector((0, 0, 1.85)), Vector((0, 0, 1)), 12.45, S * 2)
     lip = scallop_ring(2.15, 12.35, S * 2, 24, 0.3)
     band(b, cornice2, lip, "stone_light")
     inner = scallop_ring(2.05, 11.25, S * 2, 24, 0.22)
     band(b, lip, inner, "stone_light")
     floor = ring(Vector((0, 0, 0.35)), Vector((0, 0, 1)), 10.9, S * 2)
-    band(b, inner, floor, "rock")
+    band(b, inner, floor, "rock_dark")
     for k in range(S * 2):
-        b.tri(floor[k], floor[(k + 1) % (S * 2)], Vector((0, 0, 0.35)), "rock")
+        b.tri(floor[k], floor[(k + 1) % (S * 2)], Vector((0, 0, 0.35)), "wild_blue")
     # wheel medallions on the outer wall, between the scallops
     for k in range(8):
         a = 2 * math.pi * (k + 0.5) / 8
@@ -392,17 +392,17 @@ def fountain_grand(name):
             r = 1.45 if k % 2 == 0 else 1.25
             pts.append(Vector((math.cos(a) * r, math.sin(a) * r, z)))
         flutes.append(pts)
-    band(b, flutes[0], flutes[1], "stone_light")
+    band(b, flutes[0], flutes[1], "sign_board")
     for k in range(4):
         a = 2 * math.pi * k / 4 + math.pi / 4
         d = Vector((math.cos(a), math.sin(a), 0))
         path = [d * 1.35 + Vector((0, 0, 1.0)), d * 2.0 + Vector((0, 0, 1.25)), d * 2.6 + Vector((0, 0, 1.75)), d * 2.75 + Vector((0, 0, 2.25)), d * 2.45 + Vector((0, 0, 2.4))]
         tube(b, path, [0.16, 0.2, 0.18, 0.14, 0.1], 6, ["sign_board", "stone_light"], cap=True)
     # mid bowl, top bowl, column and finial
-    scalloped_bowl(b, 2.45, 2.9, 5.4, 0.5, 12, 36, 1.4, 2.2, "stone_light", "rock", "sign_board")
+    scalloped_bowl(b, 2.45, 2.9, 5.4, 0.5, 12, 36, 1.4, 2.2, "sign_board", "rock_dark", "stone_light")
     cyl(b, Vector((0, 0, 2.45)), 1.15, 1.0, 16, "stone_light", r_top=0.95)
     cyl(b, Vector((0, 0, 3.0)), 0.25, 1.2, 16, "sign_board")
-    scalloped_bowl(b, 3.6, 4.0, 3.2, 0.38, 10, 30, 0.9, 3.3, "stone_light", "rock", "sign_board")
+    scalloped_bowl(b, 3.6, 4.0, 3.2, 0.38, 10, 30, 0.9, 3.3, "sign_board", "rock_dark", "stone_light")
     cyl(b, Vector((0, 0, 3.6)), 2.2, 0.72, 12, "stone_light", r_top=0.55)
     cyl(b, Vector((0, 0, 4.6)), 0.2, 0.85, 12, "sign_board")
     cyl(b, Vector((0, 0, 5.2)), 0.25, 0.85, 12, "sign_board")
@@ -455,7 +455,8 @@ def plaza_mosaic(name):
                 swatch = sw[i] if k % 2 == 0 else ("sign_board" if sw[i] == "stone_light" else "rock_dark")
             p = [Vector((math.cos(a0) * r0, math.sin(a0) * r0, 0.06)), Vector((math.cos(a1) * r0, math.sin(a1) * r0, 0.06)),
                  Vector((math.cos(a1) * r1, math.sin(a1) * r1, 0.06)), Vector((math.cos(a0) * r1, math.sin(a0) * r1, 0.06))]
-            b.quad(p[0], p[1], p[2], p[3], swatch)
+            # counter-clockwise seen from above, so the tiles face up
+            b.quad(p[0], p[3], p[2], p[1], swatch)
     # the outer edge face
     outer = ring(Vector((0, 0, 0.06)), Vector((0, 0, 1)), 24.0, S)
     foot = ring(Vector((0, 0, -0.02)), Vector((0, 0, 1)), 24.0, S)

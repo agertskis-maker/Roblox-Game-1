@@ -104,6 +104,27 @@ function BoostLanes.build(parent: Instance): { strips: number, beams: number }
 	for k, s in strips do
 		local dir = s.to - s.from
 		local side = Vector2.new(-dir.Y, dir.X).Unit
+		-- a slate inlay under both halves, so white chevrons read on the light paving
+		do
+			local along = world(s.to, 0) - world(s.from, 0)
+			local a0 = attach(host, world(s.from, SURFACE_TOP + 0.02), along)
+			local a1 = attach(host, world(s.to, SURFACE_TOP + 0.02), along)
+			local inlay = Instance.new("Beam")
+			inlay.Name = string.format("Avenue%dInlay%02d", s.avenue, k)
+			inlay.Attachment0 = a0
+			inlay.Attachment1 = a1
+			inlay.Width0 = 2 * BoostLanes.HalfWidth + 0.5
+			inlay.Width1 = inlay.Width0
+			inlay.FaceCamera = false
+			inlay.Segments = 1
+			inlay.Color = ColorSequence.new(Color3.fromRGB(88, 104, 126))
+			inlay.Transparency = NumberSequence.new(0.1)
+			inlay.LightEmission = 0
+			inlay.LightInfluence = 1
+			inlay.ZOffset = 0.02
+			inlay.Parent = model
+			beams += 1
+		end
 		for _, lane in { { "Inbound", 1 }, { "Outbound", -1 } } do
 			local offset = side * LANE_OFFSET * lane[2]
 			local p0, p1 = s.from + offset, s.to + offset
@@ -121,7 +142,7 @@ function BoostLanes.build(parent: Instance): { strips: number, beams: number }
 			b.Attachment1 = a1
 			b.Texture = AssetIds.Textures.Chevron
 			b.TextureMode = Enum.TextureMode.Wrap
-			b.TextureLength = 3.2
+			b.TextureLength = 3.6
 			b.TextureSpeed = 0.6
 			b.Width0 = LANE_WIDTH
 			b.Width1 = LANE_WIDTH
@@ -129,8 +150,9 @@ function BoostLanes.build(parent: Instance): { strips: number, beams: number }
 			b.Segments = 1
 			b.Color = ColorSequence.new(Color3.fromRGB(246, 250, 255))
 			b.Transparency = NumberSequence.new(0.22)
-			b.LightEmission = 0.45
-			b.LightInfluence = 0.45
+			b.LightEmission = 0.7
+			b.LightInfluence = 0.3
+			b.Brightness = 1.3
 			b.ZOffset = 0.05
 			b:SetAttribute("BaseSpeed", 0.6)
 			b:SetAttribute("BoostLane", lane[1])

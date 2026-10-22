@@ -11,6 +11,7 @@
 import math
 import random
 
+import bmesh
 from mathutils import Vector
 
 from kitlib import Builder, clump, tube
@@ -41,33 +42,97 @@ def duck(name, scale, adult=True):
     return b, {"height": 1.4 * s, "length": 2.6 * s, "float": 0.0}
 
 
+def painted(b, centre, size, rng, paint, subdiv=2, jitter=0.1, deform=None):
+    """A faceted ellipsoid whose faces are coloured by region: paint(u, n) gets the face's
+    direction on the unit sphere (u) and its normal (n) and returns a swatch. Used where a
+    marking must sit on the form itself (the raccoon's mask, belly and ear linings)."""
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=1.0)
+    unit = {}
+    for v in bm.verts:
+        n = v.co.normalized()
+        unit[v.index] = n
+        s = 1 + rng.uniform(-jitter, jitter)
+        v.co = Vector((n.x * size.x * s, n.y * size.y * s, n.z * size.z * s))
+        if deform:
+            v.co = deform(v.co)
+    bm.normal_update()
+    for f in bm.faces:
+        u = sum((unit[v.index] for v in f.verts), Vector()).normalized()
+        b.face([centre + v.co for v in f.verts], paint(u, f.normal))
+    bm.free()
+
+
 def raccoon(name):
+    # Read at a distance by its silhouette and markings: a low, hunched body with the rump
+    # higher than the shoulders, short dark legs, and a thick tail in bold dark and pale rings
+    # held out behind and a little to one side, so the rings show from the side and the rear.
     rng = random.Random(seed_of(name))
     b = Builder(name)
-    grey = ["raccoon", "raccoon", "birch_grey"]
-    clump(b, Vector((0, 0, 0.95)), Vector((1.05, 0.62, 0.62)), rng, grey, flatten=1.0, subdiv=2)
-    for x in (-0.6, 0.55):
-        for y in (-0.35, 0.35):
-            tube(b, [Vector((x, y, 0.7)), Vector((x + 0.05, y, 0.02))], [0.17, 0.13], 5, ["raccoon_dark"])
-    # the striped tail
-    pts = [Vector((-0.95, 0, 1.0)), Vector((-1.55, 0, 1.25)), Vector((-2.05, 0, 1.6)), Vector((-2.3, 0, 2.05))]
-    tube(b, pts, [0.3, 0.34, 0.28, 0.12], 6, ["raccoon_dark", "birch_grey", "raccoon_dark"])
-    return b, {"height": 1.6, "length": 3.4, "neck": [0.95, 0, 1.25]}
+
+    def fur(u, n):
+        if n.z < -0.45:
+            return "birch_grey"  # paler belly
+        return "rock" if rng.random() < 0.3 else "raccoon"
+
+    # torso: rump raised, back arched, shoulders dropping toward the neck
+    def hunch(v):
+        return Vector((v.x, v.y, v.z - 0.3 * v.x + (0.14 * max(0.0, 1 - ((v.x + 0.35) / 0.9) ** 2) if v.z > 0 else 0)))
+
+    painted(b, Vector((-0.1, 0, 0.84)), Vector((1.0, 0.62, 0.5)), rng, fur, subdiv=2, deform=hunch)
+    # shoulders and neck, rising to the head joint at the neck point (0.95, 0, 1.25)
+    tube(b, [Vector((0.4, 0, 0.86)), Vector((0.72, 0, 1.02)), Vector((0.98, 0, 1.2))], [0.44, 0.4, 0.3], 8, ["raccoon", "rock", "raccoon"])
+    # haunches, so the rump reads round from behind
+    for y in (-1, 1):
+        painted(b, Vector((-0.58, y * 0.32, 0.72)), Vector((0.38, 0.22, 0.34)), rng, fur, subdiv=1)
+    # short dark legs with paws
+    for x, top in ((0.6, 0.62), (-0.6, 0.6)):
+        for y in (-0.3, 0.3):
+            tube(b, [Vector((x, y, top)), Vector((x + 0.03, y, 0.06))], [0.19, 0.15], 5, ["raccoon_dark"])
+            clump(b, Vector((x + 0.08, y, 0.06)), Vector((0.15, 0.12, 0.07)), rng, ["raccoon_dark"], subdiv=1)
+    # the ringed tail: six bands, grey at the root, then dark / pale, ending in a dark tip
+    pts = [Vector((-0.85, 0, 1.12)), Vector((-1.15, 0.04, 1.08)), Vector((-1.45, 0.13, 1.1)), Vector((-1.72, 0.25, 1.2)), Vector((-1.94, 0.38, 1.36)), Vector((-2.1, 0.5, 1.56)), Vector((-2.2, 0.58, 1.76))]
+    bands = ["raccoon", "raccoon_dark", "birch_white", "raccoon_dark", "birch_white", "raccoon_dark"]
+    tube(b, pts, [0.24, 0.31, 0.34, 0.34, 0.31, 0.25, 0.15], 7, bands)
+    return b, {"height": 1.6, "length": 3.6, "neck": [0.95, 0, 1.25]}
 
 
 def raccoon_head(name):
+    # Pivot at the neck (origin); the head sits forward of it and slightly low (the hunch).
+    # Broad round skull, a short pointed pale muzzle with a black nose, round ears with dark
+    # linings, and the mask: a dark band across the eyes wrapping round the sides of the face,
+    # with pale brows above it and pale cheeks below it.
     rng = random.Random(seed_of(name))
     b = Builder(name)
-    # pivot at the neck (origin); the head sits forward and up
-    clump(b, Vector((0.35, 0, 0.25)), Vector((0.5, 0.46, 0.4)), rng, ["raccoon", "birch_grey"], subdiv=2)
-    tube(b, [Vector((0.7, 0, 0.18)), Vector((1.05, 0, 0.12))], [0.2, 0.08], 5, ["birch_grey"])
-    clump(b, Vector((1.08, 0, 0.12)), Vector((0.07, 0.07, 0.06)), rng, ["black"], subdiv=1)
-    # the mask and eyes
+
+    def face(u, n):
+        if u.x > 0.05:
+            if -0.12 < u.z < 0.42 and abs(u.y) < 0.95:
+                return "raccoon_dark"  # the mask
+            if u.z >= 0.42 and u.x > 0.45 and abs(u.y) < 0.75:
+                return "birch_white"  # brows
+            if u.z <= -0.12:
+                return "birch_white"  # cheeks and chin
+        return "raccoon"
+
+    painted(b, Vector((0.36, 0, 0.02)), Vector((0.42, 0.5, 0.38)), rng, face, subdiv=2, jitter=0.06)
+
+    def muzzle(u, n):
+        if u.x > 0.86:
+            return "black"  # nose
+        return "birch_white"
+
+    painted(b, Vector((0.74, 0, -0.06)), Vector((0.3, 0.19, 0.15)), rng, muzzle, subdiv=2, jitter=0.05)
     for y in (-1, 1):
-        clump(b, Vector((0.68, y * 0.2, 0.33)), Vector((0.14, 0.15, 0.1)), rng, ["raccoon_dark"], subdiv=1)
-        clump(b, Vector((0.76, y * 0.19, 0.35)), Vector((0.05, 0.05, 0.05)), rng, ["cart_white"], subdiv=1)
-        tube(b, [Vector((0.2, y * 0.28, 0.55)), Vector((0.15, y * 0.36, 0.85))], [0.13, 0.02], 4, ["raccoon_dark"])
-    return b, {"height": 0.9}
+        # eyes: a pale glint in the mask
+        clump(b, Vector((0.7, y * 0.2, 0.09)), Vector((0.055, 0.055, 0.055)), rng, ["cart_white"], subdiv=0)
+
+        # round ears, dark inside, pale rim
+        def ear(u, n, y=y):
+            return "raccoon_dark" if n.x > 0.35 else "birch_white"
+
+        painted(b, Vector((0.2, y * 0.31, 0.37)), Vector((0.08, 0.16, 0.15)), rng, ear, subdiv=2, jitter=0.03)
+    return b, {"height": 0.55}
 
 
 def butterfly_body(name):

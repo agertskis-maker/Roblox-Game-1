@@ -27,7 +27,8 @@ AssetIds.Textures = {
 	Glow = id(109290330063558),
 	Current = id(103576178978702),
 	-- boost-lane chevron (textures.js chevron.png), uploaded 2026-10-21 (revision 2)
-	Chevron = id(136467391577760),
+	-- (the first upload, 136467391577760, drew the chevron sideways on a beam; superseded)
+	Chevron = id(96352143506498),
 }
 
 -- The kit palette (assets/island/kit/kitlib.py, 16 x 16 swatches), uploaded 2026-10-21.
@@ -45,9 +46,9 @@ AssetIds.Meshes = {
 	BerryBush = id(113381535893436),
 	BirchA_Canopy = id(95358946867963),
 	BirchA_Trunk = id(113392689229837),
-	BirchB_Canopy = id(97117102116709),
+	BirchB_Canopy = id(76466785156402), -- revision 2 (was 97117102116709)
 	BirchB_Trunk = id(71794440829829),
-	BirchC_Canopy = id(134755746106792),
+	BirchC_Canopy = id(77471118350791), -- revision 2 (was 134755746106792)
 	BirchC_Trunk = id(107504512366800),
 	BlossomA_Canopy = id(85623663058251),
 	BlossomA_Trunk = id(71890708802809),
@@ -130,17 +131,17 @@ AssetIds.Meshes = {
 	OakC_Canopy = id(137935820165648),
 	OakC_Trunk = id(72640563796108),
 	PineA_Canopy = id(86571721057312),
-	PineA_Trunk = id(82143832617173),
+	PineA_Trunk = id(126489468362585), -- revision 2 (was 82143832617173)
 	PineB_Canopy = id(119200173785375),
-	PineB_Trunk = id(89643406488268),
+	PineB_Trunk = id(91453775827473), -- revision 2 (was 89643406488268)
 	PineC_Canopy = id(96071087065535),
-	PineC_Trunk = id(126729994654224),
+	PineC_Trunk = id(113986667544582), -- revision 2 (was 126729994654224)
 	PineSapling_Canopy = id(108593342174832),
-	PineSapling_Trunk = id(108644319441252),
+	PineSapling_Trunk = id(125052020212163), -- revision 2 (was 108644319441252)
 	PopcornCart = id(140620817482021),
 	Poppies = id(134198513847375),
-	Raccoon = id(70443242208452),
-	RaccoonHead = id(133875827596835),
+	Raccoon = id(78064153570396), -- revision 2 (was 70443242208452)
+	RaccoonHead = id(122251191819978), -- revision 2 (was 133875827596835)
 	Reeds = id(138621409272637),
 	RosesPink = id(133767793962188),
 	RosesRed = id(137302351764375),
@@ -161,7 +162,7 @@ AssetIds.Meshes = {
 	TopiaryCone = id(72356799315602),
 	TulipsRed = id(125564876170957),
 	TulipsYellow = id(98770109311258),
-	UmbrellaA_Canopy = id(104256844178578),
+	UmbrellaA_Canopy = id(91847269200413), -- revision 2 (was 104256844178578)
 	UmbrellaA_Trunk = id(133742908940135),
 	UmbrellaB_Canopy = id(74855981514851),
 	UmbrellaB_Trunk = id(101735978642638),
@@ -169,12 +170,16 @@ AssetIds.Meshes = {
 	UmbrellaC_Trunk = id(109121511812165),
 	WetRockA = id(99844062490263),
 	WetRockB = id(115292109378113),
-	WillowA_Canopy = id(95230078901958),
+	WillowA_Canopy = id(100724359605792), -- revision 2 (was 95230078901958)
 	WillowA_Trunk = id(95619268368185),
 	WillowB_Canopy = id(117793886163427),
 	WillowB_Trunk = id(78855509300039),
 	WillowC_Canopy = id(117322934216935),
 	WillowC_Trunk = id(94489845710982),
+	-- new in revision 2 (2026-10-21, island-kit-rev2.obj)
+	FountainGrand = id(138476226884315),
+	FountainGrandWater = id(118135225656541),
+	PlazaMosaic = id(92746874626451),
 } :: { [string]: string }
 
 return AssetIds

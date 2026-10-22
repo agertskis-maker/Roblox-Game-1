@@ -144,7 +144,7 @@ local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 			table.clear(lanes)
 			if folder then
 				for _, d in folder:GetChildren() do
-					if d:IsA("Beam") then
+					if d:IsA("Beam") and d:GetAttribute("BoostLane") then
 						table.insert(lanes, d)
 					end
 				end

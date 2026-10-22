@@ -293,7 +293,7 @@ end
 -- The client choreographs it (Home/Island/EnvironmentMotion: a slowly rising and falling plume,
 -- a gentle wave round the arcs; reduced motion holds a calm, complete display).
 local function buildFountain(ctx: Ctx)
-	local y = SURFACE + 0.08 -- the plaza paving's top face
+	local y = SURFACE + 0.12 -- the plaza paving's top face (measured in Studio)
 	local f = folder(ctx, "Fountain")
 	-- the fountain stone and water are measured against the portals themselves (the envelope),
 	-- so the blanket 3-stud corridor rule does not apply to them; the falls view still does
@@ -304,7 +304,8 @@ local function buildFountain(ctx: Ctx)
 		transparency = 0.35,
 		envelope = true,
 	})
-	put(ctx, "Fountain", "PlazaMosaic", Vector2.zero, 0, 1, { y = SURFACE + 0.04, envelope = true })
+	-- the mosaic slab (0.08 thick) stands 0.015 proud of the paving, so it never flickers
+	put(ctx, "Fountain", "PlazaMosaic", Vector2.zero, 0, 1, { y = y - 0.045, envelope = true })
 	local meta = KitAssets.info("FountainGrand").meta
 	-- simple colliders: the basin wall and the two walkable steps
 	invisibleCylinder(f, "BasinCollider", meta.radius + 0.05, 2.15, y)

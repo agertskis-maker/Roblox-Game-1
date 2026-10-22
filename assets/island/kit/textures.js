@@ -253,19 +253,20 @@ function current(seed, w = 512, h = 128) {
 	});
 }
 
-// Boost-lane chevron: one soft white chevron per tile pointing along +U (the beam's direction),
-// with clear space before and after, so a beam repeats it down the lane. Soft edges, a slightly
-// brighter core, transparent elsewhere.
-function chevron(w = 128, h = 64) {
+// Boost-lane chevron: one soft white chevron per tile. Beams lay this texture with its V axis
+// along the beam (seen in Studio, 2026-10-21: a chevron drawn along U came out sideways), so the
+// chevron points along -V (toward the top of the image), with clear space before and after.
+// Soft edges, a slightly brighter core, transparent elsewhere.
+function chevron(w = 64, h = 128) {
 	const seg = (px, py, ax, ay, bx, by) => {
 		const dx = bx - ax, dy = by - ay;
 		const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
 		return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 	};
 	return image(w, h, (u, v) => {
-		// in tile units: u 0..1 along, v 0..1 across, aspect 2:1
-		const x = u * 2, y = v;
-		const d = Math.min(seg(x, y, 0.62, 0.14, 1.22, 0.5), seg(x, y, 0.62, 0.86, 1.22, 0.5));
+		// in tile units: u 0..1 across, v 0..1 along, aspect 1:2
+		const x = u, y = v * 2;
+		const d = Math.min(seg(x, y, 0.14, 1.38, 0.5, 0.78), seg(x, y, 0.86, 1.38, 0.5, 0.78));
 		const a = 1 - smooth(0.055, 0.095, d);
 		const core = 1 - smooth(0, 0.05, d);
 		return [1, 1, 1, clamp(0.85 * a + 0.15 * core)];

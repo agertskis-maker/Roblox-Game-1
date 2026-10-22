@@ -24,6 +24,10 @@ local QUACK_SOUND = "rbxassetid://1845012569" -- Quack Duck, APM
 local FALLS_AT = Vector3.new(-121, 22, 270)
 local PARK_AT = Vector3.new(0, 12, -20)
 local QUACK_MIN, QUACK_MAX = 20, 40 -- seconds between quacks (Tunable)
+-- Off: the proposed asset is a 63.1-second track (measured in a playtest, 2026-10-21), not a
+-- single quack, so every 20 to 40 s it would stack long overlapping plays. A replacement needs
+-- Adam's choice; the timer below is kept for it.
+local QUACK_ENABLED = false
 
 local function emitterPart(trove: Trove.Trove, name: string, at: Vector3): Part
 	local p = trove:Add(Instance.new("Part"))
@@ -87,7 +91,7 @@ local function run(trove: Trove.Trove)
 	})
 	local rng = Random.new()
 	trove:Add(task.spawn(function()
-		while true do
+		while QUACK_ENABLED do
 			task.wait(rng:NextNumber(QUACK_MIN, QUACK_MAX))
 			local live = Workspace:FindFirstChild("Lane3_Wildlife")
 			local duck = live and live:FindFirstChild("Duck")
