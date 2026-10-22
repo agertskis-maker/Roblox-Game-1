@@ -8,7 +8,8 @@
 --   a hollow fallen log at three cluster edges (one is the raccoon's), stumps at forest edges,
 --     mossy rocks in the shade.
 -- The park's lawns and path edges are dressed by ParkDressing. Placement is seeded. Writes
--- WildlifeAnchors for butterflies (flower drifts) and the raccoon (its log).
+-- WildlifeAnchors for butterflies (flower drifts), the raccoon (its log) and fireflies (shady
+-- fern spots in tree clusters).
 -- Terrain grass decoration is not used: this Studio build has no Terrain.Decoration property
 -- (checked 2026-10-21), so grass near paths and the lake is kit meshes.
 
@@ -178,6 +179,7 @@ local function buildUnderstory(ctx: Ctx, flora: Instance?)
 		return
 	end
 	local clusters: { Model } = {}
+	local fireflies, clusterFerns = 0, 0
 	for _, m in flora:GetDescendants() do
 		if m:IsA("Model") and m:FindFirstChild("Trunk") then
 			local pivot = m.WorldPivot.Position
@@ -200,6 +202,13 @@ local function buildUnderstory(ctx: Ctx, flora: Instance?)
 							a,
 							ctx.rng:NextNumber(0.9, 1.4)
 						)
+						-- every sixth fern in a tree cluster is a shady spot for fireflies (no random draw, so
+						-- the rest of the planting is unchanged)
+						clusterFerns += if inCluster then 1 else 0
+						if inCluster and fireflies < 12 and clusterFerns % 6 == 0 then
+							fireflies += 1
+							anchor(ctx, "FireflyShade", Vector3.new(q.X, Flora.surfaceY(ctx.grid, q) + 1.5, -q.Y))
+						end
 					end
 				end
 			end
@@ -266,6 +275,7 @@ local function buildUnderstory(ctx: Ctx, flora: Instance?)
 		end
 	end
 	ctx.counts.logs = logs
+	ctx.counts.fireflySpots = fireflies
 end
 
 export type Report = { counts: { [string]: number }, triangles: number, parts: number, seconds: number }

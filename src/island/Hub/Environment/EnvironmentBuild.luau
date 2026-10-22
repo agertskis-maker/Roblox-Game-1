@@ -25,6 +25,7 @@ local Look = require(script.Parent.Look)
 local ParkDressing = require(script.Parent.ParkDressing)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 local Waterfall = require(script.Parent.Waterfall)
+local WildlifeKit = require(script.Parent.WildlifeKit)
 
 local EnvironmentBuild = {}
 
@@ -109,6 +110,7 @@ function EnvironmentBuild.build(options: Options?): { [string]: any }
 	report.lake = LakeDressing.build(s, seed)
 	report.groundCover = GroundCover.build(s, grid, seed)
 	report.park = ParkDressing.build(s, grid, seed)
+	report.wildlifeKit = WildlifeKit.build(s)
 	phase("dressing")
 
 	local hub = HubBuild.build()
@@ -155,8 +157,9 @@ function EnvironmentBuild.redress(): { [string]: any }
 	local lake = LakeDressing.build(s, seed)
 	local ground = GroundCover.build(s, grid, seed)
 	local park = ParkDressing.build(s, grid, seed)
+	local wildlife = WildlifeKit.build(s)
 	local hub = HubBuild.build()
-	return { lake = lake, groundCover = ground, park = park, hubParts = hub.parts }
+	return { lake = lake, groundCover = ground, park = park, wildlifeKit = wildlife, hubParts = hub.parts }
 end
 
 -- Replaces the planting only, on the terrain already written by build(): the grid is recomputed
