@@ -1,0 +1,7 @@
+{
+  "className": "Configuration",
+  "attributes": {
+    "Kind": "hud",
+    "Note": "Lane 3 HUD playground marker. Exists only in playground/hud.project.json; the game's default.project.json never includes it."
+  }
+}

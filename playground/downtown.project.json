@@ -1,0 +1,82 @@
+{
+  "name": "CarHop-Downtown-LookDev",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$path": "../Packages"
+      },
+      "Shared": {
+        "$path": "../src/shared"
+      },
+      "LookDev": {
+        "$path": "../src/lookdev"
+      },
+      "Lane3Playground": {
+        "$path": "downtown/Lane3Playground.model.json"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "Lane3_DowntownKit": {
+        "$path": "../../Car-Hop-Art/downtown-kit/meshes"
+      },
+      "Lane3_DowntownLayouts": {
+        "$className": "Folder",
+        "layout-A": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit/layout-A.json"
+          }
+        },
+        "layout-B": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit/layout-B.json"
+          }
+        },
+        "layout-C": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit/layout-C.json"
+          }
+        },
+        "swatches": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit/swatches.json"
+          }
+        },
+        "manifest": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit/manifest.json"
+          }
+        }
+      }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "LookDev": {
+          "$path": "downtown/scripts"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FilteringEnabled": true
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "ShadowMap"
+      }
+    }
+  }
+}
