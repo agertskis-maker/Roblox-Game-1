@@ -277,3 +277,37 @@ Source: Adam's message "Approved: island environment with the changes below. App
 | IRW-79 | Park dressing in the same visual language: food stands (decorative), benches, lamp posts, bridges, hedges, tiered fountain, car-shaped topiary and the other approved items; framing the falls and portals, never obstructing; sign content follows the Figma-first rule (physical objects built, mock and spec prepared for the final review) | Required | section 11 | captures; corridor checks | done: park dressing from the kit; 0 corridor obstacles; sign text waits for the Figma mock ([[island-signs]]) |
 | IRW-80 | Final review page: matched before and after views from the saved cameras, the five videos, a species and asset catalogue, the upload table, the not-inserted sounds, measurements (parts, MeshParts, triangles, emitters and particles, creatures, memory, free memory minimum, frame time with conditions), full layout and walking checks, tunables, known weaknesses | Required | section 13 | review page | done: review page (see [[2026-10-21]]) |
 | IRW-81 | Commits in coherent increments after checks; board, log, design record, ledger and manifest updated; approvals recorded, dressing pending final review; no merge or publish; lock released and idle tools stopped | Required | section 14 | git log; records | done: pushed in increments on feature/lane3-island-environment; board, log, ledger, manifest and 0014 updated; no merge or publish |
+
+## Task 2, step 3: revision pass (from Adam, 2026-10-21 late evening)
+
+> "Approved: the current island environment direction, subject to the revisions below. Approved: carry out this revision pass before starting the representative racetrack plot or building the portals." It does not approve the finished revisions, sign artwork, building relocation or visible quality reductions.
+
+| ID | Requirement | Type | Source | Evidence | Status |
+|---|---|---|---|---|---|
+| IRW-82 | Studio lock, private place, local save before editing (not to Roblox, not committed); 4 GB memory floor; no publish or merge | Constraint | section 1 | log | done: saved to `Car-Hop-Art/CarHop-Island-Test-revision-baseline.rbxl` (Studio was opened from the cloud place, so a new file by Adam's choice); memory below 4 GB for 18 s at 22:08 while Adam's Roblox player was open, then above 5 GB |
+| IRW-83 | Phone viewport baseline before building: emulator, portrait and landscape, overview, plaza, a plot entrance; same frame-time method; host-rendered, not real phone | Required | section 2 | measurements | done: iPhone 17 Pro, 749 × 381 and 401 × 777; 60 fps steady, 0 to 1 frames over 33.3 ms; phone performance unverified |
+| IRW-84 | Avenue boost lanes: paired white chevrons, flush, controlled glow; brief bounded boost that does not stack, cleans up and uses the movement system; reduced motion stops the pulse | Required (visual); **boost blocked on a movement contract** | section 3 | captures; walks | visuals built; boost is a WalkTests preview only (1.5 × while on a strip and 0.5 s after); no movement system exists yet, contract proposed for Brian R |
+| IRW-85 | Walks from all six entrances to fountain, portals, Garage, Stunt gate, boost on and off; Garage and Stunt gate worst 12 s and spread 2 s, or a relocation proposal | Required | section 3 | table | measured; targets **not met** by the lanes; relocation proposed, waits for Adam |
+| IRW-86 | Waterfall blue-green and see-through mid-drop, white at the lip, edges, streaks, turbulence and impact | Required | section 4 | captures, video | done |
+| IRW-87 | Rainbow discoverable from the plaza and lakeshore against darker rock, soft | Required | section 4 | captures | done (beside the lower falls, west side); small from the lakeshore |
+| IRW-88 | Wet dark rock and selective moss by the falls and lakeside cliffs, broad tonal variation | Required | section 4 | captures | done (terrain deep layers) |
+| IRW-89 | Plot06 falls view reopened; all six entrances checked | Required | section 5 | ray test | done: falls 100 % from Plots 1, 2, 5, 6; 97 % Plot04 (leaderboard), 81 % Plot03 (Stunt gate pillar, a greybox building) |
+| IRW-90 | Raccoon readable: mask, ringed tail, round ears, hunched, silhouette; re-upload | Required | section 5 | sheet, capture | done |
+| IRW-91 | Recover skipped steep trees within a bounded radius, keeping the grounding rule | Required | section 5 | counts | done: 169 skipped spots in this build (121 before), 48 recovered, 99 still too steep, 22 crowded |
+| IRW-92 | FlowerMeadow camera on a real drift | Required | section 5 | capture | done |
+| IRW-93 | Yellow ground lines: find the source; off by default, Edit-only, never in Play | Required | section 6 | captures; Play check | done: they were the planning overlay's viewing-corridor strips |
+| IRW-94 | Fix branches through canopies in the recipes; re-export and re-upload only changed meshes | Required | section 7 | contact sheets | done (8 meshes) |
+| IRW-95 | Stand headers: wordless pictures; Figma mocks; signs blank until approved | Required | section 8 | Figma | mocks drawn; approval pending |
+| IRW-96 | Test the three sounds; manifest; listening | Required | section 9 | manifest | falls and birdsong in test; quack off (63 s asset); not listened to |
+| IRW-97 | Keep assets Restricted; document grants | Required | section 10 | manifest | documented; **privacy state unverified** (Roblox default is Open Use) |
+| IRW-98 | Asset 203785492 checked narrowly | Required | section 11 | log | external (Pop Close Sound by another user; no reference in the place or repo) |
+| IRW-99 | Grand fountain inside a measured sightline envelope, layered water display, calm choreography, reduced motion, costs | Required | section 12 | envelope, captures, video, ray test | built; portals 100 % visible from all six entrances (solid geometry, ray test) |
+
+### Proposed shared movement-modifier contract (for Brian R, Lane 1; not built, needs approval)
+- One owner module, client side, `src/shared/Movement/SpeedModifiers` (or wherever Lane 1 places movement): `set(source: string, multiplier: number, seconds: number?)` and `clear(source: string)`. WalkSpeed = the character's base speed × the **largest** active multiplier (sources never stack), clamped to at most 1.5. Each source has one slot, so overlapping triggers refresh it instead of adding.
+- It clears every source on respawn, on character removal and when a mode that owns movement (a collection run, an obstacle race, driving) takes over; those modes can also block island sources.
+- The island lanes would call `set("IslandBoostLane", 1.5, 0.5)` each frame the player stands on a strip, and nothing else. No saved data, no economy, no server state (a walking speed boost on the hub needs no server authority beyond Roblox's own movement checks; to be confirmed by Lane 1).
+- Until this exists, the island does not change any player's WalkSpeed.
+
+### Garage and Stunt gate (measured, 2026-10-22)
+Boost lanes on the six avenues (1.5 × while on a strip, 0.5 s linger; preview walkers): Garage worst 15.57 s, spread 8.17 s; Stunt gate worst 18.28 s, spread 8.13 s. Simulated lanes on the garden ring and both approaches too: Garage 12.78 s and 5.88 s; Stunt gate 16.92 s and 7.07 s. The targets (worst 12 s, spread 2 s) are **not met**; the spread is geometric (Task 1 analysis: within 2 s needs the destination within about 16 studs sideways and 45 along the axis of the fountain). **Relocation proposal waits for Adam** (see the review page).

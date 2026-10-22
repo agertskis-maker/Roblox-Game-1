@@ -196,3 +196,64 @@ upload (or the importer's Reimport) and a new row here.
 | Frog | animals | 240 | 124872657363209 | uploaded | yes |
 | Raccoon | animals | 182 | 70443242208452 | uploaded | yes |
 | RaccoonHead | animals | 219 | 133875827596835 | uploaded | yes |
+
+## Revision 2 uploads (2026-10-21 to 22)
+
+Owner peskaface (Studio user 2393473976, checked before each upload); every final asset below
+loads in the test experience (`ContentProvider:PreloadAsync`), sizes within 0.001 studs of the build.
+
+| Asset | Id | Source | State |
+|---|---|---|---|
+| Chevron (boost lane), first version | 136467391577760 | `textures.js` chevron, 128 × 64 | uploaded; **superseded** (drawn sideways on a beam), not referenced |
+| Chevron (boost lane) | 96352143506498 | `textures.js` chevron, 64 × 128 | uploaded, in use |
+| Model "island-kit-rev2" | (importer model, not used by the game) | `island-kit-rev2.obj` via `export_subset.py` | created by the import |
+
+Meshes in one 3D Importer import of `island-kit-rev2.obj` (13 meshes, only changed or new ones;
+the replaced ids are kept in `AssetIds.luau` comments and are no longer referenced):
+
+| Mesh | New id | Replaces | Why |
+|---|---|---|---|
+| BirchB_Canopy | 76466785156402 | 97117102116709 | canopy covers a branch tip |
+| BirchC_Canopy | 77471118350791 | 134755746106792 | canopy covers a side branch |
+| UmbrellaA_Canopy | 91847269200413 | 104256844178578 | canopy covers a branch tip |
+| WillowA_Canopy | 100724359605792 | 95230078901958 | canopy covers a branch tip |
+| PineA_Trunk | 126489468362585 | 82143832617173 | leader shortened inside the top tier |
+| PineB_Trunk | 91453775827473 | 89643406488268 | as above |
+| PineC_Trunk | 113986667544582 | 126729994654224 | as above |
+| PineSapling_Trunk | 125052020212163 | 108644319441252 | as above |
+| Raccoon | 78064153570396 | 70443242208452 | redesign: hunched body, ringed tail |
+| RaccoonHead | 122251191819978 | 133875827596835 | redesign: mask, round ears |
+| FountainGrand | 138476226884315 | (new) | the grand fountain |
+| FountainGrandWater | 118135225656541 | (new) | its pools and spill sheets |
+| PlazaMosaic | 92746874626451 | (new) | patterned plaza ring |
+
+## Sounds under test (not uploaded; Creator Store audio)
+
+| Use | Asset | Id | Owner / source | Licence or usage | In game |
+|---|---|---|---|---|---|
+| Falls loop | Waterfall Steady Stream 1 (SFX), 27.0 s | 9120552550 | ProSoundEffects (Roblox's licensed audio partner account) | free Creator Store audio for use in Roblox experiences; exact licence text **not verified** | test: positional at the lower falls, volume 0.55, roll-off 45 to 420 |
+| Park birdsong | Birds Park 2 (SFX), 57.3 s | 9113444360 | ProSoundEffects | as above, **not verified** | test: plaza, volume 0.14, roll-off 160 to 650 |
+| Duck quack | Quack Duck, **63.1 s** | 1845012569 | APMOfficial (Roblox's licensed music partner account) | as above, **not verified** | **off**: the asset is a 63-second track, not one quack |
+
+All three play through one SoundGroup `Lane3Ambience` (no player volume setting exists in the
+project yet). Loading and properties were checked in a playtest; nobody has listened yet.
+
+## Asset privacy and future permissions (checked 2026-10-22)
+
+Source: https://create.roblox.com/docs/projects/assets/privacy (read through the Studio MCP).
+
+- **Current owner:** peskaface (user 2393473976) for every image and mesh above.
+- **Privacy state: unverified.** Roblox creates Images, Decals and Meshes as **Open Use by
+  default** unless the owner turned on "Opt-in to restrict assets on creation" (Creator
+  Dashboard → Settings → Advanced → Asset Privacy) *before* uploading; the setting is not
+  retroactive and **Open Use cannot be changed back to Restricted**. Whether peskaface had the
+  opt-in on is visible only on the Creator Dashboard (Development Items → Images / Meshes → an
+  asset → Asset Access). Nothing in this project set any asset to Open Use.
+- **Asset-type limits:** the privacy setting covers Images, Decals and Meshes only. The importer's
+  Model assets, Audio, MeshParts, Animations and Packages have their own defaults.
+- **If the published game belongs to someone else or a group** and the assets are Restricted: a
+  person who can edit that game grants it access (game Creator Dashboard → Configurations →
+  Permissions → paste the asset ids), or the owner shares the assets per asset (Permissions →
+  Collaborators, with a friend or a group where the owner has the required permission). Who:
+  Adam (peskaface), as the asset owner. Game grants are permanent.
+- **Open team decision (Adam, Brian R, Brian L):** who owns the published experience.
