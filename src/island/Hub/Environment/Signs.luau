@@ -109,6 +109,159 @@ function Signs.nameplate(part: BasePart, plotIndex: number)
 	part:SetAttribute("PlotIndex", plotIndex)
 end
 
+-- ---------------------------------------------------------------- Task 4 plot gate (IRW-151)
+-- vault/design/ui/island-task4-signs.md §4, PENDING Adam's approval (decisions 5, 6 and 7): the
+-- text is live SurfaceGui text on the gate beam's recorded sign faces (gates/Plot, PlotGateBeam
+-- sign_faces). Production moved the spec's label tab and hanging PREVIEW plate into the beam's
+-- 17.4 x 2.0 name face (top 13.5 and opening 10.5 limits), so the face holds two rows: the owner
+-- name, then YOUR SPEEDWAY with the PREVIEW car count and Income Tier.
+
+-- Accent family by plot index (spec decision 7, pending Adam). Red and orange reuse the
+-- Color.Danger and Color.Primary values decoratively, as plot-track-signs does.
+Signs.PlotAccents = {
+	Color3.fromRGB(229, 72, 77), -- 1 red #E5484D
+	Color3.fromRGB(255, 138, 31), -- 2 orange #FF8A1F
+	Color3.fromRGB(247, 197, 49), -- 3 yellow #F7C531
+	Color3.fromRGB(61, 190, 108), -- 4 green #3DBE6C
+	Color3.fromRGB(63, 143, 224), -- 5 blue #3F8FE0
+	Color3.fromRGB(142, 91, 232), -- 6 purple #8E5BE8
+}
+
+local PLOT_PPS = 50 -- spec §4 PixelsPerStud: the 17.4 x 2.0 face is 870 x 100 px
+local NAVY = Color3.fromRGB(30, 42, 74) -- Color.Text #1E2A4A
+local INK = Color3.fromRGB(20, 27, 51) -- Color.CashOutline #141B33
+local GOLD = Color3.fromRGB(255, 200, 61) -- Color.Coin #FFC83D
+local PREVIEW_MAGENTA = Color3.fromRGB(194, 24, 122) -- spec proposal #C2187A
+-- "Income Tier" is an economy concept and propose-first (spec §4, decision 6). The spec keeps the
+-- words as a PREVIEW placeholder for now; set false to drop them if Adam decides so.
+local SHOW_INCOME_TIER = true
+
+-- A horizontal chip in the info row: an optional rounded background with a border, and its text.
+local function chip(
+	parent: Instance,
+	text: string,
+	sizePx: number,
+	colour: Color3,
+	order: number,
+	background: Color3?,
+	border: Color3?
+): Frame
+	local f = Instance.new("Frame")
+	f.Name = "Chip"
+	f.LayoutOrder = order
+	f.AutomaticSize = Enum.AutomaticSize.X
+	f.Size = UDim2.fromScale(0, 1)
+	f.BackgroundTransparency = if background then 0 else 1
+	f.BackgroundColor3 = background or Color3.new(1, 1, 1)
+	f.BorderSizePixel = 0
+	if background then
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = f
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
+		pad.Parent = f
+	end
+	if border then
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = border
+		stroke.Thickness = 3
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = f
+	end
+	local t = Instance.new("TextLabel")
+	t.Name = "Text"
+	t.BackgroundTransparency = 1
+	t.AutomaticSize = Enum.AutomaticSize.X
+	t.Size = UDim2.fromScale(0, 1)
+	t.FontFace = FONT
+	t.Text = text
+	t.TextColor3 = colour
+	t.TextSize = sizePx
+	t.TextWrapped = false
+	if not background then
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = INK
+		stroke.Thickness = 2
+		stroke.Parent = t
+	end
+	t.Parent = f
+	f.Parent = parent
+	return f
+end
+
+-- One plot gate name face (front or back of the beam; both show the same). The owner name is a
+-- placeholder until Lane 2's plot ownership supplies it; every made-up value carries PREVIEW.
+-- Not built yet (spec states, need ownership): the unclaimed state, and SPEEDWAY for non-owners.
+function Signs.plotGateName(part: BasePart, plotIndex: number, accent: Color3)
+	part:SetAttribute("PlotIndex", plotIndex)
+	local g = gui(part, PLOT_PPS)
+	g.Name = "PlotName"
+	-- texture hook: an approved name-zone texture (AssetIds.SignArt "PlotGateName<n>"); none uploaded
+	local id = art("PlotGateName" .. plotIndex)
+	if id then
+		image(g, id)
+	end
+	-- row 1: the owner name in upper case, scaled to fit, then truncated (spec §4 long-name state)
+	local name = label(g, "PLAYER NAME", { 0.03, 0.03, 0.94, 0.58 }, 58)
+	name.Name = "OwnerName"
+	name.TextScaled = true
+	name.TextTruncate = Enum.TextTruncate.AtEnd
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = 58
+	limit.MinTextSize = 24
+	limit.Parent = name
+	local nameStroke = name:FindFirstChildOfClass("UIStroke")
+	if nameStroke then
+		nameStroke.Color = INK
+		nameStroke.Thickness = 3
+	end
+	name:SetAttribute("Placeholder", "owner name, from Lane 2 plot ownership (filtered display name)")
+	name:SetAttribute("Preview", true)
+	-- row 2: YOUR SPEEDWAY in an accent-bordered cream pill, then the PREVIEW stats
+	local row = Instance.new("Frame")
+	row.Name = "InfoRow"
+	row.BackgroundTransparency = 1
+	row.Position = UDim2.fromScale(0, 0.64)
+	row.Size = UDim2.fromScale(1, 0.32)
+	row.Parent = g
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, 14)
+	list.Parent = row
+	local tab = chip(row, "YOUR SPEEDWAY", 22, NAVY, 1, CREAM, accent)
+	tab.Name = "Label"
+	tab:SetAttribute("Placeholder", "YOUR SPEEDWAY for the owner, SPEEDWAY for others (spec proposal, decision 5)")
+	local tag = chip(row, "PREVIEW", 18, PREVIEW_MAGENTA, 2, Color3.new(1, 1, 1), PREVIEW_MAGENTA)
+	tag.Name = "PreviewTag"
+	local cars = chip(row, "7 CARS", 22, CREAM, 3)
+	cars.Name = "CarCount"
+	cars:SetAttribute("Preview", "made-up car count; no contract yet")
+	if SHOW_INCOME_TIER then
+		local tier = chip(row, "INCOME TIER 2", 22, GOLD, 4)
+		tier.Name = "IncomeTier"
+		tier:SetAttribute("Preview", "economy wording, propose-first (spec §4 decision 6); not a real value")
+	end
+end
+
+-- One plot number face on an accent disc at a beam end (2 x 2 studs): capitals 1.4 (spec §4).
+function Signs.plotGateNumber(part: BasePart, plotIndex: number)
+	part:SetAttribute("PlotIndex", plotIndex)
+	local g = gui(part, PLOT_PPS)
+	g.Name = "PlotNumber"
+	-- TextSize = capitals 1.4 / 0.75 x 50 px per stud
+	local t = label(g, tostring(plotIndex), { 0, 0, 1, 1 }, 93)
+	t.Name = "Number"
+	local stroke = t:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Thickness = 6
+	end
+end
+
 -- The upgrade kiosk's front panel: "UPGRADES" art (placeholder; no prices or prompts).
 function Signs.kioskPanel(part: BasePart)
 	local id = art("Kiosk")

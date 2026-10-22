@@ -15,7 +15,7 @@ status: draft
 | PENDING — not approved (label) | `14:748` |
 | 1. Portal gate crests | `15:2` |
 | 2. Locked-gate plaques | `16:2` |
-| 3. Leaderboard pair | `17:2` |
+| 3. Leaderboard pair, revision 2 (18 × 15 envelope; replaced `17:2`) | `23:2` |
 | 4. Plot gate nameplate beam | `18:2` |
 | 5. Stunt entrance boards | `19:2` |
 | 6. Garage sign, rings, prompt | `20:2` |
@@ -23,7 +23,7 @@ status: draft
 
 - **Local review page (the source of the Figma frames):** `C:\Users\agert\Documents\Car-Hop-Art\review\task4\signs\index.html` (a self-contained copy, `index-inline.html`, is what was imported). Section renders: `renders\s1.png` to `renders\s7.png`, plus `renders\00-full-page.png`.
 - **Final-candidate textures:** `C:\Users\agert\Documents\Car-Hop-Art\review\task4\signs\textures\` (list under "Assets"). None is uploaded, in `vault/design/assets.md` or in `AssetIds.luau`. Generators: `art.js`, `textures.js` and `review.js` in the session scratchpad `task4signs\`, outside the repo.
-- Figma calls this pass: `create_session`, `use_figma` (create the page and label; rename and arrange the frames), and `html_to_figma` (import). All are writes; the read count stays at 4 of 6 ([[figma-reads]]). `whoami` was **not** called, because [[0012-figma-ui-workflow]] counts it as a read.
+- Figma calls this pass: `create_session`, `use_figma` (create the page and label; rename and arrange the frames), and `html_to_figma` (import). Revision 2 added a second `html_to_figma` import for the leaderboard frame and a `use_figma` call that removed `17:2` and placed `23:2`. All are writes; the read count stays at 4 of 6 ([[figma-reads]]). `whoami` was **not** called, because [[0012-figma-ui-workflow]] counts it as a read.
 - Hand edits in Figma since the spec was written: none.
 
 ## Rules for every sign in this batch
@@ -76,6 +76,18 @@ Existing tokens (`src/shared/UI/Tokens.luau`): `Color.Text` `#1E2A4A` (navy), `C
 - **Emblems:** Downtown: three stepped gold towers under a cream star, on navy with a violet ring. Dusty Highway: a cream sun setting over red mesas, with a road and a yellow centre line. Summit Pass: two snowy peaks and a white snowflake on pale sky. At 270 studs a 9-stud emblem is about 17 px tall on a 720 px render.
 - **States:** the crest texture is the same locked and open. The state lives on the gate: inlay strips (0.6 wide, two per column, mesh parts) dark `#3A3F5C` but visible when locked, lit in the World colour when open; the field dimmed when locked and brightest when open; chains and padlock (§2). Downtown is always open.
 - **Font check (research open check 1):** measured in this pass. HIGHWAY at 4.6 capitals is 28.7 studs wide, inside the 29.5-stud text zone; SUMMIT is 24.8. DOWNTOWN cannot reach 4.6 on one line inside a 32-stud crest (it would be 39 studs wide).
+- **Modelled crest face (lead, 2026-10-22): about 26 to 30 wide × 6 to 8 tall, not 32 × 16.** The calculations below assume a 28 × 7 face with 1-stud side margins and 0.5-stud top and bottom margins (text zone 26 × 6). Width per capital in Fredoka One: DOWNTOWN 8.48, DUSTY HIGHWAY 11.03, HIGHWAY 6.23, SUMMIT PASS 8.99.
+
+| Name | Best fit on 28 × 7 | Capitals | Limit / comfortable |
+|---|---|---|---|
+| DOWNTOWN | one line, 26 wide | **3.06** | 131 / 70 |
+| DUSTY HIGHWAY | two lines (DUSTY / HIGHWAY; one line would be 2.36) | 2.6 | 112 / 59 |
+| SUMMIT PASS | one line (two lines would be 2.6) | 2.89 | 124 / 66 |
+
+  - DOWNTOWN fits: 3.06 capitals at 28 wide, about the 3.3 drawn here.
+  - The two-word names lose the most: the research's 4.6-stud two-line capitals need a face about 12 tall.
+  - On a 26-wide face DOWNTOWN drops to 2.83 capitals; on 30 wide it reaches 3.3.
+  - **The crest textures and Figma frame 1 still show the 32 × 16 panel** (2:1). The modelled face is about 4:1, so the crest name textures must be re-cut at 1024 × 256 once the face size is fixed. Where the emblem sits relative to the shallower face also needs deciding. Not done in this revision.
 
 ## 2. Locked-gate plaques (IRW-148)
 ### 2a. LOCKED plaque
@@ -120,31 +132,39 @@ Live layout, in design px:
 ## 3. Leaderboard pair (IRW-152)
 **Purpose:** show who has the most cars, and the week's fastest Stunt Circuit times, beside the Garage and the Stunt entrance. Nothing is connected, so every row is PREVIEW sample data or the honest empty state.
 
-| Part | Size (studs) | Where | Art |
-|---|---|---|---|
-| Legs | two posts 1.2 wide, 2 tall | | navy |
-| Screen | **18 × 14** inside a 1-stud navy frame (board 20 × 16), bottom at 2 | SurfaceGui, front face, PixelsPerStud 50, canvas 900 × 700 | live (below) |
-| Topper | 20 × 5 on top of the frame (18 to 23) | front face | `leaderboard-topper-most-cars.png` / `-fastest-stunt.png` 1024 × 256 (51 px per stud) |
-| Trophy | about 4 tall, on the topper | mesh (gold `#FFC83D`, base `#E07B12`) | |
+**Revision 2 (2026-10-22, lead):** the whole board fits the layout envelope `P.task4.board` in `assets/island/rework/island-layout.js`: **18 wide × 4 deep × 15 tall**. The sightline and waterfall checks pass at that size and fail if it grows (Plot 6's waterfall view is the limit). The revision 1 board (20 × 27, with a topper and trophy) is superseded.
 
-**Topper headers (baked):**
-- MOST CARS / OWNED: two lines, **capitals 1.5** (font 102 px in the texture), gold `Color.Coin` with an `#E07B12` side face and an ink outline. Car icon badges in Garage red `#D9503F`. Limit 64, comfortable 34.
-- FASTEST / STUNT CIRCUIT: capitals **1.35** (STUNT CIRCUIT is the longest line), with stunt icon badges in `#F7CE58`. Limit 58, comfortable 31.
-- The research asked for 2.6-stud header capitals. **That does not fit:** "MOST CARS OWNED" at 2.6 capitals is 34 studs wide, and "FASTEST STUNT CIRCUIT" 43 studs, against an 18 to 20 stud board. At 60 studs from the plaza, the topper's colour, icons and trophy carry the board; the words read from about 34 studs.
+| Part | Size (studs) | Height | Where | Art |
+|---|---|---|---|---|
+| Plinth and legs | plinth 16 × 0.5; two legs 1.2 wide | 0 to 3.5 | | stone plinth, navy legs |
+| Display face | **18 × 11** (the full envelope width) | 3.5 to 14.5 | one SurfaceGui on the front face, PixelsPerStud 50, canvas 900 × 550 | header band image plus live rows |
+| Cap rail | 18 × 0.5 | 14.5 to 15 | mesh | accent: Garage red `#D9503F` (cars), `#F7CE58` (stunt) |
+| Trophy | **dropped**: no room inside 15. The header icon badge carries the identity instead | | | |
 
-**Screen, live (design px, 900 × 700):**
+**Header band (baked texture), y 0 to 112.5 px (2.25 studs):** `leaderboard-header-most-cars.png` / `leaderboard-header-fastest-stunt.png`, 1024 × 128 (57 px per stud), placed as an ImageLabel 900 × 112.5 at the top of the canvas.
+- Navy band with an accent rim (6 px) and a gold base line.
+- One icon badge at the left: r 48 px, car icon (cars) or stunt icon (stunt), on the accent colour.
+- **One-line title**, centred in the 880 px to the right of the badge. Gold `Color.Coin`, `#E07B12` side face, ink outline:
+  - MOST CARS OWNED: font 89 px, **capitals 1.17 studs**. Limit 50, comfortable 27.
+  - FASTEST STUNT CIRCUIT: font 70 px, **capitals 0.92**. Limit 39, comfortable 21.
+- One line beats two at this band height: two lines would give 0.85 capitals at best.
+- The research's 2.6 capitals cannot fit an 18-stud board. From the plaza, the badge colour and the shape of the title line identify the board, not the words.
+
+**Live layer (design px, 900 × 550):**
 
 | Element | Position | Value |
 |---|---|---|
-| Column row | y 0 to 54, navy | "#", "PLAYER" and "CARS" / "BEST TIME" in Fredoka One 30, Chrome `#D6DEE8`. PREVIEW tag (text 20) right edge at x 640. Stunt board: a WEEKLY pill at x 248, 150 × 36, `#F7CE58` with ink text 26 |
-| Rows 1 to 10 | from y 58, pitch 63.5, height 61, alternating `#24335A` / navy | rank at x 44 (Fredoka One 40; ranks 1 to 3 in a medal circle r 25: gold `#FFC83D`, silver `#D6DEE8`, bronze `#D98A4A`); name at x 100, left aligned, Fredoka One 47 cream (**capitals 0.7 studs**, as researched); value right edge x 870, Fredoka One 47, gold for the top 3, cream otherwise |
-| Long names | | TextScaled inside 560 px, minimum 32, then TextTruncate AtEnd |
-| Empty state | | rows hidden; "No scores yet" Fredoka One 56 cream, and "(the board fills in when it is connected)" 28 Chrome |
+| Label row | y 112.5 to 140 (0.55 studs), navy | "#" at x 30 and "PLAYER" at x 64; "CARS" / "BEST TIME" right edge x 880. All Fredoka One 20, Chrome `#D6DEE8`. PREVIEW tag (text 16) right edge at x 660. Stunt board: WEEKLY pill at x 160, 96 × 23, `#F7CE58`, ink text 18 |
+| Rows 1 to 10 | from y 142, pitch **40 px = 0.8 studs**, height 39, alternating `#24335A` / navy | rank centred at x 30, Fredoka One 26 (ranks 1 to 3 in a medal circle r 16: gold `#FFC83D`, silver `#D6DEE8`, bronze `#D98A4A`); name at x 64, left aligned, Fredoka One 36 cream (**capitals 0.54 studs**); value right edge x 880, Fredoka One 36, gold for the top 3, cream otherwise |
+| Long names | | TextScaled inside 620 px, minimum 26, then TextTruncate AtEnd |
+| Empty state | | rows hidden; "No scores yet" Fredoka One 48 cream at y 330; "(the board fills in when it is connected)" 24 Chrome |
+| Edge | | 4 px navy inner border |
 
-- **Row read distance:** limit 30, comfortable 16 (research: run the path within 15).
-- **Row pitch:** 1.27 studs (the research's 1.4 does not leave room for the column row).
-- **PREVIEW sample data.** Most cars: Zippy Zebra 42, Captain Vroom 37, Pickle Pop 33, Sunny Sprocket 29, Maple Muffin 26, Professor Beep 22, Wobbly Wheels 19, Lemon Drop 15, Pixel Pup 12, Biscuit Boost 9. Stunt weekly: the same ten names reordered, times 0:38.4 to 0:53.5.
-- **Envelope conflict (for the lead):** `assets/island/rework/task4-layout.js` reserves `board: { w: 12, d: 4, h: 14 }`. This board is about **20 wide and 27 tall** (2 + 16 + 5 + 4). Either the envelope grows and the sightline and falls checks are re-run, or the board shrinks: smaller header text, the trophy dropped, or the topper merged into the frame.
+- **Row read distance:** limit 23, comfortable 12. That is below the research's 0.7 capitals (limit 30). The 0.8-stud row height in the envelope allows at most about 0.6. The path should pass within about 12 studs of the face.
+- **PREVIEW sample data:**
+  - Most cars: Zippy Zebra 42, Captain Vroom 37, Pickle Pop 33, Sunny Sprocket 29, Maple Muffin 26, Professor Beep 22, Wobbly Wheels 19, Lemon Drop 15, Pixel Pup 12, Biscuit Boost 9.
+  - Stunt weekly: the same ten names reordered, times 0:38.4 to 0:53.5.
+- **Figma:** frame `23:2`, "3. Leaderboard pair, revision 2". It replaced `17:2`, which was deleted. The two boards and the empty state are mocks inside that one frame.
 - **Data owner:** not decided. Car counts and stunt times are other lanes' data. Weekly resets and any cross-server board (OrderedDataStore) are out of scope until approved (AGENTS.md).
 
 ## 4. Plot gate nameplate beam (IRW-151)
@@ -230,7 +250,7 @@ All in `C:\Users\agert\Documents\Car-Hop-Art\review\task4\signs\textures\`. Uplo
 | `crest-emblem-downtown.png`, `crest-emblem-dusty-highway.png`, `crest-emblem-summit-pass.png` | 512 × 512 (transparent) | §1 medallions and the §2 padlock emblem |
 | `plaque-locked.png` | 1024 × 256 | §2a |
 | `plaque-requirement-bg-dusty-highway.png`, `plaque-requirement-bg-summit-pass.png` | 1024 × 512 | §2b |
-| `leaderboard-topper-most-cars.png`, `leaderboard-topper-fastest-stunt.png` | 1024 × 256 | §3 |
+| `leaderboard-header-most-cars.png`, `leaderboard-header-fastest-stunt.png` (revision 2; replace the deleted `leaderboard-topper-*` files) | 1024 × 128 | §3 |
 | `plotgate-beam-1-red.png` … `plotgate-beam-6-purple.png` | 1024 × 128 | §4 |
 | `stunt-beam-lettering.png` | 1024 × 128 | §5 |
 | `stunt-coming-soon.png` | 1024 × 512 | §5 |
@@ -247,7 +267,7 @@ None in these signs; reduced motion changes nothing. The gate unlock, the start-
 - Gate template (columns 6 × 33) assumed for the mock only.
 - LOCKED plaque 16 × 4 without a second line.
 - Requirement plaque 8 × 4 on a 3-stud pedestal, tilted 30°, with the Peek strip at the bottom.
-- Leaderboard: header on a topper (two lines, 1.5 / 1.35 capitals); row pitch 1.27; PREVIEW tag in the column row; WEEKLY pill.
+- Leaderboard (revision 2): one-line title in a 2.25-stud header band (1.17 / 0.92 capitals); trophy dropped; 0.8-stud rows; PREVIEW tag in the label row; WEEKLY pill.
 - Placeholder names (listed in §3).
 - Plot beam 24 × 3 with the number baked twice and the name live; tab text YOUR SPEEDWAY / SPEEDWAY by viewer; the PREVIEW plate hung under the beam.
 - Plot accent hexes for yellow, blue and purple.
@@ -257,8 +277,8 @@ None in these signs; reduced motion changes nothing. The gate unlock, the start-
 
 ## Decisions for Adam (one batch)
 1. **Approve or change the whole batch:** crests and emblems, LOCKED plaque, requirement plaque, leaderboards, plot beam, stunt boards, GARAGE sign. Record it in `vault/design/visual-direction.md`.
-2. **DOWNTOWN size:** one line at 3.3 capitals (readable to about 140 studs, not 200), or a wider Downtown crest, which breaks the one-outline family.
-3. **Leaderboard size:** the boards need about 20 × 27 studs against the 12 × 14 layout envelope. Either grow the envelope (and re-run the sightline and falls checks) or accept smaller headers or no trophy. Also confirm the header capitals (1.5 / 1.35, not the researched 2.6).
+2. **Crest size:** the modelled face is about 28 × 7, which gives DOWNTOWN 3.06, DUSTY / HIGHWAY 2.6 and SUMMIT PASS 2.89 capitals (readable to about 110 to 130 studs, not 200). Either accept that, or make the crest face taller (about 12) so the two-word names reach 4.6. Then fix the face size so the crest textures can be re-cut.
+3. **Leaderboards inside the 18 × 4 × 15 envelope:** accept the smaller text (title capitals 1.17 / 0.92, rows 0.54, readable from about 12 studs comfortably) and no trophy. The alternative is a taller board, which fails Plot 6's waterfall view.
 4. **Placeholder names** (Zippy Zebra, Captain Vroom, …) are fine for a PREVIEW board, or give others.
 5. **Plot gate label:** "YOUR SPEEDWAY" for the owner and "SPEEDWAY" for everyone else? What does an unclaimed plot show?
 6. **"Income Tier" on the PREVIEW plate:** keep the words as a placeholder, or drop them until the economy is designed (an economy field is propose-first).

@@ -243,7 +243,8 @@ local function buildJoins(model: Model)
 		end
 	end
 	local onPlaza = function(p: Vector2): boolean
-		return p.Magnitude <= park.plazaRadius + 0.8
+		-- the fillet's tangent point runs along the tangent, a little outside the curving edge
+		return p.Magnitude <= park.plazaRadius + 4
 	end
 	for i, P in park.paths do
 		local pts = P.points
@@ -553,7 +554,8 @@ local function buildPortals(model: Model)
 			north,
 			Vector3.new(spec.width, 0.3, spec.depth),
 			SURFACE,
-			{ name = "Pad", color = Palette.Rock, collide = true, castShadow = false }
+			-- hidden under the Task 4 portal gate plinths once the island is dressed
+			hidden({ name = "Pad", color = Palette.Rock, collide = true, castShadow = false })
 		)
 		-- with the environment dressed, the frameless fields (Environment/PortalRig and the
 		-- client's Portals script) replace the greybox disc, halo, chains and sign

@@ -785,7 +785,8 @@ local function buildSnackCorners(ctx: Ctx)
 				local y = groundY(p)
 				if KitAssets.has("LightPost") then
 					local post = put(ctx, "SnackCorners", "LightPost", p, 0, 1, { solid = true, r = 1 })
-					local hookY = KitAssets.info("LightPost").meta.HookZ or 8.4 -- mesh-local z up
+					local hook = KitAssets.info("LightPost").points.Hook
+					local hookY = if hook then hook.Y else 11.05
 					hooks[(side_ == 1 and 0 or 4) + i] = Vector3.new(p.X, y + hookY, -p.Y)
 					if not post then
 						ok = false
@@ -1124,14 +1125,18 @@ end
 -- Planting is layered (tall at the back, middle, low edging at the front toward the path) in
 -- colour drifts of three kinds per bed. The family's own meshes (BedCornerFillet, BedAvenueArc,
 -- BedFountainArc) are used when imported; until then the kit's round and oval beds stand in.
-local BED_FLOWERS = {
-	{ "Sunflowers", "TulipsRed", "Daisies" },
-	{ "Lavender", "RosesPink", "Clover" },
-	{ "TulipsYellow", "Lavender", "Daisies" },
+local BED_FLOWERS = { -- back, middle, front; all under 3 (beds sit in viewing corridors)
+	{ "TulipsRed", "Poppies", "Daisies" },
+	{ "Lavender", "RosesPink", "BlueWildflowers" },
+	{ "TulipsYellow", "Poppies", "Clover" },
+	{ "RosesPink", "Lavender", "Daisies" },
 	{ "RosesRed", "TulipsYellow", "Clover" },
-	{ "Sunflowers", "RosesPink", "Daisies" },
-	{ "Irises", "TulipsRed", "Clover" },
+	{ "Lavender", "BlueWildflowers", "Daisies" },
 }
+
+-- one flower every PLANT_STEP studs each way (Task 4 concept review: 1.7 gave about 100 per round
+-- bed, thousands island-wide)
+local PLANT_STEP = 2.6
 
 local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, pathSide: Vector2, palette: number)
 	local meta = KitAssets.info(name).meta or {}
@@ -1144,8 +1149,8 @@ local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, path
 		local a = if flip then mirrorD(along) else along
 		local c = if flip then mirrorD(across) else across
 		local toward = if flip then mirrorD(pathSide) else pathSide
-		for u = -rx, rx, 1.7 do
-			for v = -ry, ry, 1.7 do
+		for u = -rx, rx, PLANT_STEP do
+			for v = -ry, ry, PLANT_STEP do
 				if (u / rx) ^ 2 + (v / ry) ^ 2 <= 1.05 then
 					local q = centre + a * u + c * v
 					-- depth across the bed from the path side (-1 front .. 1 back)

@@ -33,7 +33,7 @@ function baseParams(over) {
 			basinR: 12, // fountain basin; walkers keep 1 stud off it
 			promenadeW: 20,
 			avenueW: 16,
-			portal: { outer: 22, opening: 16, depth: 6, height: 36, spacing: 28, frontY: -56 },
+			portal: { outer: 22, opening: 16, depth: 6, height: 36, spacing: 44, frontY: -60 }, // Task 4: 28 -> 44 and 4 studs toward the lake: with the gate family (columns to |x| 15.4, crests to 44) this keeps the most waterfall in view (task4-layout.js sweep: Plot 4 and Plot 5 lose 3.5 % and 4.5 %, every other check passes)
 			ringR: 135, // secondary garden ring path radius
 			eye: 5,
 			// viewing corridors widen by this much each side at the portal row; with 0 the Stunt gate

@@ -59,7 +59,7 @@ function KitAssets.template(name: string): MeshPart
 		turns[name] = HALF_TURN
 	else
 		local folder = ServerStorage:FindFirstChild("Lane3_KitData")
-		local module = folder and folder:FindFirstChild(name)
+		local module = folder and folder:FindFirstChild(name, true) -- Base and the Task 4 family folders
 		assert(
 			module and module:IsA("ModuleScript"),
 			name .. " has no uploaded id and no preview data (ServerStorage.Lane3_KitData)"

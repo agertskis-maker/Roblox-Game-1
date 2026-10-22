@@ -1,21 +1,23 @@
 --!strict
--- The World portals' build-time rig (Lane 3). The portals are frameless energy fields drawn and
--- animated on each client (src/client/Home/Island/Portals.client.luau); this module only lays
--- down what every client shares:
+-- The World portals' build-time rig (Lane 3). The energy fields are drawn and animated on each
+-- client (src/client/Home/Island/Portals.client.luau); this module only lays down what every
+-- client shares:
 --   per World, an invisible anchor at the field centre (its LookVector faces the plots), with the
 --   field size and the ground height under it as attributes;
---   per World, the physical requirement sign (a kit mesh, the same for everyone) standing in the
---   portal row beside its field, with an anchor for each plank's face so a client can show its own
---   locked or ready content;
---   a hidden PortalKit folder of the lock pieces (chain link, padlock body and shackle, anchor
---   post), placed at ORIGIN so a client can read each piece's offset from its joint, and the
---   portal textures and sounds as attributes (the client cannot read AssetIds).
+--   per World, the gate round the field (PortalGates: two columns, a crest with the World name,
+--   inlay bands for the clients to light, colliders), the same for everyone;
+--   a hidden PortalKit folder of the lock pieces from the gates kit family (chain runs and wraps,
+--   padlock body and shackle, LOCKED plaque, requirement plaque), placed at ORIGIN so a client
+--   can read each piece's offset from its joint, with each piece's meta and points as
+--   attributes; the World emblems as GUI templates; and the portal textures, sign icons and
+--   sounds as attributes (the client cannot read AssetIds).
 -- The lock itself is per player and presentation only (a visual chain is not security): no
 -- collision or shared state here depends on any player's lock.
 
 local AssetIds = require(script.Parent.AssetIds)
 local KitAssets = require(script.Parent.KitAssets)
 local Layout = require(script.Parent.Parent.Layout)
+local PortalGates = require(script.Parent.PortalGates)
 
 local PortalRig = {}
 
@@ -25,7 +27,14 @@ PortalRig.FieldWidth = 20
 PortalRig.FieldHeight = 30
 PortalRig.FieldBottom = 2.5 -- above the ground; the field floats over its pool of light
 
-local PIECES = { "ChainLink", "PadlockBody", "PadlockShackle", "ChainAnchorPost" }
+local PIECES = {
+	"GateChainRun",
+	"GateChainWrap",
+	"GatePadlockBody",
+	"GatePadlockShackle",
+	"GateLockedPlaque",
+	"GateRequirementPlaque",
+}
 
 local terrainAndPlaza = RaycastParams.new()
 terrainAndPlaza.FilterType = Enum.RaycastFilterType.Include
@@ -40,10 +49,6 @@ local function groundAt(x: number, z: number): number
 	local hit = workspace:Raycast(Vector3.new(x, 60, z), Vector3.new(0, -120, 0), terrainAndPlaza)
 	return if hit then hit.Position.Y else Layout.SurfaceY
 end
-
--- Plan x of each World's sign: in the gap beside its field, in the field's own plane, so from
--- every entrance it sits beside the field and never in front of it.
-local SIGN_SIDE = { SummitPass = -1, Downtown = 1, DustyHighway = 1 }
 
 function PortalRig.build(parent: Instance): { worlds: number, triangles: number }
 	local old = parent:FindFirstChild("Portals")
@@ -75,27 +80,18 @@ function PortalRig.build(parent: Instance): { worlds: number, triangles: number 
 		anchor:SetAttribute("Ground", ground)
 		anchor.Parent = root
 
-		-- the requirement sign beside the field
-		local side = SIGN_SIDE[q.id] or 1
-		local signX = q.x + side * (PortalRig.FieldWidth / 2 + 4)
-		local signGround = groundAt(signX, -planY)
-		-- mesh front (+Z) toward the plots (world -Z): a half turn
-		local base = CFrame.new(signX, signGround, -planY - 0.4) * CFrame.Angles(0, math.pi, 0)
-		local sign = KitAssets.place("PortalSign", base, 1, true)
-		sign.Name = q.id .. "Sign"
-		sign:SetAttribute("World", q.id)
-		sign.Parent = root
-		triangles += KitAssets.info("PortalSign").triangles
-		-- each plank's face (kit_portal.py): 5.5 x 1.1, centres 4.54, 3.22 and 1.90 up, the face
-		-- plane 0.11 in front of the mesh origin (mesh front is +Z); text stays inside 4.6 wide
-		for k, z in { 4.54, 3.22, 1.9 } do
-			local a = Instance.new("Attachment")
-			a.Name = "Plank" .. k
-			a.Parent = sign -- parent first: WorldCFrame is relative to the parent part
-			a.WorldCFrame = base * CFrame.new(0, z, 0.13)
-			a:SetAttribute("Width", 5.5)
-			a:SetAttribute("Height", 1.1)
-			a:SetAttribute("SafeWidth", 4.6)
+		-- the gate: origin on the ground at the field's centre line, mesh front (+Z) toward the
+		-- plots (plan +y): yaw = atan2(f.X, -f.Y) with f = (0, 1), a half turn
+		local origin = CFrame.new(q.x, ground, -planY) * CFrame.Angles(0, math.pi, 0)
+		triangles += PortalGates.build(q.id, origin, groundAt, root)
+		-- how far the ground under the columns differs from the centre (the gate stands level)
+		local spread = 0
+		for _, dx in { -13, 13 } do
+			spread = math.max(spread, math.abs(groundAt(q.x + dx, -planY) - ground))
+		end
+		local gate = root:FindFirstChild(q.id .. "Gate")
+		if gate then
+			gate:SetAttribute("GroundSpread", math.round(spread * 100) / 100)
 		end
 	end
 
@@ -108,13 +104,28 @@ function PortalRig.build(parent: Instance): { worlds: number, triangles: number 
 		part.Transparency = 1
 		part.CastShadow = false
 		part.Parent = kit
-		for k, v in KitAssets.info(name).meta do
-			part:SetAttribute(k, v)
+		local info = KitAssets.info(name)
+		for k, v in info.meta do
+			part:SetAttribute(PortalGates.attributeName(k), v)
+		end
+		for k, v in info.points do
+			part:SetAttribute("pt_" .. PortalGates.attributeName(k), v)
+		end
+		local w, h = info.meta["sign_faces.1.size.1"], info.meta["sign_faces.1.size.2"]
+		if w and h then
+			part:SetAttribute("FaceSize", Vector2.new(w, h))
 		end
 		-- "preview" when the mesh is not uploaded yet: a preview mesh does not reach a playtest,
 		-- so the clients build that piece from parts instead
 		part:SetAttribute("Source", KitAssets.sources()[name] or "")
 	end
+	-- the World emblems (the same shapes as the crests) for the clients' padlock faces
+	local emblems = Instance.new("Folder")
+	emblems.Name = "Emblems"
+	for _, q in park.portals do
+		PortalGates.emblem(q.id).Parent = emblems
+	end
+	emblems.Parent = kit
 	for _, name in
 		{
 			"PortalSwirlA",
@@ -142,8 +153,8 @@ function PortalRig.build(parent: Instance): { worlds: number, triangles: number 
 			kit:SetAttribute(name, id)
 		end
 	end
-	-- the sign icons (Figma art) for the clients' requirement sign faces
-	for _, name in { "IconLock", "IconPortal", "IconCoin", "IconGarage", "IconTick" } do
+	-- the sign icons (Figma art) for the clients' requirement plaque faces
+	for _, name in { "IconCoin", "IconGarage", "IconTick" } do
 		kit:SetAttribute(name, AssetIds.SignArt[name])
 	end
 	for name, id in AssetIds.Sounds do

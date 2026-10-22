@@ -1,7 +1,7 @@
 --!strict
 -- Island World portals (Lane 3, client presentation only). Each portal is a frameless energy
--- field about 20 x 30 studs floating over a soft pool of coloured light (no arch, frame or
--- surround). Built on this client from the shared rig (Lane3_IslandEnvironment.Portals):
+-- field about 20 x 30 studs floating over a soft pool of coloured light (the field itself has no
+-- frame; the shared gate stands round it, see below). Built on this client from the shared rig (Lane3_IslandEnvironment.Portals):
 --   the field: soft translucent layers on SurfaceGuis of three invisible carriers at different
 --     depths (so an oblique view sees depth): a coloured depth oval and a wide aura at the back,
 --     two cloudy bodies, two counter-rotating spirals and a pink accent in the middle, a luminous
@@ -20,10 +20,18 @@
 -- .ReducedMotionEnabled or the preview-only "Lane3ReducedMotionOverride" attribute) keeps the
 -- field stable: very slow layers, gentle breathing, no bursts, fewer particles.
 -- Locked portals (PortalPreviewState, a preview source) are dimmer, desaturated and slower, with
--- no beams or bursts, sparse particles, two crossing chains, a padlock and the requirement sign
--- in its locked state. Unlocking (preview) opens the padlock, lets the chains fall and fade,
--- brightens the field and plays one burst; locking again rebuilds the lock cleanly. Nothing here
--- moves the player, changes physics or touches shared state.
+-- no beams or bursts and sparse particles. The gate round each field is built for everyone
+-- (Environment/PortalGates); per player this script colours its inlay bands (dark while locked,
+-- lit in the World colour when open) and, on Dusty Highway and Summit Pass while locked, builds
+-- the lock from the PortalKit pieces: chains wrapped round both columns and crossing in an X,
+-- a padlock with the World emblem hung from the crossing, a friendly LOCKED plaque under it and
+-- the requirement plaque (PREVIEW values) on its short pedestal beside the column. Downtown is
+-- never chained. Unlocking (preview toggle) opens the padlock, drops and fades the chains,
+-- retracts the plaques, lights the inlays bottom to top and plays one burst; reduced motion
+-- cross-fades instead. Locking again removes any fading lock at once and rebuilds it cleanly.
+-- While a kit mesh is only a session preview (blank in a playtest), the lock pieces are built
+-- from parts and the gate shows its part stand-in. Nothing here moves the player, changes
+-- physics or touches shared state.
 
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
@@ -118,14 +126,14 @@ type Portal = {
 	pool: ImageLabel?,
 	hum: Sound?,
 	shimmer: Sound?,
-	lockModel: Model?,
-	lockTrove: Trove.Trove?,
+	lockModel: Model?, -- the live lock (nil while one fades out)
+	lockTrove: Trove.Trove?, -- owns the lock model, live or fading, and its tweens and timers
 	nextBurst: number,
 	angle: number,
 	resting: boolean,
-	sign: BasePart?,
-	signGuis: { SurfaceGui },
-	signTrove: Trove.Trove?,
+	gate: Model?,
+	bands: { { BasePart } }, -- inlay parts per band, bottom to top
+	bandTrove: Trove.Trove?,
 }
 
 local function newImage(parent: Instance, name: string, id: string, z: number): ImageLabel
@@ -536,24 +544,45 @@ local function run(trove: Trove.Trove, rig: Instance)
 		p.trove:Add(lightAt)
 	end
 
-	-- the requirement sign's faces (per player: LOCKED or READY!), built by hand from the Figma
-	-- spec (vault/design/ui/portal-sign.md, frames 8:411 and 8:448). Every number is a PREVIEW
-	-- placeholder (made-up values, not economy numbers) and carries the PREVIEW tag. Nothing on
-	-- the sign is pressable; room for a future Peek prompt is left in front of it.
+	-- ------------------------------------------------------------------ plaque faces (per player)
+	-- Built by hand from the pending sign spec (vault/design/ui/island-task4-signs.md, section 2;
+	-- not approved). Every number is a PREVIEW placeholder (made up, not an economy number) and
+	-- carries the PREVIEW tag. Nothing is pressable; the Peek area is reserved and left empty.
 	local FONT = Font.fromName("FredokaOne")
 	local CREAM = Color3.fromRGB(255, 246, 224)
-	local INK = Color3.fromRGB(59, 42, 30)
+	local INK = Color3.fromRGB(59, 42, 30) -- outline brown
+	local NAVY = Color3.fromRGB(30, 42, 74)
 	local GREEN = Color3.fromRGB(61, 190, 108)
-	local NAMES = { Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
-	local BADGES = {
-		Downtown = Color3.fromRGB(186, 92, 255),
+	local MAGENTA = Color3.fromRGB(194, 24, 122)
+	local TRACK = Color3.fromRGB(90, 64, 48)
+	local PLANK = Color3.fromRGB(176, 132, 86)
+	local INLAY_DARK = Color3.fromRGB(58, 63, 92) -- dark but visible (sign spec section 1)
+	-- lit inlay colours (review M10: gold, warm amber, ice). Dusty and Summit use their WorldPalette
+	-- swatches; Downtown uses its field's gold, because WorldPalette.PortalDowntown is still the
+	-- old violet (reversible; a question for Adam)
+	local LIT: { [string]: Color3 } = {
+		Downtown = Color3.fromRGB(255, 214, 84),
 		DustyHighway = Color3.fromRGB(255, 150, 60),
 		SummitPass = Color3.fromRGB(110, 210, 255),
 	}
-	-- preview rows: { label, have, need } (made up; the sign shows them with the PREVIEW tag)
-	local ROWS: { [string]: { { any } } } = {
-		DustyHighway = { { "CASH", 1200, 5000, "IconCoin" }, { "DOWNTOWN CARS", 2, 3, "IconGarage" } },
-		SummitPass = { { "CASH", 3100, 20000, "IconCoin" }, { "DUSTY CARS", 0, 3, "IconGarage" } },
+	local WORLD_NAMES: { [string]: string } =
+		{ Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
+	local TITLE_STRIP: { [string]: Color3 } =
+		{ DustyHighway = Color3.fromRGB(255, 150, 60), SummitPass = Color3.fromRGB(110, 210, 255) }
+	type Row = { label: string, have: number, need: number, icon: string, fill: Color3 }
+	local COIN = Color3.fromRGB(255, 200, 61)
+	local CARS = Color3.fromRGB(110, 210, 255)
+	-- PREVIEW rows (sign spec 2b): Summit Pass shows the same numbers, because no Summit values
+	-- exist and none are invented
+	local ROWS: { [string]: { Row } } = {
+		DustyHighway = {
+			{ label = "CASH", have = 1200, need = 5000, icon = "IconCoin", fill = COIN },
+			{ label = "DOWNTOWN CARS", have = 2, need = 3, icon = "IconGarage", fill = CARS },
+		},
+		SummitPass = {
+			{ label = "CASH", have = 1200, need = 5000, icon = "IconCoin", fill = COIN },
+			{ label = "DUSTY HIGHWAY CARS", have = 2, need = 3, icon = "IconGarage", fill = CARS },
+		},
 	}
 	local function text(parent: Instance, t: string, size: number, stroke: number, colour: Color3?): TextLabel
 		local l = Instance.new("TextLabel")
@@ -562,11 +591,13 @@ local function run(trove: Trove.Trove, rig: Instance)
 		l.Text = t
 		l.TextSize = size
 		l.TextColor3 = colour or CREAM
-		local st = Instance.new("UIStroke")
-		st.Color = INK
-		st.Thickness = stroke
-		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-		st.Parent = l
+		if stroke > 0 then
+			local st = Instance.new("UIStroke")
+			st.Color = INK
+			st.Thickness = stroke
+			st.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+			st.Parent = l
+		end
 		l.Parent = parent
 		return l
 	end
@@ -607,133 +638,85 @@ local function run(trove: Trove.Trove, rig: Instance)
 		local out = s0:reverse():gsub("(%d%d%d)", "%1,"):reverse()
 		return (out:gsub("^,", ""))
 	end
-	-- one plank's canvas: the spec's 560 x 120 px, scaled uniformly onto the kit's 5.5 x 1.1 face
-	local function plank(p: Portal, k: number, st: Trove.Trove): Frame?
-		local sign = p.sign
-		local at = sign and sign:FindFirstChild("Plank" .. k) :: Attachment?
-		if not (sign and at) then
-			return nil
-		end
-		local w, h = at:GetAttribute("Width") :: number, at:GetAttribute("Height") :: number
-		local face = Instance.new("Part")
-		face.Name = p.world .. "SignPlank" .. k
-		face.Anchored = true
-		face.CanCollide = false
-		face.CanQuery = false
-		face.CanTouch = false
-		face.CastShadow = false
-		face.Transparency = 1
-		face.Size = Vector3.new(w, h, 0.02)
-		face.CFrame = at.WorldCFrame
-		face.Parent = liveFolder
-		st:Add(face)
-		local g = Instance.new("SurfaceGui")
-		-- the attachment's +Z faces the plots: the part's Back face
-		g.Face = Enum.NormalId.Back
-		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		g.PixelsPerStud = 100
-		g.LightInfluence = 1
-		g.MaxDistance = 200
-		g.Parent = face
+
+	-- the requirement plaque's face: the spec's 800 x 400 px canvas at 100 px per stud
+	local function requirementFace(p: Portal, gui: SurfaceGui, size: Vector2)
 		local canvas = Instance.new("Frame")
-		canvas.BackgroundTransparency = 1
+		canvas.Name = "Requirement"
 		canvas.AnchorPoint = Vector2.new(0.5, 0.5)
 		canvas.Position = UDim2.fromScale(0.5, 0.5)
-		canvas.Size = UDim2.fromOffset(560, 120)
+		canvas.Size = UDim2.fromOffset(800, 400)
+		-- Texture hook: once plaque-requirement-bg-<world>.png is approved and uploaded, an
+		-- ImageLabel with that id replaces this plank fill and the title strip (the title is baked).
+		canvas.BackgroundColor3 = PLANK
+		canvas.BorderSizePixel = 0
+		rounded(canvas, 24, 8)
 		local scale = Instance.new("UIScale")
-		scale.Scale = math.min(w * 100 / 560, h * 100 / 120)
+		scale.Scale = math.min(size.X * 100 / 800, size.Y * 100 / 400)
 		scale.Parent = canvas
-		canvas.Parent = g
-		return canvas
-	end
-	local function buildSignFaces(p: Portal)
-		if p.signTrove then
-			p.trove:Remove(p.signTrove)
-		end
-		local st = p.trove:Extend()
-		p.signTrove = st
-		local sign = rig:FindFirstChild(p.world .. "Sign")
-		if not (sign and sign:IsA("BasePart")) then
-			return
-		end
-		p.sign = sign
-		local locked = p.locked
-		-- plank 1: badge, World name, state pill
-		local c1 = plank(p, 1, st)
-		if c1 then
-			local badge = box(c1, 12, 12, 96, 96, BADGES[p.world] or BADGES.Downtown)
-			rounded(badge, 0.5, 4)
-			icon(c1, if locked then "IconLock" else "IconPortal", 22, 22, 76)
-			local name = text(c1, NAMES[p.world] or p.world, 44, 4)
-			name.Position = UDim2.fromOffset(124, 12)
-			name.Size = UDim2.fromOffset(420, 56)
-			name.TextXAlignment = Enum.TextXAlignment.Left
-			name.TextScaled = true
-			local cap = Instance.new("UITextSizeConstraint")
-			cap.MaxTextSize = 44
-			cap.MinTextSize = 28
-			cap.Parent = name
-			local pill = box(c1, 124, 74, if locked then 123 else 122, 36, if locked then INK else GREEN)
-			rounded(pill, 18, if locked then nil else 3)
-			local pt =
-				text(pill, if locked then "LOCKED" else "READY!", if locked then 22 else 24, if locked then 0 else 3)
-			pt.Size = UDim2.fromScale(1, 1)
-			pt.ZIndex = 2
-		end
-		local rows = ROWS[p.world]
-		for k = 2, 3 do
-			local c = plank(p, k, st)
-			if not c then
-				continue
-			end
-			local row = rows and rows[k - 1]
-			if not row then
-				-- the first World has no requirement: two plain lines (a decision for Adam)
-				local l = text(c, if k == 2 then "FIRST WORLD" else "ALWAYS OPEN", 40, 4)
-				l.Size = UDim2.fromScale(1, 1)
-				continue
-			end
-			local label, have, need, iconName = row[1], row[2], row[3], row[4]
-			local met = not locked or have >= need
-			if not locked then
-				have = need
-			end
-			icon(c, iconName, 14, 20, 80)
-			local l = text(c, label, 26, 3)
-			l.Position = UDim2.fromOffset(108, 12)
-			l.Size = UDim2.fromOffset(240, 32)
-			l.TextXAlignment = Enum.TextXAlignment.Left
-			local numbers = text(c, comma(have) .. " / " .. comma(need), 26, 3)
-			numbers.AnchorPoint = Vector2.new(1, 0)
-			numbers.Position = UDim2.fromOffset(544, 12)
-			numbers.Size = UDim2.fromOffset(170, 32)
-			numbers.TextXAlignment = Enum.TextXAlignment.Right
-			local numbersWidth = (if label == "CASH" then 159 else 75)
-			local tag = box(c, 544 - numbersWidth - 8 - 94, 16, 94, 28, Color3.new(1, 1, 1))
-			rounded(tag, 6, 2, Color3.fromRGB(194, 24, 122))
-			local tt = text(tag, "PREVIEW", 16, 0, Color3.fromRGB(194, 24, 122))
-			tt.Size = UDim2.fromScale(1, 1)
+		canvas.Parent = gui
+		local strip = box(canvas, 0, 0, 800, 84, TITLE_STRIP[p.world] or CREAM)
+		rounded(strip, 24)
+		box(canvas, 0, 60, 800, 24, TITLE_STRIP[p.world] or CREAM)
+		local title = text(canvas, "TO OPEN " .. (WORLD_NAMES[p.world] or p.world), 36, 3)
+		title.Position = UDim2.fromOffset(24, 12)
+		title.Size = UDim2.fromOffset(610, 60)
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.ZIndex = 2
+		local pill = box(canvas, 652, 20, 128, 40, INK)
+		pill.ZIndex = 2
+		rounded(pill, 20)
+		local pt = text(pill, "LOCKED", 24, 0)
+		pt.Size = UDim2.fromScale(1, 1)
+		pt.ZIndex = 3
+		for k, row in ROWS[p.world] or {} do
+			local y = if k == 1 then 92 else 196
+			local met = row.have >= row.need
+			icon(canvas, row.icon, 14, y + 10, 72)
+			local label = text(canvas, row.label, 28, 3)
+			label.Position = UDim2.fromOffset(100, y + 2)
+			label.Size = UDim2.fromOffset(330, 36)
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			-- the PREVIEW tag 8 px left of the numbers, whose right edge is at x 700
+			local group = Instance.new("Frame")
+			group.BackgroundTransparency = 1
+			group.AnchorPoint = Vector2.new(1, 0)
+			group.Position = UDim2.fromOffset(700, y + 2)
+			group.Size = UDim2.fromOffset(360, 36)
+			local list = Instance.new("UIListLayout")
+			list.FillDirection = Enum.FillDirection.Horizontal
+			list.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			list.VerticalAlignment = Enum.VerticalAlignment.Center
+			list.SortOrder = Enum.SortOrder.LayoutOrder
+			list.Padding = UDim.new(0, 8)
+			list.Parent = group
+			group.Parent = canvas
+			local tag = box(group, 0, 0, 0, 24, Color3.new(1, 1, 1))
+			tag.AutomaticSize = Enum.AutomaticSize.X
+			tag.LayoutOrder = 1
+			rounded(tag, 6, 2, MAGENTA)
+			local pad = Instance.new("UIPadding")
+			pad.PaddingLeft = UDim.new(0, 8)
+			pad.PaddingRight = UDim.new(0, 8)
+			pad.Parent = tag
+			local tt = text(tag, "PREVIEW", 16, 0, MAGENTA)
+			tt.AutomaticSize = Enum.AutomaticSize.X
+			tt.Size = UDim2.fromOffset(0, 24)
 			tag:SetAttribute("Placeholder", "made-up value; real values need the agreed unlock contract")
-			local track = box(c, 108, 62, 372, 40, Color3.fromRGB(90, 64, 48))
-			rounded(track, 20, 3)
-			local frac = math.clamp(have / need, 0, 1)
-			local fill = box(
-				c,
-				112,
-				66,
-				math.max(1, 364 * frac),
-				32,
-				if met
-					then GREEN
-					elseif label == "CASH" then Color3.fromRGB(255, 200, 61)
-					else Color3.fromRGB(110, 210, 255)
-			)
+			local numbers = text(group, comma(row.have) .. " / " .. comma(row.need), 28, 3)
+			numbers.AutomaticSize = Enum.AutomaticSize.X
+			numbers.Size = UDim2.fromOffset(0, 36)
+			numbers.LayoutOrder = 2
+			local track = box(canvas, 100, y + 44, 590, 38, TRACK)
+			rounded(track, 19, 3)
+			local frac = math.clamp(row.have / row.need, 0, 1)
+			local fill = box(canvas, 104, y + 48, math.max(1, 582 * frac), 30, if met then GREEN else row.fill)
 			fill.ZIndex = 2
-			rounded(fill, 16)
+			rounded(fill, 15)
 			if met then
-				icon(c, "IconTick", 488, 58, 48)
+				icon(canvas, "IconTick", 712, y + 34, 56)
 			else
-				local slot = box(c, 490, 60, 44, 44, Color3.fromRGB(90, 64, 48))
+				local slot = box(canvas, 716, y + 38, 48, 48, TRACK)
 				rounded(slot, 0.5, 4, CREAM)
 				local ring = slot:FindFirstChildOfClass("UIStroke")
 				if ring then
@@ -741,16 +724,96 @@ local function run(trove: Trove.Trove, rig: Instance)
 				end
 			end
 		end
+		-- reserved for a future Peek prompt (not built; never a button on the plaque)
+		local peek = Instance.new("Frame")
+		peek.Name = "PeekReserved"
+		peek.BackgroundTransparency = 1
+		peek.Position = UDim2.fromOffset(10, 300)
+		peek.Size = UDim2.fromOffset(780, 90)
+		peek:SetAttribute("Reserved", "Peek (future); leave empty")
+		peek.Parent = canvas
 	end
 
-	-- ------------------------------------------------------------------ the lock (per player)
-	-- Part-built lock pieces (the comparison for the kit meshes, and the fallback while a mesh is
-	-- only a session preview, which does not reach a playtest): each in the same frame as its
-	-- mesh. Steel links of four cylinders, a brass block padlock, a wooden post with steel eyes.
+	-- the LOCKED plaque's face: LOCKED in navy at 2.5-stud capitals on the plaque's cream face
+	local function lockedFace(gui: SurfaceGui)
+		-- Texture hook: once plaque-locked.png is approved and uploaded, an ImageLabel with that id
+		-- goes under this text.
+		local l = text(gui, "LOCKED", math.min(100, math.floor(2.5 / 0.75 * gui.PixelsPerStud)), 0, NAVY)
+		l.Size = UDim2.fromScale(1, 1)
+	end
+
+	-- ------------------------------------------------------------------ kit pieces
+	local emblems = kit:FindFirstChild("Emblems")
+	local function kitAttr(piece: string, key: string): any
+		local t = templates[piece]
+		return if t then t:GetAttribute(key) else nil
+	end
+	local function kitNumber(piece: string, key: string, default: number): number
+		local v = kitAttr(piece, key)
+		return if type(v) == "number" then v else default
+	end
+	local function kitPoint(piece: string, key: string, default: Vector3): Vector3
+		local v = kitAttr(piece, "pt_" .. key)
+		return if typeof(v) == "Vector3" then v else default
+	end
+
+	-- A thin transparent part whose Front face lies on a piece's recorded sign face (the manifest's
+	-- centre, outward normal and up, in the piece frame), 0.03 proud of the mesh; its SurfaceGui
+	-- goes on Face = Front.
+	local function faceOf(piece: string, frame: CFrame, name: string, parent: Instance): (Part?, Vector2)
+		local size = kitAttr(piece, "FaceSize")
+		if typeof(size) ~= "Vector2" then
+			return nil, Vector2.zero
+		end
+		local c = frame:PointToWorldSpace(kitPoint(piece, "sign_faces_1_centre", Vector3.zero))
+		local n = frame:VectorToWorldSpace(kitPoint(piece, "sign_faces_1_normal", Vector3.zAxis)).Unit
+		local u = frame:VectorToWorldSpace(kitPoint(piece, "sign_faces_1_up", Vector3.yAxis)).Unit
+		local at = c + n * 0.005
+		local part = Instance.new("Part")
+		part.Name = "SignFace_" .. name
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Transparency = 1
+		part.Size = Vector3.new(size.X, size.Y, 0.05)
+		part.CFrame = CFrame.lookAt(at, at + n, u)
+		part.Parent = parent
+		return part, size
+	end
+	local function faceGui(part: Part, pps: number): SurfaceGui
+		local g = Instance.new("SurfaceGui")
+		g.Face = Enum.NormalId.Front
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = pps
+		g.LightInfluence = 1
+		g.MaxDistance = 200
+		g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		g.Parent = part
+		return g
+	end
+	local function emblemOn(part: Part, size: Vector2, world: string)
+		local template = emblems and emblems:FindFirstChild(world)
+		if not (template and template:IsA("Frame")) then
+			return
+		end
+		local g = faceGui(part, 60)
+		local e = template:Clone()
+		local s = Instance.new("UIScale")
+		s.Scale = size.X * 60 / 256
+		s.Parent = e
+		e.Parent = g
+	end
+
+	-- Part-built lock pieces: the fallback while a mesh is only a session preview (which does not
+	-- reach a playtest), each in the same frame as its mesh (the gates kit README, "Production").
 	local STEEL = Color3.fromRGB(150, 158, 170)
-	local BRASS = Color3.fromRGB(214, 168, 70)
-	local WOOD = Color3.fromRGB(122, 86, 56)
-	local function bit(parent: Instance, size: Vector3, cf: CFrame, colour: Color3, cylinder: boolean): Part
+	local IRON_HI = Color3.fromRGB(184, 192, 204)
+	local GOLD = Color3.fromRGB(224, 176, 64)
+	local STONE = Color3.fromRGB(154, 163, 174)
+	local CYLINDER = Enum.PartType.Cylinder
+	local function bit(parent: Instance, size: Vector3, cf: CFrame, colour: Color3, shape: Enum.PartType?): Part
 		local b = Instance.new("Part")
 		b.Anchored = true
 		b.CanCollide = false
@@ -759,56 +822,95 @@ local function run(trove: Trove.Trove, rig: Instance)
 		b.Size = size
 		b.CFrame = cf
 		b.Color = colour
-		b.Material = if colour == WOOD then Enum.Material.Wood else Enum.Material.Metal
-		if cylinder then
-			b.Shape = Enum.PartType.Cylinder
+		b.Material = if colour == STEEL or colour == IRON_HI then Enum.Material.Metal else Enum.Material.SmoothPlastic
+		b.TopSurface = Enum.SurfaceType.Smooth
+		b.BottomSurface = Enum.SurfaceType.Smooth
+		if shape then
+			b.Shape = shape
 		end
 		b.Parent = parent
 		return b
 	end
 	local function partPiece(name: string, cf: CFrame, parent: Instance): Instance?
-		local turn = CFrame.Angles(0, math.pi / 2, 0) -- a cylinder's axis is X; this lays it along Z
-		local up = CFrame.Angles(0, 0, math.pi / 2) -- and this stands it along Y
-		if name == "ChainLink" then
-			-- an oval ring in the link's XZ plane: two sides along X, two ends along Z
-			local m = Instance.new("Model")
-			m.Name = name
-			for _, z in { -0.235, 0.235 } do
-				bit(m, Vector3.new(0.6, 0.15, 0.15), cf * CFrame.new(0, 0, z), STEEL, true)
+		local alongZ = CFrame.Angles(0, math.pi / 2, 0) -- a cylinder's axis is X; this lays it along Z
+		local alongY = CFrame.Angles(0, 0, math.pi / 2) -- and this stands it along Y
+		local m = Instance.new("Model")
+		m.Name = name
+		m:SetAttribute("Build", "parts")
+		if name == "GateChainRun" then
+			-- five links along +X; the even ones face the plots (an oval of two sides and two ends),
+			-- the odd ones are edge-on and read as one bar
+			local pitch = kitNumber(name, "pitch", 2.2)
+			for i = 0, kitNumber(name, "links", 5) - 1 do
+				local at = cf * CFrame.new(i * pitch, 0, 0)
+				if i % 2 == 0 then
+					for _, y in { -0.51, 0.51 } do
+						bit(m, Vector3.new(2.05, 0.5, 0.5), at * CFrame.new(0, y, 0), STEEL, CYLINDER)
+					end
+					for _, x in { -1.28, 1.28 } do
+						bit(m, Vector3.new(1.02, 0.5, 0.5), at * CFrame.new(x, 0, 0) * alongY, STEEL, CYLINDER)
+					end
+				else
+					bit(m, Vector3.new(3.05, 0.5, 0.5), at, IRON_HI, CYLINDER)
+				end
 			end
-			for _, x in { -0.425, 0.425 } do
-				bit(m, Vector3.new(0.47, 0.15, 0.15), cf * CFrame.new(x, 0, 0) * turn, STEEL, true)
+		elseif name == "GateChainWrap" then
+			-- an iron band round the 3 x 3 neck and the front lug the X chain hooks on
+			bit(m, Vector3.new(3.4, 1.2, 3.4), cf, STEEL)
+			local lug = cf * CFrame.new(kitPoint(name, "lug", Vector3.new(0, 0, 2.35)))
+			for _, y in { -0.45, 0.45 } do
+				bit(m, Vector3.new(1.4, 0.4, 0.4), lug * CFrame.new(0, y, 0), IRON_HI, CYLINDER)
 			end
-			m.Parent = parent
-			return m
-		elseif name == "PadlockBody" then
-			local m = Instance.new("Model")
-			m.Name = name
-			bit(m, Vector3.new(1.7, 1.5, 0.75), cf * CFrame.new(0, 0.025, 0.05), BRASS, false)
-			bit(m, Vector3.new(0.18, 0.42, 0.05), cf * CFrame.new(0, -0.1, 0.44), Color3.fromRGB(40, 30, 24), false)
-			m.Parent = parent
-			return m
-		elseif name == "PadlockShackle" then
-			-- origin at the left leg's foot, the right leg 1.0 along X
-			local m = Instance.new("Model")
-			m.Name = name
-			local left = bit(m, Vector3.new(1.0, 0.16, 0.16), cf * CFrame.new(0, 0.5, 0) * up, STEEL, true)
-			bit(m, Vector3.new(1.0, 0.16, 0.16), cf * CFrame.new(1, 0.5, 0) * up, STEEL, true)
-			bit(m, Vector3.new(1.16, 0.16, 0.16), cf * CFrame.new(0.5, 1.08, 0), STEEL, true)
-			m.PrimaryPart = left
-			m.Parent = parent
-			return m
-		elseif name == "ChainAnchorPost" then
-			local m = Instance.new("Model")
-			m.Name = name
-			bit(m, Vector3.new(13, 1.1, 1.1), cf * CFrame.new(0, 6.5, 0) * up, WOOD, true)
-			for _, y in { 12.2, 2.8 } do
-				bit(m, Vector3.new(0.12, 0.5, 0.5), cf * CFrame.new(0.6, y, 0) * turn * turn, STEEL, true)
+			for _, x in { -0.7, 0.7 } do
+				bit(m, Vector3.new(0.9, 0.4, 0.4), lug * CFrame.new(x, 0, 0) * alongY, IRON_HI, CYLINDER)
 			end
-			m.Parent = parent
-			return m
+		elseif name == "GatePadlockBody" then
+			-- front at the emblem face plane (1.53)
+			bit(m, Vector3.new(7, 6, 2.73), cf * CFrame.new(0, 0, 0.165), GOLD)
+			bit(
+				m,
+				Vector3.new(0.6, 1.3, 0.05),
+				cf * CFrame.new(kitNumber(name, "keyhole_centre_1", 0), kitNumber(name, "keyhole_centre_2", -2.1), 1.55),
+				Color3.fromRGB(40, 30, 24)
+			)
+		elseif name == "GatePadlockShackle" then
+			-- origin at the bottom of the left leg (the hinge); the right leg sits leg_gap along X
+			local gap = kitNumber(name, "leg_gap", 4.6)
+			local section = kitNumber(name, "section", 0.84)
+			local rightBottom = kitNumber(name, "right_leg_bottom", 0.3)
+			local legTop = kitNumber(name, "height", 3.6) - section / 2
+			local s = Vector3.new(0, section, section)
+			bit(m, s + Vector3.new(legTop, 0, 0), cf * CFrame.new(0, legTop / 2, 0) * alongY, STEEL, CYLINDER)
+			bit(
+				m,
+				s + Vector3.new(legTop - rightBottom, 0, 0),
+				cf * CFrame.new(gap, (legTop + rightBottom) / 2, 0) * alongY,
+				STEEL,
+				CYLINDER
+			)
+			bit(m, s + Vector3.new(gap + section, 0, 0), cf * CFrame.new(gap / 2, legTop, 0), STEEL, CYLINDER)
+		elseif name == "GateLockedPlaque" then
+			bit(m, Vector3.new(15.4, 4.4, 0.5), cf, NAVY)
+			bit(m, Vector3.new(14.4, 3.4, 0.06), cf * CFrame.new(0, 0, 0.28), CREAM)
+			for k, x in { -2.4, 2.4 } do
+				local ring = kitPoint(name, "hang_rings_" .. k, Vector3.new(x, 2.42, 0))
+				bit(m, Vector3.new(0.25, 0.9, 0.9), cf * CFrame.new(ring) * alongZ, STEEL, CYLINDER)
+			end
+		elseif name == "GateRequirementPlaque" then
+			-- a stone foot, a short cream post and the tilted board under the face
+			bit(m, Vector3.new(3.2, 0.6, 2.6), cf * CFrame.new(0, 0.3, 0), STONE)
+			bit(m, Vector3.new(1.1, 2.4, 1.1), cf * CFrame.new(0, 1.8, 0.1), CREAM)
+			local c = kitPoint(name, "sign_faces_1_centre", Vector3.new(0, 3.128, 0.254))
+			local n = kitPoint(name, "sign_faces_1_normal", Vector3.new(0, 0.574, 0.819))
+			local u = kitPoint(name, "sign_faces_1_up", Vector3.new(0, 0.819, -0.574))
+			local at = c - n * 0.15
+			bit(m, Vector3.new(8.8, 4.8, 0.3), cf * CFrame.lookAt(at, at + n, u), NAVY)
+		else
+			m:Destroy()
+			return nil
 		end
-		return nil
+		m.Parent = parent
+		return m
 	end
 	local function partCount(i: Instance): number
 		local n = if i:IsA("BasePart") then 1 else 0
@@ -839,150 +941,326 @@ local function run(trove: Trove.Trove, rig: Instance)
 		return part
 	end
 
-	-- links along a sagging curve from eye a to eye b, alternating 90 degrees about the chain's
-	-- axis. kit_portal.py: link pitch 0.70; count = round((length - 0.72) / 0.70), then spaced
-	-- evenly so the chain ends in both eyes.
-	local function chain(model: Model, a: Vector3, b: Vector3, sag: number, front: Vector3): number
-		local pts = {}
-		local cum = { 0 }
-		for k = 0, 64 do
-			local s = k / 64
-			table.insert(pts, a:Lerp(b, s) - Vector3.new(0, sag * 4 * s * (1 - s), 0))
-			if k > 0 then
-				table.insert(cum, cum[k] + (pts[k + 1] - pts[k]).Magnitude)
+	-- ------------------------------------------------------------------ the gate (shared build)
+	-- The gate meshes are built for everyone (Environment/PortalGates). This client only colours
+	-- the inlay bands, and in a playtest, while the gate meshes are session previews (blank in
+	-- Play), shows the gate's part stand-in and its part inlay strips instead.
+	local function setupGate(p: Portal)
+		local gate = rig:FindFirstChild(p.world .. "Gate")
+		if not (gate and gate:IsA("Model")) then
+			return
+		end
+		p.gate = gate
+		local fallback = gate:GetAttribute("Source") == "preview"
+		local standIn = gate:FindFirstChild("StandIn")
+		if fallback and standIn then
+			for _, d in standIn:GetChildren() do
+				if d:IsA("BasePart") then
+					d.Transparency = 0
+					d.CastShadow = true
+				end
 			end
 		end
-		local length = cum[#cum]
-		local count = math.max(2, math.floor((length - 0.72) / 0.7 + 0.5))
-		local step = (length - 0.36 * 2) / (count - 1)
-		local i = 1
-		for n = 0, count - 1 do
-			local at = 0.36 + n * step
-			while i < #pts - 1 and cum[i + 1] < at do
-				i += 1
+		local holder = if fallback then gate:FindFirstChild("InlayStrips") else gate
+		for _, d in if holder then holder:GetChildren() else {} do
+			local band = d:GetAttribute("Band")
+			if d:IsA("BasePart") and type(band) == "number" and p.bands[band] then
+				table.insert(p.bands[band], d)
 			end
-			local f = (at - cum[i]) / math.max(cum[i + 1] - cum[i], 1e-6)
-			local pos = pts[i]:Lerp(pts[i + 1], f)
-			local tangent = (pts[i + 1] - pts[i]).Unit
-			local up = front:Cross(tangent).Unit
-			local frame = CFrame.fromMatrix(pos, tangent, up)
-			if n % 2 == 1 then
-				frame *= CFrame.Angles(math.pi / 2, 0, 0)
-			end
-			placePiece("ChainLink", frame, model)
 		end
-		return count
+	end
+	local function paint(part: BasePart, colour: Color3, lit: boolean)
+		if part:IsA("MeshPart") then
+			part.TextureID = "" -- the band's own colour, not the palette swatch
+		end
+		part.Transparency = 0
+		part.Material = if lit then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		part.Color = colour
+	end
+	-- Inlay bands: dark while locked, lit in the World colour when open. Lighting up runs bottom to
+	-- top (Low, Mid, High) over about 1.1 s; under reduced motion all three light together.
+	local function setBands(p: Portal, lit: boolean, animate: boolean)
+		if p.bandTrove then
+			p.trove:Remove(p.bandTrove)
+		end
+		local bt = p.trove:Extend()
+		p.bandTrove = bt
+		local colour = LIT[p.world] or LIT.Downtown
+		if not (lit and animate) then
+			for _, list in p.bands do
+				for _, part in list do
+					paint(part, if lit then colour else INLAY_DARK, lit)
+				end
+			end
+			return
+		end
+		local calm = reducedMotion()
+		for i, list in p.bands do
+			bt:Add(task.delay(if calm then 0 else 0.3 + 0.35 * (i - 1), function()
+				for _, part in list do
+					paint(part, INLAY_DARK, true)
+					local tw = TweenService:Create(
+						part,
+						TweenInfo.new(if calm then 0.5 else 0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+						{ Color = colour }
+					)
+					bt:Add(tw, "Cancel")
+					tw:Play()
+				end
+			end))
+		end
 	end
 
+	-- ------------------------------------------------------------------ the lock (per player)
+	local function clearLock(p: Portal)
+		local lt = p.lockTrove
+		p.lockTrove = nil
+		p.lockModel = nil
+		if lt then
+			-- everything of the old lock, a fading one included, goes now: never two lock models
+			p.trove:Remove(lt)
+		end
+	end
+
+	type Diagonal = { a: string, b: string, offset: number }
+	-- the X: left high to right low, and left low to right high set 0.7 toward the plots so the two
+	-- pass each other at chain_cross (the gates README, "Key meta")
+	local DIAGONALS: { Diagonal } = {
+		{ a = "left_high", b = "right_low", offset = 0 },
+		{ a = "left_low", b = "right_high", offset = 0.7 },
+	}
+
 	local function buildLock(p: Portal)
-		if p.lockTrove then
-			p.trove:Remove(p.lockTrove)
+		clearLock(p)
+		local gate = p.gate
+		if not (gate and gate:GetAttribute("Chained") == true) then
+			return -- Downtown is never chained
 		end
-		local lt = Trove.new()
+		local gateFrame = gate:GetAttribute("Origin")
+		if typeof(gateFrame) ~= "CFrame" then
+			return
+		end
+		local function gatePoint(key: string): Vector3?
+			local v = gate:GetAttribute("pt_" .. key)
+			return if typeof(v) == "Vector3" then gateFrame:PointToWorldSpace(v) else nil
+		end
+		local lt = p.trove:Extend()
 		p.lockTrove = lt
-		p.trove:Add(lt)
-		local model = Instance.new("Model")
+		local model = lt:Add(Instance.new("Model"))
 		model.Name = p.world .. "Lock"
-		local w = p.anchor:GetAttribute("Width") :: number
-		local ground = p.anchor:GetAttribute("Ground") :: number
-		local cf = p.anchor.CFrame
-		local front = cf.LookVector -- toward the plots
-		-- kit_portal.py: posts 13 tall, ring eyes on the post's +x side at 12.2 and 2.8, 0.565 out
-		local ends = {}
-		for _, side in { -1, 1 } do
-			local x = side * (w / 2 + 1)
-			local foot = (cf * CFrame.new(x, 0, -1.3)).Position
-			-- each post's +x (its eyes) faces the field
-			local base = CFrame.new(foot.X, ground, foot.Z)
-				* cf.Rotation
-				* CFrame.Angles(0, if side < 0 then 0 else math.pi, 0)
-			placePiece("ChainAnchorPost", base, model)
-			ends[side] = {
-				high = (base * CFrame.new(0.565, 12.2, 0)).Position,
-				low = (base * CFrame.new(0.565, 2.8, 0)).Position,
-			}
+		local function group(name: string): Model
+			local g = Instance.new("Model")
+			g.Name = name
+			g.Parent = model
+			return g
 		end
-		local links = chain(model, ends[-1].high, ends[1].low, 0.8, front)
-			+ chain(model, ends[-1].low + front * 0.25, ends[1].high + front * 0.25, 0.8, front)
-		-- the padlock hangs where the chains cross, facing the plots
-		local cross = (ends[-1].high + ends[1].low + ends[-1].low + ends[1].high) / 4
-		local lockFrame = CFrame.lookAt(
-			cross - Vector3.new(0, 1.45, 0) + front * 0.5,
-			cross - Vector3.new(0, 1.45, 0) + front * 2
-		) * CFrame.Angles(0, math.pi, 0)
-		placePiece("PadlockBody", lockFrame, model)
-		-- the shackle's origin is its left leg's foot, seated at (-0.5, 0.60) on the body
-		local shackle = placePiece("PadlockShackle", lockFrame * CFrame.new(-0.5, 0.6, 0), model)
-		if shackle then
-			shackle:SetAttribute("Hinge", true)
+		local chains, padlock, shackle, plaque =
+			group("Chains"), group("Padlock"), group("Shackle"), group("RequirementPlaque")
+		local front = gateFrame:VectorToWorldSpace(Vector3.zAxis) -- the gate front, toward the plots
+
+		-- a wrap on each chain neck, its lug to the front
+		for _, key in { "left_low", "left_high", "right_low", "right_high" } do
+			local at = gate:GetAttribute("pt_chain_wraps_" .. key)
+			if typeof(at) == "Vector3" then
+				placePiece("GateChainWrap", gateFrame * CFrame.new(at), chains)
+			end
 		end
-		model:SetAttribute("Links", links)
+		-- each diagonal: whole pre-linked runs (run_pitch apart), centred between its two anchors
+		local runPitch = kitNumber("GateChainRun", "run_pitch", 11)
+		local runLength = kitPoint("GateChainRun", "last_link_centre", Vector3.new(8.8, 0, 0)).X
+		local runs = 0
+		for _, d in DIAGONALS do
+			local a, b = gatePoint("chain_anchors_" .. d.a), gatePoint("chain_anchors_" .. d.b)
+			if a and b then
+				a += front * d.offset
+				b += front * d.offset
+				local dir = (b - a).Unit
+				local length = (b - a).Magnitude
+				local count = math.max(1, math.floor((length - runLength) / runPitch) + 1)
+				local start = (length - ((count - 1) * runPitch + runLength)) / 2
+				local up = front:Cross(dir).Unit -- so the run's +Z is the gate front
+				for r = 0, count - 1 do
+					placePiece("GateChainRun", CFrame.fromMatrix(a + dir * (start + r * runPitch), dir, up), chains)
+					runs += 1
+				end
+			end
+		end
+		-- the padlock hangs from the crossing (its shackle between the two chains), the LOCKED plaque
+		-- from the padlock's eyes (each hang ring 0.5 below its eye)
+		local cross = gatePoint("chain_cross")
+		if cross then
+			local below = kitNumber("GatePadlockBody", "assembly_body_centre_below_cross", 4.5)
+			local body = CFrame.new(cross + front * 0.35 - Vector3.new(0, below, 0)) * gateFrame.Rotation
+			placePiece("GatePadlockBody", body, padlock)
+			local face, size = faceOf("GatePadlockBody", body, "PadlockEmblem", padlock)
+			if face then
+				emblemOn(face, size, p.world)
+			end
+			local hinge = body
+				* CFrame.new(
+					kitNumber("GatePadlockBody", "shackle_seat_1", -2.3),
+					kitNumber("GatePadlockBody", "shackle_seat_2", 2.4),
+					0
+				)
+			placePiece("GatePadlockShackle", hinge, shackle)
+			shackle.WorldPivot = hinge
+			local eyeY = kitPoint("GatePadlockBody", "plaque_eyes_1", Vector3.new(-2.4, -2.925, 0)).Y
+			local ringY = kitPoint("GateLockedPlaque", "hang_rings_1", Vector3.new(-2.4, 2.42, 0)).Y
+			local board = body * CFrame.new(0, eyeY - 0.5 - ringY, 0)
+			placePiece("GateLockedPlaque", board, padlock)
+			local lockedPart = faceOf("GateLockedPlaque", board, "LockedText", padlock)
+			if lockedPart then
+				lockedFace(faceGui(lockedPart, 25))
+			end
+		end
+		-- the requirement plaque on its short pedestal, beside the column (PortalGates)
+		local base = gate:GetAttribute("PlaqueBase")
+		if typeof(base) == "CFrame" then
+			placePiece("GateRequirementPlaque", base, plaque)
+			local reqPart, reqSize = faceOf("GateRequirementPlaque", base, "RequirementFace", plaque)
+			if reqPart then
+				requirementFace(p, faceGui(reqPart, 100), reqSize)
+			end
+		end
+		model:SetAttribute("Runs", runs)
 		model:SetAttribute("Parts", partCount(model))
-		model:SetAttribute("Build", if model:FindFirstChildWhichIsA("Model") then "parts" else "meshes")
+		local built = "meshes"
+		for _, d in model:GetDescendants() do
+			if d:GetAttribute("Build") == "parts" then
+				built = "parts"
+				break
+			end
+		end
+		model:SetAttribute("Build", built)
 		model:SetAttribute("PreviewState", PortalPreviewState.Source)
 		model.Parent = liveFolder
-		lt:Add(model)
 		p.lockModel = model
 	end
 
-	local function unlockAnimation(p: Portal)
-		local model = p.lockModel
-		local lt = p.lockTrove
+	-- fades every GUI layer under `root`
+	local function fadeGuis(root: Instance, duration: number, lt: Trove.Trove)
+		local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+		local function go(inst: Instance, goal: { [string]: any })
+			local tw = TweenService:Create(inst, info, goal)
+			lt:Add(tw, "Cancel")
+			tw:Play()
+		end
+		for _, d in root:GetDescendants() do
+			if d:IsA("TextLabel") then
+				go(d, { TextTransparency = 1, BackgroundTransparency = 1 })
+			elseif d:IsA("ImageLabel") then
+				go(d, { ImageTransparency = 1, BackgroundTransparency = 1 })
+			elseif d:IsA("Frame") then
+				go(d, { BackgroundTransparency = 1 })
+			elseif d:IsA("UIStroke") then
+				go(d, { Transparency = 1 })
+			end
+		end
+	end
+	-- moves every part of a group down by `drop` while it fades (drop 0: a fade in place)
+	local function sink(group: Instance, drop: number, duration: number, lt: Trove.Trove, stagger: number?)
+		local i = 0
+		for _, d in group:GetDescendants() do
+			if d:IsA("BasePart") then
+				i += 1
+				local info = TweenInfo.new(
+					duration,
+					if drop > 0 then Enum.EasingStyle.Quad else Enum.EasingStyle.Sine,
+					Enum.EasingDirection.In,
+					0,
+					false,
+					(stagger or 0) * (i % 6)
+				)
+				local tw =
+					TweenService:Create(d, info, { CFrame = d.CFrame - Vector3.new(0, drop, 0), Transparency = 1 })
+				lt:Add(tw, "Cancel")
+				tw:Play()
+			end
+		end
+	end
+
+	-- The preview unlock: the shackle lifts and swings open, the padlock and the LOCKED plaque drop
+	-- and fade, the chains fall a little and fade, the requirement plaque sinks into the ground,
+	-- the inlays light bottom to top and one soft burst plays (about 1.5 s). Reduced motion: a
+	-- short cross-fade with nothing moving, the inlays lit together, no burst. A relock at any
+	-- point removes the fading lock at once (clearLock) before the new one is built.
+	local function unlock(p: Portal)
+		setBands(p, true, true)
+		local model, lt = p.lockModel, p.lockTrove
+		p.lockModel = nil
 		if not (model and lt) then
 			return
 		end
-		p.lockModel = nil
-		p.lockTrove = nil
 		local calm = reducedMotion()
-		local shackle = model:FindFirstChild("PadlockShackle")
-		if shackle and not calm then
-			local info = TweenInfo.new(0.35, Enum.EasingStyle.Back)
-			if shackle:IsA("BasePart") then
-				local open = shackle.CFrame * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(100), 0)
-				TweenService:Create(shackle, info, { CFrame = open }):Play()
-			elseif shackle:IsA("Model") then
-				-- a part-built shackle turns as one through a pivot value
-				local start = shackle:GetPivot()
-				local v = Instance.new("CFrameValue")
-				v.Value = start
-				v.Changed:Connect(function(cf)
-					shackle:PivotTo(cf)
+		if calm then
+			sink(model, 0, 0.5, lt)
+			fadeGuis(model, 0.4, lt)
+		else
+			local shackle = model:FindFirstChild("Shackle")
+			if shackle and shackle:IsA("Model") then
+				-- the shackle turns as one through a pivot value: up out of its socket, then about
+				-- the left leg toward the plots
+				local hinge = shackle:GetPivot()
+				local lifted = hinge * CFrame.new(0, kitNumber("GatePadlockShackle", "lift_to_open", 0.35), 0)
+				local v = lt:Add(Instance.new("CFrameValue"))
+				v.Value = hinge
+				lt:Connect(v.Changed, function(value: any)
+					if shackle.Parent then
+						shackle:PivotTo(value)
+					end
 				end)
-				TweenService
-					:Create(v, info, { Value = start * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(100), 0) })
-					:Play()
-				task.delay(0.4, function()
-					v:Destroy()
+				local up = TweenService:Create(
+					v,
+					TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ Value = lifted }
+				)
+				local swing = TweenService:Create(
+					v,
+					TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Value = lifted * CFrame.Angles(0, math.rad(-100), 0) }
+				)
+				lt:Add(up, "Cancel")
+				lt:Add(swing, "Cancel")
+				lt:Connect(up.Completed, function(state)
+					if state == Enum.PlaybackState.Completed then
+						swing:Play()
+					end
 				end)
+				up:Play()
 			end
-		end
-		task.delay(if calm then 0 else 0.4, function()
-			for i, part in model:GetDescendants() do
-				if part:IsA("BasePart") then
-					local goal = {
-						Transparency = 1,
-						CFrame = if calm then part.CFrame else part.CFrame - Vector3.new(0, 3 + (i % 5) * 0.4, 0),
-					}
-					local info = TweenInfo.new(
-						if calm then 0.8 else 0.9 + (i % 7) * 0.05,
-						if calm then Enum.EasingStyle.Sine else Enum.EasingStyle.Quad,
-						Enum.EasingDirection.In
-					)
-					TweenService:Create(part, info, goal):Play()
+			lt:Add(task.delay(0.4, function()
+				local plaque = model:FindFirstChild("RequirementPlaque")
+				if plaque then
+					sink(plaque, 5.2, 0.8, lt)
+					fadeGuis(plaque, 0.4, lt)
 				end
-			end
-			task.delay(1.4, function()
-				lt:Destroy()
-			end)
-		end)
-		if not calm then
-			task.delay(0.7, function()
+			end))
+			lt:Add(task.delay(0.6, function()
+				for _, name in { "Padlock", "Shackle" } do
+					local g = model:FindFirstChild(name)
+					if g then
+						sink(g, 3, 0.6, lt)
+						fadeGuis(g, 0.35, lt)
+					end
+				end
+				local chains = model:FindFirstChild("Chains")
+				if chains then
+					sink(chains, 2.5, 0.6, lt, 0.05)
+				end
+			end))
+			lt:Add(task.delay(0.9, function()
 				local burst = p.emitters.Burst
 				if burst and burst.Parent then
 					burst:Emit(36)
 				end
-			end)
+			end))
 		end
+		lt:Add(task.delay(if calm then 0.7 else 1.7, function()
+			if p.lockTrove == lt then
+				p.lockTrove = nil
+			end
+			p.trove:Remove(lt)
+		end))
 	end
 
 	-- ------------------------------------------------------------------ portals from the rig
@@ -1015,12 +1293,13 @@ local function run(trove: Trove.Trove, rig: Instance)
 				nextBurst = os.clock() + 8,
 				angle = 0,
 				resting = false,
-				sign = nil,
-				signGuis = {},
-				signTrove = nil,
+				gate = nil,
+				bands = { {}, {}, {} },
+				bandTrove = nil,
 			}
 			buildField(p)
-			buildSignFaces(p)
+			setupGate(p)
+			setBands(p, not p.locked, false)
 			if p.locked then
 				buildLock(p)
 			end
@@ -1033,11 +1312,11 @@ local function run(trove: Trove.Trove, rig: Instance)
 				local now = PortalPreviewState.isLocked(world)
 				if now ~= p.locked then
 					p.locked = now
-					buildSignFaces(p)
 					if now then
 						buildLock(p)
+						setBands(p, false, false)
 					else
-						unlockAnimation(p)
+						unlock(p)
 					end
 				end
 			end

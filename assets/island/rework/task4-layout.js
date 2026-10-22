@@ -257,8 +257,8 @@ module.exports = { T4, search, check, riverLoop, blockedFraction, eyes, fieldTar
 // points per entrance; a ray counts as blocked when any of 40 samples along it is inside a
 // footprint below that object's top (and above its underside, for the gantry beam). Clearances
 // are footprint-to-strip overlaps at the stated margins. Mirror pairs must agree to 0.01 stud.
-function check() {
-	const o = L.run({}, "task4 chosen");
+function check(over = {}) {
+	const o = L.run(over, "task4 chosen");
 	const { H } = o;
 	const { P } = H;
 	const C = P.task4;
@@ -271,6 +271,32 @@ function check() {
 		{ id: "Garage", poly: o.garage.poly, h: C.garage.top },
 		...gantryBoxes(gantryAt, T4.stunt.span),
 		...o.boards.map((b) => ({ id: b.id, poly: b.poly, h: b.h })),
+		// the portal gate family (kit_gates production): per gate two columns with their stepped
+		// plinths and capitals, |x| 10.6 to 15.4 from the field centre line, 5 deep, top 33; the
+		// crest band x ±15, z 33 to 44, and the crown x ±10, up to 50
+		...H.portals.flatMap((q) => {
+			const y = q.front.y - P.portal.depth / 2;
+			return [
+				{ id: q.id + "ColumnW", poly: rect(q.x - 15.4, q.x - 10.6, y - 2.5, y + 2.5), h: 33 },
+				{ id: q.id + "ColumnE", poly: rect(q.x + 10.6, q.x + 15.4, y - 2.5, y + 2.5), h: 33 },
+				{ id: q.id + "Crest", poly: rect(q.x - 15, q.x + 15, y - 2.4, y + 2.4), z0: 33, h: 44 },
+				{ id: q.id + "Crown", poly: rect(q.x - 10, q.x + 10, y - 1, y + 2.6), z0: 42.8, h: 50 },
+			];
+		}),
+		// the Stunt loop sculpture on its pedestal at the closed end of the apron (kit_stunt
+		// production placed it at x -8..8, y 14.2..19.8 and it hid 2 % of Plot 1's lower falls at any height, so the loop stands in the side strip x 13.4..18.3, y -10..2, top 12.9; its low pedestal, top 4.4, stays at the closed end) and the two checkered flags
+		// (x Â±9.6, y 17, top 10.1); envelope-local +y runs away from the fountain
+		...(() => {
+			const s = o.stunt;
+			const at = (x, y) => add(add(s.c, mul(s.side, x)), mul(s.dir, -y));
+			const box = (x0, x1, y0, y1) => [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)];
+			return [
+				{ id: "StuntLoop", poly: box(13.4, 18.3, -10, 2), h: 12.9 },
+				{ id: "StuntPedestal", poly: box(-8, 8, 14.2, 19.8), h: 4.4 },
+				{ id: "StuntFlagL", poly: box(-10.1, -9.1, 16.5, 17.5), h: 10.1 },
+				{ id: "StuntFlagR", poly: box(9.1, 10.1, 16.5, 17.5), h: 10.1 },
+			];
+		})(),
 		{ id: "Gazebo", poly: o.gazebo.poly, h: C.gazebo.h },
 		{ id: "SnackCornerEast", poly: o.food.poly, h: C.snack.h },
 		{ id: "SnackCornerWest", poly: o.foodWest.poly, h: C.snack.h },

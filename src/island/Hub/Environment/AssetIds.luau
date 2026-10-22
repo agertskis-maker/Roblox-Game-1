@@ -96,7 +96,9 @@ AssetIds.SignArt = {
 -- The kit palette (assets/island/kit/kitlib.py, 16 x 16 swatches), uploaded 2026-10-21.
 -- revision 3 (2026-10-22): four swatches appended (steel, brass, coral, mint); earlier cells
 -- unchanged, so every older mesh looks the same. The first palette was 112727480640146.
-AssetIds.Palette = id(84613406678497)
+-- Task 4 (2026-10-22): the kit palette with the Task 4 swatches appended (cells 101 to 126; the
+-- older cells are byte-identical to the previous upload, 84613406678497)
+AssetIds.Palette = id(134121745235322)
 
 -- Kit meshes (assets/island/kit/, KitManifest), by mesh name, uploaded 2026-10-21 through the 3D
 -- Importer from island-kit.obj (Creator "Me"). The importer stores each mesh turned 180 degrees

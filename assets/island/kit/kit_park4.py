@@ -9,29 +9,29 @@
 #   PicnicTable        origin at the table centre on the ground, long axis x. Top 2.7, seats 1.5.
 #                      A 0.6 square hole at the top centre takes the Parasol pole.
 #   Parasol            canopy + pole + ground socket as one mesh; origin at the pole bottom (z 0),
-#                      standing in the PicnicTable centre hole (same origin as the table).
-#   LightPost          string-light / bunting post, 9 tall; meta Hook = centre of the top ring
-#                      (strings drawn by Luau between Hook points, any direction).
-#   ParkBin            octagonal slatted bin, 2.1 across, 2.9 tall, open top with a dark liner.
+#   ParasolTeal        standing in the PicnicTable centre hole (same origin as the table).
+#                      Parasol is coral and cream, ParasolTeal teal and cream (one per corner).
+#   LightPost          string post (no lamp), 11.1 tall; meta Hook = centre of the top ring
+#                      (strings drawn by Luau between Hook points, perimeter only, lowest >= 9).
+#   ParkBin            octagonal slatted bin, 2.1 across, 2.7 tall, open top with a dark liner.
 #   BedJunctionRound   full round junction bed, 18 across.
 #   BedCornerFillet    quarter-round bed for a grass corner where two paths meet: the path corner
 #                      (where the two path edges would meet) at the origin, path edges along +x
 #                      (path on y < 0) and +y (path on x < 0); follows the paving fillet of radius
 #                      8 (half the 16 avenue width), set back 1 from the paving.
-#   BedAvenueArc       5 x 18 curved strip bed on a 178 centreline radius (fits 157-200 within 0.03
+#   BedAvenueArc       7 x 18 curved strip bed on a 178 centreline radius (fits 157-200 within 0.03
 #                      of sagitta), rounded ends; front (low planting) on the concave side, -y.
-#   BedAvenueStraight  5 x 18 straight strip bed, rounded ends, front -y.
+#   BedAvenueStraight  7 x 18 straight strip bed, rounded ends, front -y.
 #   BedFountainArc     8 wide arc segment on a ring of centreline radius 49 (inner 45, outer 53),
-#                      14 long on the centreline, square chamfered ends; front (concave) faces the
-#                      fountain (-y) and has a 1.2 gravel strip inside the border.
+#                      14 long on the centreline, square chamfered ends; seen from both sides, so
+#                      its bands are symmetric (tallest on the centreline).
+#                      Every bed's planting is capped: back <= 3, middle <= 2, front <= 1.
 #   BridgeRiverAvenue  river-loop bridge, deck 18 wide (avenue paths 16), 26 long.
 #   BridgeRiverApproach river-loop bridge, deck 14 wide (approach paths 12), 26 long.
-#                      Bridges: origin at deck centre, deck top z 0, long axis x (along the path).
-#                      The walking surface is flat at z 0 from end to end (no arch on the deck):
-#                      ends are square and flush, the deck sits in a notch (seat) on each
-#                      abutment, and nothing in the mesh rises above z 0 at the ends. Shallow
-#                      elliptical arches under the deck, two cutwater piers to the river bed,
-#                      abutments with pilasters and flush-topped wing walls along the path sides.
+#                      Bridges: origin at deck centre, deck top z 0 (placed at the world path
+#                      surface +0.08), long axis x (along the path). Flat deck end to end, square
+#                      flush ends on level ground; built from Field.riverProfile (see section C):
+#                      fascia beam and navy deck edge on two cutwater piers standing on the bed.
 
 import math
 
@@ -107,7 +107,7 @@ def picnic_table(name):
 PAR_R, PAR_RIM, PAR_VAL, PAR_MID_R, PAR_MID, PAR_APEX, POLE_R = 3.75, 7.35, 7.05, 2.1, 7.75, 7.95, 0.13
 
 
-def parasol(name):
+def parasol(name, colours=("coral", "cream"), flaps=("coral", "teal")):
     b = Builder(name)
     # ground socket: a weighted navy base with a cream collar (sits under the table, between frames)
     cyl(b, Vector((0, 0, -0.1)), 0.4, 0.55, 10, "navy", r_top=0.48)
@@ -120,7 +120,7 @@ def parasol(name):
     rim = [Vector((math.cos(2 * math.pi * k / gores) * PAR_R, math.sin(2 * math.pi * k / gores) * PAR_R, PAR_RIM)) for k in range(gores)]
     mid = [Vector((math.cos(2 * math.pi * k / gores) * PAR_MID_R, math.sin(2 * math.pi * k / gores) * PAR_MID_R, PAR_MID)) for k in range(gores)]
     apex = Vector((0, 0, PAR_APEX))
-    colours = ["coral", "cream"]
+    colours = list(colours)
     for k in range(gores):
         k2 = (k + 1) % gores
         sw = colours[k % 2]
@@ -128,7 +128,7 @@ def parasol(name):
         b.face2([mid[k], mid[k2], apex], sw)
         # a scalloped valance flap under each gore edge
         m = (rim[k] + rim[k2]) / 2
-        b.face2([rim[k], rim[k2], m * 1.0 - Vector((0, 0, PAR_RIM - PAR_VAL))], "teal" if k % 2 else "coral")
+        b.face2([rim[k], rim[k2], m * 1.0 - Vector((0, 0, PAR_RIM - PAR_VAL))], flaps[k % 2])
     # ribs under the canopy from the runner to each rim point
     for k in range(gores):
         d = Vector((math.cos(2 * math.pi * k / gores), math.sin(2 * math.pi * k / gores), 0))
@@ -140,34 +140,41 @@ def parasol(name):
     return b, {
         "height": round(top, 3), "PoleTop": [0, 0, round(top, 3)], "CanopyRim": {"radius": PAR_R, "z": PAR_RIM},
         "underside_min": PAR_VAL, "pole_radius": POLE_R, "apex": PAR_APEX, "socket_radius": 0.55,
+        "colours": list(colours), "flaps": list(flaps),
         "note": "origin at the pole bottom on the ground; place at the PicnicTable origin (pole through PoleHole); lowest valance 7.05",
     }
 
 
-POST_H, HOOK_Z = 9.0, 8.85
+POST_TOP = 10.4          # top of the navy shaft (production: 11 tall overall, lead 2026-10-22)
+HOOK_Z = POST_TOP + 0.65
+POST_H = HOOK_Z + 0.06
+STRING_SAG, STRING_MIN = 0.13, 9.0
 
 
 def light_post(name):
     b = Builder(name)
-    # a cream stone footing, partly sunk, with a navy collar
-    cbox(b, Vector((0, 0, 0.1)), (1.3, 1.3, 0.8), "stone_light", c=0.1, top="cream")
-    cbox(b, Vector((0, 0, 0.6)), (0.72, 0.72, 0.2), "navy", c=0.05)
+    # a cream stone footing, partly sunk, with a navy collar (slightly larger for the taller post)
+    cbox(b, Vector((0, 0, 0.1)), (1.4, 1.4, 0.8), "stone_light", c=0.1, top="cream")
+    cbox(b, Vector((0, 0, 0.6)), (0.76, 0.76, 0.2), "navy", c=0.05)
     # the navy post with two cream bands
-    cbox(b, Vector((0, 0, 0.7 + 3.75)), (0.42, 0.42, 7.5), "navy", c=0.07)
-    for z in (2.6, 7.6):
-        cbox(b, Vector((0, 0, z)), (0.54, 0.54, 0.24), "cream", c=0.05)
+    cbox(b, Vector((0, 0, 0.7 + (POST_TOP - 0.7) / 2)), (0.44, 0.44, POST_TOP - 0.7), "navy", c=0.07)
+    for z in (2.6, POST_TOP - 0.6):
+        cbox(b, Vector((0, 0, z)), (0.56, 0.56, 0.24), "cream", c=0.05)
     # cap plate, pyramid and the hook ring on a short stalk
-    cbox(b, Vector((0, 0, 8.28)), (0.62, 0.62, 0.16), "cream", c=0.04)
-    base = 8.36
-    sq = [Vector((sx * 0.26, sy * 0.26, base)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-    tip = Vector((0, 0, 8.66))
+    cbox(b, Vector((0, 0, POST_TOP + 0.08)), (0.64, 0.64, 0.16), "cream", c=0.04)
+    base = POST_TOP + 0.16
+    sq = [Vector((sx * 0.27, sy * 0.27, base)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    tip = Vector((0, 0, base + 0.3))
     for k in range(4):
         oface(b, [sq[k], sq[(k + 1) % 4], tip], "navy", Vector((0, 0, base + 0.05)))
-    cyl(b, Vector((0, 0, 8.55)), 0.3, 0.05, 6, "navy")
+    cyl(b, Vector((0, 0, base + 0.19)), HOOK_Z - base - 0.19, 0.05, 6, "navy")
     torus(b, Vector((0, 0, HOOK_Z)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.24, 0.05, 10, 4, "navy")
+    max_span = (HOOK_Z - STRING_MIN) / STRING_SAG
     return b, {
-        "height": POST_H, "Hook": [0, 0, HOOK_Z], "hook_ring_radius": 0.24, "footing": 1.3, "sink": 0.3,
-        "note": "Hook is the centre of a horizontal ring on top: strings may leave in any direction",
+        "height": round(POST_H, 3), "Hook": [0, 0, round(HOOK_Z, 3)], "hook_ring_radius": 0.24, "footing": 1.4, "sink": 0.3,
+        "string": {"sag": STRING_SAG, "lowest_min": STRING_MIN, "max_span": round(max_span, 2),
+                   "rule": "perimeter only (back and side edges), never over tables, seating or the approach; CanCollide, CanTouch, CanQuery off"},
+        "note": "Hook is the centre of a horizontal ring on top: strings may leave in any direction. A string post, not a lamp",
     }
 
 
@@ -199,9 +206,14 @@ def park_bin(name):
         a = 2 * math.pi * (k + 1) / S
         d = Vector((math.cos(a), math.sin(a), 0))
         box(b, d * (apo + 0.05) + Vector((0, 0, 1.4)), Vector((0.46, 0.12, 1.75)), "bench_wood", rot_z=a + math.pi / 2)
-    cbox_r = oct_ring(2.3, 0.97)
-    bandr(oct_ring(0.4, 0.97), oct_ring(0.6, 0.97), "navy")
-    bandr(oct_ring(2.1, 0.97), cbox_r, "navy")
+    # two navy straps proud of the slats (apothem 0.97 > slat face 0.94), with flat lips
+    SR = 1.05
+    cbox_r = oct_ring(2.3, SR)
+    for z0, z1 in ((0.4, 0.62), (2.08, 2.3)):
+        bandr(oct_ring(z0, SR), oct_ring(z1, SR), "navy")
+        bandr(oct_ring(z0, 0.88), oct_ring(z0, SR), "navy", inside_z=z0 + 0.1)
+        if z1 < 2.2:
+            bandr(oct_ring(z1, SR), oct_ring(z1, 0.88), "navy", inside_z=z1 - 0.1)
     rim_lo = oct_ring(2.3, 1.07)
     rim_hi = oct_ring(2.62, 1.07)
     rim_top = oct_ring(2.72, 0.98)
@@ -221,7 +233,8 @@ def park_bin(name):
 
 # ================================================================ B. raised flower beds
 BED_TOP, BED_SOIL, BED_FOOT, BED_CH = 0.9, 0.6, -0.3, 0.15
-HEIGHTS = {"back": [4.0, 5.0], "middle": [2.0, 3.0], "front": [0.8, 1.5]}
+# production caps (lead 2026-10-22): beds sit in viewing corridors, so nothing in a bed over 3
+HEIGHTS = {"back": [2.0, 3.0], "middle": [1.2, 2.0], "front": [0.5, 1.0]}
 
 
 def bed_shell(b, outline, bw, soil_regions=None):
@@ -324,13 +337,13 @@ def bed_corner_fillet(name):
         "bands": {"type": "nested", "rule": "a point is back if inside back_outline, else middle if inside middle_outline, else front",
                   "front_depth": CF_FRONT, "middle_depth": round(CF_MIDDLE - CF_FRONT, 2),
                   "middle_outline": [r2(p) for p in middle], "back_outline": [r2(p) for p in back]},
-        "sightline_note": "research task4-hub-park 9 asks for nothing over 3 studs within about 17 of a corner; the whole bed lies within 15, so the 4-5 back band conflicts (question for the lead)",
+        "sightline_note": "the bed lies within 15 of the corner, inside the viewing corridors: every band is capped (back 3, middle 2, front 1); a taller back band needs a per-bed layout flag proving it is outside every corridor",
         "note": "place with the origin on the junction's path-edge corner; rotate in 90 degree steps for the other three corners",
     })
 
 
 # ---------------------------------------------------------------- BedAvenueArc / BedAvenueStraight
-AV_L, AV_W, AV_BW, AV_R = 18.0, 5.0, 1.0, 178.0
+AV_L, AV_W, AV_BW, AV_R = 18.0, 7.0, 1.0, 178.0
 
 
 def stadium_outline(L, Wd, ns=8, nc=8):
@@ -394,7 +407,7 @@ def bed_avenue_straight(name):
     return b, bed_meta(f(AV_BW), AV_BW, {
         "length": AV_L, "width": AV_W,
         "bands": {"type": "strip_y", "front": [round(e[0], 2), round(e[1], 2)], "middle": [round(e[1], 2), round(e[2], 2)], "back": [round(e[2], 2), round(e[3], 2)]},
-        "note": "bands are y ranges (front on -y, toward the path); rounded ends of radius 2.5",
+        "note": "bands are y ranges (front on -y, toward the path); rounded ends of radius 3.5; the lead mirrors by placement (yaw 180) for the other side of an avenue",
     })
 
 
@@ -411,7 +424,7 @@ def bed_avenue_arc(name):
         "bands": {"type": "arc_radial", "centre": [0, -AV_R], "front": [round(AV_R + e[0], 2), round(AV_R + e[1], 2)],
                   "middle": [round(AV_R + e[1], 2), round(AV_R + e[2], 2)], "back": [round(AV_R + e[2], 2), round(AV_R + e[3], 2)]},
         "fits_radius": [157, 200],
-        "note": "front (low) on the concave side; sagitta 0.23 over 18, so one radius fits 157-200 within 0.03",
+        "note": "front (low) on the concave side; sagitta 0.23 over 18, so one radius fits 157-200 within 0.03; no convex-front mesh (lead mirrors by placement)",
     })
 
 
@@ -462,112 +475,134 @@ def arc_region(r_in, r_out, t_end, th, ns=10):
 def bed_fountain_arc(name):
     b = Builder(name)
     f, th = fountain_outline()
-    g0, g1 = FA_RI + FA_BW, FA_RI + FA_BW + FA_GRAVEL
-    p1 = FA_RO - FA_BW
-    gravel = arc_region(g0, g1, FA_BW, th)
-    soil = arc_region(g1, p1, FA_BW, th)
-    bed_shell(b, f, FA_BW, soil_regions=[(gravel, "rock"), (soil, "dirt")])
-    w = (p1 - g1) / 3
+    # production (lead 2026-10-22): seen from both sides, so a symmetric section, tallest in the
+    # middle; the one-sided gravel strip of the concept is dropped to keep the section symmetric
+    p0, p1 = FA_RI + FA_BW, FA_RO - FA_BW
+    soil = arc_region(p0, p1, FA_BW, th)
+    bed_shell(b, f, FA_BW, soil_regions=[(soil, "dirt")])
+    e1, e2 = 1.0, 2.0
+    rr = lambda v: round(v, 2)  # noqa: E731
     return b, bed_meta(soil, FA_BW, {
         "ring_radius": FA_RM, "inner_radius": FA_RI, "outer_radius": FA_RO, "centre": [0, -FA_RM],
         "sweep_deg": round(math.degrees(2 * th), 3), "length_on_centreline": FA_LEN,
-        "gravel": {"inner": g0, "outer": g1},
-        "bands": {"type": "arc_radial", "centre": [0, -FA_RM], "front": [round(g1, 2), round(g1 + w, 2)],
-                  "middle": [round(g1 + w, 2), round(g1 + 2 * w, 2)], "back": [round(g1 + 2 * w, 2), round(p1, 2)]},
-        "note": "front (concave, toward the fountain) has a 1.2 gravel strip inside the kerb; place with the centre on the fountain and yaw by multiples of the sweep plus gaps",
+        "bands": {"type": "arc_radial_symmetric", "centre": [0, -FA_RM],
+                  "front": [[rr(p0), rr(p0 + e1)], [rr(p1 - e1), rr(p1)]],
+                  "middle": [[rr(p0 + e1), rr(p0 + e2)], [rr(p1 - e2), rr(p1 - e1)]],
+                  "back": [rr(p0 + e2), rr(p1 - e2)]},
+        "note": "seen from both sides: low at both kerbs, tallest on the centreline; place with the centre on the fountain, segments between the route openings (each opening at least the path width)",
     })
 
 
 # ================================================================ C. river-loop bridges
-BR_HL, BR_EB, BR_END = 13.0, 0.8, 0.8      # half length, edge-beam width, end-beam length
-BR_ZS, BR_BED, BR_WATER = -2.2, -4.6, -2.5  # arch springing, river bed, water surface
-BR_PIER_X, BR_PIER_HW, BR_ABF = 4.6, 0.8, 11.5
-BR_RING, BR_PROUD, BR_WING = 0.45, 0.1, 16.6
-BR_POSTS = 8                                  # bays per side
+# Production (lead 2026-10-22, review B1): built from the real river section at a crossing,
+# Field.riverProfile (world heights): path surface +0.08 (= mesh z 0, the deck top), water -1,
+# flat bed -3.5 out to half-width 3, underwater sides 1:2 to the water edge at half-width 8, bank
+# 1:3.5 up to path level at half-width 11.5, level ground beyond. Only about 0.4 of freeboard is
+# left under a 0.65 fascia, so there are no arches: a flat deck with a cream fascia beam and a navy
+# deck edge on two cutwater piers that stand on the bed, cream abutment sills at the water edge,
+# corner pilasters and splayed wing walls that follow the bank slope.
+BR_PATH, BR_WATER_W, BR_BED_W = 0.08, -1.0, -3.5      # world heights (Field.riverProfile)
+BR_HALF, BR_BED_HALF, BR_BANK_TOP = 8.0, 3.0, 11.5    # water edge, flat-bed edge, bank top (half-widths)
+BR_WATER, BR_BED = BR_WATER_W - BR_PATH, BR_BED_W - BR_PATH  # the same in mesh z (deck top 0)
+BR_HL, BR_END, BR_FASCIA, BR_FASCIA_W, BR_SOFFIT = 13.0, 0.8, 0.65, 0.6, -0.5
+BR_PIER_X, BR_PIER_HW, BR_NOSE, BR_PIER_HEAD = 3.0, 0.6, 1.2, -0.75   # piers on the bed edge
+BR_ABF, BR_PIL = 8.2, 1.2                               # abutment river face, pilaster length
+BR_FOOT = -1.8                                          # abutment and wing-wall footing (buried)
+BR_POSTS = 8                                            # bays per side
 
 
-def ellipse_pts(xa, xb, zs, zc, n=12):
-    """Intrados samples (x, z, outward normal) from xa to xb, vertical at the springings."""
-    xm, a, h = (xa + xb) / 2, (xb - xa) / 2, zc - zs
-    out = []
-    for i in range(n + 1):
-        phi = math.pi - math.pi * i / n
-        x, z = xm + a * math.cos(phi), zs + h * math.sin(phi)
-        nx, nz = math.cos(phi) / a, math.sin(phi) / h
-        ln = math.hypot(nx, nz)
-        out.append((x, z, nx / ln, nz / ln))
-    return out
+def river_z(d):
+    """Terrain height (mesh z) at distance d from the river centreline, from Field.riverProfile."""
+    d = abs(d)
+    if d < BR_HALF:
+        return max(BR_BED, BR_WATER - (BR_HALF - d) / 2.0)
+    return min(-BR_PATH, BR_WATER + (d - BR_HALF) / 3.5)
+
+
+def prism(b, poly, z0, z1, side_sw, top_sw=None, bottom_sw=None):
+    """A vertical prism over a CCW polygon (sides face out)."""
+    n = len(poly)
+    lo = [Vector((x, y, z0)) for x, y in poly]
+    hi = [Vector((x, y, z1)) for x, y in poly]
+    for k in range(n):
+        k2 = (k + 1) % n
+        b.face([lo[k], lo[k2], hi[k2], hi[k]], side_sw)
+    if top_sw:
+        b.face(hi, top_sw)
+    if bottom_sw:
+        b.face(list(reversed(lo)), bottom_sw)
+
+
+def wing_wall(b, p0, p1, thick, z_top0, z_top1, z_bot, side_sw, top_sw):
+    """A straight wall from p0 to p1 (2D centreline), top sloping from z_top0 to z_top1."""
+    p0, p1 = Vector((p0[0], p0[1], 0)), Vector((p1[0], p1[1], 0))
+    d = (p1 - p0).normalized()
+    nrm = Vector((-d.y, d.x, 0)) * (thick / 2)
+    a0, a1, b0, b1 = p0 - nrm, p1 - nrm, p1 + nrm, p0 + nrm   # CCW footprint
+    ztop = [z_top0, z_top1, z_top1, z_top0]
+    foot = [Vector((v.x, v.y, z_bot)) for v in (a0, a1, b0, b1)]
+    top = [Vector((v.x, v.y, z)) for v, z in zip((a0, a1, b0, b1), ztop)]
+    for k in range(4):
+        k2 = (k + 1) % 4
+        hface(b, [foot[k], foot[k2], top[k2], top[k]], side_sw, ((foot[k] + foot[k2]) / 2 - (p0 + p1) / 2) * 1.0 + Vector((0, 0, 0.001)))
+    hface(b, top, top_sw, (0, 0, 1))
 
 
 def bridge_river(name, W):
     b = Builder(name)
     hw = W / 2
     HL = BR_HL
-    yb = hw - BR_EB
-    # ---- the walking surface: flat at z 0 from end to end
+    yb = hw - BR_FASCIA_W
+    # ---- the walking surface: flat at z 0 from end to end (deck top = path surface)
     xe = HL - BR_END
     nb = 24
     for i in range(nb):
         x0, x1 = -xe + 2 * xe * i / nb, -xe + 2 * xe * (i + 1) / nb
         hface(b, [(x0, -yb, 0), (x1, -yb, 0), (x1, yb, 0), (x0, yb, 0)], "plank" if i % 2 == 0 else "bench_wood", (0, 0, 1))
     for s in (-1, 1):
-        hface(b, [(-HL, s * yb, 0), (HL, s * yb, 0), (HL, s * hw, 0), (-HL, s * hw, 0)], "stone_light", (0, 0, 1))
         hface(b, [(s * xe, -yb, 0), (s * HL, -yb, 0), (s * HL, yb, 0), (s * xe, yb, 0)], "cream", (0, 0, 1))
-        # the end faces of the deck and abutment (buried in the path fill)
-        hface(b, [(s * HL, -hw, 0), (s * HL, hw, 0), (s * HL, hw, -3.4), (s * HL, -hw, -3.4)], "rock", (s, 0, 0))
-    # ---- arches: side spans from the abutment face to the pier, a wider middle span
-    pf = BR_PIER_X - BR_PIER_HW
-    spans = [(-BR_ABF, -(BR_PIER_X + BR_PIER_HW), -1.15), (-pf, pf, -0.95), (BR_PIER_X + BR_PIER_HW, BR_ABF, -1.15)]
-    yo = hw + BR_PROUD
-    for xa, xb, zc in spans:
-        pts = ellipse_pts(xa, xb, BR_ZS, zc)
-        ring = [(x + nx * BR_RING, z + nz * BR_RING) for x, z, nx, nz in pts]
-        xm = (xa + xb) / 2
-        for i in range(len(pts) - 1):
-            (x0, z0, _, _), (x1, z1, _, _) = pts[i], pts[i + 1]
-            (rx0, rz0), (rx1, rz1) = ring[i], ring[i + 1]
-            # soffit (barrel underside) across the full width
-            tface(b, [(x0, -yo, z0), (x1, -yo, z1), (x1, yo, z1), (x0, yo, z0)], "rock_dark", (xm, 0, BR_ZS - 1.0))
-            for s in (-1, 1):
-                # the proud arch ring (voussoir band) and its upper edge
-                hface(b, [(x0, s * yo, z0), (x1, s * yo, z1), (rx1, s * yo, rz1), (rx0, s * yo, rz0)], "stone_light", (0, s, 0))
-                nrm = Vector(((pts[i][2] + pts[i + 1][2]) / 2, 0, (pts[i][3] + pts[i + 1][3]) / 2))
-                hface(b, [(rx0, s * hw, rz0), (rx1, s * hw, rz1), (rx1, s * yo, rz1), (rx0, s * yo, rz0)], "stone_light", nrm)
-                # spandrel wall above the ring, up to the deck
-                hface(b, [(rx0, s * hw, rz0), (rx1, s * hw, rz1), (rx1, s * hw, 0), (rx0, s * hw, 0)], "sign_board", (0, s, 0))
-    # spandrel over each pier, between the neighbouring rings
-    for sx in (-1, 1):
-        # from the middle span's ring end to the side span's ring end (no overlap with the strips)
-        x0, x1 = sx * (BR_PIER_X - BR_PIER_HW + BR_RING), sx * (BR_PIER_X + BR_PIER_HW - BR_RING)
-        for s in (-1, 1):
-            hface(b, [(x0, s * hw, BR_ZS), (x1, s * hw, BR_ZS), (x1, s * hw, 0), (x0, s * hw, 0)], "sign_board", (0, s, 0))
-    # a proud cornice band under the deck edge (top below z 0, so no lip)
-    for s in (-1, 1):
-        cbox(b, Vector((0, s * (hw + 0.06), -0.22)), (2 * BR_ABF, 0.24, 0.3), "stone_light", c=0.05)
-    # ---- piers with pointed cutwaters, from the river bed
+        # deck end faces (they meet the path at x +/-13, buried below z 0)
+        hface(b, [(s * HL, -hw, 0), (s * HL, hw, 0), (s * HL, hw, -BR_FASCIA), (s * HL, -hw, -BR_FASCIA)], "rock", (s, 0, 0))
+        # cream fascia beam with a light-stone top, and a navy deck edge between the pilasters
+        cbox(b, Vector((0, s * (hw - BR_FASCIA_W / 2), -BR_FASCIA / 2)), (2 * HL, BR_FASCIA_W, BR_FASCIA), "cream", c=0.06, top="stone_light", edge="stone_light")
+        cbox(b, Vector((0, s * (hw + 0.04), -0.11)), (2 * BR_ABF, 0.1, 0.22), "navy", c=0.03)
+        for sx in (-1, 1):
+            xa, xb = sorted((sx * (BR_ABF + BR_PIL), sx * HL))
+            cbox(b, Vector(((xa + xb) / 2, s * (hw + 0.04), -0.11)), (xb - xa, 0.1, 0.22), "navy", c=0.03)
+    # deck underside between the fascias, out to the abutments
+    hface(b, [(-BR_ABF, -yb, BR_SOFFIT), (BR_ABF, -yb, BR_SOFFIT), (BR_ABF, yb, BR_SOFFIT), (-BR_ABF, yb, BR_SOFFIT)], "rock_dark", (0, 0, -1))
+    # ---- piers with pointed cutwaters, standing on the river bed
     for sx in (-1, 1):
         px = sx * BR_PIER_X
-        hex_ = [(px - BR_PIER_HW, -(hw + 0.1)), (px, -(hw + 1.3)), (px + BR_PIER_HW, -(hw + 0.1)),
-                (px + BR_PIER_HW, hw + 0.1), (px, hw + 1.3), (px - BR_PIER_HW, hw + 0.1)]
-        for (z0, z1, sw) in ((BR_BED, BR_WATER - 0.1, "rock"), (BR_WATER - 0.1, BR_ZS, "stone_light")):
-            for k in range(6):
-                (ax, ay), (bx, by) = hex_[k], hex_[(k + 1) % 6]
-                oface(b, [(ax, ay, z0), (bx, by, z0), (bx, by, z1), (ax, ay, z1)], sw, (px, 0, (z0 + z1) / 2))
-        # sloped caps (starlings) on the two noses, leaning on the spandrel
+        foot = min(river_z(abs(px) - BR_PIER_HW), river_z(abs(px) + BR_PIER_HW)) - 0.4
+        hexp = [(px - BR_PIER_HW, -(hw + 0.05)), (px, -(hw + 0.05 + BR_NOSE)), (px + BR_PIER_HW, -(hw + 0.05)),
+                (px + BR_PIER_HW, hw + 0.05), (px, hw + 0.05 + BR_NOSE), (px - BR_PIER_HW, hw + 0.05)]
+        prism(b, hexp, foot, BR_WATER + 0.12, "rock")
+        prism(b, hexp, BR_WATER + 0.12, BR_PIER_HEAD, "stone_light")
+        # the pier head between and just proud of the fascias, up to the deck underside
+        head = [(px - BR_PIER_HW, -(hw + 0.05)), (px + BR_PIER_HW, -(hw + 0.05)), (px + BR_PIER_HW, hw + 0.05), (px - BR_PIER_HW, hw + 0.05)]
+        prism(b, head, BR_PIER_HEAD, BR_SOFFIT, "stone_light")
         for s in (-1, 1):
-            A = Vector((px - BR_PIER_HW, s * (hw + 0.1), BR_ZS))
-            T = Vector((px, s * (hw + 1.3), BR_ZS))
-            B = Vector((px + BR_PIER_HW, s * (hw + 0.1), BR_ZS))
-            P = Vector((px, s * (hw + 0.1), BR_ZS + 0.9))
-            inside = Vector((px, s * (hw + 0.4), BR_ZS + 0.2))
+            A = Vector((px - BR_PIER_HW, s * (hw + 0.05), BR_PIER_HEAD))
+            T = Vector((px, s * (hw + 0.05 + BR_NOSE), BR_PIER_HEAD))
+            B = Vector((px + BR_PIER_HW, s * (hw + 0.05), BR_PIER_HEAD))
+            P = Vector((px, s * (hw + 0.05), -0.3))
+            inside = Vector((px, s * (hw + 0.4), BR_PIER_HEAD + 0.1))
             oface(b, [A, T, P], "stone_light", inside)
             oface(b, [T, B, P], "stone_light", inside)
-    # ---- abutments: river face under the springing, corner pilasters, flush wing walls
+    # ---- abutments: a cream sill at the water edge, corner pilasters, splayed wing walls
     for sx in (-1, 1):
-        hface(b, [(sx * BR_ABF, -yo, -3.4), (sx * BR_ABF, yo, -3.4), (sx * BR_ABF, yo, BR_ZS), (sx * BR_ABF, -yo, BR_ZS)], "rock", (-sx, 0, 0))
+        cx = sx * (BR_ABF + HL) / 2
+        cbox(b, Vector((cx, 0, (BR_FOOT + BR_SOFFIT) / 2)), (HL - BR_ABF, W, BR_SOFFIT - BR_FOOT), "sign_board", c=0.06, edge="stone_light")
         for s in (-1, 1):
-            cbox(b, Vector((sx * (BR_ABF + HL - 0.1) / 2, s * (hw + 0.2), -1.7)), (HL - 0.1 - BR_ABF, 0.4, 3.4), "sign_board", c=0.08, top="cream", edge="stone_light")
-            cbox(b, Vector((sx * (HL + BR_WING) / 2, s * (hw - 0.175), -1.4)), (BR_WING - HL, 1.25, 2.8), "sign_board", c=0.08, top="cream", edge="stone_light")
+            px0 = sx * (BR_ABF + BR_PIL / 2)
+            cbox(b, Vector((px0, s * (hw + 0.225), BR_FOOT / 2)), (BR_PIL, 0.45, -BR_FOOT), "sign_board", c=0.07, top="cream", edge="stone_light")
+            # the wing wall leaves the pilaster's river corner at 45 degrees and runs up the bank
+            # until it meets level ground at the bank top
+            run = BR_BANK_TOP - BR_ABF
+            p0 = (sx * (BR_ABF + 0.25), s * (hw + 0.45))
+            p1 = (sx * (BR_BANK_TOP + 0.2), s * (hw + 0.45 + run))
+            wing_wall(b, p0, p1, 0.5, 0.0, -0.06, BR_FOOT, "sign_board", "cream")
     # ---- railings: cream posts and newels, navy top rail, teal mid and kick rails
     yr = hw - 0.4
     xn = HL - 0.4
@@ -591,16 +626,20 @@ def bridge_river(name, W):
         cbox(b, Vector((0, s * yr, 0.6)), (L, 0.2, 0.2), "teal", c=0.05)
     corners = [[sx * HL, sy * hw, 0] for sx in (-1, 1) for sy in (-1, 1)]
     return b, {
-        "height": 4.0, "deck_top": 0, "deck_length": 2 * HL, "deck_width": W, "walk_width": round(2 * (yr - 0.21), 2),
+        "height": 4.0, "deck_top": 0, "place": "mesh z 0 at the world path surface (+0.08)",
+        "deck_length": 2 * HL, "deck_width": W, "walk_width": round(2 * (yr - 0.21), 2),
         "DeckEnds": [[-HL, 0, 0], [HL, 0, 0]], "DeckCorners": corners,
         "RailEnds": [[sx * xn, sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)], "rail_line_y": yr, "rail_top": 2.88,
-        "FencePost": [[sx * (HL + 0.45), sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)],
-        "water_surface": BR_WATER, "river_bed": BR_BED, "river_width": 16, "bank_slope": "1:3.5 (water edge x +/-8 to path level at x +/-16.75)",
-        "abutment_face_x": BR_ABF, "piers_x": [-BR_PIER_X, BR_PIER_X], "pier_width": 2 * BR_PIER_HW, "wing_wall_end_x": BR_WING,
-        "wing_wall_y": [round(hw - 0.8, 2), round(hw + 0.45, 2)],
-        "ends": "flush and square: the deck top is flat z 0 end to end; the deck sits in a notch on each abutment, and the path meets the vertical end face at x +/-13 at z 0; no taper, nothing above z 0 at the ends",
-        "collision": {"deck": [[-HL, -hw, -0.6], [HL, hw, 0]], "rails": "one box per side: x +/-12.6, y rail_line_y +/-0.4, z 0..3.0"},
-        "note": "FencePost points stand on the wing-wall tops (z 0) on the rail line, just outside the deck ends; wing walls run x 13..16.6 beside the path (path edge at |y| = path width / 2)",
+        "FencePost": [[sx * (HL + 0.35), sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)],
+        "profile": {"source": "Field.riverProfile", "path_world": BR_PATH, "water_world": BR_WATER_W, "bed_world": BR_BED_W,
+                    "water_mesh": round(BR_WATER, 3), "bed_mesh": round(BR_BED, 3), "bed_half": BR_BED_HALF,
+                    "water_half": BR_HALF, "underwater_slope": "1:2", "bank_slope": "1:3.5", "bank_top_half": BR_BANK_TOP},
+        "fascia_bottom": -BR_FASCIA, "freeboard": round(-BR_FASCIA - BR_WATER, 2),
+        "abutment_face_x": BR_ABF, "piers_x": [-BR_PIER_X, BR_PIER_X], "pier_width": 2 * BR_PIER_HW,
+        "wing_walls": "45 degrees from the pilasters at x +/-8.45 to the bank top at x +/-11.7, tops 0 to -0.06",
+        "ends": "flush and square: the deck top is flat z 0 end to end and the path meets the vertical end face at x +/-13 at z 0 on level ground (beyond the bank top at 11.5); no taper, nothing above z 0 at the ends",
+        "collision": {"deck": [[-HL, -hw, -BR_FASCIA], [HL, hw, 0]], "rails": "one box per side: x +/-12.6, y rail_line_y +/-0.4, z 0..3.0"},
+        "note": "FencePost: the first path-fence post centre just outside each deck corner, on the rail line; piers stand on the bed (feet 0.4 below the local bed)",
     }
 
 
@@ -608,6 +647,7 @@ def build_all(emit):
     P = "park4/"
     emit(*picnic_table("PicnicTable"), P + "Snack")
     emit(*parasol("Parasol"), P + "Snack")
+    emit(*parasol("ParasolTeal", ("teal", "cream"), ("navy", "teal")), P + "Snack")
     emit(*light_post("LightPost"), P + "Snack")
     emit(*park_bin("ParkBin"), P + "Snack")
     emit(*bed_junction_round("BedJunctionRound"), P + "Bed")

@@ -4,7 +4,8 @@
 -- walkway, the pit lanes, the base Speedway (asphalt, racing line, painted lines, curbs, low white
 -- wall, checkered start / finish, mowed infield, fictional banners) and the base flag line with
 -- bunting in the sign band. Everything later (bleachers, grandstand, floodlights, gantry, loop,
--- signs) is reserved space only. Visuals only: no ownership, saved data or gameplay.
+-- signs) is reserved space only. Visuals only: no ownership, saved data or gameplay. Task 4
+-- replaced the yellow gate arch with the gates family plot gate (buildGate).
 
 local Kit = require(script.Parent.Parent.Parent.Kit)
 local KitAssets = require(script.Parent.Parent.Environment.KitAssets)
@@ -488,6 +489,166 @@ local function facePart(parent: Instance, name: string, at: Vector3, toward: Vec
 	})
 end
 
+-- Task 4 plot gate (brief §11; gates family, assets/island/kit/kit_gates.py; concept-review M14):
+-- one assembled frame shared by all six plots, stone bases, cream pillars, navy beam, round
+-- lamps, checker strips, two flags, a start line and hedge stubs, with only the accent (bands,
+-- collars, number discs, flags, the name pill's border) in the plot's colour. Every direct child
+-- is named "Gate..." (LayoutChecks treats those as the gate the viewer stands in) or is a
+-- transparent sign face. The meshes do not collide; simple invisible boxes keep the 14-wide
+-- opening walkable (Task 3: one box collider over the whole arch closed the entrance).
+local GATE_PIECES = {
+	"PlotGatePillars",
+	"PlotGateBeam",
+	"PlotGateAccent",
+	"PlotGateLamps",
+	"PlotGateChecker",
+	"PlotGateFlagpoles",
+}
+local COURT_TOP = SURFACE + 0.1 -- the court slab's top (buildFront)
+local LAMP_COLOUR = Color3.fromRGB(255, 212, 150) -- warm globe light (Tunable)
+local FLAG_LENGTH = 3 -- studs out from the pole (Tunable; "two modest flags")
+
+local function buildGate(front: Folder, base: CFrame, index: number)
+	local accent = Signs.PlotAccents[(index - 1) % #Signs.PlotAccents + 1]
+	front:SetAttribute("GateAccent", accent)
+	for _, name in GATE_PIECES do
+		local piece = KitAssets.place(name, base, 1)
+		piece.Name = "Gate" .. string.sub(name, #"PlotGate" + 1)
+		if name == "PlotGateAccent" then
+			-- the accent mesh is one neutral swatch: drop the palette texture so the colour shows
+			piece.TextureID = ""
+			piece.Color = accent
+		end
+		piece.Parent = front
+	end
+	-- the start line lies on the court surface between the stone bases; flat, it never collides
+	local line = KitAssets.place("PlotGateStartLine", base + Vector3.new(0, COURT_TOP - SURFACE, 0), 1)
+	line.Name = "GateStartLine"
+	line.Parent = front
+
+	local function collider(localCFrame: CFrame, size: Vector3)
+		Kit.part(front, size, base * localCFrame, {
+			name = "GateCollider",
+			collide = true,
+			transparency = 1,
+			castShadow = false,
+		})
+	end
+	-- stone bases and pillars from the recorded meta (opening |x| < 7 stays clear)
+	local pm = KitAssets.info("PlotGatePillars").meta
+	local stoneIn, stoneOut = pm["stone_base.x.1"] or 7, pm["stone_base.x.2"] or 10.6
+	local stoneSize = KitAssets.info("PlotGatePillars").points["stone_base.size"] or Vector3.new(3.6, 2.5, 3.6)
+	local stoneH, stoneD = math.abs(stoneSize.Y), math.abs(stoneSize.Z)
+	local pillarX, pillarW = pm["pillar.x"] or 8.25, pm["pillar.size.1"] or 2.5
+	local pillarTop = pm["opening.z.2"] or 10.5
+	local joint = pm.hedge_joint_x or stoneOut
+	local stub = KitAssets.info("PlotGateHedgeStub").meta.length or 3
+	local poles = KitAssets.info("PlotGateFlagpoles").points
+	for _, side in { -1, 1 } do
+		collider(
+			CFrame.new(side * (stoneIn + stoneOut) / 2, stoneH / 2, 0),
+			Vector3.new(stoneOut - stoneIn, stoneH, stoneD)
+		)
+		collider(
+			CFrame.new(side * pillarX, (stoneH + pillarTop) / 2, 0),
+			Vector3.new(pillarW, pillarTop - stoneH, pillarW)
+		)
+		-- the hedge stub: origin at its inner end on the stone base's outer face, running outward
+		-- (+x; turned half round for the left side)
+		local turn = if side < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity
+		local hedge = KitAssets.place("PlotGateHedgeStub", base * CFrame.new(side * joint, 0, 0) * turn, 1)
+		hedge.Name = "GateHedgeStub"
+		hedge.Parent = front
+		collider(CFrame.new(side * (joint + stub / 2), 1.3, 0), Vector3.new(stub, 2.6, 2.4))
+	end
+	for i = 1, 2 do
+		local top = poles[string.format("flags.%d.top", i)]
+		if top then
+			collider(CFrame.new(top.X, (top.Y + 0.4) / 2, top.Z), Vector3.new(0.6, top.Y + 0.4, 0.6))
+		end
+	end
+
+	-- the sign faces recorded on the beam: a thin transparent part on each rectangle, its Front
+	-- (LookVector) along the recorded outward normal
+	local beam = KitAssets.info("PlotGateBeam")
+	local i = 1
+	while beam.points[string.format("sign_faces.%d.centre", i)] do
+		local key = string.format("sign_faces.%d", i)
+		local centre = beam.points[key .. ".centre"]
+		local normal = beam.points[key .. ".normal"] or Vector3.new(0, 0, 1)
+		local up = beam.points[key .. ".up"] or Vector3.new(0, 1, 0)
+		local w, h = beam.meta[key .. ".size.1"] or 2, beam.meta[key .. ".size.2"] or 2
+		local name = beam.tags[key .. ".name"] or ("SignFace" .. i)
+		local p = base:PointToWorldSpace(centre + normal * 0.03)
+		local face = Kit.part(
+			front,
+			Vector3.new(w, h, 0.02),
+			CFrame.lookAt(p, p + base:VectorToWorldSpace(normal), base:VectorToWorldSpace(up)),
+			{ name = name, transparency = 1, castShadow = false }
+		)
+		face:SetAttribute("SignFace", true)
+		if string.find(name, "Number") then
+			Signs.plotGateNumber(face, index)
+		else
+			Signs.plotGateName(face, index, accent)
+		end
+		i += 1
+	end
+
+	-- lamps and flags hang from one invisible host part at the gate's foot
+	local host = Kit.part(front, Vector3.one, base, { name = "GateFxHost", transparency = 1, castShadow = false })
+	local function attach(name: string, world: CFrame): Attachment
+		local a = Instance.new("Attachment")
+		a.Name = name
+		a.CFrame = host.CFrame:ToObjectSpace(world)
+		a.Parent = host
+		return a
+	end
+	local lamps = KitAssets.info("PlotGateLamps").points
+	for k = 1, 2 do
+		local p = lamps[string.format("light_points.%d", k)]
+		if p then
+			local a = attach("GateLamp", CFrame.new(base:PointToWorldSpace(p)))
+			local light = Instance.new("PointLight")
+			light.Color = LAMP_COLOUR
+			light.Brightness = 1
+			light.Range = 12
+			light.Shadows = false
+			light.Parent = a
+		end
+	end
+	-- the flags: accent cloth beams from each pole outward, 2 tall, waved by TrackMotion (calm
+	-- and still under reduced motion). The bend axis (attachment X) is the gate's front-back axis.
+	local bendAxis = base:VectorToWorldSpace(Vector3.new(0, 0, 1))
+	for k = 1, 2 do
+		local top = poles[string.format("flags.%d.top", k)]
+		local bottom = poles[string.format("flags.%d.bottom", k)]
+		if top and bottom then
+			local out = Vector3.new(if top.X < 0 then -1 else 1, 0, 0)
+			local mid = (top + bottom) / 2
+			local a0 =
+				attach("GateFlag0", CFrame.fromMatrix(base:PointToWorldSpace(mid + out * 0.3), bendAxis, base.UpVector))
+			local a1 = attach(
+				"GateFlag1",
+				CFrame.fromMatrix(base:PointToWorldSpace(mid + out * FLAG_LENGTH), bendAxis, base.UpVector)
+			)
+			local b = Instance.new("Beam")
+			b.Name = "GateFlag"
+			b.Attachment0, b.Attachment1 = a0, a1
+			b.Texture = "" -- texture hook: an approved flag cloth id would go here; plain accent for now
+			b.Color = ColorSequence.new(accent)
+			b.Transparency = NumberSequence.new(0)
+			b.Width0, b.Width1 = top.Y - bottom.Y, top.Y - bottom.Y
+			b.FaceCamera = false
+			b.Segments = 10
+			b.LightInfluence = 1
+			b:SetAttribute("FlagWave", index * 1.3 + k * 0.6)
+			b:SetAttribute("FlagAmplitude", 0.55)
+			b.Parent = host
+		end
+	end
+end
+
 local function buildFront(visual: Folder, bearing: number, index: number)
 	local r0 = Layout.EntranceRadius
 	local W = function(x: number, u: number, y: number?): Vector3
@@ -511,57 +672,9 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 		{ name = "Court", color = Palette.Court, collide = true, castShadow = false }
 	)
 
-	-- Gate arch at the promenade's outer edge, facing the park, with the nameplate on top
-	local half = Layout.GateHalfWidth
-	if KitAssets.has("PlotGate") then
-		local at = W(0, r0, SURFACE)
-		local base = CFrame.lookAt(at, at - parkward)
-		-- visual only: a box collider would close the opening, so the posts get their own
-		-- invisible colliders, as the greybox posts were
-		local gate = KitAssets.place("PlotGate", base, 1)
-		gate.Name = "GateArch"
-		gate.Parent = front
-		for _, side in { -1, 1 } do
-			Kit.part(front, Vector3.new(1.5, 9, 1.5), CFrame.new(W(side * (half + 0.75), r0, SURFACE + 4.5)), {
-				name = "GatePostCollider",
-				color = Palette.Coral,
-				collide = true,
-				transparency = 1,
-				castShadow = false,
-			})
-		end
-		-- the nameplate face (kit_plot.py): 9.6 x 2.1 inside the coral frame, at the approved
-		-- nameplate height, 1.0 in front of the mesh origin (mesh front is +Z)
-		local face = base * CFrame.new(0, Layout.NameplateY, 1.02)
-		local plate = facePart(front, "Nameplate", face.Position, face.Position + parkward, 9.6, 2.1)
-		Signs.nameplate(plate, index)
-	else
-		for _, side in { -1, 1 } do
-			Kit.part(
-				front,
-				Vector3.new(1.5, 9, 1.5),
-				CFrame.new(W(side * (half + 0.75), r0, SURFACE + 4.5)),
-				{ name = "GatePost", color = Palette.Coral, collide = true }
-			)
-		end
-		Kit.strip(
-			front,
-			W(-half - 1.5, r0),
-			W(half + 1.5, r0),
-			1.5,
-			1.2,
-			SURFACE + 9.6,
-			{ name = "GateLintel", color = Palette.Coral },
-			0
-		)
-		local plate = Kit.part(
-			front,
-			Vector3.new(10, 2.5, 0.4),
-			CFrame.lookAt(W(0, r0 - 0.8, SURFACE + Layout.NameplateY), W(0, r0 - 2, SURFACE + Layout.NameplateY)),
-			{ name = "Nameplate", color = Palette.Cream, castShadow = false }
-		)
-		Signs.nameplate(plate, index)
-	end
+	-- The plot gate at the promenade's outer edge, its front (mesh +Z) toward the park
+	local gateAt = W(0, r0, SURFACE)
+	buildGate(front, CFrame.lookAt(gateAt, gateAt - parkward), index)
 
 	-- the upgrade kiosk: a placeholder booth with a blank-for-now panel (no prices or prompts)
 	local kx0, ku0, kx1, ku1 = Layout.bounds(Layout.reservation("Kiosk").poly)

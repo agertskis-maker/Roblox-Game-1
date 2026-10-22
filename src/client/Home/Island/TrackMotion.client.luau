@@ -1,6 +1,7 @@
 --!strict
 -- Plot flag line motion (Lane 3, client presentation only). Each plot's sign band has cloth flags
--- and pennant bunting drawn as beams (Hub/Recipes/Plot). Near the camera the flags wave (the
+-- and pennant bunting drawn as beams (Hub/Recipes/Plot), and each plot gate two accent flags
+-- (Task 4; a smaller bend, from the beam's optional "FlagAmplitude" attribute). Near the camera the flags wave (the
 -- beam bends sideways in a travelling S, with a gentle flutter) and the bunting sways a little in
 -- its sag; farther away they hold still. Reduced motion (GuiService.ReducedMotionEnabled, or the
 -- preview-only LocalPlayer attribute "Lane3ReducedMotionOverride") holds every flag in a soft
@@ -30,7 +31,15 @@ local function reducedMotion(): boolean
 	return GuiService.ReducedMotionEnabled
 end
 
-type Item = { beam: Beam, kind: string, phase: number, base0: number, base1: number, at: Vector3 }
+type Item = {
+	beam: Beam,
+	kind: string,
+	phase: number,
+	amplitude: number,
+	base0: number,
+	base1: number,
+	at: Vector3,
+}
 
 local function run(trove: Trove.Trove, root: Instance)
 	local items: { Item } = {}
@@ -41,6 +50,7 @@ local function run(trove: Trove.Trove, root: Instance)
 			if d:IsA("Beam") and not known[d] then
 				local wave = d:GetAttribute("FlagWave")
 				local sag = d:GetAttribute("BuntingSag")
+				local amplitude = d:GetAttribute("FlagAmplitude")
 				if (type(wave) == "number" or type(sag) == "number") and d.Attachment0 then
 					known[d] = true
 					table.insert(items, {
@@ -49,6 +59,7 @@ local function run(trove: Trove.Trove, root: Instance)
 						phase = if type(wave) == "number"
 							then wave
 							else (d.Attachment0 :: Attachment).WorldPosition.X * 0.13,
+						amplitude = if type(amplitude) == "number" then amplitude else AMPLITUDE,
 						base0 = d.CurveSize0,
 						base1 = d.CurveSize1,
 						at = (d.Attachment0 :: Attachment).WorldPosition,
@@ -77,8 +88,9 @@ local function run(trove: Trove.Trove, root: Instance)
 					b.CurveSize0, b.CurveSize1 = 0.35, 0.35
 				else
 					local t = now * 2.3 + it.phase
-					b.CurveSize0 = AMPLITUDE * math.sin(t) + 0.15 * math.sin(t * 3.1)
-					b.CurveSize1 = AMPLITUDE * 1.3 * math.sin(t - 1.7) + 0.2 * math.sin(t * 2.7)
+					local amp = it.amplitude
+					b.CurveSize0 = amp * math.sin(t) + amp / 6 * math.sin(t * 3.1)
+					b.CurveSize1 = amp * 1.3 * math.sin(t - 1.7) + amp / 4.5 * math.sin(t * 2.7)
 				end
 			elseif near and not calm then
 				local sway = 0.25 * math.sin(now * 0.9 + it.phase)

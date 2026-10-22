@@ -58,10 +58,18 @@ function PortalSight.run(): { [string]: any }
 	local shapes = Instance.new("Folder")
 	shapes.Name = "Lane3_PortalSightShapes"
 	shapes.Parent = workspace
-	local dressing = env and env:FindFirstChild("ParkDressing")
 	local shaped = 0
-	if dressing then
-		for _, d in dressing:GetDescendants() do
+	-- Task 4: the portal gates (in the rig) and the Garage / Stunt destinations get the same
+	-- treatment, so a gate column is judged by its real shape, not its box
+	local shapeSources: { Instance } = {}
+	for _, name in { "ParkDressing", "Portals", "Destinations" } do
+		local folder = env and env:FindFirstChild(name)
+		if folder then
+			table.insert(shapeSources, folder)
+		end
+	end
+	for _, source in shapeSources do
+		for _, d in source:GetDescendants() do
 			if d:IsA("MeshPart") and d.Transparency < 1 then
 				local ok, copy = pcall(function()
 					return AssetService:CreateMeshPartAsync(d.MeshContent, {

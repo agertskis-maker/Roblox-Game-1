@@ -61,6 +61,8 @@ PALETTE = [
     ("red_orange", (234, 88, 50)), ("teal_dark", (26, 104, 112)), ("glass", (176, 218, 232)),
     ("glass_tint", (74, 112, 140)), ("concrete", (172, 174, 170)), ("light_panel", (255, 248, 226)),
     ("tile_grey", (210, 212, 214)),
+    # appended for the Task 4 gates production pass (Summit frame, lighter chain iron); existing cells are unchanged
+    ("frost_blue", (95, 169, 207)), ("iron", (132, 128, 124)), ("iron_hi", (186, 182, 176)),
 ]
 SW = {name: i for i, (name, _) in enumerate(PALETTE)}
 GRID = 16
