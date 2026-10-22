@@ -356,3 +356,21 @@ Licence text **not verified** for any of them. **Nobody has listened** yet.
 | Duck quack | Quack Duck (63.05 s track) | 1845012569 | APM | **now on** (was off in revision 2): `PlaybackRegion` 1.3 to 1.68 s (one clean quack, from the waveform), every 20 to 40 s at random on the mother duck while the family is near this client, volume 0.32, roll-off 8 to 70; a missed quack is skipped, not queued |
 
 The falls loop (9120552550) and park birdsong (9113444360) are unchanged from the table above.
+
+## Task 3 meshes imported (2026-10-22, Adam, 3D Importer, island-kit-task3.obj)
+
+| Mesh | Id |
+|---|---|
+| ChainAnchorPost | 114737667930382 |
+| ChainLink | 99515412067221 |
+| Flagpole | 82002796817463 |
+| HeaderBoard | 89758117345462 |
+| KioskBooth | 137774673874849 |
+| PadlockBody | 114107687304189 |
+| PadlockShackle | 97927780932934 |
+| PlotGate | 83397197959185 |
+| PortalSign | 75612522407601 |
+| SignpostBoard | 128562147587889 |
+| SignpostPost | 70440998829645 |
+
+Checked after the import: creator peskaface, asset type Mesh, all load in Studio. The importer also created one Model asset (not used by the game; its id was not recorded). Privacy setting not changed.
