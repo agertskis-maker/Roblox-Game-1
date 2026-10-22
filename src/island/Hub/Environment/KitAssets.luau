@@ -14,6 +14,10 @@ local KitMesh = require(script.Parent.KitMesh)
 local KitAssets = {}
 
 local cache: { [string]: MeshPart } = {}
+-- per template: the turn that brings its mesh into the recipe frame (uploaded meshes arrive
+-- turned 180 degrees about Y; previews need none)
+local turns: { [string]: CFrame } = {}
+local HALF_TURN = CFrame.Angles(0, math.pi, 0)
 local sources: { [string]: string } = {}
 
 function KitAssets.info(name: string): KitManifest.Entry
@@ -48,6 +52,7 @@ function KitAssets.template(name: string): MeshPart
 			RenderFidelity = Enum.RenderFidelity.Automatic,
 		})
 		sources[name] = uploaded
+		turns[name] = HALF_TURN
 	else
 		local folder = ServerStorage:FindFirstChild("Lane3_KitData")
 		local module = folder and folder:FindFirstChild(name)
@@ -58,6 +63,7 @@ function KitAssets.template(name: string): MeshPart
 		-- a fresh copy, so a rebuilt mesh is not served from the module cache
 		part = KitMesh.previewPart((require :: any)(module:Clone()), AssetIds.Palette)
 		sources[name] = "preview"
+		turns[name] = CFrame.identity
 	end
 	finish(part, name)
 	cache[name] = part
@@ -76,7 +82,7 @@ function KitAssets.place(name: string, base: CFrame, scale: number, solid: boole
 	local part = KitAssets.template(name):Clone()
 	local centre = (entry.min + entry.max) / 2
 	part.Size = (entry.max - entry.min) * scale
-	part.CFrame = base * CFrame.new(centre * scale)
+	part.CFrame = base * CFrame.new(centre * scale) * turns[name]
 	if solid then
 		part.CanCollide = true
 		part.CanQuery = true
@@ -106,6 +112,7 @@ function KitAssets.clear()
 	end
 	table.clear(cache)
 	table.clear(sources)
+	table.clear(turns)
 end
 
 return KitAssets

@@ -29,18 +29,170 @@ Asset ids are also in `src/island/Hub/Environment/AssetIds.luau`.
 | Glow | 109290330063558 | `textures.js` | uploaded | yes |
 | Current | 103576178978702 | `textures.js` | uploaded | yes |
 
-## Meshes (pending: 3D Importer upload of `island-kit.fbx`)
+## Meshes (uploaded 2026-10-21 through the 3D Importer)
 
-Script upload (`AssetService:CreateAssetAsync`) is not available in this Studio build, so the
-meshes go up through the 3D Importer with Upload to Roblox on and Creator set to peskaface. The
-FBX has no materials or textures, so the importer creates no image assets; colour comes from the
-palette above. Expected: 137 mesh assets (names below, 81,226 triangles in total, largest
-BirchB_Canopy at 3,440) plus one model asset named after the file. Ids, the model asset id, any
-failed upload and the load check per mesh are filled in after the import.
+Script upload (`AssetService:CreateAssetAsync`) is not available in this Studio build, so Adam
+imported `island-kit.obj` (written by `build_kit.py`) with Upload to Roblox on, Creator "Me"
+(peskaface), Import Only as a Model on, Scale Factor 1. The file has no materials, so no image
+was uploaded; colour comes from the palette above.
 
-| Group | Count | Meshes | State |
-|---|---|---|---|
-| Trees | 55 | Oak, Tiered, Umbrella, Birch, Blossom, Willow, Fruit and Pine in variants A to C, plus PineSapling, each as `_Trunk` and `_Canopy`; BushSmall, BushMedium, BushLarge, BerryBush, FloweringShrub | pending |
-| Plants | 39 | GrassTuft, GrassTuftWide, TallGrass, Clover, FernA, FernB, MushroomsRed, MushroomsBrown, MossyRockA, MossyRockB, Stump, HollowLog, LeafLitter, TulipsRed, TulipsYellow, Daisies, Poppies, Lavender, BlueWildflowers, Sunflowers, RosesRed, RosesPink, Reeds, Cattails, Rushes, Arrowhead, Irises, LilyPadS, LilyPadM, LilyPadL, LilyFlowerWhite, LilyFlowerPink, Duckweed, WetRockA, WetRockB, Driftwood, SteppingStone, FloatingLeaf, FloatingPetal | pending |
-| Props | 29 | BoulderA, BoulderB, BoulderC, Dock, Rowboat, Bench, LampPost, LampGlass, HotDogCart, PopcornCart, IceCreamStand, LemonadeStand, FountainTiered, FountainWater, HedgeStraight, HedgeLow, TopiaryBall, TopiaryCone, CarTopiary, Signpost, BridgeAvenue, BridgeLakeside, BridgeGarden, BridgeAvenueOpen, BedRound, BedOval, BuntingString, FenceSegment, Gazebo | pending |
-| Animals | 14 | Duck, Duckling, Raccoon, RaccoonHead, ButterflyBody, ButterflyWingL, ButterflyWingR, ButterflyBlueWingL, ButterflyBlueWingR, DragonflyBody, DragonflyWings, Frog, FishOrange, FishSilver | pending |
+How it went, including the attempts that uploaded nothing:
+1. `island-kit.fbx` read at 100 times true size (centimetre units) with a size warning; Scale
+   Factor 0.01 gave the right numbers but the warning stayed, and reloading resets the factor.
+   Not imported.
+2. A compact 12-wide grid layout and a pre-shrunk FBX did not clear the warning. Not imported.
+3. `island-kit.obj` with one group per mesh: true size (418.16 × 35.06 × 408.83 for the grid),
+   81,226 triangles, no warning. Imported once.
+
+Checks in Studio after the import: 137 MeshParts with 137 distinct asset ids; MeshSize matches
+the manifest bounds within 0.0014 studs for every mesh; `GetProductInfo` reports creator
+peskaface (User 2393473976) and asset type 4 (Mesh); `ContentProvider:PreloadAsync` on the
+parts reported Success for all 137 in the test experience. The importer stores each mesh turned
+180 degrees about Y from the recipe frame (vertex centroids have x and z negated, not mirrored);
+`KitAssets` turns uploaded meshes back. The imported copy was removed from the Workspace.
+
+Also created by the import: one **Model** asset, "island-kit", id **76013790027052**, in
+peskaface's inventory (created 2026-10-21 23:59 UTC). The game does not use it.
+
+No duplicate uploads: one import, one model, one asset per mesh. A rebuilt mesh needs a new
+upload (or the importer's Reimport) and a new row here.
+
+| Mesh | Group | Triangles | Asset id | State | Loads |
+|---|---|---|---|---|---|
+| BerryBush | trees | 680 | 113381535893436 | uploaded | yes |
+| BirchA_Canopy | trees | 1920 | 95358946867963 | uploaded | yes |
+| BirchA_Trunk | trees | 480 | 113392689229837 | uploaded | yes |
+| BirchB_Canopy | trees | 3440 | 97117102116709 | uploaded | yes |
+| BirchB_Trunk | trees | 736 | 71794440829829 | uploaded | yes |
+| BirchC_Canopy | trees | 2080 | 134755746106792 | uploaded | yes |
+| BirchC_Trunk | trees | 752 | 107504512366800 | uploaded | yes |
+| BlossomA_Canopy | trees | 1680 | 85623663058251 | uploaded | yes |
+| BlossomA_Trunk | trees | 507 | 71890708802809 | uploaded | yes |
+| BlossomB_Canopy | trees | 2080 | 115945038397849 | uploaded | yes |
+| BlossomB_Trunk | trees | 515 | 116376114509074 | uploaded | yes |
+| BlossomC_Canopy | trees | 1600 | 70583076825211 | uploaded | yes |
+| BlossomC_Trunk | trees | 406 | 70593040224453 | uploaded | yes |
+| BushLarge | trees | 560 | 107937719458701 | uploaded | yes |
+| BushMedium | trees | 400 | 112084388357819 | uploaded | yes |
+| BushSmall | trees | 240 | 89066567685874 | uploaded | yes |
+| FloweringShrub | trees | 760 | 97158756624560 | uploaded | yes |
+| FruitA_Canopy | trees | 2480 | 91617448874937 | uploaded | yes |
+| FruitA_Trunk | trees | 416 | 125813419406213 | uploaded | yes |
+| FruitB_Canopy | trees | 2780 | 82529345438206 | uploaded | yes |
+| FruitB_Trunk | trees | 352 | 77808359429337 | uploaded | yes |
+| FruitC_Canopy | trees | 2540 | 110918401683196 | uploaded | yes |
+| FruitC_Trunk | trees | 556 | 138730259128149 | uploaded | yes |
+| OakA_Canopy | trees | 2080 | 125079363526751 | uploaded | yes |
+| OakA_Trunk | trees | 656 | 81838596725252 | uploaded | yes |
+| OakB_Canopy | trees | 2160 | 114513892252367 | uploaded | yes |
+| OakB_Trunk | trees | 619 | 133799468476153 | uploaded | yes |
+| OakC_Canopy | trees | 2000 | 137935820165648 | uploaded | yes |
+| OakC_Trunk | trees | 454 | 72640563796108 | uploaded | yes |
+| PineA_Canopy | trees | 126 | 86571721057312 | uploaded | yes |
+| PineA_Trunk | trees | 150 | 82143832617173 | uploaded | yes |
+| PineB_Canopy | trees | 168 | 119200173785375 | uploaded | yes |
+| PineB_Trunk | trees | 150 | 89643406488268 | uploaded | yes |
+| PineC_Canopy | trees | 90 | 96071087065535 | uploaded | yes |
+| PineC_Trunk | trees | 150 | 126729994654224 | uploaded | yes |
+| PineSapling_Canopy | trees | 54 | 108593342174832 | uploaded | yes |
+| PineSapling_Trunk | trees | 90 | 108644319441252 | uploaded | yes |
+| TieredA_Canopy | trees | 640 | 72964718415062 | uploaded | yes |
+| TieredA_Trunk | trees | 468 | 73674256532039 | uploaded | yes |
+| TieredB_Canopy | trees | 560 | 88044922593595 | uploaded | yes |
+| TieredB_Trunk | trees | 437 | 128171113138801 | uploaded | yes |
+| TieredC_Canopy | trees | 960 | 70677452623426 | uploaded | yes |
+| TieredC_Trunk | trees | 423 | 109536531531788 | uploaded | yes |
+| UmbrellaA_Canopy | trees | 2720 | 104256844178578 | uploaded | yes |
+| UmbrellaA_Trunk | trees | 573 | 133742908940135 | uploaded | yes |
+| UmbrellaB_Canopy | trees | 2080 | 74855981514851 | uploaded | yes |
+| UmbrellaB_Trunk | trees | 464 | 101735978642638 | uploaded | yes |
+| UmbrellaC_Canopy | trees | 2800 | 108564507264176 | uploaded | yes |
+| UmbrellaC_Trunk | trees | 682 | 109121511812165 | uploaded | yes |
+| WillowA_Canopy | trees | 2040 | 95230078901958 | uploaded | yes |
+| WillowA_Trunk | trees | 572 | 95619268368185 | uploaded | yes |
+| WillowB_Canopy | trees | 2260 | 117793886163427 | uploaded | yes |
+| WillowB_Trunk | trees | 591 | 78855509300039 | uploaded | yes |
+| WillowC_Canopy | trees | 1900 | 117322934216935 | uploaded | yes |
+| WillowC_Trunk | trees | 533 | 94489845710982 | uploaded | yes |
+| Arrowhead | plants | 91 | 77734052464842 | uploaded | yes |
+| BlueWildflowers | plants | 660 | 140362334076502 | uploaded | yes |
+| Cattails | plants | 320 | 96641977331650 | uploaded | yes |
+| Clover | plants | 381 | 119625716970260 | uploaded | yes |
+| Daisies | plants | 852 | 72553714073439 | uploaded | yes |
+| Driftwood | plants | 78 | 79754565581073 | uploaded | yes |
+| Duckweed | plants | 350 | 96016381404577 | uploaded | yes |
+| FernA | plants | 623 | 125414860170513 | uploaded | yes |
+| FernB | plants | 801 | 132864443197145 | uploaded | yes |
+| FloatingLeaf | plants | 4 | 117142848195882 | uploaded | yes |
+| FloatingPetal | plants | 4 | 102542786153320 | uploaded | yes |
+| GrassTuft | plants | 84 | 87769624057571 | uploaded | yes |
+| GrassTuftWide | plants | 156 | 85162093459834 | uploaded | yes |
+| HollowLog | plants | 212 | 133502513071015 | uploaded | yes |
+| Irises | plants | 292 | 124819745705979 | uploaded | yes |
+| Lavender | plants | 1032 | 130846919850597 | uploaded | yes |
+| LeafLitter | plants | 240 | 134131919266803 | uploaded | yes |
+| LilyFlowerPink | plants | 103 | 76891640080088 | uploaded | yes |
+| LilyFlowerWhite | plants | 103 | 82425262882452 | uploaded | yes |
+| LilyPadL | plants | 30 | 111100338080785 | uploaded | yes |
+| LilyPadM | plants | 30 | 92817792476653 | uploaded | yes |
+| LilyPadS | plants | 30 | 75828509671473 | uploaded | yes |
+| MossyRockA | plants | 80 | 116711716740489 | uploaded | yes |
+| MossyRockB | plants | 80 | 100088279100790 | uploaded | yes |
+| MushroomsBrown | plants | 210 | 72630651084382 | uploaded | yes |
+| MushroomsRed | plants | 575 | 132931914368107 | uploaded | yes |
+| Poppies | plants | 441 | 134198513847375 | uploaded | yes |
+| Reeds | plants | 180 | 138621409272637 | uploaded | yes |
+| RosesPink | plants | 765 | 133767793962188 | uploaded | yes |
+| RosesRed | plants | 765 | 137302351764375 | uploaded | yes |
+| Rushes | plants | 234 | 94073208976012 | uploaded | yes |
+| SteppingStone | plants | 80 | 114567733775797 | uploaded | yes |
+| Stump | plants | 88 | 97538794770552 | uploaded | yes |
+| Sunflowers | plants | 848 | 70924896477467 | uploaded | yes |
+| TallGrass | plants | 220 | 96033594782233 | uploaded | yes |
+| TulipsRed | plants | 363 | 125564876170957 | uploaded | yes |
+| TulipsYellow | plants | 330 | 98770109311258 | uploaded | yes |
+| WetRockA | plants | 80 | 99844062490263 | uploaded | yes |
+| WetRockB | plants | 80 | 115292109378113 | uploaded | yes |
+| BedOval | props | 429 | 75182510100315 | uploaded | yes |
+| BedRound | props | 273 | 78898513024992 | uploaded | yes |
+| Bench | props | 180 | 81472931283188 | uploaded | yes |
+| BoulderA | props | 80 | 73936552182889 | uploaded | yes |
+| BoulderB | props | 100 | 108729967021241 | uploaded | yes |
+| BoulderC | props | 100 | 99527827208631 | uploaded | yes |
+| BridgeAvenue | props | 1128 | 132499975394188 | uploaded | yes |
+| BridgeAvenueOpen | props | 336 | 78688525290880 | uploaded | yes |
+| BridgeGarden | props | 1128 | 119984148857166 | uploaded | yes |
+| BridgeLakeside | props | 1128 | 74401136745211 | uploaded | yes |
+| BuntingString | props | 131 | 90642820165813 | uploaded | yes |
+| CarTopiary | props | 524 | 124108261960990 | uploaded | yes |
+| Dock | props | 336 | 121994894630420 | uploaded | yes |
+| FenceSegment | props | 196 | 75883738881066 | uploaded | yes |
+| FountainTiered | props | 662 | 87095967163960 | uploaded | yes |
+| FountainWater | props | 208 | 116528389038986 | uploaded | yes |
+| Gazebo | props | 632 | 132930457317667 | uploaded | yes |
+| HedgeLow | props | 172 | 94290153677107 | uploaded | yes |
+| HedgeStraight | props | 252 | 115214796420911 | uploaded | yes |
+| HotDogCart | props | 430 | 128077008495216 | uploaded | yes |
+| IceCreamStand | props | 200 | 72102386161007 | uploaded | yes |
+| LampGlass | props | 32 | 120377499915257 | uploaded | yes |
+| LampPost | props | 216 | 139674403634313 | uploaded | yes |
+| LemonadeStand | props | 184 | 125464775917653 | uploaded | yes |
+| PopcornCart | props | 556 | 140620817482021 | uploaded | yes |
+| Rowboat | props | 236 | 111594792382992 | uploaded | yes |
+| Signpost | props | 86 | 75373199680961 | uploaded | yes |
+| TopiaryBall | props | 119 | 89575297387819 | uploaded | yes |
+| TopiaryCone | props | 94 | 72356799315602 | uploaded | yes |
+| ButterflyBlueWingL | animals | 10 | 84463884097172 | uploaded | yes |
+| ButterflyBlueWingR | animals | 10 | 96381297933560 | uploaded | yes |
+| ButterflyBody | animals | 43 | 83296309836118 | uploaded | yes |
+| ButterflyWingL | animals | 10 | 110344634719101 | uploaded | yes |
+| ButterflyWingR | animals | 10 | 77372830185761 | uploaded | yes |
+| DragonflyBody | animals | 75 | 116300255540446 | uploaded | yes |
+| DragonflyWings | animals | 16 | 96240530729511 | uploaded | yes |
+| Duck | animals | 293 | 82641503340866 | uploaded | yes |
+| Duckling | animals | 293 | 114222618214481 | uploaded | yes |
+| FishOrange | animals | 86 | 93198247823924 | uploaded | yes |
+| FishSilver | animals | 86 | 74193987938908 | uploaded | yes |
+| Frog | animals | 240 | 124872657363209 | uploaded | yes |
+| Raccoon | animals | 182 | 70443242208452 | uploaded | yes |
+| RaccoonHead | animals | 219 | 133875827596835 | uploaded | yes |

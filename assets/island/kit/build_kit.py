@@ -4,7 +4,7 @@
 # Writes, under --out:
 #   palette.png             the shared 256 x 256 swatch image (MeshPart.TextureID)
 #   meshes/<Name>.json      compact mesh data for the Studio uploader (one per mesh)
-#   island-kit.fbx          every mesh in one file, for the 3D Importer fallback
+#   island-kit.fbx, .obj    every mesh in one file, for the 3D Importer fallback
 #   kit.blend               the generated scene, for inspection
 #   manifest.json           name, family, part, triangles, bounds and metadata per mesh
 # Art outputs stay outside Git (Car-Hop-Art); these scripts are the recipe.
@@ -45,14 +45,17 @@ def main():
     kitlib.write_palette_png(os.path.join(out, "palette.png"))
 
     manifest = []
-    x_offset = [0.0]
+    cell = [0]
 
     def emit(builder, meta, family):
         obj = builder.to_object()
         tris, lo, hi = kitlib.export_json(obj, meshes_dir, meta)
-        # lay the objects out in a row in the .blend, for inspection only (export is local)
-        obj.location.x = x_offset[0]
-        x_offset[0] += max(6.0, (hi[0] - lo[0]) + 4)
+        # lay the objects out on a 12-wide grid of 36-stud cells (the largest piece is about 31):
+        # the mesh data is local, but the 3D Importer refuses a file whose overall extent is too
+        # large, which a single row (about 1,700 studs) was
+        obj.location.x = (cell[0] % 12) * 36.0
+        obj.location.y = (cell[0] // 12) * 36.0
+        cell[0] += 1
         manifest.append({"name": obj.name, "family": family, "triangles": tris, "bounds": [lo, hi], "meta": meta})
         print(f"  {obj.name}: {tris} triangles")
 
@@ -86,6 +89,7 @@ def main():
     with open(path, "w") as fh:
         json.dump(merged, fh, indent=1)
 
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out, "kit.blend"))
     for obj in bpy.context.scene.objects:
         obj.select_set(True)
     bpy.ops.export_scene.fbx(
@@ -99,7 +103,23 @@ def main():
         bake_space_transform=False,
         mesh_smooth_type="FACE",
     )
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out, "kit.blend"))
+    # the same meshes as OBJ, which carries no unit (1 unit = 1 stud in the 3D Importer)
+    bpy.ops.wm.obj_export(
+        filepath=os.path.join(out, "island-kit.obj"),
+        export_selected_objects=True,
+        forward_axis="NEGATIVE_Z",
+        up_axis="Y",
+        export_materials=False,
+        export_uv=True,
+        export_normals=True,
+        export_triangulated_mesh=True,
+    )
+    # the 3D Importer splits an OBJ by group (g), not by object (o): name a group per object
+    obj_path = os.path.join(out, "island-kit.obj")
+    with open(obj_path) as fh:
+        lines = fh.read().split("\n")
+    with open(obj_path, "w") as fh:
+        fh.write("\n".join(line + "\ng " + line[2:] if line.startswith("o ") else line for line in lines))
     total = sum(m["triangles"] for m in manifest)
     print(f"built {len(manifest)} meshes, {total} triangles in total")
 
