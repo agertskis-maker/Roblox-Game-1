@@ -244,6 +244,18 @@ AssetIds.Meshes = {
 	FountainGrand = id(138476226884315),
 	FountainGrandWater = id(118135225656541),
 	PlazaMosaic = id(92746874626451),
+	-- new in Task 3 (2026-10-22, island-kit-task3.obj, imported by Adam; creator peskaface)
+	ChainAnchorPost = id(114737667930382),
+	ChainLink = id(99515412067221),
+	Flagpole = id(82002796817463),
+	HeaderBoard = id(89758117345462),
+	KioskBooth = id(137774673874849),
+	PadlockBody = id(114107687304189),
+	PadlockShackle = id(97927780932934),
+	PlotGate = id(83397197959185),
+	PortalSign = id(75612522407601),
+	SignpostBoard = id(128562147587889),
+	SignpostPost = id(70440998829645),
 } :: { [string]: string }
 
 return AssetIds
