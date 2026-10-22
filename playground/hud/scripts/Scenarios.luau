@@ -353,6 +353,7 @@ local function enterRun(self: any)
 		self.store:setMode("Run")
 		self:startRunState()
 	end
+	self.api.applyMode()
 end
 
 steps["Run: Heat"] = function(self)
@@ -569,7 +570,7 @@ function Scenarios.play(self: any, name: string): boolean
 	for _, key in { "settings", "garage", "portalCard", "welcome", "shop", "stunt" } do
 		self.api.close(key)
 	end
-	self.api.setRunHudVisible(self.store:get().mode == "Run")
+	self.api.applyMode()
 	local seq = self._seq
 	self.current = name
 	self._thread = task.spawn(function()

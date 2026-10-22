@@ -122,6 +122,12 @@ function api.setCaptions(on: boolean)
 	api.captions = on
 	applyCaptions(gui)
 end
+trove:Add(task.spawn(function()
+	while true do
+		task.wait(0.5)
+		applyCaptions(gui)
+	end
+end))
 trove:Connect(gui.DescendantAdded, function(d)
 	if d:IsA("GuiObject") and (d:GetAttribute("PreviewCaption") == true or d.Name == "PreviewNote") then
 		task.defer(function()
@@ -362,6 +368,10 @@ local function applyMode(mode: string)
 	end
 end
 trove:Connect(store.ModeChanged, applyMode)
+-- re-applies the mode's visibility (a closing overlay can restore Home pieces it had hidden)
+function api.applyMode()
+	applyMode(store:get().mode)
+end
 
 local function relayout()
 	for _, c in components do

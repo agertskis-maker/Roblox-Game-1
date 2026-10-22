@@ -126,6 +126,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	tagText.Position = UDim2.new(0, 40, 0.5, -8)
 	tagText.Size = UDim2.new(1, -48, 0, 22)
 	local tagSub = Overlay.text(tag, "mock HUD", 16, C.InkSoft, nil, 6)
+	tagSub:SetAttribute("PreviewCaption", true)
 	tagSub.AnchorPoint = Vector2.new(0, 0.5)
 	tagSub.Position = UDim2.new(0, 40, 0.5, 12)
 	tagSub.Size = UDim2.new(1, -48, 0, 20)
