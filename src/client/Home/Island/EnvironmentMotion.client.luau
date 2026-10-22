@@ -1,8 +1,9 @@
 --!strict
 -- Island environment motion (Lane 3, client presentation only). The waterfall's beams scroll
--- on their own; this script scales the activity around them, time-based and cheap:
---   distance: particle rates full near the falls, reduced in the middle distance and off far
---     away (the beams keep a moving impression from every plot);
+-- on their own; this script scales the activity around them and the park fountain's jets,
+-- time-based and cheap:
+--   distance: particle rates full near the falls (or the fountain), reduced in the middle
+--     distance and off far away (the beams keep a moving impression from every plot);
 --   reduced motion: beam scroll slowed but still flowing, spray, droplets and whitewater cut
 --     back hard, mist and ripples halved, fireflies off;
 --   rainbow: strongest when the sun is behind the viewer, faded otherwise and far away.
@@ -24,11 +25,15 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local ROOT_NAME = "Lane3_IslandEnvironment"
 local OVERRIDE = "Lane3ReducedMotionOverride"
 local NEAR, FAR = 350, 900 -- studs from the camera to the falls (Tunable)
+local FOUNTAIN_NEAR, FOUNTAIN_FAR = 120, 420 -- studs from the camera to the fountain (Tunable)
+local FOUNTAIN_AT = Vector3.new(0, 2, 0)
 local REFRESH = 0.25 -- seconds between updates
 
 -- Reduced-motion multipliers by emitter name ending (Tunable)
 local CALM: { [string]: number } = {
 	Splash = 0.25,
+	Plume = 0.6, -- the fountain keeps a calmer, still flowing jet
+	Arc = 0.6,
 	Droplets = 0.25,
 	Whitewater = 0.3,
 	Churn = 0.5,
@@ -59,7 +64,31 @@ local function calmFactor(name: string): number
 	return 0.5
 end
 
-local function animate(trove: Trove.Trove, waterfall: Instance)
+-- emitter rates under host by distance and reduced motion, from their BaseRate attributes
+local function scaleEmitters(host: Instance, near: number, calm: boolean)
+	for _, d in host:GetDescendants() do
+		if d:IsA("ParticleEmitter") then
+			local base = d:GetAttribute("BaseRate")
+			if type(base) == "number" then
+				local scale = if near > 0 then 0.35 + 0.65 * near else 0
+				if calm then
+					scale *= calmFactor(d.Name)
+				end
+				d.Rate = base * scale
+			end
+		end
+	end
+end
+
+local function restoreEmitters(host: Instance)
+	for _, d in host:GetDescendants() do
+		if d:IsA("ParticleEmitter") and type(d:GetAttribute("BaseRate")) == "number" then
+			d.Rate = d:GetAttribute("BaseRate") :: number
+		end
+	end
+end
+
+local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 	local host = waterfall:WaitForChild("WaterHost") :: BasePart
 	local centre = Vector3.new(-120, 60, 280)
 	local last = 0
@@ -76,17 +105,13 @@ local function animate(trove: Trove.Trove, waterfall: Instance)
 		local distance = (camera.CFrame.Position - centre).Magnitude
 		local near = 1 - math.clamp((distance - NEAR) / (FAR - NEAR), 0, 1)
 		local calm = reducedMotion()
-		for _, d in host:GetDescendants() do
-			if d:IsA("ParticleEmitter") then
-				local base = d:GetAttribute("BaseRate")
-				if type(base) == "number" then
-					local scale = if near > 0 then 0.35 + 0.65 * near else 0
-					if calm then
-						scale *= calmFactor(d.Name)
-					end
-					d.Rate = base * scale
-				end
-			end
+		scaleEmitters(host, near, calm)
+		-- the park fountain (ParkDressing is rebuilt by redress, so it is looked up each time)
+		local park = root:FindFirstChild("ParkDressing")
+		local fountain = park and park:FindFirstChild("Fountain")
+		if fountain then
+			local d = (camera.CFrame.Position - FOUNTAIN_AT).Magnitude
+			scaleEmitters(fountain, 1 - math.clamp((d - FOUNTAIN_NEAR) / (FOUNTAIN_FAR - FOUNTAIN_NEAR), 0, 1), calm)
 		end
 		for _, d in waterfall:GetDescendants() do
 			if d:IsA("Beam") then
@@ -109,10 +134,14 @@ local function animate(trove: Trove.Trove, waterfall: Instance)
 	end)
 	trove:Add(function()
 		-- leave the built settings in place
+		restoreEmitters(waterfall)
+		local park = root:FindFirstChild("ParkDressing")
+		local fountain = park and park:FindFirstChild("Fountain")
+		if fountain then
+			restoreEmitters(fountain)
+		end
 		for _, d in waterfall:GetDescendants() do
-			if d:IsA("ParticleEmitter") and type(d:GetAttribute("BaseRate")) == "number" then
-				d.Rate = d:GetAttribute("BaseRate") :: number
-			elseif d:IsA("Beam") and type(d:GetAttribute("BaseSpeed")) == "number" then
+			if d:IsA("Beam") and type(d:GetAttribute("BaseSpeed")) == "number" then
 				d.TextureSpeed = d:GetAttribute("BaseSpeed") :: number
 			end
 		end
@@ -127,7 +156,7 @@ local function attach(root: Instance)
 	local trove = Trove.new()
 	current = trove
 	trove:Add(task.spawn(function()
-		animate(trove, root:WaitForChild("Waterfall"))
+		animate(trove, root, root:WaitForChild("Waterfall"))
 	end))
 	trove:Connect(root.AncestryChanged, function()
 		if not root:IsDescendantOf(Workspace) then
