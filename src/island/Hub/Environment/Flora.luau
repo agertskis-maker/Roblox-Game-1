@@ -623,12 +623,14 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 			end
 		end
 	end
-	-- Reeds along the park stream, away from the bridges, under 3 tall (outside every view rule).
+	-- Reeds along the river at its waterline, away from the bridges, under 3 tall (outside every
+	-- view rule). Task 4: the river is 16 wide, so they stand just inside its edge, not mid-stream.
 	local stream = Layout.Data.park.stream
+	local edge = Layout.Data.park.streamWidth / 2 + 0.5
 	for k = 4, #stream - 2, 6 do
 		local a, b = stream[k], stream[k + 1]
 		local dir = (b - a).Unit
-		local side = Vector2.new(-dir.Y, dir.X) * (if k % 12 == 4 then 6.5 else -6.5)
+		local side = Vector2.new(-dir.Y, dir.X) * (if k % 12 == 4 then edge else -edge)
 		local p = a + side
 		local clear = true
 		for _, br in Layout.Data.park.bridges do
@@ -637,7 +639,7 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 			end
 		end
 		if clear then
-			place(reed, banks, Vector3.new(p.X, -0.3, -p.Y), 0.9, rng:NextNumber(0, 6.28))
+			place(reed, banks, Vector3.new(p.X, Field.LakeLevel + 0.1, -p.Y), 0.9, rng:NextNumber(0, 6.28))
 			counts.reeds += 1
 		end
 	end

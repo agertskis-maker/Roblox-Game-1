@@ -112,7 +112,7 @@ local function buildingClear(p: Vector2): number
 		best = math.min(best, boxClear(p, b.centre, b.facing, b.width, b.depth))
 	end
 	for _, b in park.boards do
-		best = math.min(best, boxClear(p, b.centre, Vector2.new(0, 1), b.width, b.depth))
+		best = math.min(best, boxClear(p, b.centre, b.facing or Vector2.new(0, 1), b.width, b.depth))
 	end
 	-- the portal row and its approach
 	local pr = park.portal
@@ -152,6 +152,48 @@ terrainOnly.FilterDescendantsInstances = { workspace.Terrain }
 local function groundY(p: Vector2): number
 	local hit = workspace:Raycast(Vector3.new(p.X, SURFACE + 60, -p.Y), Vector3.new(0, -120, 0), terrainOnly)
 	return if hit then hit.Position.Y else SURFACE
+end
+
+-- ---------------------------------------------------------------- land, shore and mirror (Task 4)
+-- Dry land with a margin: not in the lake (its irregular shoreline, Field.lakeShape) within
+-- `margin` studs, and clear of the river channel and its bank. Task 4 found the car topiary (the
+-- "turtle on a brown pad") and lawn flower drifts standing in the lake: the old rule tested only
+-- paths, the stream, bridges and buildings, never the shore, and only a centre point.
+local SHORE_MARGIN = 3 -- studs from the waterline to any part of a footprint
+local RIVER_BANK = 4 -- studs from the river's edge to any part of a footprint
+
+local function onLand(p: Vector2, margin: number): boolean
+	if Field.lakeShape(p) then
+		return false
+	end
+	for k = 0, 7 do
+		local a = k / 8 * math.pi * 2
+		if Field.lakeShape(p + Vector2.new(math.cos(a), math.sin(a)) * margin) then
+			return false
+		end
+	end
+	return polylineDistance(park.stream, p) - park.streamWidth / 2 >= RIVER_BANK
+end
+
+-- Every corner of a placed footprint (and its centre) on dry land.
+local function landSafe(corners: { Vector2 }): boolean
+	local centre = Vector2.zero
+	for _, c in corners do
+		if not onLand(c, SHORE_MARGIN) then
+			return false
+		end
+		centre += c
+	end
+	return onLand(centre / #corners, SHORE_MARGIN)
+end
+
+-- The one centre axis (HubData park.axisX): mirrored pairs are (x, y) and (2 axis - x, y).
+local AXIS = park.axisX or 0
+local function mirrorP(p: Vector2): Vector2
+	return Vector2.new(2 * AXIS - p.X, p.Y)
+end
+local function mirrorD(d: Vector2): Vector2
+	return Vector2.new(-d.X, d.Y)
 end
 
 -- ---------------------------------------------------------------- placing
@@ -226,12 +268,17 @@ local function put(
 		material: Enum.Material?,
 		transparency: number?,
 		envelope: boolean?,
+		wet: boolean?, -- allowed over water (bridges, lake dressing)
 	}?
 ): MeshPart?
 	local o = options or {}
 	local base = CFrame.new(p.X, o.y or groundY(p), -p.Y) * CFrame.Angles(0, yaw, 0)
 	if not corridorSafe(name, base, scale, o.envelope) then
 		ctx.rejected.corridor = (ctx.rejected.corridor or 0) + 1
+		return nil
+	end
+	if not o.wet and not landSafe((KitAssets.footprint(name, base, scale))) then
+		ctx.rejected.shore = (ctx.rejected.shore or 0) + 1
 		return nil
 	end
 	local part = KitAssets.place(name, base, scale, o.solid)
@@ -251,6 +298,61 @@ local function put(
 		table.insert(ctx.taken, { p = p, r = o.r })
 	end
 	return part
+end
+
+type PutOptions = {
+	solid: boolean?,
+	y: number?,
+	r: number?,
+	material: Enum.Material?,
+	transparency: number?,
+	wet: boolean?,
+}
+
+-- Would put() accept this piece here? (corridor, falls, shore and free-space tests, no placing)
+local function canPut(ctx: Ctx, name: string, p: Vector2, yaw: number, scale: number, o: PutOptions): boolean
+	local base = CFrame.new(p.X, o.y or groundY(p), -p.Y) * CFrame.Angles(0, yaw, 0)
+	if not corridorSafe(name, base, scale) then
+		return false
+	end
+	if not o.wet and not landSafe((KitAssets.footprint(name, base, scale))) then
+		return false
+	end
+	return o.r == nil or free(ctx, p, o.r :: number)
+end
+
+-- A mirrored pair (Task 4, brief §6: mirror the non-tree dressing): the piece at p facing plan
+-- direction `front`, and its mirror image about the centre axis. Both are tested first; either
+-- both are placed or neither (so one side never ends up with a piece the other lacks). A piece
+-- within 0.5 of the axis is placed once.
+local function putPair(
+	ctx: Ctx,
+	category: string,
+	name: string,
+	p: Vector2,
+	front: Vector2,
+	scale: number,
+	o: PutOptions
+): (MeshPart?, MeshPart?)
+	local yaw, myaw = yawFacing(front), yawFacing(mirrorD(front))
+	local q = mirrorP(p)
+	if math.abs(p.X - AXIS) < 0.5 then
+		if not canPut(ctx, name, p, yaw, scale, o) then
+			return nil, nil
+		end
+		return put(ctx, category, name, p, yaw, scale, o :: any), nil
+	end
+	if not canPut(ctx, name, p, yaw, scale, o) or not canPut(ctx, name, q, myaw, scale, o) then
+		ctx.rejected.pair = (ctx.rejected.pair or 0) + 1
+		return nil, nil
+	end
+	local a = put(ctx, category, name, p, yaw, scale, o :: any)
+	local b = put(ctx, category, name, q, myaw, scale, o :: any)
+	if a and b then
+		a:SetAttribute("MirrorPair", true)
+		b:SetAttribute("MirrorPair", true)
+	end
+	return a, b
 end
 
 -- ---------------------------------------------------------------- fountain
@@ -522,27 +624,6 @@ local function buildFountain(ctx: Ctx)
 end
 
 -- ---------------------------------------------------------------- bridges and buildings
-local function buildBridges(ctx: Ctx)
-	for i, b in park.bridges do
-		local shared = false
-		for k, other in park.bridges do
-			if k ~= i and (other.at - b.at).Magnitude < (b.span + other.deckWidth) / 2 then
-				shared = true
-			end
-		end
-		local name = if shared
-			then "BridgeAvenueOpen"
-			elseif b.deckWidth >= 16 then "BridgeAvenue"
-			elseif b.deckWidth >= 12 then "BridgeLakeside"
-			else "BridgeGarden"
-		local part = put(ctx, "Bridges", name, b.at, yawAlong(b.dir), 1, { y = SURFACE })
-		if part then
-			part.Name = string.format("Bridge%02d", i)
-			part:SetAttribute("Path", b.path)
-		end
-	end
-end
-
 local function buildingById(id: string): any
 	for _, b in park.buildings do
 		if b.id == id then
@@ -552,121 +633,205 @@ local function buildingById(id: string): any
 	return nil
 end
 
-local function buildStands(ctx: Ctx)
+local function plainPart(name: string, size: Vector3, cframe: CFrame, colour: Color3, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = colour
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanTouch = false
+	part.Parent = parent
+	return part
+end
+
+-- A stand's picture header (3.0 x 1.6, approved 2026-10-22; kit HeaderBoard, printable face 2.8
+-- x 1.4 in a bark frame). Task 4 (brief §6): every stand's header must read above or in front of
+-- its awning, so carts hang it from two straps clear in front of the awning edge and booths carry
+-- it above the roof fascia instead of in front of the scallops (Task 3 review F8).
+local HEADERS = {
+	HotDogCart = { art = "HotDog", bottom = 4.45, front = 2.35, straps = true },
+	IceCreamStand = { art = "IceCream", bottom = 5.55, front = 2.6 },
+	LemonadeStand = { art = "Lemonade", bottom = 5.55, front = 2.6 },
+	PopcornCart = { art = "Popcorn", bottom = 4.45, front = 2.35, straps = true },
+}
+
+local function standHeader(ctx: Ctx, name: string, at: Vector2, facing: Vector2)
+	local h = HEADERS[name]
+	if not h or not KitAssets.has("HeaderBoard") then
+		return
+	end
+	local front = at + facing * h.front
+	local base = CFrame.new(front.X, groundY(at) + h.bottom + 0.8, -front.Y) * CFrame.Angles(0, yawFacing(facing), 0)
+	local board = KitAssets.place("HeaderBoard", base, 1)
+	board.Name = "Header" .. h.art
+	board.Parent = folder(ctx, "SnackCorners")
+	ctx.counts.HeaderBoard = (ctx.counts.HeaderBoard or 0) + 1
+	local face = Instance.new("Part")
+	face.Name = "HeaderFace"
+	face.Anchored = true
+	face.CanCollide = false
+	face.CanQuery = false
+	face.CanTouch = false
+	face.CastShadow = false
+	face.Transparency = 1
+	face.Size = Vector3.new(2.8, 1.4, 0.05)
+	-- mesh front is +Z after the turn; the face plane is 0.09 in front of the origin
+	face.CFrame = base * CFrame.new(0, 0, 0.11) * CFrame.Angles(0, math.pi, 0)
+	face.Parent = board
+	Signs.header(face, h.art)
+	local strapLength = if h.straps then 0.62 else 0.95 -- booths: posts down to the roof ridge
+	for _, x in { -1.0, 1.0 } do
+		local strap = plainPart(
+			if h.straps then "Strap" else "HeaderPost",
+			Vector3.new(0.1, strapLength, 0.06),
+			base * CFrame.new(x, -(0.8 + strapLength / 2) + 0.05, 0),
+			Color3.fromRGB(59, 42, 30),
+			board
+		)
+		strap.CanCollide = false
+		strap.CanQuery = false
+		if h.straps then
+			strap.CFrame = base * CFrame.new(x, 1.06 + 0.31 - 0.25, 0)
+		end
+	end
+end
+
+-- The gazebo on the centre axis (Task 4 layout: plan (0, 196)).
+local function buildGazebo(ctx: Ctx)
 	local g = buildingById("Gazebo")
 	if g then
 		put(ctx, "Buildings", "Gazebo", g.centre, yawAlong(g.facing), 1, { y = SURFACE })
 	end
-	local f = buildingById("FoodStands")
-	if not f then
+end
+
+-- Two balanced snack corners (Task 4, brief §6), mirrored about the axis: two stands each at the
+-- back, picnic tables with parasols in front, light posts at the four corners carrying bunting
+-- along the front and string lights along the sides, and bins at the front corners. Positions
+-- are laid out in the east corner's frame and mirrored for the west one; the stands differ
+-- (hot dogs and ice cream east, popcorn and lemonade west), the layout does not.
+local SNACK_STANDS = { "HotDogCart", "IceCreamStand" }
+local SNACK_STANDS_WEST = { "PopcornCart", "LemonadeStand" }
+
+local function stringBetween(ctx: Ctx, a: Vector3, c: Vector3, kind: string)
+	local d = Vector2.new(c.X - a.X, -(c.Z - a.Z))
+	local length = d.Magnitude
+	local base = CFrame.new(a) * CFrame.Angles(0, yawAlong(d.Unit), 0)
+	local part = KitAssets.place("BuntingString", base, 1)
+	part.Size = Vector3.new(part.Size.X * length / 16, part.Size.Y, part.Size.Z)
+	local entry = KitAssets.info("BuntingString")
+	local centre = (entry.min + entry.max) / 2
+	part.CFrame = base * CFrame.new(centre.X * length / 16, centre.Y, centre.Z)
+	part:SetAttribute("Sway", 0.4)
+	part:SetAttribute("StringKind", kind)
+	part.Parent = folder(ctx, "SnackCorners")
+	ctx.counts.BuntingString = (ctx.counts.BuntingString or 0) + 1
+end
+
+local function buildSnackCorners(ctx: Ctx)
+	local east = buildingById("SnackCornerEast")
+	if not east then
 		return
 	end
-	local side = Vector2.new(-f.facing.Y, f.facing.X)
-	local items = { "HotDogCart", "IceCreamStand", "LemonadeStand", "PopcornCart" }
-	-- each stand's header board (3.0 x 1.6, approved 2026-10-22; kit HeaderBoard, its printable
-	-- face 2.8 x 1.4 inside a bark frame): carts hang it on two straps from the awning front edge
-	-- (eave 2.1 out, 6.6 up), 4.45 to 6.05 up; booths hang it on the roof fascia in front of the
-	-- scallops (eave 2.9 out), 3.8 to 5.4 up (vault/design/ui/island-signs.md)
-	local headers = {
-		HotDogCart = { art = "HotDog", bottom = 4.45, front = 2.15, straps = true },
-		IceCreamStand = { art = "IceCream", bottom = 3.8, front = 3.0 },
-		LemonadeStand = { art = "Lemonade", bottom = 3.8, front = 3.0 },
-		PopcornCart = { art = "Popcorn", bottom = 4.45, front = 2.15, straps = true },
-	}
-	for k, name in items do
-		local offset = (k - 2.5) * 8
-		local at = f.centre + side * offset
-		local stand = put(ctx, "FoodStands", name, at, yawFacing(f.facing), 1, { solid = true })
-		local h = headers[name]
-		if stand and h and KitAssets.has("HeaderBoard") then
-			local front = at + f.facing * h.front
-			local base = CFrame.new(front.X, groundY(at) + h.bottom + 0.8, -front.Y)
-				* CFrame.Angles(0, yawFacing(f.facing), 0)
-			local board = KitAssets.place("HeaderBoard", base, 1)
-			board.Name = "Header" .. h.art
-			board.Parent = folder(ctx, "FoodStands")
-			ctx.counts.HeaderBoard = (ctx.counts.HeaderBoard or 0) + 1
-			local face = Instance.new("Part")
-			face.Name = "HeaderFace"
-			face.Anchored = true
-			face.CanCollide = false
-			face.CanQuery = false
-			face.CanTouch = false
-			face.CastShadow = false
-			face.Transparency = 1
-			face.Size = Vector3.new(2.8, 1.4, 0.05)
-			-- mesh front is +Z after the turn; the face plane is 0.09 in front of the origin
-			face.CFrame = base * CFrame.new(0, 0, 0.11) * CFrame.Angles(0, math.pi, 0)
-			face.Parent = board
-			Signs.header(face, h.art)
-			if h.straps then
-				for _, x in { -1.0, 1.0 } do
-					local strap = Instance.new("Part")
-					strap.Name = "Strap"
-					strap.Anchored = true
-					strap.CanCollide = false
-					strap.CanQuery = false
-					strap.CanTouch = false
-					strap.Size = Vector3.new(0.1, 0.62, 0.06)
-					strap.CFrame = base * CFrame.new(x, 1.06 + 0.31 - 0.25, 0)
-					strap.Color = Color3.fromRGB(59, 42, 30)
-					strap.Material = Enum.Material.SmoothPlastic
-					strap.Parent = board
+	local front = east.facing
+	local side = Vector2.new(-front.Y, front.X)
+	local c = east.centre
+	local at = function(s: number, f: number): Vector2
+		return c + side * s + front * f
+	end
+	-- stands at the back, facing the picnic area and the path beyond it
+	for k, s in { -6.5, 6.5 } do
+		local p = at(s, -6)
+		local q = mirrorP(p)
+		local nameE, nameW = SNACK_STANDS[k], SNACK_STANDS_WEST[k]
+		local o: PutOptions = { solid = true, r = 4 }
+		if canPut(ctx, nameE, p, yawFacing(front), 1, o) and canPut(ctx, nameW, q, yawFacing(mirrorD(front)), 1, o) then
+			put(ctx, "SnackCorners", nameE, p, yawFacing(front), 1, o :: any)
+			put(ctx, "SnackCorners", nameW, q, yawFacing(mirrorD(front)), 1, o :: any)
+			standHeader(ctx, nameE, p, front)
+			standHeader(ctx, nameW, q, mirrorD(front))
+		else
+			ctx.rejected.snackStand = (ctx.rejected.snackStand or 0) + 1
+		end
+	end
+	-- picnic tables with parasols through their centres
+	for _, s in { -7, 7 } do
+		local p = at(s, 5)
+		if KitAssets.has("PicnicTable") then
+			local a = putPair(ctx, "SnackCorners", "PicnicTable", p, side, 1, { solid = true, r = 3.5 })
+			if a and KitAssets.has("Parasol") then
+				putPair(ctx, "SnackCorners", "Parasol", p, side, 1, {})
+			end
+		else
+			ctx.rejected.missingMesh = (ctx.rejected.missingMesh or 0) + 1
+		end
+	end
+	-- light posts at the corners; bunting across the front, string lights down the sides
+	local corners = { at(-14, 12), at(14, 12), at(-14, -12), at(14, -12) }
+	local hooks: { Vector3 } = {}
+	local ok = true
+	for _, p in corners do
+		for _, q in { p, mirrorP(p) } do
+			if inCorridor(q) or not onLand(q, SHORE_MARGIN) then
+				ok = false
+			end
+		end
+	end
+	if ok then
+		for _, side_ in { 1, -1 } do
+			for i, p0 in corners do
+				local p = if side_ == 1 then p0 else mirrorP(p0)
+				local y = groundY(p)
+				if KitAssets.has("LightPost") then
+					local post = put(ctx, "SnackCorners", "LightPost", p, 0, 1, { solid = true, r = 1 })
+					local hookY = KitAssets.info("LightPost").meta.HookZ or 8.4 -- mesh-local z up
+					hooks[(side_ == 1 and 0 or 4) + i] = Vector3.new(p.X, y + hookY, -p.Y)
+					if not post then
+						ok = false
+					end
+				else
+					local pole = plainPart(
+						"LightPost",
+						Vector3.new(8.6, 0.45, 0.45),
+						CFrame.new(p.X, y + 4.3, -p.Y) * CFrame.Angles(0, 0, math.pi / 2),
+						Color3.fromRGB(246, 242, 236),
+						folder(ctx, "SnackCorners")
+					)
+					pole.Shape = Enum.PartType.Cylinder
+					-- a footing so it is visibly anchored, not stuck in the grass
+					plainPart(
+						"Footing",
+						Vector3.new(1.2, 0.3, 1.2),
+						CFrame.new(p.X, y + 0.1, -p.Y),
+						Color3.fromRGB(226, 220, 206),
+						folder(ctx, "SnackCorners")
+					)
+					hooks[(side_ == 1 and 0 or 4) + i] = Vector3.new(p.X, y + 8.4, -p.Y)
 				end
 			end
 		end
-	end
-	-- bunting on three slim poles in front of the stands, or behind them where the front reaches
-	-- into a viewing corridor (the poles and strings are taller than 3); none if both do
-	local offset: number? = nil
-	for _, o in { f.depth / 2 + 1.5, -(f.depth / 2 + 1.5) } do
-		local clear = true
-		for t = -1, 1, 0.25 do
-			if inCorridor(f.centre + side * t * 16 + f.facing * o) then
-				clear = false
+		for base = 0, 4, 4 do
+			if hooks[base + 1] and hooks[base + 2] then
+				stringBetween(ctx, hooks[base + 1], hooks[base + 2], "Bunting")
+				stringBetween(ctx, hooks[base + 1], hooks[base + 3], "Lights")
+				stringBetween(ctx, hooks[base + 2], hooks[base + 4], "Lights")
 			end
 		end
-		if clear then
-			offset = o
-			break
+	else
+		ctx.rejected.snackPosts = (ctx.rejected.snackPosts or 0) + 1
+	end
+	-- bins at the two front corners
+	if KitAssets.has("ParkBin") then
+		for _, s in { -11, 11 } do
+			putPair(ctx, "SnackCorners", "ParkBin", at(s, 12.5), front, 1, { solid = true, r = 1.2 })
 		end
 	end
-	if not offset then
-		ctx.rejected.corridor = (ctx.rejected.corridor or 0) + 1
-		table.insert(ctx.taken, { p = f.centre, r = f.width / 2 + 3 })
-		return
+	for _, b in { east, buildingById("SnackCornerWest") } do
+		if b then
+			table.insert(ctx.taken, { p = b.centre, r = math.max(b.width, b.depth) / 2 + 2 })
+		end
 	end
-	local poles = {}
-	for k = -1, 1 do
-		local p = f.centre + side * k * 16 + f.facing * (offset :: number)
-		local y = groundY(p)
-		local pole = Instance.new("Part")
-		pole.Name = "BuntingPole"
-		pole.Shape = Enum.PartType.Cylinder
-		pole.Size = Vector3.new(7.6, 0.4, 0.4)
-		pole.CFrame = CFrame.new(p.X, y + 3.8, -p.Y) * CFrame.Angles(0, 0, math.pi / 2)
-		pole.Color = Color3.fromRGB(246, 242, 236)
-		pole.Material = Enum.Material.SmoothPlastic
-		pole.Anchored = true
-		pole.CanTouch = false
-		pole.Parent = folder(ctx, "FoodStands")
-		table.insert(poles, Vector3.new(p.X, y + 7.3, -p.Y))
-	end
-	for k = 1, 2 do
-		local a, c = poles[k], poles[k + 1]
-		local d = Vector2.new(c.X - a.X, -(c.Z - a.Z))
-		local length = d.Magnitude
-		local base = CFrame.new(a) * CFrame.Angles(0, yawAlong(d.Unit), 0)
-		local part = KitAssets.place("BuntingString", base, 1)
-		part.Size = Vector3.new(part.Size.X * length / 16, part.Size.Y, part.Size.Z)
-		local entry = KitAssets.info("BuntingString")
-		local centre = (entry.min + entry.max) / 2
-		part.CFrame = base * CFrame.new(centre.X * length / 16, centre.Y, centre.Z)
-		part:SetAttribute("Sway", 0.4)
-		part.Parent = folder(ctx, "FoodStands")
-		ctx.counts.BuntingString = (ctx.counts.BuntingString or 0) + 1
-	end
-	table.insert(ctx.taken, { p = f.centre, r = f.width / 2 + 3 })
 end
 
 -- ---------------------------------------------------------------- along the paths
@@ -696,163 +861,218 @@ local function walkPaths(step: number, start: number, visit: (Vector2, Vector2, 
 	end
 end
 
+-- The east half of the paths only (x past the axis): every placement made from these points is
+-- mirrored, so the west half comes out as an exact mirror image (the paths are mirrored too).
+local function walkEast(step: number, start: number, visit: (Vector2, Vector2, Vector2, any, number) -> ())
+	walkPaths(step, start, function(p, dir, normal, path, n)
+		if p.X > AXIS + 0.5 then
+			visit(p, dir, normal, path, n)
+		end
+	end)
+end
+
 local function lawnOk(p: Vector2, r: number, pathMin: number): boolean
 	local radius = p.Magnitude
 	if radius < park.plazaRadius + r + 2 or radius > PARK_OUTER + 18 then
 		return false
 	end
 	local pc = pathClear(p)
-	return pc >= pathMin and streamClear(p) >= r + 1.5 and bridgeClear(p) >= r + 4 and buildingClear(p) >= r + 2
+	return pc >= pathMin
+		and streamClear(p) >= r + RIVER_BANK
+		and bridgeClear(p) >= r + 4
+		and buildingClear(p) >= r + 2
+		and onLand(p, r + SHORE_MARGIN)
 end
 
-local function nearSign(ctx: Ctx, p: Vector2): boolean
-	local signs = ctx.folders.Signposts
-	if not signs then
-		return false
-	end
-	for _, s in signs:GetChildren() do
-		local q = (s :: BasePart).Position
-		if (Vector2.new(q.X, -q.Z) - p).Magnitude < 45 then
-			return true
+local function lawnOkPair(p: Vector2, r: number, pathMin: number): boolean
+	return lawnOk(p, r, pathMin) and lawnOk(mirrorP(p), r, pathMin)
+end
+
+-- Signposts (Task 4, brief §13): each arrow follows the first walkable leg of the route from the
+-- post, not the straight-line bearing. One post per avenue just inside the garden ring, for the
+-- walkers coming from that avenue's plot: for each destination the post takes that plot's route
+-- (HubData routes), finds where the route passes the post, and points along the route from there.
+local SIGN_DESTINATIONS = {
+	{ board = "Portals", route = "Downtown" },
+	{ board = "Garage", route = "Garage" },
+	{ board = "Stunts", route = "StuntGate" },
+}
+
+local function routeFor(plot: number, destination: string): { Vector2 }?
+	for _, r in (Layout.Data :: any).routes do
+		if r.plot == plot and r.destination == destination then
+			return r.points
 		end
 	end
-	return false
+	return nil
 end
 
--- Where each signpost destination is, in the plan frame (x, plan y): the portal row, the
--- Garage door, the Stunt Circuit gate, the nearest plot entrance and the nearest lake shore.
-local function destinations(at: Vector2): { [string]: Vector2 }
-	local out: { [string]: Vector2 } = {
-		Portals = Vector2.new(0, park.portal.frontY + 4),
-	}
-	local garage = buildingById("Garage")
-	if garage then
-		out.Garage = garage.door
-	end
-	local stunt = buildingById("StuntGate")
-	if stunt then
-		out.Stunts = stunt.door
-	end
-	local best = math.huge
-	for _, tri in park.corridors do
-		local d = (tri[1] - at).Magnitude
+-- Direction along `pts` from the point nearest `at`, looking `ahead` studs further on; nil when
+-- the route passes further than `near` from the post.
+local function legDirection(pts: { Vector2 }, at: Vector2, near: number, ahead: number): Vector2?
+	local best, bi, bt = math.huge, 1, 0
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local ab = b - a
+		local t = if ab.Magnitude > 1e-6 then math.clamp((at - a):Dot(ab) / ab:Dot(ab), 0, 1) else 0
+		local d = (at - (a + ab * t)).Magnitude
 		if d < best then
-			best = d
-			out.Plots = tri[1]
+			best, bi, bt = d, i, t
 		end
 	end
-	local lake = Field.Lake
-	local nearest, nd = lake.centre, math.huge
-	for k = 0, 35 do
-		local t = k / 36 * math.pi * 2
-		local q = lake.centre + Vector2.new(math.cos(t) * lake.rx, math.sin(t) * lake.ry)
-		local d = (q - at).Magnitude
-		if d < nd then
-			nd = d
-			nearest = q
-		end
+	if best > near then
+		return nil
 	end
-	out.Lake = nearest
-	return out
+	-- walk `ahead` studs on from the nearest point
+	local from = pts[bi] + (pts[bi + 1] - pts[bi]) * bt
+	local left = ahead
+	local p = from
+	for i = bi, #pts - 1 do
+		local q = pts[i + 1]
+		local seg = (q - p).Magnitude
+		if seg >= left then
+			p = p + (q - p).Unit * left
+			left = 0
+			break
+		end
+		left -= seg
+		p = q
+	end
+	local d = p - from
+	return if d.Magnitude > 0.5 then d.Unit else nil
 end
 
--- The three boards on a signpost (heights 7.0, 5.65 and 4.3, as on the old kit signpost), each
--- turned toward one of the post's three nearest destinations (straight-line bearing, a labelled
--- simplification of "along the paths"); the face part carries the icon and word on both sides.
-local function signBoards(ctx: Ctx, post: BasePart, at: Vector2)
-	local list = {}
-	for name, q in destinations(at) do
-		table.insert(list, { name = name, q = q, d = (q - at).Magnitude })
-	end
-	table.sort(list, function(a, b)
-		return a.d < b.d
-	end)
+local function signBoards(ctx: Ctx, post: BasePart, at: Vector2, plot: number)
 	local y = groundY(at)
-	for i = 1, math.min(3, #list) do
-		local dir = (list[i].q - at).Unit
-		-- board +X along dir: plan (x, y) is world (x, -z)
-		local yaw = math.atan2(dir.Y, dir.X)
-		local base = CFrame.new(at.X, y + 7.0 - 1.35 * (i - 1), -at.Y) * CFrame.Angles(0, yaw, 0)
-		local board = KitAssets.place("SignpostBoard", base, 1)
-		board.Parent = post.Parent
-		ctx.counts.SignpostBoard = (ctx.counts.SignpostBoard or 0) + 1
-		ctx.triangles += KitAssets.info("SignpostBoard").triangles
-		local face = Instance.new("Part")
-		face.Name = "BoardFace"
-		face.Anchored = true
-		face.CanCollide = false
-		face.CanQuery = false
-		face.CanTouch = false
-		face.CastShadow = false
-		face.Transparency = 1
-		face.Size = Vector3.new(4.2, 0.95, 0.26)
-		face.CFrame = base * CFrame.new(2.0, 0, 0)
-		face.Parent = board
-		Signs.signpostBoard(face, list[i].name)
-		board:SetAttribute("Destination", list[i].name)
+	local n = 0
+	for _, dest in SIGN_DESTINATIONS do
+		local pts = routeFor(plot, dest.route)
+		local dir = pts and legDirection(pts, at, 14, 10)
+		if dir then
+			n += 1
+			-- board +X along dir: plan (x, y) is world (x, -z)
+			local yaw = math.atan2(dir.Y, dir.X)
+			local base = CFrame.new(at.X, y + 7.0 - 1.35 * (n - 1), -at.Y) * CFrame.Angles(0, yaw, 0)
+			local board = KitAssets.place("SignpostBoard", base, 1)
+			board.Parent = post.Parent
+			ctx.counts.SignpostBoard = (ctx.counts.SignpostBoard or 0) + 1
+			ctx.triangles += KitAssets.info("SignpostBoard").triangles
+			local face = Instance.new("Part")
+			face.Name = "BoardFace"
+			face.Anchored = true
+			face.CanCollide = false
+			face.CanQuery = false
+			face.CanTouch = false
+			face.CastShadow = false
+			face.Transparency = 1
+			face.Size = Vector3.new(4.2, 0.95, 0.26)
+			face.CFrame = base * CFrame.new(2.0, 0, 0)
+			face.Parent = board
+			Signs.signpostBoard(face, dest.board)
+			board:SetAttribute("Destination", dest.board)
+			board:SetAttribute("RoutePlot", plot)
+			board:SetAttribute("LegDirection", dir)
+		end
 	end
-	post:SetAttribute("Boards", math.min(3, #list))
+	post:SetAttribute("Boards", n)
+	post:SetAttribute("ForPlot", plot)
 end
 
-local function buildFurniture(ctx: Ctx)
-	-- benches facing the path, on alternate sides
-	walkPaths(26, 13, function(p, _dir, normal, path, n)
-		if (ctx.counts.Bench or 0) >= 34 then
-			return
+local function avenueLine(index: number): ({ Vector2 }, number)
+	for _, path in park.paths do
+		if (path :: any).kind == "Avenue" .. index then
+			return (path :: any).points, (path :: any).width
 		end
-		local width = (path :: any).width or 8
-		local side = if n % 2 == 0 then 1 else -1
-		local at = p + normal * side * (width / 2 + 1.9)
-		if lawnOk(at, 3.2, 1.0) and free(ctx, at, 3.5) then
-			put(ctx, "Benches", "Bench", at, yawFacing(-normal * side), 1, { solid = true, r = 3.5 })
-		end
-	end)
-	-- lamp posts on the other side, outside the viewing corridors
-	walkPaths(34, 6, function(p, _dir, normal, path, n)
-		if (ctx.counts.LampPost or 0) >= 30 then
-			return
-		end
-		local width = (path :: any).width or 8
-		local side = if n % 2 == 0 then -1 else 1
-		local at = p + normal * side * (width / 2 + 1.2)
-		if lawnOk(at, 0.8, 0.6) and free(ctx, at, 2) and not inCorridor(at) then
-			local lamp = put(ctx, "Lamps", "LampPost", at, 0, 1, { solid = true, r = 2 })
-			if lamp then
-				put(ctx, "Lamps", "LampGlass", at, 0, 1, {
-					material = Enum.Material.Glass,
-					transparency = 0.15,
-				})
+	end
+	error("no Avenue" .. index)
+end
+
+local function buildSignposts(ctx: Ctx)
+	-- east avenues 4 to 6 with their mirrors 3 to 1 (the plots mirror as k and 7 - k)
+	for k = 4, 6 do
+		local pts, width = avenueLine(k)
+		local a, b = pts[1], pts[#pts] -- promenade end first, plaza end last
+		local dir = (b - a).Unit
+		local normal = Vector2.new(-dir.Y, dir.X)
+		-- just before the garden ring, on the side away from the river bridge
+		local tRing = (a - Vector2.zero).Magnitude - park.ringRadius - 10
+		for _, offset in { tRing, tRing - 8, tRing + 14 } do
+			local placed = false
+			for _, s in { 1, -1 } do
+				local at = a + dir * offset + normal * s * (width / 2 + 2.5)
+				local q = mirrorP(at)
+				if
+					lawnOk(at, 1.5, 1.2)
+					and lawnOk(q, 1.5, 1.2)
+					and free(ctx, at, 4)
+					and free(ctx, q, 4)
+					and not inCorridor(at)
+					and not inCorridor(q)
+				then
+					local e = put(ctx, "Signposts", "SignpostPost", at, 0, 1, { r = 4 })
+					local w = put(ctx, "Signposts", "SignpostPost", q, 0, 1, { r = 4 })
+					if e then
+						signBoards(ctx, e, at, k)
+					end
+					if w then
+						signBoards(ctx, w, q, 7 - k)
+					end
+					placed = e ~= nil and w ~= nil
+					break
+				end
+			end
+			if placed then
+				break
 			end
 		end
-	end)
-	-- signpost structures where paths meet the promenade and the garden ring (blank boards)
-	walkPaths(24, 10, function(p, _dir, normal, path, _n)
-		if (ctx.counts.SignpostPost or 0) >= 6 then
-			return
-		end
-		local half = if p.X < 0 then "SignpostsWest" else "SignpostsEast"
-		if ((ctx.counts :: any)[half] or 0) >= 3 then
-			return
-		end
+	end
+end
+
+-- Formal furniture (Task 4, brief §6), mirrored: lamps every 36 studs (research note) where they
+-- stay out of the viewing corridors, paired benches set 2 back from the path edge with 3 clear
+-- behind, and a bin beside every second bench pair.
+local function buildFurniture(ctx: Ctx)
+	walkEast(36, 18, function(p, dir, normal, path, _n)
 		local width = (path :: any).width or 8
-		for _, side in { 1, -1 } do
-			local at = p + normal * side * (width / 2 + 2.5)
-			if lawnOk(at, 1.5, 1.2) and free(ctx, at, 4) and not inCorridor(at) and not nearSign(ctx, at) then
-				local s = put(ctx, "Signposts", "SignpostPost", at, 0, 1, { r = 4 })
-				if s then
-					ctx.counts[half] = (ctx.counts[half] or 0) + 1
-					signBoards(ctx, s, at)
-					return
+		for _, s in { 1, -1 } do
+			local at = p + normal * s * (width / 2 + 1.2)
+			if lawnOkPair(at, 0.8, 0.6) and not inCorridor(at) and not inCorridor(mirrorP(at)) then
+				local lamp = putPair(ctx, "Lamps", "LampPost", at, dir, 1, { solid = true, r = 2 })
+				if lamp then
+					putPair(ctx, "Lamps", "LampGlass", at, dir, 1, {
+						material = Enum.Material.Glass,
+						transparency = 0.15,
+					})
 				end
 			end
 		end
 	end)
+	local pairsPlaced = 0
+	walkEast(36, 0, function(p, _dir, normal, path, _n)
+		local width = (path :: any).width or 8
+		for _, s in { 1, -1 } do
+			local at = p + normal * s * (width / 2 + 2 + 0.9)
+			-- 3 studs clear behind the seat for the sitter's legs and a passer-by
+			if lawnOkPair(at, 3.2, 1.0) and lawnOkPair(at + normal * s * 3, 1.5, 3) then
+				local bench = putPair(ctx, "Benches", "Bench", at, -normal * s, 1, { solid = true, r = 3.5 })
+				if bench then
+					pairsPlaced += 1
+					if pairsPlaced % 2 == 0 and KitAssets.has("ParkBin") then
+						local d = Vector2.new(normal.Y, -normal.X)
+						putPair(ctx, "Benches", "ParkBin", at + d * 2.6, -normal * s, 1, { solid = true, r = 1 })
+					end
+				end
+			end
+		end
+	end)
+	buildSignposts(ctx)
 end
 
 local function buildHedges(ctx: Ctx)
-	-- low clipped hedges round the plaza, with openings where the paths arrive
+	-- low clipped hedges round the plaza, with openings where the paths arrive (an even count so
+	-- the ring is mirror-symmetric about the axis)
 	local r = park.plazaRadius + 2.6
-	local n = math.floor(2 * math.pi * r / 6.4)
+	local n = math.floor(2 * math.pi * r / 6.4 / 2) * 2
 	for k = 0, n - 1 do
 		local a = (k + 0.5) / n * math.pi * 2
 		local p = Vector2.new(math.cos(a), math.sin(a)) * r
@@ -862,49 +1082,24 @@ local function buildHedges(ctx: Ctx)
 		end
 	end
 	table.insert(ctx.taken, { p = Vector2.zero, r = r + 2 })
-	-- topiary pairs beside path ends, outside the corridors
-	walkPaths(1e6, 4, function(p, dir, normal, path, _n)
+	-- topiary pairs beside the path ends, mirrored
+	walkEast(1e6, 4, function(p, dir, normal, path, _n)
 		local width = (path :: any).width or 8
 		for _, side in { 1, -1 } do
 			local at = p + normal * side * (width / 2 + 2.4) - dir * 1
-			if lawnOk(at, 1.8, 1.2) and free(ctx, at, 2.2) then
-				put(
-					ctx,
-					"Hedges",
-					if side > 0 then "TopiaryBall" else "TopiaryCone",
-					at,
-					0,
-					1,
-					{ solid = true, r = 2.2 }
-				)
+			if lawnOkPair(at, 1.8, 1.2) then
+				putPair(ctx, "Hedges", "TopiaryCone", at, dir, 1, { solid = true, r = 2.2 })
 			end
 		end
 	end)
-	-- the car topiary: the first open lawn spot near the plaza or the Garage approach
-	local candidates = {}
-	for ring = 60, 200, 10 do
-		for k = 0, 35 do
-			local a = k / 36 * math.pi * 2
-			table.insert(candidates, Vector2.new(math.cos(a), math.sin(a)) * ring)
-		end
-	end
-	for _, p in candidates do
-		if lawnOk(p, 7, 4) and free(ctx, p, 8) and not inCorridor(p) then
-			local _, nearest = pathClear(p)
-			local yaw = 0
-			if nearest and (nearest :: any).points then
-				local pts = (nearest :: any).points
-				yaw = yawAlong((pts[#pts] - pts[1]).Unit)
-			end
-			if put(ctx, "Hedges", "CarTopiary", p, yaw, 1, { solid = true, r = 8 }) then
-				break
-			end
-		end
-	end
-	-- white fences along the lake side of the lakeside walks
+	-- Task 4: no car topiary. It was the "turtle on a brown pad" standing in the lake; the shore
+	-- rule (onLand) now keeps every footprint on dry land, and Task4Checks asserts it.
+	-- white fences on the lake side of the lakeside and forecourt walks, ending in a post before
+	-- each bridge and building
 	for _, path in park.paths do
 		local pts = (path :: any).points
-		if pts and string.find((path :: any).kind, "Lakeside") then
+		local kind = (path :: any).kind
+		if pts and (string.find(kind, "Lakeside") or string.find(kind, "Forecourt")) then
 			local width = (path :: any).width or 8
 			for i = 1, #pts - 1 do
 				local a, b = pts[i], pts[i + 1]
@@ -914,7 +1109,7 @@ local function buildHedges(ctx: Ctx)
 				local side = if normal.Y < 0 then 1 else -1 -- toward the lake (plan south)
 				for t = 4, seg - 4, 9 do
 					local at = a + dir * t + normal * side * (width / 2 + 0.8)
-					if bridgeClear(at) > 4 and buildingClear(at) > 1 then
+					if bridgeClear(at) > 4 and buildingClear(at) > 1 and onLand(at, 1) then
 						put(ctx, "Fences", "FenceSegment", at, yawAlong(dir), 1, { solid = true })
 					end
 				end
@@ -924,112 +1119,169 @@ local function buildHedges(ctx: Ctx)
 end
 
 -- ---------------------------------------------------------------- flower beds
+-- The flower-bed family (Task 4, brief §6), mirrored: corner beds in the grass corners where the
+-- avenues meet the garden ring, beds along the avenues, and arc beds round the fountain plaza.
+-- Planting is layered (tall at the back, middle, low edging at the front toward the path) in
+-- colour drifts of three kinds per bed. The family's own meshes (BedCornerFillet, BedAvenueArc,
+-- BedFountainArc) are used when imported; until then the kit's round and oval beds stand in.
 local BED_FLOWERS = {
-	{ "TulipsRed", "Daisies" },
-	{ "Lavender", "RosesPink" },
-	{ "TulipsYellow", "Lavender" },
-	{ "RosesRed", "Daisies" },
-	{ "Sunflowers", "TulipsYellow" },
-	{ "RosesPink", "TulipsRed" },
-	{ "Daisies", "Lavender" },
+	{ "Sunflowers", "TulipsRed", "Daisies" },
+	{ "Lavender", "RosesPink", "Clover" },
+	{ "TulipsYellow", "Lavender", "Daisies" },
+	{ "RosesRed", "TulipsYellow", "Clover" },
+	{ "Sunflowers", "RosesPink", "Daisies" },
+	{ "Irises", "TulipsRed", "Clover" },
 }
 
-local function buildBeds(ctx: Ctx)
-	local beds = 0
-	local grid = 11
-	local spots = {}
-	for x = -PARK_OUTER, PARK_OUTER, grid do
-		for y = -60, PARK_OUTER, grid do
-			table.insert(spots, Vector2.new(x + ctx.rng:NextNumber(-3, 3), y + ctx.rng:NextNumber(-3, 3)))
-		end
-	end
-	for _, p in spots do
-		if beds >= 16 then
-			break
-		end
-		local _, nearest = pathClear(p)
-		local oval = ctx.rng:NextNumber() < 0.5
-		local name = if oval then "BedOval" else "BedRound"
-		local meta = KitAssets.info(name).meta
-		local reach = math.max(meta.rx or 4.5, meta.ry or 4.5)
-		if lawnOk(p, reach, 2.5) and free(ctx, p, reach + 22) then
-			local dir = Vector2.new(1, 0)
-			if nearest and (nearest :: any).points then
-				local pts = (nearest :: any).points
-				dir = (pts[#pts] - pts[1]).Unit
-			end
-			local y = groundY(p)
-			local bed = put(ctx, "Beds", name, p, yawAlong(dir), 1, { y = y, r = reach + 1 })
-			if bed then
-				beds += 1
-				-- two flowers per bed in drifts: the taller kind away from the nearest path
-				local pair = BED_FLOWERS[(beds - 1) % #BED_FLOWERS + 1]
-				local tall, low = pair[1], pair[2]
-				if (KitAssets.info(tall).meta.height or 1) < (KitAssets.info(low).meta.height or 1) then
-					tall, low = low, tall
-				end
-				local normal = Vector2.new(-dir.Y, dir.X)
-				local pc = pathClear(p + normal)
-				local back = if pc > pathClear(p - normal) then normal else -normal
-				local rx, ry = (meta.rx or 4.5) - 1.3, (meta.ry or 4.5) - 1.3
-				for u = -rx, rx, 1.9 do
-					for v = -ry, ry, 1.9 do
-						if (u / rx) ^ 2 + (v / ry) ^ 2 <= 1.05 then
-							local q = p + dir * u + normal * v
-							local depth = (q - p):Dot(back) / math.max(ry, 0.1)
-							local kind = if depth > -0.1 + ctx.rng:NextNumber(-0.25, 0.25) then tall else low
-							put(ctx, "Beds", kind, q, ctx.rng:NextNumber(0, 6.28), ctx.rng:NextNumber(0.9, 1.1), {
-								y = y + (meta.soil or 0.6),
-							})
-						end
-					end
+local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, pathSide: Vector2, palette: number)
+	local meta = KitAssets.info(name).meta or {}
+	local y = groundY(p)
+	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
+	local rx, ry = (meta.rx or 4.5) - 1.2, (meta.ry or 4.5) - 1.2
+	local across = Vector2.new(-along.Y, along.X)
+	for _, flip in { false, true } do
+		local centre = if flip then mirrorP(p) else p
+		local a = if flip then mirrorD(along) else along
+		local c = if flip then mirrorD(across) else across
+		local toward = if flip then mirrorD(pathSide) else pathSide
+		for u = -rx, rx, 1.7 do
+			for v = -ry, ry, 1.7 do
+				if (u / rx) ^ 2 + (v / ry) ^ 2 <= 1.05 then
+					local q = centre + a * u + c * v
+					-- depth across the bed from the path side (-1 front .. 1 back)
+					local depth = -((q - centre):Dot(toward)) / math.max(math.max(rx, ry), 0.1)
+					local band = if depth > 0.35 then 1 elseif depth > -0.35 then 2 else 3
+					put(ctx, "Beds", kinds[band], q, (u * 7 + v * 3) % 6.28, if band == 3 then 0.9 else 1, {
+						y = y + (meta.soil or 0.6),
+					})
 				end
 			end
 		end
 	end
 end
 
+local function bedPair(ctx: Ctx, name: string, p: Vector2, along: Vector2, palette: number): boolean
+	local meta = KitAssets.info(name).meta or {}
+	local reach = math.max(meta.rx or 4.5, meta.ry or 4.5)
+	if not lawnOkPair(p, reach, 1.5) then
+		return false
+	end
+	local y = groundY(p)
+	local a = putPair(ctx, "Beds", name, p, Vector2.new(-along.Y, along.X), 1, { y = y, r = reach + 1 })
+	if not a then
+		return false
+	end
+	local _, nearest = pathClear(p)
+	local toward = Vector2.new(0, 1)
+	if nearest and (nearest :: any).points then
+		local pts = (nearest :: any).points
+		local best, foot = math.huge, p
+		for i = 1, #pts - 1 do
+			local s, e = pts[i], pts[i + 1]
+			local ab = e - s
+			local t = math.clamp((p - s):Dot(ab) / ab:Dot(ab), 0, 1)
+			local f = s + ab * t
+			if (f - p).Magnitude < best then
+				best, foot = (f - p).Magnitude, f
+			end
+		end
+		toward = if (foot - p).Magnitude > 0.1 then (foot - p).Unit else toward
+	end
+	plantBed(ctx, name, p, along, toward, palette)
+	return true
+end
+
+local function buildBeds(ctx: Ctx)
+	local palette = 0
+	-- corner beds where each east avenue meets the garden ring (its mirror takes the west one)
+	for k = 4, 6 do
+		local pts, width = avenueLine(k)
+		local dir = (pts[#pts] - pts[1]).Unit
+		local normal = Vector2.new(-dir.Y, dir.X)
+		local junction = pts[1] + dir * ((pts[1] - Vector2.zero).Magnitude - park.ringRadius)
+		local tangent = Vector2.new(junction.Y, -junction.X).Unit
+		for _, su in { 1, -1 } do
+			for _, sv in { 1, -1 } do
+				local p = junction + dir * su * (4 + 6.2) + normal * sv * (width / 2 + 6.2)
+				palette += 1
+				local name = if KitAssets.has("BedCornerFillet") then "BedCornerFillet" else "BedRound"
+				bedPair(ctx, name, p, tangent, palette)
+			end
+		end
+	end
+	-- beds along the east avenues, between the ring and the plaza and outside the ring
+	walkEast(30, 22, function(p, dir, normal, path, _n)
+		if not string.find((path :: any).kind, "Avenue") then
+			return
+		end
+		local width = (path :: any).width or 8
+		for _, s in { 1, -1 } do
+			local name = if KitAssets.has("BedAvenueStraight") then "BedAvenueStraight" else "BedOval"
+			local meta = KitAssets.info(name).meta or {}
+			local at = p + normal * s * (width / 2 + 1.5 + (meta.ry or 3))
+			palette += 1
+			bedPair(ctx, name, at, dir, palette)
+		end
+	end)
+	-- arc beds round the fountain plaza, between the avenue mouths
+	local ringR = park.plazaRadius + 9
+	for k = 1, 3 do
+		local bearing = math.rad(-90 + 30 * k) -- between avenues (k - 1) + 3 and k + 3 on the east
+		local p = Vector2.new(math.sin(bearing), math.cos(bearing)) * ringR
+		local tangent = Vector2.new(math.cos(bearing), -math.sin(bearing))
+		if p.X > AXIS + 0.5 then
+			local name = if KitAssets.has("BedFountainArc") then "BedFountainArc" else "BedOval"
+			palette += 1
+			bedPair(ctx, name, p, tangent, palette)
+		end
+	end
+	-- the north-axis bed in front of the gazebo is placed once (on the axis)
+end
+
 -- ---------------------------------------------------------------- lawns
--- Grass tufts set back from the path edges (never over them), and low flower drifts on the
--- open lawns, one kind per drift.
+-- Grass tufts set back from the path edges (never over them) and low flower drifts on the open
+-- lawns, one kind per drift; all mirrored about the axis.
 local function buildLawns(ctx: Ctx)
-	walkPaths(6.5, 2, function(p, _dir, normal, path, n)
+	walkEast(6.5, 2, function(p, _dir, normal, path, n)
 		local width = (path :: any).width or 8
 		local side = if n % 2 == 0 then 1 else -1
 		local at = p + normal * side * (width / 2 + ctx.rng:NextNumber(1.2, 2.2))
-		if ctx.rng:NextNumber() < 0.6 and lawnOk(at, 0.8, 0.9) and free(ctx, at, 1.2) then
-			put(
-				ctx,
-				"Lawns",
-				if ctx.rng:NextNumber() < 0.6 then "GrassTuft" else "GrassTuftWide",
-				at,
-				ctx.rng:NextNumber(0, 6.28),
-				1
-			)
+		if ctx.rng:NextNumber() < 0.6 and lawnOkPair(at, 0.8, 0.9) and free(ctx, at, 1.2) then
+			local kind = if ctx.rng:NextNumber() < 0.6 then "GrassTuft" else "GrassTuftWide"
+			putPair(ctx, "Lawns", kind, at, Vector2.new(0, 1), 1, {})
 		end
 	end)
 	local kinds = { "Daisies", "BlueWildflowers", "Poppies", "Daisies", "TulipsYellow" }
 	local drifts, tries = 0, 0
-	while drifts < 12 and tries < 800 do
+	while drifts < 6 and tries < 800 do
 		tries += 1
-		local a = ctx.rng:NextNumber(0, 6.28)
+		local a = ctx.rng:NextNumber(-math.pi / 2, math.pi / 2) -- east half (bearing from north)
 		local r = ctx.rng:NextNumber(park.plazaRadius + 12, PARK_OUTER - 6)
-		local p = Vector2.new(math.cos(a), math.sin(a)) * r
-		if lawnOk(p, 5, 4) and free(ctx, p, 7) then
+		local p = Vector2.new(math.sin(a), math.cos(a)) * r
+		if p.X > AXIS + 8 and lawnOkPair(p, 5, 4) and free(ctx, p, 7) and free(ctx, mirrorP(p), 7) then
 			drifts += 1
 			local kind = kinds[(drifts - 1) % #kinds + 1]
 			for _ = 1, ctx.rng:NextInteger(6, 9) do
 				local b = ctx.rng:NextNumber(0, 6.28)
 				local q = p + Vector2.new(math.cos(b), math.sin(b)) * 4.5 * math.sqrt(ctx.rng:NextNumber())
-				if lawnOk(q, 0.8, 1) then
-					put(ctx, "Lawns", kind, q, ctx.rng:NextNumber(0, 6.28), ctx.rng:NextNumber(0.9, 1.1))
+				if lawnOkPair(q, 0.8, 1) then
+					putPair(
+						ctx,
+						"Lawns",
+						kind,
+						q,
+						Vector2.new(math.cos(b), math.sin(b)),
+						ctx.rng:NextNumber(0.9, 1.1),
+						{}
+					)
 				end
 			end
-			put(ctx, "Lawns", "Clover", p + Vector2.new(5, 2), 0, 1)
+			putPair(ctx, "Lawns", "Clover", p + Vector2.new(5, 2), Vector2.new(0, 1), 1, {})
 			table.insert(ctx.taken, { p = p, r = 5 })
+			table.insert(ctx.taken, { p = mirrorP(p), r = 5 })
 		end
 	end
-	ctx.counts.lawnDrifts = drifts
+	ctx.counts.lawnDrifts = drifts * 2
 end
 
 -- ---------------------------------------------------------------- park trees
@@ -1137,8 +1389,8 @@ function ParkDressing.build(parent: Instance, grid: TerrainWriter.Grid, seed: nu
 		rng = Random.new(seed + 303),
 	}
 	buildFountain(ctx)
-	buildBridges(ctx)
-	buildStands(ctx)
+	buildGazebo(ctx)
+	buildSnackCorners(ctx)
 	task.wait()
 	buildHedges(ctx)
 	buildFurniture(ctx)

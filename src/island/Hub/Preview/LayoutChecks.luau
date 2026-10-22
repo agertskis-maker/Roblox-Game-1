@@ -69,11 +69,12 @@ local function inReservation(p: Vector2, r: any): boolean
 end
 
 -- Parts allowed inside a future reservation by name or attribute (the base flag line in the
--- SignBand, whose note says the tier 2 flag line starts there).
+-- SignBand, whose note says the tier 2 flag line starts there; and the owner's banner, Task 4:
+-- the band is the sign and banner band, and a flat banner on the curved far-turn wall was cropped).
 local FUTURE_ALLOWED: { [string]: (BasePart) -> boolean } = {
 	SignBand = function(part)
 		local line = part:FindFirstAncestor("FlagLine")
-		return line ~= nil and line:GetAttribute("FlagLine") == true
+		return (line ~= nil and line:GetAttribute("FlagLine") == true) or part:GetAttribute("OwnerBanner") == true
 	end,
 }
 

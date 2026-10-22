@@ -9,6 +9,7 @@ local Stats = game:GetService("Stats")
 
 local Cascade = require(script.Parent.Cascade)
 local Field = require(script.Parent.Field)
+local Layout = require(script.Parent.Parent.Layout)
 
 local TerrainWriter = {}
 
@@ -95,18 +96,26 @@ function TerrainWriter.zoneAt(grid: Grid, p: Vector2): string
 	return grid.zone[index(ix, iz)]
 end
 
+-- The park river from the layout: its polyline (passed in, normally Layout.Data.park.stream),
+-- width (park.streamWidth) and whether it is the Task 4 loop (park.riverLoop; both ends in the
+-- lake, no spring pond).
+function TerrainWriter.river(stream: { Vector2 }): Field.River
+	local park = Layout.Data.park
+	return Field.river(stream, park.streamWidth, (park :: any).riverLoop == true)
+end
+
 -- Sample the field on every column.
 local function sampleGrid(seed: number, stream: { Vector2 }, progress: (string, number) -> ()): Grid
 	local nz = Field.noiseFor(seed)
 	TerrainWriter.FlowFitWorst = Field.fitFlows(nz)
+	local river = TerrainWriter.river(stream)
 	local grid: Grid = { h = {}, water = {}, flags = {}, zone = {}, far = {}, slope = {}, material = {}, seed = seed }
 	for iz = 1, NZ do
 		for ix = 1, NX do
 			local p = TerrainWriter.columnPlan(ix, iz)
 			local s = Field.sample(nz, p)
-			if s.hub or Field.hubDistance(p) < 40 then
-				Field.applyStream(s, stream, p)
-			end
+			-- the river carves only near its own polyline (a bounds test first, so it is cheap)
+			Field.applyStream(s, river, p)
 			local i = index(ix, iz)
 			grid.h[i] = s.h
 			grid.water[i] = s.water or -math.huge
@@ -382,31 +391,30 @@ end
 export type WriteStats = { chunks: number, voxels: number, peakMb: number }
 
 -- The material below a column's three surface layers, which is what a steep cliff face shows:
---   wet: dark basalt in the spray zone of the falls (behind and beside the upper fall, round the
---     ledge basin and the lower falls, low round the plunge pool) and in a band at the lake's
---     waterline under the lakeside cliffs;
---   damp: a few moss pockets (leafy grass) beside the spray zone, from a high noise threshold so
---     they stay sparse;
+--   wet: dark basalt in a band either side of the falls (research, Task 4: 4 to 8 studs beyond
+--     the water): behind the upper fall, beside the curtain below the second ledge, and a low
+--     band round the landing pool; and a band at the lake's waterline under the lakeside cliffs;
+--   moss: one or two long strips (leafy grass) along the outer edge of the curtain's wet band,
+--     from broad vertical noise, so they read as strips rather than speckle;
 --   dry: broad Rock and Slate masses from large-scale noise, so neighbouring faces differ in tone
 --     without small repeating detail.
 local function deepMaterial(grid: Grid, ix: number, iz: number, yb: number, nz: Field.Noise): Enum.Material
 	local p = TerrainWriter.columnPlan(ix, iz)
-	local dx = math.abs(p.X - Cascade.X)
+	local dx = math.abs(p.X - Cascade.Curtain.x)
 	local cliffBand = p.Y > -345 and p.Y < -250
 	if cliffBand then
-		local spray = (dx < 16 and yb < Cascade.LipHeight + 4)
-			or (dx < 28 and yb < Cascade.Ledge.height + 10)
-			or (dx < 42 and yb < 26)
+		local curtainHalf = Cascade.Curtain.width / 2
+		-- the upper fall is about 7 wide: 3.5 half width plus a 6-stud wet band
+		local spray = (dx < 9.5 and yb < Cascade.LipHeight + 4)
+			or (dx < curtainHalf + 7 and yb < Cascade.Ledge.height + 3)
+			or (dx < Cascade.Pool.rx + 2 and yb < Field.LakeLevel + 2)
 		if spray then
 			return Enum.Material.Basalt
 		end
-		if dx < 60 and yb < Cascade.Ledge.height + 30 then
-			local m = math.noise(p.X / 9 + nz.ox, yb / 9, p.Y / 9 + nz.oy)
-			if m > 0.42 then
+		if dx < curtainHalf + 10 and yb < Cascade.Ledge.height + 3 then
+			local m = math.noise(p.X / 24 + nz.ox, yb / 90, p.Y / 24 + nz.oy)
+			if m > 0.2 then
 				return Enum.Material.LeafyGrass
-			end
-			if m < -0.3 then
-				return Enum.Material.Basalt
 			end
 		end
 	end

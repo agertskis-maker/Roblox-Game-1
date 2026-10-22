@@ -5,6 +5,7 @@
 -- portal row. Portals are frameless glowing discs in each World's placeholder colour;
 -- the locked ones are dimmed behind a chain with a low sign. All placeholders.
 
+local Bridges = require(script.Parent.Parent.Environment.Bridges)
 local Kit = require(script.Parent.Parent.Parent.Kit)
 local Layout = require(script.Parent.Parent.Layout)
 local Palette = require(script.Parent.Parent.Parent.WorldPalette)
@@ -17,7 +18,6 @@ local W = Layout.planToWorld
 
 local PATH_TOP = SURFACE + 0.08
 local STREAM_TOP = SURFACE + 0.06
-local BRIDGE_TOP = SURFACE + 0.35
 
 type Cut = { at: Vector2, half: number }
 
@@ -109,6 +109,220 @@ local function standing(
 	return Kit.part(parent, size, CFrame.lookAt(pos, pos + W(facing) - W(Vector2.zero)), options)
 end
 
+-- ---------------------------------------------------------------- path joins (Task 4, brief §5)
+-- A flat paving triangle (two wedges) with its top at topY, plan corners a, b, c.
+local function triangle(parent: Instance, a: Vector2, b: Vector2, c: Vector2, topY: number, colour: Color3)
+	local thickness = 0.1
+	local A, B, C = W(a, topY - thickness / 2), W(b, topY - thickness / 2), W(c, topY - thickness / 2)
+	-- the longest side is the base; the apex drops a perpendicular foot onto it
+	local ab, bc, ca = (B - A).Magnitude, (C - B).Magnitude, (A - C).Magnitude
+	if ab >= bc and ab >= ca then
+		A, B, C = A, B, C
+	elseif bc >= ab and bc >= ca then
+		A, B, C = B, C, A
+	else
+		A, B, C = C, A, B
+	end
+	local base = B - A
+	local baseLen = base.Magnitude
+	if baseLen < 0.05 then
+		return
+	end
+	local along = base / baseLen
+	local t = (C - A):Dot(along)
+	local foot = A + along * t
+	local height = (C - foot).Magnitude
+	if height < 0.05 then
+		return
+	end
+	local up = (C - foot).Unit
+	local normal = along:Cross(up).Unit
+	for _, piece in { { A, foot, t }, { B, foot, baseLen - t } } do
+		local corner, f, len = piece[1], piece[2], piece[3]
+		if len > 0.05 then
+			local w = Instance.new("WedgePart")
+			w.Name = "JoinFill"
+			w.Anchored = true
+			w.CanCollide = true
+			w.CastShadow = false
+			w.CanTouch = false
+			w.Material = Enum.Material.SmoothPlastic
+			w.Color = colour
+			w.TopSurface = Enum.SurfaceType.Smooth
+			w.BottomSurface = Enum.SurfaceType.Smooth
+			w.Size = Vector3.new(thickness, height, len)
+			-- a wedge's slope runs from its top-back edge to its bottom-front edge; its right angle
+			-- sits at the foot, the long leg (Z) along the base toward `corner`
+			local back = (f - corner).Unit
+			local mid = (corner + f) / 2 + up * height / 2
+			w.CFrame = CFrame.fromMatrix(mid, normal, up, back)
+			if normal:Cross(up):Dot(back) < 0 then
+				w.CFrame = CFrame.fromMatrix(mid, -normal, up, back)
+			end
+			w.Parent = parent
+		end
+	end
+end
+
+local function lineIntersect(p: Vector2, u: Vector2, q: Vector2, v: Vector2): Vector2?
+	local den = u.X * v.Y - u.Y * v.X
+	if math.abs(den) < 1e-6 then
+		return nil
+	end
+	local d = q - p
+	local t = (d.X * v.Y - d.Y * v.X) / den
+	return p + u * t
+end
+
+local function nearestOn(points: { Vector2 }, p: Vector2): (number, Vector2)
+	local best, dir = math.huge, Vector2.new(1, 0)
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local ab = b - a
+		if ab.Magnitude > 1e-6 then
+			local t = math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
+			local d = (p - (a + ab * t)).Magnitude
+			if d < best then
+				best, dir = d, ab.Unit
+			end
+		end
+	end
+	return best, dir
+end
+
+-- The four corners where straight edges of path P (through J along dirP, half width hP) and
+-- path Q (along dirQ, half width hQ) meet get a chamfer fillet of radius r. A corner is filled
+-- only where both paths really continue past it (`onP` and `onQ` say whether a point is paved).
+local function filletCorners(
+	parent: Instance,
+	J: Vector2,
+	dirP: Vector2,
+	hP: number,
+	dirQ: Vector2,
+	hQ: number,
+	r: number,
+	onP: (Vector2) -> boolean,
+	onQ: (Vector2) -> boolean,
+	colour: Color3
+): number
+	local nP, nQ = Vector2.new(-dirP.Y, dirP.X), Vector2.new(-dirQ.Y, dirQ.X)
+	local made = 0
+	for _, sP in { 1, -1 } do
+		for _, sQ in { 1, -1 } do
+			local C = lineIntersect(J + nP * sP * hP, dirP, J + nQ * sQ * hQ, dirQ)
+			if C and (C - J).Magnitude < 4 * (hP + hQ + 1) then
+				local u1 = dirP * (if dirP:Dot(nQ) * sQ >= 0 then 1 else -1)
+				local u2 = dirQ * (if dirQ:Dot(nP) * sP >= 0 then 1 else -1)
+				local cosT = math.clamp(u1:Dot(u2), -0.99, 0.99)
+				local theta = math.acos(cosT)
+				local t = math.min(r / math.tan(theta / 2), 3 * r)
+				local T1, T2 = C + u1 * t, C + u2 * t
+				-- the corner must face grass, and each tangent point must sit on its own path edge
+				if onP(T1) and onQ(T2) then
+					triangle(parent, C - (u1 + u2) * 0.05, T1, T2, PATH_TOP, colour)
+					made += 1
+				end
+			end
+		end
+	end
+	return made
+end
+
+-- Fills the corners where the paths join each other and the plaza, and the strip between the
+-- plaza edge, the three portal approaches and the stage walk (the Task 4 before view showed
+-- grass gaps and slivers there).
+local function buildJoins(model: Model)
+	local folder = Instance.new("Folder")
+	folder.Name = "Joins"
+	folder.Parent = model
+	local made = 0
+	local function onPath(path: any): (Vector2) -> boolean
+		return function(p: Vector2): boolean
+			local d = nearestOn(path.points, p)
+			return d <= path.width / 2 + 0.6
+		end
+	end
+	local onPlaza = function(p: Vector2): boolean
+		return p.Magnitude <= park.plazaRadius + 0.8
+	end
+	for i, P in park.paths do
+		local pts = P.points
+		-- plaza joins: a path end on the plaza circle
+		for _, e in { pts[1], pts[#pts] } do
+			if math.abs(e.Magnitude - park.plazaRadius) < 1.5 then
+				local _, dir = nearestOn(pts, e)
+				local tangent = Vector2.new(-e.Y, e.X).Unit
+				made += filletCorners(
+					folder,
+					e,
+					dir,
+					P.width / 2,
+					tangent,
+					0,
+					P.width / 2,
+					onPath(P),
+					onPlaza,
+					Palette.Paving
+				)
+			end
+		end
+		-- crossings and T-joins with every later path
+		for k = i + 1, #park.paths do
+			local Q = park.paths[k]
+			local qpts = Q.points
+			for a = 1, #pts - 1 do
+				for b = 1, #qpts - 1 do
+					local p0, p1, q0, q1 = pts[a], pts[a + 1], qpts[b], qpts[b + 1]
+					local u, v = p1 - p0, q1 - q0
+					local den = u.X * v.Y - u.Y * v.X
+					if math.abs(den) > 1e-6 then
+						local d = q0 - p0
+						local t = (d.X * v.Y - d.Y * v.X) / den
+						local s = (d.X * u.Y - d.Y * u.X) / den
+						-- inclusive ends with a little slack, so a path ending on another counts
+						local slackP, slackQ = 1.5 / u.Magnitude, 1.5 / v.Magnitude
+						if t >= -slackP and t <= 1 + slackP and s >= -slackQ and s <= 1 + slackQ then
+							local J = p0 + u * t
+							made += filletCorners(
+								folder,
+								J,
+								u.Unit,
+								P.width / 2,
+								v.Unit,
+								Q.width / 2,
+								math.min(P.width, Q.width) / 2,
+								onPath(P),
+								onPath(Q),
+								if string.find(P.kind, "Promenade") or string.find(Q.kind, "Promenade")
+									then Palette.Promenade
+									else Palette.Paving
+							)
+						end
+					end
+				end
+			end
+		end
+	end
+	-- the stage forecourt: between the plaza edge and the stage walk across the portal row
+	local pr = park.portal
+	local edgeY = pr.frontY + 3 + 5 -- the stage walk's plaza-side edge
+	local xMax = pr.spacing + 7
+	local step = 5
+	local x = -xMax
+	while x < xMax - 1e-6 do
+		local x1 = math.min(x + step, xMax)
+		local y0 = -math.sqrt(math.max(0, park.plazaRadius ^ 2 - x ^ 2)) + 0.4
+		local y1 = -math.sqrt(math.max(0, park.plazaRadius ^ 2 - x1 ^ 2)) + 0.4
+		local a, b = Vector2.new(x, y0), Vector2.new(x1, y1)
+		local c, d = Vector2.new(x1, edgeY - 0.4), Vector2.new(x, edgeY - 0.4)
+		triangle(folder, a, b, c, PATH_TOP - 0.005, Palette.Paving)
+		triangle(folder, a, c, d, PATH_TOP - 0.005, Palette.Paving)
+		made += 2
+		x = x1
+	end
+	folder:SetAttribute("Fillets", made)
+end
+
 local function buildPlaza(model: Model)
 	Kit.disc(
 		model,
@@ -155,12 +369,11 @@ local function buildPaths(model: Model)
 	local water = hasTerrainWater()
 	for _, p in park.paths do
 		local colour = if string.find(p.kind, "Promenade") then Palette.Promenade else Palette.Paving
+		-- each path strip ends exactly at its bridge deck (Task 4: flush decks, no overlap)
 		local cuts: { Cut } = {}
-		if water then
-			for _, b in park.bridges do
-				if b.path == p.kind then
-					table.insert(cuts, { at = b.at, half = b.span / 2 - 1 })
-				end
+		for _, b in park.bridges do
+			if b.path == p.kind then
+				table.insert(cuts, { at = b.at, half = Bridges.pathCut(b) })
 			end
 		end
 		polyline(
@@ -174,6 +387,7 @@ local function buildPaths(model: Model)
 	end
 
 	if not water then
+		-- greybox water strip (no terrain yet), kept just under the decks and paths
 		local stream = Instance.new("Folder")
 		stream.Name = "Stream"
 		stream.Parent = model
@@ -181,54 +395,13 @@ local function buildPaths(model: Model)
 			stream,
 			park.stream,
 			park.streamWidth,
-			STREAM_TOP + 0.04,
+			STREAM_TOP,
 			{ name = "Stream", color = Palette.ShallowWater, castShadow = false }
 		)
 	end
 
-	local bridges = Instance.new("Folder")
-	bridges.Name = "Bridges"
-	bridges.Parent = model
-	for i, b in park.bridges do
-		local bridge = Instance.new("Model")
-		bridge.Name = string.format("Bridge%02d", i)
-		bridge:SetAttribute("Path", b.path)
-		-- Where the stream crosses at a path junction, two bridges overlap; rails along one
-		-- would cut across the other path, so that junction stays open (one wider bridge later).
-		local shared = false
-		for k, other in park.bridges do
-			if k ~= i and (other.at - b.at).Magnitude < (b.span + other.deckWidth) / 2 then
-				shared = true
-			end
-		end
-		bridge:SetAttribute("SharedJunction", shared)
-		local a = W(b.at - b.dir * b.span / 2)
-		local c = W(b.at + b.dir * b.span / 2)
-		Kit.strip(
-			bridge,
-			a,
-			c,
-			b.deckWidth,
-			0.3,
-			BRIDGE_TOP,
-			hidden({ name = "Deck", color = Palette.Cream, collide = true, castShadow = false }),
-			0
-		)
-		local side = Vector2.new(-b.dir.Y, b.dir.X)
-		for _, s in if shared then {} else { -1, 1 } do
-			local off = side * s * (b.deckWidth / 2 - 0.3)
-			Kit.wall(
-				bridge,
-				W(b.at - b.dir * (b.span / 2 - 1) + off),
-				W(b.at + b.dir * (b.span / 2 - 1) + off),
-				0.5,
-				2.2,
-				BRIDGE_TOP,
-				hidden({ name = "Rail", color = Palette.Navy, collide = true })
-			)
-		end
-		bridge.Parent = bridges
-	end
+	-- one flush bridge at every river crossing (Environment/Bridges, Task 4)
+	Bridges.build(model)
 end
 
 local function buildBuildings(model: Model)
@@ -328,10 +501,12 @@ local function buildBuildings(model: Model)
 		local m = Instance.new("Model")
 		m.Name = board.id
 		m:SetAttribute("Placeholder", true)
+		local facing = board.facing or Vector2.new(0, 1)
+		local across = Vector2.new(-facing.Y, facing.X)
 		standing(
 			m,
 			board.centre,
-			Vector2.new(0, 1),
+			facing,
 			Vector3.new(board.width, board.height - 4, board.depth),
 			SURFACE + 4,
 			{ name = "Board", color = Palette.Navy, collide = true }
@@ -339,8 +514,8 @@ local function buildBuildings(model: Model)
 		for _, s in { -1, 1 } do
 			standing(
 				m,
-				board.centre + Vector2.new(s * (board.width / 2 - 1), 0),
-				Vector2.new(0, 1),
+				board.centre + across * s * (board.width / 2 - 1),
+				facing,
 				Vector3.new(1, 4, 1),
 				SURFACE,
 				{ name = "Leg", color = Palette.Navy, collide = true }
@@ -444,6 +619,7 @@ end
 function Park.build(model: Model)
 	buildPlaza(model)
 	buildPaths(model)
+	buildJoins(model)
 	buildBuildings(model)
 	buildPortals(model)
 end

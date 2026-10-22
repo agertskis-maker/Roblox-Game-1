@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import kitlib  # noqa: E402
 
-FAMILIES = ["trees", "plants", "props", "animals", "portal", "plot"]
+FAMILIES = ["trees", "plants", "props", "animals", "portal", "plot", "park4", "stunt"]
 
 
 def parse_args():
@@ -83,6 +83,14 @@ def main():
         import kit_plot
 
         kit_plot.build_all(emit)
+    if "stunt" in only:
+        import kit_stunt
+
+        kit_stunt.build_all(emit)
+    if "park4" in only:
+        import kit_park4
+
+        kit_park4.build_all(emit)
 
     # previous manifest entries for families not rebuilt this run are kept
     path = os.path.join(out, "manifest.json")

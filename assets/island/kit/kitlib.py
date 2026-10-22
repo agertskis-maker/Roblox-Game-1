@@ -49,6 +49,18 @@ PALETTE = [
     ("rope", (200, 176, 130)), ("leaf_litter", (150, 112, 62)), ("dirt", (122, 92, 64)),
     # appended for the portal lock, sign and plot front (Task 3); existing cells are unchanged
     ("steel", (96, 102, 110)), ("brass", (200, 158, 66)), ("coral", (244, 127, 112)), ("mint", (128, 216, 189)),
+    # appended for the Task 4 park4 family (navy / teal structure, cream trims); existing cells are unchanged
+    ("navy", (36, 58, 98)), ("teal", (34, 138, 146)), ("cream", (244, 236, 214)),
+    # appended for the Task 4 gates family (portal gate themes, lock, plot gate); existing cells are unchanged
+    ("deco_gold", (236, 184, 58)), ("sand_red", (190, 82, 56)), ("sand_orange", (226, 134, 74)),
+    ("sand_cream", (238, 200, 150)), ("sand_dark", (146, 64, 46)), ("alpine_stone", (218, 224, 230)),
+    ("alpine_shadow", (176, 188, 200)), ("snow", (250, 252, 255)), ("ice", (96, 206, 238)),
+    ("ice_light", (184, 238, 252)), ("chain_iron", (82, 76, 72)), ("inlay_off", (60, 64, 76)),
+    ("accent_neutral", (226, 226, 226)),
+    # appended for the Task 4 garage family (sign face, glass, floors, lights); existing cells are unchanged
+    ("red_orange", (234, 88, 50)), ("teal_dark", (26, 104, 112)), ("glass", (176, 218, 232)),
+    ("glass_tint", (74, 112, 140)), ("concrete", (172, 174, 170)), ("light_panel", (255, 248, 226)),
+    ("tile_grey", (210, 212, 214)),
 ]
 SW = {name: i for i, (name, _) in enumerate(PALETTE)}
 GRID = 16

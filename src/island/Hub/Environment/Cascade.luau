@@ -1,10 +1,12 @@
 --!strict
 -- The waterfall system's geometry (Lane 3, build-time, pure). One connected flow:
 --   snowfield creek + side tarn stream -> upper falls (free fall off a projecting lip) and a
---   side horsetail sliding down a rock chute -> shared ledge basin -> lower falls split into
---   three unequal streams by rock projections -> plunge pool -> lake current -> park stream.
--- The cliff is a stepped face: an upper face, an uneven ledge terrace, a lower face, with
--- drainage grooves cut into both faces, a projecting lip, a grotto behind the lower falls.
+--   side horsetail sliding down a rock chute -> shared ledge basin -> a spill sheet across the
+--   second ledge -> one main curtain (Task 4, brief section 7) -> landing pool -> lake current
+--   -> the park river loop.
+-- The cliff is a stepped face in a few broad masses (Task 4): an upper face, a ledge terrace in
+-- unequal broad steps and a lower face, each face swinging back in wide bays between buttresses
+-- rather than narrow grooves; a projecting lip and a grotto behind the curtain.
 -- Plan frame (x east, y north); heights are studs above the hub surface. Every channel
 -- floor descends toward its outlet (checked by Cascade.check()).
 
@@ -18,7 +20,15 @@ Cascade.LipHeight = 168.5 -- water leaves the lip here
 Cascade.LipEdgeY = -289 -- the projecting lip's north edge
 Cascade.Ledge = { height = 82, basin = Vector2.new(-118, -284), basinRadius = 9.5, basinFloor = 76.5, water = 81.2 }
 Cascade.LowerLip = { height = 81.2, y = -276 }
-Cascade.Pool = { centre = Vector2.new(-121, -267), radius = 14, floor = -8 }
+-- The main curtain off the second ledge: 14 wide (research: 12 to 16), on the falls line.
+Cascade.Curtain = { x = -120, width = 14 }
+-- The landing pool: 40 across (about 2.9 curtain widths, research 2.5 to 3), 26 north-south,
+-- joined to the lake and stopping at the lower face. `radius` is the larger semi-axis, for
+-- code that wants a round keep-out.
+Cascade.Pool = { centre = Vector2.new(-121, -265), rx = 20, ry = 13, radius = 20, floor = -9 }
+-- The side tarn, its stream and the horsetail chute (IRW-65). False removes their terrain,
+-- water and beams, leaving the curtain as the only fall below the ledge.
+Cascade.SideFalls = true
 Cascade.Tarn = { centre = Vector2.new(-74, -338), radius = 9, floor = 149.5, water = 153.5 }
 
 export type FlowPoint = { p: Vector2, h: number }
@@ -55,14 +65,6 @@ Cascade.Horsetail = {
 } :: { FlowPoint }
 Cascade.ChuteHalf = 4.5
 
--- Lower falls: three unequal streams from the lower lip, converging on the pool.
-Cascade.LowerStreams = {
-	{ x = -131, width = 6 },
-	{ x = -120.5, width = 9.5 },
-	{ x = -110.5, width = 4.5 },
-}
-Cascade.LowerSplits = { -126.2, -114.6 } -- rock projections between the streams
-
 local function smoothstep(a: number, b: number, x: number): number
 	local t = math.clamp((x - a) / (b - a), 0, 1)
 	return t * t * (3 - 2 * t)
@@ -72,13 +74,16 @@ local function gauss(x: number, c: number, w: number): number
 	return math.exp(-((x - c) / w) ^ 2)
 end
 
--- Drainage grooves and crevices recede the faces (more negative y) at fixed places.
-local UPPER_GROOVES = { { -168, 4.5, 3 }, { -147, 3, 2.2 }, { -99, 5, 2.6 }, { -78, 3.5, 3 }, { -57, 4, 2 } }
-local LOWER_GROOVES = { { -160, 3.5, 2.5 }, { -140, 4, 2 }, { -96, 3, 2.4 }, { -70, 4.5, 3 } }
+-- Broad masses (Task 4, replacing narrow drainage grooves): each face is a few wide buttresses
+-- with shallow bays between them, as { centre x, recess (studs, toward more negative y), width }.
+-- Bay widths of 14 to 16 studs read as separate rock masses from the park; the falls line
+-- itself stays on the face line, so the lip, ledge and curtain keep their positions.
+local UPPER_BAYS = { { -166, 5, 16 }, { -84, 4, 15 }, { -50, 3, 14 } }
+local LOWER_BAYS = { { -158, 4, 15 }, { -84, 4.5, 14 } }
 
 function Cascade.upperFaceY(x: number): number
 	local y = Cascade.UpperFaceY
-	for _, g in UPPER_GROOVES do
+	for _, g in UPPER_BAYS do
 		y -= g[2] * gauss(x, g[1], g[3])
 	end
 	-- the face swings back a little away from the falls, so it is not one straight wall
@@ -87,7 +92,7 @@ end
 
 function Cascade.lowerFaceY(x: number): number
 	local y = Cascade.LowerFaceY
-	for _, g in LOWER_GROOVES do
+	for _, g in LOWER_BAYS do
 		y -= g[2] * gauss(x, g[1], g[3])
 	end
 	return y - 0.0011 * (x - Cascade.X) ^ 2
@@ -152,7 +157,9 @@ function Cascade.shape(p: Vector2, h: number): Shape?
 		else
 			out.h = h * (1 - band)
 		end
-		out.wetRock = dx < 34 and y > -300
+		-- wet dark rock in a band either side of the falls (research: 4 to 8 studs beyond the
+		-- water), not across the whole bay
+		out.wetRock = dx < Cascade.Curtain.width / 2 + 8 and y > -300
 	end
 
 	-- the ledge basin
@@ -164,9 +171,19 @@ function Cascade.shape(p: Vector2, h: number): Shape?
 		out.channel = true
 	end
 
+	-- the spill sheet: the basin's water carried across the second ledge to the lower lip over
+	-- the full curtain width, so the curtain leaves one level edge
+	local curtain = Cascade.Curtain
+	if math.abs(x - curtain.x) < curtain.width / 2 + 1 and y > Cascade.Ledge.basin.Y and y <= Cascade.lowerFaceY(x) then
+		out.h = math.min(out.h, Cascade.Ledge.water - 0.5)
+		out.water = Cascade.Ledge.water
+		out.channel = true
+		out.ledge = true
+	end
+
 	-- the tarn on the east shoulder
 	local dt = (p - Cascade.Tarn.centre).Magnitude
-	if dt < Cascade.Tarn.radius + 5 then
+	if Cascade.SideFalls and dt < Cascade.Tarn.radius + 5 then
 		local tarn = Cascade.Tarn
 		if dt < tarn.radius then
 			out.h = tarn.floor + (tarn.water + 0.8 - tarn.floor) * (dt / tarn.radius) ^ 2
@@ -178,7 +195,11 @@ function Cascade.shape(p: Vector2, h: number): Shape?
 	end
 
 	-- creek and side stream: a channel with a rock bed and sloping banks
-	for _, stream in { { Cascade.Creek, Cascade.CreekHalf }, { Cascade.SideStream, Cascade.SideHalf } } do
+	local streams: { { any } } = { { Cascade.Creek, Cascade.CreekHalf } }
+	if Cascade.SideFalls then
+		table.insert(streams, { Cascade.SideStream, Cascade.SideHalf })
+	end
+	for _, stream in streams do
 		local pts = stream[1] :: { FlowPoint }
 		local half = stream[2] :: number
 		local d, floor = along(pts, p)
@@ -198,7 +219,7 @@ function Cascade.shape(p: Vector2, h: number): Shape?
 	-- horsetail chute: a buttress whose top carries the slide, with walls either side
 	local dc, chuteH = along(Cascade.Horsetail, p)
 	local inBasin = db < Cascade.Ledge.basinRadius
-	if dc < Cascade.ChuteHalf + 6 and not inBasin then
+	if Cascade.SideFalls and dc < Cascade.ChuteHalf + 6 and not inBasin then
 		local bumps = 1.1 * math.sin(chuteH * 0.55) + 0.6 * math.sin(chuteH * 1.7)
 		local surface = chuteH + bumps
 		local wall = surface + math.max(0, dc - Cascade.ChuteHalf) * 2.6
@@ -212,9 +233,11 @@ end
 
 export type Volume = { kind: "add" | "carve", centre: Vector3, radii: Vector3, material: Enum.Material? }
 
--- 3D shapes that a height field cannot make: the projecting lip, the rock projections that
--- split the lower falls, an overhang above the ledge, and the grotto behind the lower falls.
--- World studs (X = x, Z = -y).
+-- 3D shapes that a height field cannot make: the projecting lip, two broad buttresses framing
+-- the curtain on the lower face (Task 4: a few large masses instead of the small knobs and the
+-- rocks that split the old three lower streams), and the grotto behind the curtain.
+-- World studs (X = x, Z = -y). The buttresses stay outside the curtain and the sightline
+-- targets (x -134 to -108).
 function Cascade.volumes(): { Volume }
 	local X = Cascade.X
 	local vols: { Volume } = {
@@ -224,38 +247,21 @@ function Cascade.volumes(): { Volume }
 			radii = Vector3.new(9, 2.2, 3.4),
 			material = Enum.Material.Basalt,
 		},
-		{
-			kind = "add",
-			centre = Vector3.new(X - 26, 118, -(Cascade.UpperFaceY + 1.5)),
-			radii = Vector3.new(11, 5, 4),
-			material = Enum.Material.Basalt,
-		},
-		{
-			kind = "add",
-			centre = Vector3.new(X + 24, 132, -(Cascade.UpperFaceY + 1.2)),
-			radii = Vector3.new(8, 4, 3.2),
-			material = Enum.Material.Basalt,
-		},
-		{
-			kind = "carve",
-			centre = Vector3.new(X + 10, 9, -(Cascade.LowerFaceY - 3)),
-			radii = Vector3.new(9, 8.5, 5.5),
-		},
 	}
-	for _, sx in Cascade.LowerSplits do
+	for _, side in { -1, 1 } do
 		table.insert(vols, {
 			kind = "add",
-			centre = Vector3.new(sx, Cascade.LowerLip.height - 1.5, -(Cascade.LowerLip.y + 0.6)),
-			radii = Vector3.new(2.1, 4.2, 3.4),
-			material = Enum.Material.Basalt,
-		})
-		table.insert(vols, {
-			kind = "add",
-			centre = Vector3.new(sx + 0.6, Cascade.LowerLip.height - 14, -(Cascade.LowerLip.y + 1.4)),
-			radii = Vector3.new(1.6, 9, 2.4),
-			material = Enum.Material.Basalt,
+			-- from just under the pool's waterline to below the second ledge
+			centre = Vector3.new(X + side * 19.5, 34, -(Cascade.LowerFaceY + 0.8)),
+			radii = Vector3.new(5.5, 38, 3.6),
+			material = Enum.Material.Slate,
 		})
 	end
+	table.insert(vols, {
+		kind = "carve",
+		centre = Vector3.new(X + 10, 9, -(Cascade.LowerFaceY - 3)),
+		radii = Vector3.new(9, 8.5, 5.5),
+	})
 	return vols
 end
 
@@ -277,6 +283,9 @@ function Cascade.check(): { [string]: any }
 		sideJoinsChute = (Cascade.SideStream[#Cascade.SideStream].p - Cascade.Horsetail[1].p).Magnitude < 0.01,
 		chuteEndsInBasin = (Cascade.Horsetail[#Cascade.Horsetail].p - Cascade.Ledge.basin).Magnitude
 			< Cascade.Ledge.basinRadius,
+		-- the landing pool is 2.5 to 3 curtain widths across (research, Task 4)
+		poolToCurtain = math.round(2 * Cascade.Pool.rx / Cascade.Curtain.width * 100) / 100,
+		curtainOnFallsLine = math.abs(Cascade.Curtain.x - Cascade.X) < 0.01,
 		upperDrop = Cascade.LipHeight - Cascade.Ledge.water,
 		lowerDrop = Cascade.LowerLip.height - -1,
 		totalDrop = Cascade.LipHeight - -1,

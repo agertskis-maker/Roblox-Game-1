@@ -11,8 +11,8 @@
 --            (long north shoulders toward the lake, short south faces), the tallest landmark
 --            west of the portal axis with a spur that ends in the waterfall cliff, and a back
 --            range showing through the saddles;
---   water    the lake behind the portals, a plunge pool, the park stream, the creek above the
---            falls and an outlet gorge draining east.
+--   water    the lake behind the portals, a plunge pool, the park river loop, the creek above
+--            the falls and an outlet gorge draining east.
 -- Ridges are spines with a height and a left and right width at every node; their flanks are
 -- concave (steep near the crest, broad at the base) and they join through a smooth maximum,
 -- so neighbouring peaks share saddles instead of standing alone.
@@ -21,7 +21,9 @@ local Cascade = require(script.Parent.Cascade)
 
 local Field = {}
 
-Field.VERSION = "island-env-2" -- 2: stepped falls cliff, creek, tarn, chute, irregular lake
+-- 3: river loop, one main falls curtain, broad cliff masses, wider plunge pool
+-- (2: stepped falls cliff, creek, tarn, chute, irregular lake)
+Field.VERSION = "island-env-3"
 Field.Cell = 4
 Field.LakeLevel = -1
 Field.HubRadius = 575
@@ -245,9 +247,22 @@ Field.Outlet = {
 	floor0 = -3.5,
 	floor1 = -18,
 }
-Field.StreamHalf = 5
-Field.StreamBank = 8
-Field.StreamFloor = -3.5
+-- The park river (Task 4: one mirrored loop leaving the lake on the west, round the inner park
+-- and back into the lake on the east). Its width comes from the layout (park.streamWidth); the
+-- cross-section, from the centre line out:
+--   bed     flat, RiverBedDepth below the water, across the middle of the channel;
+--   toe     under water, rising 1 : RiverToeRun to the water's edge at half the width;
+--   bank    above water, rising 1 : RiverBankRun (about 16 degrees) to the grassy bank edge,
+--           stone edging for the first RiverStoneBank studs, grass beyond.
+-- Where the ground is already lower (the lake shelf, the shore) the lower surface wins, so the
+-- channel runs on into the lake bed with no wall, lip or dry gap.
+Field.RiverBedDepth = 2.5
+Field.RiverToeRun = 2
+Field.RiverBankRun = 3.5
+Field.RiverStoneBank = 2.5
+-- Only for a stream that is not a loop (park.riverLoop false): a round spring pond at points[1].
+Field.SpringRadius = 8
+Field.SpringBank = 11
 
 local function smoothstep(a: number, b: number, x: number): number
 	local t = math.clamp((x - a) / (b - a), 0, 1)
@@ -514,11 +529,14 @@ function Field.sample(nz: Noise, p: Vector2): Sample
 	}
 	sample.far = smoothstep(-430, -600, y) + smoothstep(640, 820, math.abs(x)) * 0.6
 
-	-- the plunge pool below the falls, joined to the lake
+	-- the landing pool below the main curtain, joined to the lake: an ellipse wider than it is
+	-- deep (about 2.8 curtain widths across), stopping at the lower face so the cliff base
+	-- keeps its line instead of being undercut by the heightfield
 	local pool = Cascade.Pool
-	local dp = (p - pool.centre).Magnitude
-	if dp < pool.radius then
-		sample.h = pool.floor + (Field.LakeLevel - 0.5 - pool.floor) * (dp / pool.radius) ^ 2.2
+	local rel = p - pool.centre
+	local dp = math.sqrt((rel.X / pool.rx) ^ 2 + (rel.Y / pool.ry) ^ 2)
+	if dp < 1 and y > Cascade.lowerFaceY(x) + 0.5 then
+		sample.h = pool.floor + (Field.LakeLevel - 0.5 - pool.floor) * dp ^ 2.2
 		sample.water = Field.LakeLevel
 		sample.lake = true
 		sample.wet = true
@@ -558,16 +576,93 @@ function Field.sample(nz: Noise, p: Vector2): Sample
 	return sample
 end
 
--- The park stream (plan points from the layout): a shallow channel with stone banks.
-function Field.applyStream(sample: Sample, streamPoints: { Vector2 }, p: Vector2)
-	local d = Field.polylineDistance(streamPoints, p)
-	local spring = (p - streamPoints[1]).Magnitude
-	if d < Field.StreamHalf or spring < 8 then
-		sample.h = Field.StreamFloor
+export type River = {
+	points: { Vector2 },
+	half: number, -- half the water width
+	loop: boolean,
+	reach: number, -- distance from the centre line beyond which the river changes nothing
+	lo: Vector2, -- plan bounds of the points, grown by reach (a cheap early out)
+	hi: Vector2,
+}
+
+-- The river the terrain writer carves, from the layout's polyline, width and loop flag.
+function Field.river(points: { Vector2 }, width: number, loop: boolean): River
+	local half = width / 2
+	local reach = half + Field.RiverBankRun * (0 - Field.LakeLevel) + 1
+	if not loop then
+		reach = math.max(reach, Field.SpringBank + 1)
+	end
+	local lo, hi = Vector2.new(math.huge, math.huge), Vector2.new(-math.huge, -math.huge)
+	for _, q in points do
+		lo = Vector2.new(math.min(lo.X, q.X), math.min(lo.Y, q.Y))
+		hi = Vector2.new(math.max(hi.X, q.X), math.max(hi.Y, q.Y))
+	end
+	local grow = Vector2.one * reach
+	return { points = points, half = half, loop = loop, reach = reach, lo = lo - grow, hi = hi + grow }
+end
+
+-- Height of the river's cross-section at distance d from its centre line (see the constants).
+function Field.riverProfile(river: River, d: number): number
+	local water = Field.LakeLevel
+	if d < river.half then
+		return math.max(water - Field.RiverBedDepth, water - (river.half - d) / Field.RiverToeRun)
+	end
+	return water + (d - river.half) / Field.RiverBankRun
+end
+
+-- Distance from p to the river's centre line.
+function Field.riverDistance(river: River, p: Vector2): number
+	local best = math.huge
+	local pts = river.points
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local ab = b - a
+		local len2 = ab:Dot(ab)
+		local t = if len2 > 1e-9 then math.clamp((p - a):Dot(ab) / len2, 0, 1) else 0
+		local d = (p - (a + ab * t)).Magnitude
+		if d < best then
+			best = d
+		end
+	end
+	if not river.loop then
+		-- the S-stream layout: a round spring pond at the upstream end, the same section scaled
+		local spring = (p - pts[1]).Magnitude
+		if spring < Field.SpringRadius then
+			best = math.min(best, spring * river.half / Field.SpringRadius)
+		else
+			best = math.min(best, river.half + (spring - Field.SpringRadius))
+		end
+	end
+	return best
+end
+
+-- The park river carved into a sample: channel, water at the lake level, stone edging and the
+-- sloping bank. Wherever the ground is already lower (inside the lake, on the shore) it stays,
+-- so the channel blends into the lake bed at both mouths.
+function Field.applyStream(sample: Sample, river: River, p: Vector2)
+	if p.X < river.lo.X or p.X > river.hi.X or p.Y < river.lo.Y or p.Y > river.hi.Y then
+		return
+	end
+	local d = Field.riverDistance(river, p)
+	if d >= river.reach then
+		return
+	end
+	local h = Field.riverProfile(river, d)
+	if h < sample.h then
+		sample.h = h
+	end
+	if sample.h < Field.LakeLevel + 0.5 then
 		sample.water = Field.LakeLevel
+	end
+	if sample.lake then
+		return -- the lake keeps its own flags and bed zones
+	end
+	if d < river.half then
 		sample.channel = true
-	elseif d < Field.StreamBank or spring < 11 then
+		sample.bank = false
+	elseif d < river.half + Field.RiverStoneBank then
 		sample.bank = true
+		sample.zone = ""
 	end
 end
 

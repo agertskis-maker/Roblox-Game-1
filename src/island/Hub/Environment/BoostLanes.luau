@@ -6,13 +6,18 @@
 -- bridge deck crosses the avenue. The client pulses them (Home/Island/EnvironmentMotion) and holds
 -- them steady under reduced motion.
 --
--- The speed boost itself is NOT built here and is not given to players: movement speed belongs
--- to Lane 1 (Brian R), no shared movement interface exists yet, and the proposed contract waits
--- for approval (vault/design/island-rework.md). BoostLanes.strips() gives the strip geometry that
--- the preview boost in Hub/Preview/WalkTests uses, and that the integrated boost would use.
+-- The speed boost itself is not built here. It runs on each player's client
+-- (StarterPlayerScripts Client.Home.Island.WalkBoost, authorized in Adam's Task 4 brief), which
+-- reads the built strips from the inlay beams below (attribute BoostStrip, and StripHalfWidth on
+-- the model). Its numbers live in ReplicatedStorage.Shared.Island.WalkBoostLogic; the preview
+-- walkers in Hub/Preview/WalkTests use the same logic with BoostLanes.strips(). Movement speed
+-- belongs to Lane 1 (Brian R); the takeover path is in vault/design/specs/walk-boost.md.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AssetIds = require(script.Parent.AssetIds)
 local Layout = require(script.Parent.Parent.Layout)
+local WalkBoostLogic = require(ReplicatedStorage.Shared.Island.WalkBoostLogic)
 
 local BoostLanes = {}
 
@@ -21,8 +26,9 @@ local SURFACE_TOP = Layout.SurfaceY + 0.08 -- the avenue strips' top face (measu
 local LANE_OFFSET = 1.2 -- each half's centre from the avenue centreline
 local LANE_WIDTH = 1.8
 BoostLanes.HalfWidth = LANE_OFFSET + LANE_WIDTH / 2 -- the whole strip, both halves (2.1)
-BoostLanes.ProposedMultiplier = 1.5 -- proposal only (WalkSpeed 16 to 24 while on the strip)
-BoostLanes.ProposedLinger = 0.5 -- seconds the boost lasts after stepping off (proposal)
+-- kept for older callers; the values come from WalkBoostLogic
+BoostLanes.ProposedMultiplier = WalkBoostLogic.Multiplier -- WalkSpeed 16 to 24 while on the strip
+BoostLanes.ProposedLinger = WalkBoostLogic.Linger -- seconds at full boost after stepping off
 
 export type Strip = { avenue: number, from: Vector2, to: Vector2 } -- plan points, plot end first
 
@@ -88,7 +94,7 @@ function BoostLanes.build(parent: Instance): { strips: number, beams: number }
 	end
 	local model = Instance.new("Model")
 	model.Name = "BoostLanes"
-	model:SetAttribute("Preview", "visual only; the speed boost waits for the movement contract")
+	model:SetAttribute("StripHalfWidth", BoostLanes.HalfWidth) -- read by the client WalkBoost
 	local host = Instance.new("Part")
 	host.Name = "LaneHost"
 	host.Anchored = true
@@ -122,6 +128,8 @@ function BoostLanes.build(parent: Instance): { strips: number, beams: number }
 			inlay.LightEmission = 0
 			inlay.LightInfluence = 1
 			inlay.ZOffset = 0.02
+			inlay:SetAttribute("BoostStrip", true) -- one per strip, from and to (client WalkBoost)
+			inlay:SetAttribute("Avenue", s.avenue)
 			inlay.Parent = model
 			beams += 1
 		end

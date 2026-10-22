@@ -213,7 +213,19 @@ local function animate(trove: Trove.Trove, root: Instance, waterfall: Instance)
 					local align = math.clamp((view:Dot(antiSun) + 0.2) / 0.8, 0, 1)
 					local visible = (0.7 + 0.3 * align) * (1 - math.clamp((distance - 650) / 350, 0, 1))
 					local t = 1 - (1 - baseT) * visible
-					d.Transparency = NumberSequence.new(t)
+					-- a soft-ended bow (Task 4) keeps its clear feet: SoftEnds is the faded fraction
+					-- at each end, the same shape as Waterfall.softEnds on the build side
+					local ends = d:GetAttribute("SoftEnds")
+					if type(ends) == "number" and ends > 0 and ends < 0.5 then
+						d.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 1),
+							NumberSequenceKeypoint.new(ends, t),
+							NumberSequenceKeypoint.new(1 - ends, t),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+					else
+						d.Transparency = NumberSequence.new(t)
+					end
 				end
 			end
 		end

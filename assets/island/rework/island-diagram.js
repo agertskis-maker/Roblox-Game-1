@@ -81,10 +81,11 @@ function overview(o, opts = {}) {
 	for (const pq of H.portals) for (const q of L.strip([mul(pq.front, P.plazaR / len(pq.front)), pq.front], 14)) s.push(poly(q, "path"));
 	for (const b of [o.garage, o.stunt]) for (const q of L.strip([b.door, mul(b.door, P.plazaR / len(b.door))], 12)) s.push(poly(q, "path"));
 	for (const q of L.strip([V(-P.portal.spacing - 12, P.portal.frontY + 3), V(P.portal.spacing + 12, P.portal.frontY + 3)], 10)) s.push(poly(q, "path"));
-	for (const side of [-1, 1]) for (const q of L.strip([V(side * P.portal.spacing, P.portal.frontY + 3), polar(side * 90, H.prom.centre)], 10)) s.push(poly(q, "path"));
+	if (o.walks) for (const pts of Object.values(o.walks)) for (const q of L.strip(pts, 10)) s.push(poly(q, "path"));
+	else for (const side of [-1, 1]) for (const q of L.strip([V(side * P.portal.spacing, P.portal.frontY + 3), polar(side * 90, H.prom.centre)], 10)) s.push(poly(q, "path"));
 	s.push(circ(V(0, 0), P.plazaR, "plaza"));
 	s.push(circ(V(0, 0), P.basinR, "basin"));
-	for (const q of L.strip(o.stream, 10)) s.push(poly(q, "stream"));
+	for (const q of L.strip(o.stream, o.walks ? H.P.task4.riverWidth : 10)) s.push(poly(q, "stream"));
 	for (const b of o.bridges) s.push(circ(b.at, 6, "bridge"));
 	s.push(`</g>`);
 	// corridors
@@ -94,12 +95,12 @@ function overview(o, opts = {}) {
 	// buildings and portals
 	s.push(`<g data-layer="park-buildings">`);
 	for (const pq of H.portals) s.push(poly(pq.base, "portal"));
-	for (const b of [o.garage, o.stunt, o.gazebo, o.food]) s.push(poly(b.poly, "bldg"));
+	for (const b of [o.garage, o.stunt, o.gazebo, o.food, o.foodWest].filter(Boolean)) s.push(poly(b.poly, "bldg"));
 	for (const b of o.boards) s.push(poly(b.poly, "bldg"));
 	s.push(text(add(o.garage.c, V(0, -3)), "GARAGE", "lbl bldg-lbl on-dark", 'text-anchor="middle"'));
-	s.push(text(add(o.stunt.c, V(0, -18)), "STUNT CIRCUIT GATE", "lbl-sm bldg-lbl", 'text-anchor="middle"'));
+	s.push(text(add(o.stunt.c, V(0, -18)), "STUNT CIRCUIT", "lbl-sm bldg-lbl", 'text-anchor="middle"'));
 	s.push(text(add(o.gazebo.c, V(0, -16)), "gazebo", "lbl-sm", 'text-anchor="middle"'));
-	s.push(text(add(o.food.c, V(0, -16)), "food stands (decor)", "lbl-sm", 'text-anchor="middle"'));
+	for (const f of [o.food, o.foodWest].filter(Boolean)) s.push(text(add(f.c, V(0, -16)), o.foodWest ? "snack corner" : "food stands (decor)", "lbl-sm", 'text-anchor="middle"'));
 	for (const b of o.boards) s.push(text(add(L.V(b.poly[0].x + 6, b.poly[0].y), V(0, -12)), "board", "lbl-sm", 'text-anchor="middle"'));
 	const names = { SummitPass: "SUMMIT PASS", Downtown: "DOWNTOWN", DustyHighway: "DUSTY HWY" };
 	if (zoom) for (const pq of H.portals) s.push(text(V(pq.x, P.portal.frontY - 14 - (pq.x === 0 ? 0 : 9)), names[pq.id], "lbl-sm portal-lbl", `text-anchor="middle"`));

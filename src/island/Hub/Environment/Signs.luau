@@ -81,6 +81,11 @@ function Signs.banner(part: BasePart, name: string, plotIndex: number)
 	image(g, id)
 	if name == "Owner" then
 		local t = label(g, "PLAYER'S SPEEDWAY", { 0.04, 0.12, 0.92, 0.76 }, 96)
+		-- fit the board whatever its size or the owner name's length (Task 4: it overflowed)
+		t.TextScaled = true
+		local limit = Instance.new("UITextSizeConstraint")
+		limit.MaxTextSize = 200
+		limit.Parent = t
 		t:SetAttribute("Placeholder", "owner name, from Lane 2 plot ownership")
 		part:SetAttribute("PlotIndex", plotIndex)
 	end

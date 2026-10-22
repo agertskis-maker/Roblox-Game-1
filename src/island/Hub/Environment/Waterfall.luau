@@ -1,15 +1,19 @@
 --!strict
 -- The waterfall system's visuals (Lane 3, build-time), replacing the earlier flat sheets in the
 -- same owned container (Lane3_IslandEnvironment.Waterfall). Terrain holds the creek, tarn,
--- ledge basin, plunge pool and lake; these beams and particles carry the moving water:
---   upper falls: a free fall arcing off the lip, layered body, fast and slow strands,
---     highlights and escaping spray ribbons;
---   horsetail: a narrower slide down the rock chute into the same ledge basin;
---   lower falls: three unequal streams split by rock, converging on the plunge pool;
---   creek rapids, an irregular foam ring at each impact, a fading foam current across the lake
---   to the park stream, the park stream's flow, splash, droplets, whitewater, ripples, low and
---   rising mist, grotto drips and fireflies, and a faint mist rainbow.
--- One colour progression per full drop (lip blue, body blue, aerated pale, white at impact).
+-- ledge basin, spill sheet, landing pool, lake and river; these beams and particles carry the
+-- moving water. Task 4 (brief section 7): one main curtain from the second ledge down.
+--   upper falls: the feed, a narrower free fall off the lip into the ledge basin;
+--   horsetail: a thin slide down the rock chute into the same basin (Cascade.SideFalls);
+--   main curtain: 14 wide off the second ledge, a white lip band, three overlapping blue-green
+--     body beams at two speeds, fast strands, highlights and hard white edges, fading at both
+--     ends into the lip band and the impact;
+--   landing pool: splash, droplets, churn, whitewater and ripples across the curtain foot, a
+--     foam ring and foam patch, low and rising mist;
+--   current: foam carried from the pool to the river's nearer mouth, the river's flow round the
+--     loop, and a faint return current from the far mouth toward the outlet gorge;
+--   creek rapids, grotto drips and fireflies, and a larger soft mist rainbow.
+-- One colour progression per drop (lip white, deep teal, blue-green, aerated pale, white foam).
 -- Beams scroll on their own (TextureSpeed); the client scales activity by distance and reduced
 -- motion (Home/Island/EnvironmentMotion) using the Base* attributes set here.
 
@@ -34,6 +38,10 @@ Waterfall.Palette = {
 	Aerated = rgb(220, 239, 248),
 	Foam = rgb(244, 251, 255),
 	FoamShadow = rgb(191, 216, 230),
+	-- Task 4 curtain (research: teal centre about 90, 200, 200; white edges about 230, 250, 255)
+	CurtainDeep = rgb(62, 164, 170),
+	Curtain = rgb(90, 200, 200),
+	Edge = rgb(230, 250, 255),
 }
 local P = Waterfall.Palette
 
@@ -65,6 +73,19 @@ end
 local function fade(a: number, b: number): NumberSequence
 	return NumberSequence.new({ NumberSequenceKeypoint.new(0, a), NumberSequenceKeypoint.new(1, b) })
 end
+
+-- A transparency `t` along the middle of a beam, fading to fully clear over the first and last
+-- `ends` of its length. Shared with the client (Home/Island/EnvironmentMotion rebuilds it from
+-- the beam's BaseTransparency and SoftEnds attributes when it fades the rainbow).
+function Waterfall.softEnds(t: number, ends: number): NumberSequence
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(ends, t),
+		NumberSequenceKeypoint.new(1 - ends, t),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+end
+local RAINBOW_SOFT_ENDS = 0.24
 
 -- How far south (world z) the written terrain reaches at (x, y) looking north from the lake,
 -- or nil; the lower streams start just in front of it so the rock never hides them.
@@ -319,7 +340,7 @@ local function impact(host: BasePart, name: string, at: Vector3, s: number)
 	emitter(host, name .. "LowMist", at + Vector3.new(0, 1.2, 0), up, {
 		Texture = TEX.Mist,
 		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 8 * s), NumberSequenceKeypoint.new(1, 22 * s) }),
-		Transparency = fade(0.74, 1),
+		Transparency = fade(0.8, 1), -- research: mist never below 0.8
 		Lifetime = NumberRange.new(4, 6),
 		Rate = 4 * s,
 		Speed = NumberRange.new(2.5, 5.5),
@@ -353,6 +374,165 @@ local function foamRing(folder: Instance, host: BasePart, name: string, centre: 
 	}, true)
 end
 
+-- An attachment for a flat curtain beam (not facing the camera): X along the flow (curves bend
+-- along it), Y along world X so the beam's width runs across the cliff face.
+local function curtainAttach(host: BasePart, pos: Vector3, flow: Vector3): Attachment
+	local a = Instance.new("Attachment")
+	local x = flow.Unit
+	local across = Vector3.new(1, 0, 0)
+	local y = (across - x * across:Dot(x)).Unit
+	a.CFrame = host.CFrame:ToObjectSpace(CFrame.fromMatrix(pos, x, y))
+	a.Parent = host
+	return a
+end
+
+-- Transparency along a curtain beam: faded at the top (under the lip band) and at the foot
+-- (under the foam), steady between (research: about 10 percent at each end).
+local function curtainFade(mid: number, top: number?, foot: number?): NumberSequence
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, top or math.min(1, mid + 0.35)),
+		NumberSequenceKeypoint.new(0.1, mid),
+		NumberSequenceKeypoint.new(0.86, mid + 0.04),
+		NumberSequenceKeypoint.new(1, foot or math.min(1, mid + 0.4)),
+	})
+end
+
+local CURTAIN_COLOUR = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, P.LipWhite),
+	ColorSequenceKeypoint.new(0.07, P.CurtainDeep),
+	ColorSequenceKeypoint.new(0.35, P.Curtain),
+	ColorSequenceKeypoint.new(0.8, P.Curtain:Lerp(P.Aerated, 0.35)),
+	ColorSequenceKeypoint.new(0.93, P.Aerated),
+	ColorSequenceKeypoint.new(1, P.Foam),
+})
+local EDGE_COLOUR = ColorSequence.new(P.Edge, P.Foam)
+
+-- The main curtain's layers: name, texture, offset across (fraction of the half width), width at
+-- the lip, width at the foot, scroll speed, repeat length, mid transparency, light, lift to white.
+-- Three overlapping body beams at two speeds carry the blue-green centre; strands, highlights
+-- and the hard white edges sit over them.
+local CURTAIN_LAYERS: { { any } } = {
+	{ "BodyWest", TEX.WaterBody, -0.5, 6.5, 8.5, 1.15, 11, 0.32, 0.12, 0 },
+	{ "BodyCentre", TEX.WaterBody, 0, 7, 9, 1.55, 10, 0.28, 0.12, 0 },
+	{ "BodyEast", TEX.WaterStrandsSlow, 0.5, 6.5, 8.5, 1.25, 14, 0.38, 0.12, 0 },
+	{ "StrandsWest", TEX.WaterStrandsFast, -0.3, 5, 6.5, 2.9, 8, 0.42, 0.18, 0.4 },
+	{ "StrandsEast", TEX.WaterStrandsFast, 0.34, 5, 6.5, 3.3, 7, 0.44, 0.18, 0.4 },
+	{ "Highlights", TEX.WaterHighlights, 0.05, 9, 11, 3.6, 6, 0.45, 0.45, 0.7 },
+}
+
+-- One main curtain from `top` (the lip, world) to `bottom` (the landing, world), `width` across.
+local function curtain(folder: Instance, host: BasePart, top: Vector3, bottom: Vector3, width: number)
+	local half = width / 2
+	local spread = 1.12 -- the sheet widens a little as it falls
+	local out = Vector3.new(0, -0.45, -1) -- leaving the lip, outward and down
+	local down = Vector3.new(0, -1, 0)
+	local drop = (top - bottom).Y
+	for k, sp in CURTAIN_LAYERS do
+		local off = (sp[3] :: number) * half
+		local a0 = curtainAttach(host, top + Vector3.new(off, 0, 0), out)
+		local a1 = curtainAttach(host, bottom + Vector3.new(off * spread, 0, 0), down)
+		local lift = sp[10] :: number
+		local b = beam(folder, a0, a1, {
+			name = "Curtain" .. sp[1],
+			texture = sp[2],
+			width0 = sp[4],
+			width1 = sp[5],
+			speed = sp[6],
+			length = sp[7],
+			colour = if lift > 0
+				then ColorSequence.new(P.Curtain:Lerp(P.Foam, lift), P.Aerated:Lerp(P.Foam, lift))
+				else CURTAIN_COLOUR,
+			transparency = curtainFade(sp[8]),
+			curve0 = 3.4,
+			curve1 = drop * 0.36,
+			faceCamera = false,
+			light = sp[9],
+			z = k * 0.02,
+		})
+		b.Segments = 20
+	end
+	-- hard white edges where the sheet breaks up (research: 1.5 to 3 studs, 0 to 0.15)
+	for k, side in { -1, 1 } do
+		local off = side * (half - 0.9)
+		local a0 = curtainAttach(host, top + Vector3.new(off, 0, 0), out)
+		local a1 = curtainAttach(host, bottom + Vector3.new(off * spread, 0, 0), down)
+		beam(folder, a0, a1, {
+			name = "CurtainEdge" .. k,
+			texture = TEX.WaterStrandsFast,
+			width0 = 2.4,
+			width1 = 3.2,
+			speed = 3.4 + k * 0.3,
+			length = 7 + k,
+			colour = EDGE_COLOUR,
+			transparency = curtainFade(0.1, 0.3, 0.45),
+			curve0 = 3.4,
+			curve1 = drop * 0.36,
+			faceCamera = false,
+			light = 0.35,
+			z = 0.16,
+		})
+	end
+	-- the white lip band, about 3 studs tall, where the spill sheet tips over the edge
+	local lipEnd = top + out.Unit * 3.2
+	beam(folder, curtainAttach(host, top + Vector3.new(0, 0.25, 0), out), curtainAttach(host, lipEnd, out), {
+		name = "CurtainLip",
+		texture = TEX.WaterStrandsFast,
+		width0 = width + 0.6,
+		width1 = width + 1,
+		speed = 2.2,
+		length = 6,
+		colour = ColorSequence.new(P.LipWhite, P.Edge),
+		transparency = fade(0.05, 0.4),
+		faceCamera = false,
+		light = 0.3,
+		z = 0.2,
+	})
+end
+
+-- Points along a quadratic curve from a to b bowed toward `bow` (plan), n segments.
+local function bowed(a: Vector2, bow: Vector2, b: Vector2, n: number): { Vector2 }
+	local pts = {}
+	for k = 0, n do
+		local t = k / n
+		table.insert(pts, a * (1 - t) ^ 2 + bow * 2 * t * (1 - t) + b * t * t)
+	end
+	return pts
+end
+
+-- Flat foam ribbons on the lake surface along plan points, widths and transparency eased from
+-- the first values to the last.
+local function surfaceRibbon(
+	folder: Instance,
+	host: BasePart,
+	name: string,
+	pts: { Vector2 },
+	w0: number,
+	w1: number,
+	t0: number,
+	t1: number,
+	speed: number
+)
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local dir = world(b, 0) - world(a, 0)
+		local a0 = attach(host, world(a, Field.LakeLevel + 0.06), dir, true)
+		local a1 = attach(host, world(b, Field.LakeLevel + 0.06), dir, true)
+		local f0, f1 = (i - 1) / (#pts - 1), i / (#pts - 1)
+		beam(folder, a0, a1, {
+			name = string.format("%s%02d", name, i),
+			texture = TEX.Current,
+			width0 = w0 + (w1 - w0) * f0,
+			width1 = w0 + (w1 - w0) * f1,
+			speed = speed * (1 - 0.4 * f0),
+			length = 16,
+			colour = ColorSequence.new(P.Foam),
+			transparency = fade(t0 + (t1 - t0) * f0, t0 + (t1 - t0) * f1),
+			faceCamera = false,
+			light = 0.1,
+		})
+	end
+end
+
 function Waterfall.build(parent: Instance): Model
 	local model = Instance.new("Model")
 	model.Name = "Waterfall"
@@ -369,50 +549,32 @@ function Waterfall.build(parent: Instance): Model
 
 	local X = Cascade.X
 	local folders: { [string]: Folder } = {}
-	for _, name in { "UpperFalls", "Horsetail", "LowerFalls", "Creek", "Foam", "Current", "Rainbow" } do
+	for _, name in { "UpperFalls", "Horsetail", "Curtain", "Creek", "Foam", "Current", "Rainbow" } do
 		local f = Instance.new("Folder")
 		f.Name = name
 		f.Parent = model
 		folders[name] = f
 	end
 
-	-- upper falls: off the projecting lip, arcing out, into the ledge basin
+	-- upper falls: the feed, off the projecting lip into the ledge basin. Narrower than the main
+	-- curtain (about 7 against 14) so the curtain below the second ledge reads as the one fall
 	local lipTop = Vector3.new(X, Cascade.LipHeight + 0.5, -Cascade.LipEdgeY)
 	local basin = Cascade.Ledge.basin
 	local ledgeLanding = world(basin + Vector2.new(-1.5, 1.2), Cascade.Ledge.water)
 	local outward = Vector3.new(0, -0.22, -1)
 	local upperT1 = (Cascade.LipHeight - Cascade.Ledge.water) / Cascade.LipHeight * 0.95
-	fall(folders.UpperFalls, host, "Upper", lipTop, ledgeLanding, outward, 0, upperT1, 9.2, 4, 7)
-	-- stray spray ribbons escaping the edges, unevenly spaced
-	local strays = { { -4.4, 9, 0.55 }, { 3.1, 7.5, 0.62 }, { 5.6, 10.5, 0.7 } }
-	for k, spec in strays do
-		local a0 = attach(host, lipTop + Vector3.new(spec[1], -0.8, 0), Vector3.new(spec[1] * 0.08, -0.3, -1))
-		local a1 = attach(host, ledgeLanding + Vector3.new(spec[1] * 1.7, 3, -1.5), Vector3.new(0, -1, 0))
-		beam(folders.UpperFalls, a0, a1, {
-			name = "UpperSpray" .. k,
-			texture = TEX.WaterSpray,
-			width0 = 0.9,
-			width1 = 2.6,
-			speed = 3.3 + k * 0.35,
-			length = 9 + k * 2,
-			colour = gradient(0.15, upperT1, 0.35),
-			transparency = fade(spec[3], 0.92),
-			curve0 = spec[2],
-			curve1 = 26,
-		})
-	end
+	fall(folders.UpperFalls, host, "Upper", lipTop, ledgeLanding, outward, 0, upperT1, 6.5, 3, 7)
 
-	-- horsetail: hugs the chute, from the tarn stream into the same ledge basin
+	-- horsetail: a thin slide on the chute, from the tarn stream into the same ledge basin
 	local tail: { Vector3 } = {}
 	for _, fp in Cascade.Horsetail do
 		table.insert(tail, world(fp.p, fp.h + 0.7))
 	end
 	local tailLayers: { { any } } = {
-		{ "Body", TEX.WaterBody, 3.6, 1.4, 9, 0.15 },
-		{ "Fast", TEX.WaterStrandsFast, 3.2, 2.8, 7, 0.28 },
-		{ "Highlights", TEX.WaterHighlights, 2.4, 3.4, 6, 0.45 },
+		{ "Body", TEX.WaterBody, 3, 1.4, 9, 0.25 },
+		{ "Fast", TEX.WaterStrandsFast, 2.6, 2.8, 7, 0.36 },
 	}
-	for k, sp in tailLayers do
+	for k, sp in if Cascade.SideFalls then tailLayers else {} do
 		chain(folders.Horsetail, host, "Horsetail" .. sp[1], tail, 0.16, 0.62, {
 			name = "",
 			texture = sp[2],
@@ -422,44 +584,35 @@ function Waterfall.build(parent: Instance): Model
 			length = sp[5],
 			colour = ColorSequence.new(P.Body),
 			transparency = fade(sp[6], sp[6] + 0.08),
-			light = if k == 3 then 0.4 else 0.12,
+			light = 0.12,
 			z = k * 0.02,
 		}, false)
 	end
 
-	-- lower falls: three unequal streams off the lower lip, converging on the plunge pool. Each
-	-- is drawn narrower than its channel and they draw together only partly, so dark rock shows
-	-- between them on the upper half of the drop
+	-- the main curtain off the second ledge, in front of the rock wherever the written terrain
+	-- reaches furthest north across its width (so the face never hides the sheet)
 	local pool = Cascade.Pool
-	local poolLanding = world(pool.centre + Vector2.new(0, -1.5), Field.LakeLevel + 0.2)
-	for k, s in Cascade.LowerStreams do
-		local topZ = -(Cascade.LowerLip.y + 0.4)
+	local cw = Cascade.Curtain
+	local topZ = -(Cascade.LowerLip.y + 0.4)
+	for _, ox in { -cw.width / 2, 0, cw.width / 2 } do
 		for _, y in { Cascade.LowerLip.height - 4, Cascade.LowerLip.height - 20, Cascade.LowerLip.height - 40 } do
-			local z = faceZ(s.x, y)
+			local z = faceZ(cw.x + ox, y)
 			if z then
 				topZ = math.min(topZ, z - 1.2)
 			end
 		end
-		local top = Vector3.new(s.x, Cascade.LowerLip.height + 0.35, topZ)
-		local bottom = poolLanding + Vector3.new((s.x - X) * 0.62, 0, 0)
-		local layers = if s.width > 5 then 4 else 3
-		fall(
-			folders.LowerFalls,
-			host,
-			"Lower" .. k,
-			top,
-			bottom,
-			Vector3.new(0, -0.45, -1),
-			0.5,
-			1,
-			s.width * 0.78,
-			layers,
-			2.6 + k * 0.4
-		)
 	end
+	local curtainTop = Vector3.new(cw.x, Cascade.LowerLip.height + 0.35, topZ)
+	-- it lands about 5 studs out from the lip, inside the pool's south half
+	local landingPlan = Vector2.new(cw.x - 1, -topZ + 5)
+	local poolLanding = world(landingPlan, Field.LakeLevel + 0.2)
+	curtain(folders.Curtain, host, curtainTop, poolLanding, cw.width)
 
 	-- creek and side stream: flowing water on the channel, white rapids where it steepens
-	local streams: { { any } } = { { "Creek", Cascade.Creek, 0, 0.08 }, { "Side", Cascade.SideStream, 0.06, 0.15 } }
+	local streams: { { any } } = { { "Creek", Cascade.Creek, 0, 0.08 } }
+	if Cascade.SideFalls then
+		table.insert(streams, { "Side", Cascade.SideStream, 0.06, 0.15 })
+	end
 	for _, entry in streams do
 		local list = entry[2] :: { Cascade.FlowPoint }
 		local pts: { Vector3 } = {}
@@ -502,71 +655,106 @@ function Waterfall.build(parent: Instance): Model
 		end
 	end
 
-	-- impacts, foam rings, rising mist close to the cliff
-	impact(host, "Ledge", ledgeLanding, 0.75)
-	impact(host, "Pool", poolLanding, 1)
-	foamRing(folders.Foam, host, "LedgeFoam", basin + Vector2.new(-1, 1), Cascade.Ledge.water, 3.6)
-	foamRing(folders.Foam, host, "PoolFoam", pool.centre + Vector2.new(0, 0.5), Field.LakeLevel, 6.5)
-	emitter(host, "CliffMist", Vector3.new(X, 4, -(Cascade.LowerFaceY + 2)), Vector3.new(0, 1, 0.0001), {
+	-- the curtain foot: impacts across its width (two, not three, to keep the particle count near
+	-- the old falls), the ledge impact under the feed, foam rings, a foam patch, rising mist
+	impact(host, "Ledge", ledgeLanding, 0.6)
+	for k, ox in { -cw.width * 0.25, cw.width * 0.25 } do
+		impact(host, "Pool" .. k, poolLanding + Vector3.new(ox, 0, 0), 0.85)
+	end
+	foamRing(folders.Foam, host, "LedgeFoam", basin + Vector2.new(-1, 1), Cascade.Ledge.water, 3.2)
+	-- the ring (about 16 to 22 across) stays inside the 40 by 26 pool
+	foamRing(folders.Foam, host, "PoolFoam", landingPlan + Vector2.new(0, 0.5), Field.LakeLevel, 7.5)
+	local patchA = world(landingPlan - Vector2.new(cw.width * 0.6, 0), Field.LakeLevel + 0.1)
+	local patchB = world(landingPlan + Vector2.new(cw.width * 0.6, 0), Field.LakeLevel + 0.1)
+	beam(folders.Foam, attach(host, patchA, patchB - patchA, true), attach(host, patchB, patchB - patchA, true), {
+		name = "PoolFoamPatch",
+		texture = TEX.FoamTile,
+		width0 = 5.5,
+		width1 = 5.5,
+		speed = 0.2,
+		length = 8,
+		colour = ColorSequence.new(P.Foam),
+		transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.7),
+			NumberSequenceKeypoint.new(0.2, 0.18),
+			NumberSequenceKeypoint.new(0.8, 0.18),
+			NumberSequenceKeypoint.new(1, 0.7),
+		}),
+		faceCamera = false,
+		light = 0.15,
+		z = 0.05,
+	})
+	-- rising mist off the curtain foot (research: size 20 to 25, lifetime about 4, rate 3, never
+	-- below transparency 0.8)
+	emitter(host, "CliffMist", poolLanding + Vector3.new(0, 3, 0), Vector3.new(0, 1, 0.0001), {
 		Texture = TEX.Mist,
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 6), NumberSequenceKeypoint.new(1, 18) }),
-		Transparency = fade(0.8, 1),
-		Lifetime = NumberRange.new(5, 7),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 10), NumberSequenceKeypoint.new(1, 24) }),
+		Transparency = fade(0.82, 1),
+		Lifetime = NumberRange.new(4, 6),
 		Rate = 3,
-		Speed = NumberRange.new(2, 4),
-		SpreadAngle = Vector2.new(14, 14),
+		Speed = NumberRange.new(3, 5),
+		SpreadAngle = Vector2.new(16, 16),
+		Drag = 0.3,
 		Color = ColorSequence.new(rgb(240, 248, 252)),
 	})
 
-	-- the current: foam carried from the pool across the lake to the park-stream outflow, thinning
-	local stream = Layout.Data.park.stream -- [1] is the garden pond, the last point meets the lake
-	local mouth = stream[#stream]
-	local current = {
-		pool.centre + Vector2.new(6, 6),
-		Vector2.new(-82, -236),
-		Vector2.new(-24, -206),
-		Vector2.new(36, -158),
-		Vector2.new(80, -112),
-		mouth + Vector2.new(0, -6),
-	}
-	for i = 1, #current - 1 do
-		local a, b = current[i], current[i + 1]
-		local dir = world(b, 0) - world(a, 0)
-		local a0 = attach(host, world(a, Field.LakeLevel + 0.06), dir, true)
-		local a1 = attach(host, world(b, Field.LakeLevel + 0.06), dir, true)
-		local f0, f1 = (i - 1) / (#current - 1), i / (#current - 1)
-		beam(folders.Current, a0, a1, {
-			name = string.format("Current%02d", i),
-			texture = TEX.Current,
-			width0 = 13 - 8 * f0,
-			width1 = 13 - 8 * f1,
-			speed = 0.75 - 0.35 * f0,
-			length = 16,
-			colour = ColorSequence.new(P.Foam),
-			transparency = fade(0.45 + 0.5 * f0, 0.45 + 0.5 * f1),
-			faceCamera = false,
-			light = 0.1,
-		})
-	end
-	-- the park stream flows away from the lake, toward its garden pond
+	-- The current and the river's flow. With the river loop (park.riverLoop) the falls sit almost
+	-- due south of the river's west mouth, so the pool's foam runs north across the lake into that
+	-- (nearer) mouth, the river carries it one way round the park (west leg north, over the top,
+	-- east leg south), and it comes out of the east mouth as a faint return current toward the
+	-- outlet gorge at the lake's east end. One consistent circulation, nothing flowing uphill
+	-- from a spring the layout no longer has. Without the loop (the S-stream layout) the current
+	-- feeds the lake end and the stream flows away from the lake toward its spring, as before.
+	local park = Layout.Data.park
+	local stream = park.stream
+	local loop = (park :: any).riverLoop == true
+	local first, last = stream[1], stream[#stream]
+	local inFirst = loop and (first - pool.centre).Magnitude <= (last - pool.centre).Magnitude
+	local inMouth = if inFirst then first else last
+	local outMouth = if inFirst then last else first
+	local start = landingPlan + Vector2.new(2, 9)
+	local currentBow = (start + inMouth) / 2 + Vector2.new(16, 0)
+	surfaceRibbon(folders.Current, host, "Current", bowed(start, currentBow, inMouth, 5), 13, 7, 0.45, 0.72, 0.75)
+
 	local flowPts: { Vector3 } = {}
-	for i = #stream, 1, -8 do
+	local step = if inFirst then 6 else -6
+	local i0, i1 = if inFirst then 1 else #stream, if inFirst then #stream else 1
+	local lastIndex = i0
+	for i = i0, i1, step do
 		table.insert(flowPts, world(stream[i], Field.LakeLevel + 0.08))
+		lastIndex = i
 	end
-	table.insert(flowPts, world(stream[1], Field.LakeLevel + 0.08))
+	if lastIndex ~= i1 then
+		table.insert(flowPts, world(stream[i1], Field.LakeLevel + 0.08))
+	end
 	chain(folders.Current, host, "StreamFlow", flowPts, 0, 0, {
 		name = "",
 		texture = TEX.Current,
-		width0 = 7,
-		width1 = 7,
+		width0 = park.streamWidth * 0.5,
+		width1 = park.streamWidth * 0.5,
 		speed = 0.55,
 		length = 12,
 		colour = ColorSequence.new(P.Foam),
 		transparency = fade(0.7, 0.7),
 		light = 0.05,
 	}, true)
+	if loop then
+		local outlet = Field.Outlet.points[1]
+		local returnBow = (outMouth + outlet) / 2 + Vector2.new(0, -24)
+		surfaceRibbon(
+			folders.Current,
+			host,
+			"ReturnCurrent",
+			bowed(outMouth, returnBow, outlet, 4),
+			7,
+			4,
+			0.72,
+			0.97,
+			0.5
+		)
+	end
 
-	-- grotto: slow drips and a few fireflies in the shade behind the lower falls
+	-- grotto: slow drips and a few fireflies in the shade behind the curtain
 	local grotto = Vector3.new(X + 10, 15, -(Cascade.LowerFaceY - 3.5))
 	emitter(host, "GrottoDrips", grotto, Vector3.new(0, -1, 0.0001), {
 		Texture = TEX.Droplet,
@@ -590,11 +778,15 @@ function Waterfall.build(parent: Instance): Model
 		Color = ColorSequence.new(rgb(232, 255, 170)),
 	})
 
-	-- a soft mist rainbow beside the lower falls (the client fades it by distance and viewpoint).
-	-- It rises from the plunge pool's spray on the west side, so its arc stands against the dark
-	-- wet cliff rather than over the white water; only its right foot meets the spray.
-	local left = Vector3.new(X - 38, 2.5, -(pool.centre.Y + 9))
-	local right = Vector3.new(X - 5, 2.5, -(pool.centre.Y + 9))
+	-- A larger, softer mist rainbow (Task 4) beside the curtain (the client fades it by distance
+	-- and viewpoint). It rises from the landing pool's spray on the west side, so its arc stands
+	-- against the dark wet cliff and the west buttress rather than over the white water; only its
+	-- right foot meets the spray. 50 across and about 26 high (the old bow was 33 by 16), its
+	-- band 6.5 wide, lowest transparency 0.45 (research: 0.35 to 0.55), and both feet fade out
+	-- (SoftEnds) so it reads as a partial arc in the mist rather than a hard painted band.
+	local bowY = -(pool.centre.Y + 13)
+	local left = Vector3.new(cw.x - 54, 2.5, bowY)
+	local right = Vector3.new(cw.x - 4, 2.5, bowY)
 	-- curves bend along X (up); the band faces the camera, so it keeps its width over the top of
 	-- the arc, and the texture is stretched once along it
 	local r0 = Instance.new("Attachment")
@@ -606,24 +798,26 @@ function Waterfall.build(parent: Instance): Model
 	local bow = beam(folders.Rainbow, r0, r1, {
 		name = "MistRainbow",
 		texture = TEX.Rainbow,
-		width0 = 4.2,
-		width1 = 4.2,
+		width0 = 6.5,
+		width1 = 6.5,
 		speed = 0,
-		length = 40,
+		length = 50,
 		colour = ColorSequence.new(Color3.new(1, 1, 1)),
-		transparency = fade(0.55, 0.55),
-		curve0 = 22,
-		curve1 = -22,
+		transparency = Waterfall.softEnds(0.45, RAINBOW_SOFT_ENDS),
+		curve0 = 34,
+		curve1 = -34,
 		faceCamera = true,
-		light = 0.6,
+		light = 0.5,
 		-- drawn over the falls behind it (it hangs in the spray in front of them)
 		z = 2,
 	})
-	bow:SetAttribute("BaseTransparency", 0.55)
+	bow:SetAttribute("BaseTransparency", 0.45)
+	bow:SetAttribute("SoftEnds", RAINBOW_SOFT_ENDS)
+	bow.Segments = 40
 	bow.TextureMode = Enum.TextureMode.Stretch
 	bow.TextureLength = 1
 
-	model:SetAttribute("Version", "falls-4")
+	model:SetAttribute("Version", "falls-5")
 	model:SetAttribute("TotalDrop", Cascade.LipHeight - Field.LakeLevel)
 	model.Parent = parent
 	return model

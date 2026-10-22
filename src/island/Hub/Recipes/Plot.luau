@@ -342,18 +342,18 @@ local function buildSpeedway(visual: Folder, bearing: number, index: number)
 		)
 	end
 
-	-- fictional banners on the wall's inner face round the far turn and the far ends of the
-	-- straights; the owner's banner at the apex faces the entrance
+	-- fictional banners on the wall's inner face, on the straights only: a flat 10-stud board on
+	-- the curved far-turn wall had its ends hidden by the curve ("R'S SPEE", "OPA FI"; Task 4
+	-- brief §13). The owner's banner stands on posts in the outer sign band, facing the entrance.
 	local banners = Instance.new("Folder")
 	banners.Name = "Banners"
 	banners.Parent = track
-	local far = Layout.Segments[2]
+	local right, left = Layout.RightStraight, Layout.LeftStraight
 	local placements = {
-		{ s = far.s0 + far.length * 0.5, art = "Owner" },
-		{ s = far.s0 + far.length * 0.2, art = "BannerA" },
-		{ s = far.s0 + far.length * 0.8, art = "BannerB" },
-		{ s = Layout.RightStraight.s0 + Layout.RightStraight.length * 0.75, art = "BannerC" },
-		{ s = Layout.LeftStraight.s0 + Layout.LeftStraight.length * 0.25, art = "BannerD" },
+		{ s = right.s0 + right.length * 0.3, art = "BannerA" },
+		{ s = right.s0 + right.length * 0.7, art = "BannerB" },
+		{ s = left.s0 + left.length * 0.3, art = "BannerC" },
+		{ s = left.s0 + left.length * 0.55, art = "BannerD" },
 	}
 	for _, pl in placements do
 		local p, t = Layout.pointAt(pl.s)
@@ -369,6 +369,32 @@ local function buildSpeedway(visual: Folder, bearing: number, index: number)
 		)
 		Signs.banner(board, pl.art, index)
 	end
+	-- the owner's banner: 14 x 3 on two posts in the sign band (the band allows signs under 20),
+	-- its face toward the entrance across the infield
+	local _, u0, _, u1 = Layout.bounds(Layout.reservation("SignBand").poly)
+	local u = (u0 + u1) / 2
+	local bottom, height, boardWidth = 5, 3, 14
+	local centre = Layout.plotToWorld(bearing, Vector2.new(0, u), SURFACE + bottom + height / 2)
+	local toward = Layout.plotToWorld(bearing, Vector2.new(0, u - 1), SURFACE + bottom + height / 2)
+	local board = Kit.part(
+		banners,
+		Vector3.new(boardWidth, height, 0.3),
+		CFrame.lookAt(centre, toward),
+		{ name = "Banner", color = WALL, castShadow = false }
+	)
+	board:SetAttribute("OwnerBanner", true)
+	for _, x in { -1, 1 } do
+		local foot =
+			Layout.plotToWorld(bearing, Vector2.new(x * (boardWidth / 2 - 1), u + 0.4), SURFACE + (bottom + height) / 2)
+		local post = Kit.part(
+			banners,
+			Vector3.new(0.5, bottom + height, 0.5),
+			CFrame.lookAt(foot, toward + (foot - centre) * Vector3.new(1, 0, 1)),
+			{ name = "BannerPost", color = WALL_CAP, collide = true }
+		)
+		post:SetAttribute("OwnerBanner", true)
+	end
+	Signs.banner(board, "Owner", index)
 end
 
 -- Base flag line in the outer sign band (the band allows flags; tier 2 replaces them with signs):

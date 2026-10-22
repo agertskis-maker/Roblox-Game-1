@@ -39,6 +39,28 @@ function baseParams(over) {
 			// viewing corridors widen by this much each side at the portal row; with 0 the Stunt gate
 			// grazed the corridor edge and hid part of Summit Pass from Plot01 (greybox, 2026-10-21)
 			corridorMargin: 10,
+			// Task 4 (2026-10-22): the mirrored destination pair and the river loop, as measured by
+			// task4-layout.js (see vault/design/island-rework.md, IRW-127 onward)
+			task4: {
+				axisX: 0, // the one centre axis: every mirrored pair is (x, y) and (-x, y)
+				riverR: 157, // river loop centre line between the garden ring and the wings
+				riverTurn: 78, // bearing where the loop leaves the circle and runs down to the lake
+				riverLeg: [
+					[146, 5],
+					[138, -25],
+					[131, -55],
+					[126, -85],
+					[122, -104],
+				], // east leg to the lake (the west leg mirrors it)
+				riverWidth: 16,
+				wingBearing: 105.5, // Garage centre bearing (the Stunt entrance mirrors it)
+				wingR: 195,
+				garage: { w: 62, d: 40, h: 26, top: 34 },
+				stunt: { w: 37, d: 40, h: 18 }, // same depth as the Garage so the doors mirror
+				board: { w: 18, d: 4, h: 15, along: 10 }, // display about 18 x 14 (research note); along is the gap from the Garage corner
+				snack: { bearing: 34, r: 192, w: 30, d: 28, h: 10 }, // 60 hid Plot 2's lower falls (47 %), 30 hid 1 % of Plot 3's
+				gazebo: { r: 196, w: 16, d: 16, h: 12 },
+			},
 		},
 		over || {},
 	);
@@ -447,8 +469,8 @@ function network(H, extras) {
 	// stage walk ends to the promenade ends (lakeside walk)
 	const westEnd = promNodes[0].n;
 	const eastEnd = promNodes[promNodes.length - 1].n;
-	edge(stage[0], westEnd, undefined, "lakeside");
-	edge(stage[stage.length - 1], eastEnd, undefined, "lakeside");
+	if (!H.wingsRoute) edge(stage[0], westEnd, undefined, "lakeside");
+	if (!H.wingsRoute) edge(stage[stage.length - 1], eastEnd, undefined, "lakeside");
 	// buildings: a spur from the door to the nearest of plaza, ring or promenade
 	for (const b of extras) {
 		const dn = node(b.door, b.id);
@@ -459,6 +481,10 @@ function network(H, extras) {
 		];
 		for (const o of options) edge(dn, o.n, o.d === null ? undefined : o.d, "spur");
 		if (b.lakeside) edge(dn, b.door.x < 0 ? stage[0] : stage[stage.length - 1], undefined, "stage");
+		for (const k of b.links || []) {
+			const to = { stage: b.door.x < 0 ? stage[0] : stage[stage.length - 1], prom: b.door.x < 0 ? westEnd : eastEnd }[k.to];
+			edge(dn, to, k.w, k.kind);
+		}
 		dest[b.id] = dn;
 	}
 	dest.Fountain = "rim";
@@ -544,33 +570,64 @@ function run(over, label) {
 	}
 	const { P, g } = H;
 	const check = checkPlot(H.T);
-	// stream: an S from a spring in the north-west garden, round the north of the plaza and the
-	// south of the Garage, out to the lake east of the portal row (waypoints scale with the hub)
-	const k = H.prom.inner / 227.2;
-	// Re-routed 2026-10-21 (environment task): the first course met Avenue 2 at about 24 degrees and
-	// ran beside it, so terrain water showed under the paving. This one arcs round the plaza at
-	// r about 95 and crosses every path at 79 to 89 degrees.
-	const stream = spline([
-		...[polar(-60, 195), polar(-60, 150), polar(-58, 112), polar(-48, 96), polar(-30, 95), polar(0, 95), polar(30, 95), polar(60, 95), polar(82, 97), V(99, -18), V(101, -48)].map((p) => mul(p, k)),
-		V(104, P.portal.frontY - 26),
-	]);
+	// Task 4 (2026-10-22): one mirrored river loop replaces the S stream (it reached the lake on one
+	// side only), and the Garage and the Stunt Circuit entrance become a mirrored pair of lakeside
+	// wings. task4-layout.js measured every closer position: each one hides part of a portal field
+	// from an entrance, hides one plot's waterfall view, or sits on an avenue.
+	const T4 = P.task4;
+	const mirror = (p) => V(2 * T4.axisX - p.x, p.y);
+	const facingBox = (c, w, d) => {
+		const dir = mul(c, -1 / len(c)); // front toward the fountain
+		const side = V(-dir.y, dir.x);
+		const poly = [add(add(c, mul(side, w / 2)), mul(dir, d / 2)), add(sub(c, mul(side, w / 2)), mul(dir, d / 2)), sub(sub(c, mul(side, w / 2)), mul(dir, d / 2)), sub(add(c, mul(side, w / 2)), mul(dir, d / 2))];
+		return { c, poly, door: add(c, mul(dir, d / 2 + 2)), w, d, dir, side };
+	};
+	const eastWay = [];
+	for (let bb = 0; bb < T4.riverTurn; bb += 12) eastWay.push(polar(bb, T4.riverR));
+	eastWay.push(polar(T4.riverTurn, T4.riverR));
+	for (const [x, y] of T4.riverLeg) eastWay.push(V(x, y));
+	const stream = spline([...eastWay.slice(1).reverse().map(mirror), ...eastWay], 8); // west lake to east lake
 	const arcPts = (r, b0, b1) => {
 		const pts = [];
 		for (let b = b0; b <= b1; b += 1) pts.push(polar(b, r));
 		return pts;
 	};
 	const ringStrips = strip(arcPts(P.ringR, -80, 80), 16);
-	const streamStrips = strip(stream, 18);
-	const avoid = [...streamStrips, ...ringStrips, ...H.portals.map((q) => q.base)];
-	const garage = placeOutsideCorridors(H, "Garage", 44, 36, { xMin: -240, xMax: 240, yMin: -40, yMax: 240, avoid });
-	const garageWay = strip([garage.door, mul(garage.door, P.plazaR / len(garage.door))], 16);
-	const stunt = placeOutsideCorridors(H, "StuntGate", 30, 10, { xMin: -240, xMax: 240, yMin: -40, yMax: 240, avoid: [...avoid, garage.poly, ...garageWay], approachClear: [garage.poly] });
-	const near = (t) => (c) => [len(sub(c.c, t)), 0];
-	const taken = [...avoid, garage.poly, ...garageWay, stunt.poly];
-	const gazebo = placeOutsideCorridors(H, "Gazebo", 16, 16, { xMin: -240, xMax: 0, yMin: 0, yMax: 240, avoid: taken, score: near(polar(-60, P.ringR + 24)) });
-	const food = placeOutsideCorridors(H, "FoodStands", 32, 12, { xMin: 0, xMax: 240, yMin: 0, yMax: 240, avoid: [...taken, gazebo.poly], score: near(polar(60, P.ringR + 24)) });
+	const streamStrips = strip(stream, T4.riverWidth + 2);
+	const garage = Object.assign(facingBox(polar(T4.wingBearing, T4.wingR), T4.garage.w, T4.garage.d), { id: "Garage" });
+	const stunt = Object.assign(facingBox(mirror(garage.c), T4.stunt.w, T4.stunt.d), { id: "StuntGate" });
+	// the start-line gantry stands at the front of the Stunt envelope; its apron runs outward
+	stunt.gantry = add(stunt.c, mul(stunt.dir, T4.stunt.d / 2 - 3));
+	const gazebo = Object.assign(facingBox(polar(0, T4.gazebo.r), T4.gazebo.w, T4.gazebo.d), { id: "Gazebo" });
+	const food = Object.assign(facingBox(polar(T4.snack.bearing, T4.snack.r), T4.snack.w, T4.snack.d), { id: "SnackCornerEast" });
+	const foodWest = Object.assign(facingBox(mirror(food.c), T4.snack.w, T4.snack.d), { id: "SnackCornerWest" });
+	// leaderboards: Most Cars Owned beside the Garage (north end of its forecourt), Fastest Stunt
+	// Circuit at the mirrored spot beside the Stunt entrance
+	const north = garage.side.y > 0 ? garage.side : mul(garage.side, -1);
+	const boardC = add(add(garage.c, mul(garage.dir, T4.garage.d / 2 + 3)), mul(north, T4.garage.w / 2 + T4.board.along));
+	const boards = [
+		Object.assign(facingBox(boardC, T4.board.w, T4.board.d), { id: "LeaderboardGarage", h: T4.board.h }),
+		Object.assign(facingBox(mirror(boardC), T4.board.w, T4.board.d), { id: "LeaderboardStunt", h: T4.board.h }),
+	];
+	// walks: each lakeside walk leaves the stage end and joins its wing's approach before the
+	// bridge; a forecourt walk carries on past the leaderboard to the promenade end
+	const mouthOf = (bd) => mul(bd.door, P.plazaR / len(bd.door));
+	const joinOf = (bd) => add(mouthOf(bd), mul(sub(bd.door, mouthOf(bd)), 0.55));
+	const fore = add(garage.door, mul(garage.dir, 12)); // forecourt walk line, 14 in front of the facade
+	const foreN = add(fore, mul(north, T4.garage.w / 2 + T4.board.along + T4.board.w + 6)); // past the board
+	const walks = {
+		LakesideEast: [V(P.portal.spacing, P.portal.frontY + 3), joinOf(garage)],
+		ForecourtEast: [fore, foreN, polar(90, H.prom.centre)],
+	};
+	walks.LakesideWest = walks.LakesideEast.map(mirror);
+	walks.ForecourtWest = walks.ForecourtEast.map(mirror);
+	const polyLen = (pts) => pts.slice(1).reduce((t, q, i) => t + len(sub(q, pts[i])), 0);
+	H.wingsRoute = true;
+	const wingLinks = [
+		{ to: "stage", kind: "lakeside", w: polyLen(walks.LakesideEast) + len(sub(garage.door, joinOf(garage))) },
+		{ to: "prom", kind: "lakeside", w: len(sub(garage.door, fore)) + polyLen(walks.ForecourtEast) },
+	];
 	const boardX = P.portal.spacing + P.portal.outer / 2 + 18;
-	const boards = [-boardX, boardX].map((x, i) => ({ id: i ? "LeaderboardEast" : "LeaderboardWest", poly: rect(x - 6, x + 6, P.portal.frontY - 4, P.portal.frontY), h: 16 }));
 	// alternatives for the review: Garage and Stunt gate as wings at the ends of the stage
 	const wing = (x) => {
 		const c = V(x, P.portal.frontY - 4);
@@ -582,8 +639,8 @@ function run(over, label) {
 		{ id: "StuntEastWing", door: wing(wingX).door, lakeside: true },
 	]);
 	const extras = [
-		{ id: "Garage", door: garage.door },
-		{ id: "StuntGate", door: stunt.door },
+		{ id: "Garage", door: garage.door, links: wingLinks },
+		{ id: "StuntGate", door: stunt.door, links: wingLinks },
 	];
 	const net = network(H, extras);
 	// bridges where the stream crosses a path centre line
@@ -598,8 +655,7 @@ function run(over, label) {
 	pathLines.push({ kind: "garden ring", pts: arc(P.ringR, -80, 80), w: 8 });
 	for (const q of H.portals) pathLines.push({ kind: "approach " + q.id, pts: [mul(q.front, P.plazaR / len(q.front)), q.front], w: 14 });
 	pathLines.push({ kind: "stage walk", pts: [V(-P.portal.spacing, P.portal.frontY + 3), V(P.portal.spacing, P.portal.frontY + 3)], w: 10 });
-	pathLines.push({ kind: "lakeside walk east", pts: [V(P.portal.spacing, P.portal.frontY + 3), polar(90, H.prom.centre)], w: 10 });
-	pathLines.push({ kind: "lakeside walk west", pts: [V(-P.portal.spacing, P.portal.frontY + 3), polar(-90, H.prom.centre)], w: 10 });
+	for (const [kind, pts] of Object.entries(walks)) pathLines.push({ kind, pts, w: 10 });
 	for (const b of [garage, stunt]) pathLines.push({ kind: b.id + " approach", pts: [b.door, mul(b.door, P.plazaR / len(b.door))], w: 12 });
 	const bridges = [];
 	for (const pl of pathLines)
@@ -615,7 +671,8 @@ function run(over, label) {
 		{ id: "Garage", poly: garage.poly, h: 22 },
 		{ id: "StuntGate", poly: stunt.poly, h: 16 },
 		{ id: "Gazebo", poly: gazebo.poly, h: 12 },
-		{ id: "FoodStands", poly: food.poly, h: 8 },
+		{ id: "SnackCornerEast", poly: food.poly, h: T4.snack.h },
+		{ id: "SnackCornerWest", poly: foodWest.poly, h: T4.snack.h },
 		...boards.map((b) => ({ id: b.id, poly: b.poly, h: b.h })),
 	];
 	const corridorHits = [];
@@ -638,8 +695,8 @@ function run(over, label) {
 		};
 	}
 	// the stream must stay clear of the plaza, buildings and portals
-	const streamHits = [garage, stunt, gazebo, food, ...boards].filter((b) => streamStrips.some((q) => overlaps(q, b.poly))).map((b) => b.id);
-	return { label, H, check, stream, streamClear, streamHits, garage, stunt, gazebo, food, boards, wing, wingX, net, alt, table, bridges, corridorHits, extras };
+	const streamHits = [garage, stunt, gazebo, food, foodWest, ...boards].filter((b) => streamStrips.some((q) => overlaps(q, b.poly))).map((b) => b.id);
+	return { label, H, check, stream, streamClear, streamHits, garage, stunt, gazebo, food, foodWest, boards, walks, wing, wingX, net, alt, table, bridges, corridorHits, extras };
 }
 
 // ---------- report ----------
@@ -689,7 +746,7 @@ function summary(o) {
 	};
 }
 
-module.exports = { run, summary, baseParams, layout, toPlan, polar, rect, V, len, sub, add, mul, overlaps, inside, area, strip, WALK };
+module.exports = { run, summary, baseParams, layout, network, toPlan, polar, rect, V, len, sub, add, mul, overlaps, inside, area, strip, WALK };
 
 if (require.main === module) {
 	const outDir = process.argv[2] || ".";

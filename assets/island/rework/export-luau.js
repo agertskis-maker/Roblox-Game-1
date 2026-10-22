@@ -92,8 +92,7 @@ paths.push({ kind: "Promenade", width: P.promenadeW, points: arc(H.prom.centre, 
 paths.push({ kind: "GardenRing", width: 8, points: arc(P.ringR, -80, 80) });
 for (const q of H.portals) paths.push({ kind: "Approach" + q.id, width: 14, points: [mul(q.front, P.plazaR / len(q.front)), q.front] });
 paths.push({ kind: "StageWalk", width: 10, points: [V(-P.portal.spacing, P.portal.frontY + 3), V(P.portal.spacing, P.portal.frontY + 3)] });
-paths.push({ kind: "LakesideEast", width: 10, points: [V(P.portal.spacing, P.portal.frontY + 3), L.polar(90, H.prom.centre)] });
-paths.push({ kind: "LakesideWest", width: 10, points: [V(-P.portal.spacing, P.portal.frontY + 3), L.polar(-90, H.prom.centre)] });
+for (const [kind, points] of Object.entries(o.walks)) paths.push({ kind, width: 10, points }); // Task 4: lakeside and forecourt walks
 for (const b of [o.garage, o.stunt]) paths.push({ kind: b.id + "Approach", width: 12, points: [b.door, mul(b.door, P.plazaR / len(b.door))] });
 
 function cross2(a, b) {
@@ -114,23 +113,22 @@ for (const pl of paths)
 			const t = cross2(sub(c, a), s) / den;
 			const u = cross2(sub(c, a), r) / den;
 			if (t >= 0 && t <= 1 && u >= 0 && u < 1) {
-				bridges.push({ path: pl.kind, at: add(a, mul(r, t)), dir: mul(r, 1 / len(r)), deckWidth: pl.width + 2, span: 16 });
+				bridges.push({ path: pl.kind, at: add(a, mul(r, t)), dir: mul(r, 1 / len(r)), deckWidth: pl.width + 2, span: P.task4.riverWidth + 10 });
 			}
 		}
 if (bridges.length !== o.bridges.length) throw new Error(`bridge count ${bridges.length} differs from the layout's ${o.bridges.length}`);
 
 // ---------- buildings ----------
 const facing = (b) => mul(b.c, -1 / len(b.c)); // doors face the fountain
+const C4 = P.task4;
 const buildings = [
-	{ id: "Garage", b: o.garage, height: 22 },
-	{ id: "StuntGate", b: o.stunt, height: 16 },
-	{ id: "Gazebo", b: o.gazebo, height: 12 },
-	{ id: "FoodStands", b: o.food, height: 8 },
+	{ id: "Garage", b: o.garage, height: C4.garage.top },
+	{ id: "StuntGate", b: o.stunt, height: C4.stunt.h },
+	{ id: "Gazebo", b: o.gazebo, height: C4.gazebo.h },
+	{ id: "SnackCornerEast", b: o.food, height: C4.snack.h },
+	{ id: "SnackCornerWest", b: o.foodWest, height: C4.snack.h },
 ].map(({ id, b, height }) => ({ id, centre: b.c, facing: facing(b), door: b.door, width: b.w, depth: b.d, height }));
-const boards = o.boards.map((b) => {
-	const c = L.V((b.poly[0].x + b.poly[1].x) / 2, (b.poly[0].y + b.poly[2].y) / 2);
-	return { id: b.id, centre: c, width: 12, depth: 4, height: b.h };
-});
+const boards = o.boards.map((b) => ({ id: b.id, centre: b.c, facing: facing(b), width: b.w, depth: b.d, height: b.h }));
 
 // ---------- reservations: one uniform shape per entry ----------
 const reservations = T.res.map((r) => ({
@@ -174,8 +172,11 @@ const data = {
 		portals: H.portals.map((q) => ({ id: q.id, x: q.x })),
 		buildings,
 		boards,
-		stream: o.stream,
-		streamWidth: 10,
+		axisX: C4.axisX,
+		stream: o.stream, // Task 4: the river loop, west lake mouth first, east lake mouth last
+		streamWidth: C4.riverWidth,
+		riverLoop: true,
+		gantry: o.stunt.gantry,
 		paths,
 		bridges,
 		corridors: H.corridors,
