@@ -1,6 +1,6 @@
 --!strict
 -- Island foliage sway (Lane 3, client presentation only). Tree canopies and bushes planted by
--- the island environment carry a "Sway" attribute (strength) and canopies a "SwayPivotY" (where
+-- the island environment (its Flora and ParkDressing folders) carry a "Sway" attribute (strength) and canopies a "SwayPivotY" (where
 -- the crown meets the trunk). The nearest few dozen within SWAY_RANGE of the camera rock gently
 -- about that pivot in a slow breeze; everything farther away stays still. The moves are local to
 -- this client and never replicate. Reduced motion (GuiService.ReducedMotionEnabled, or the
@@ -15,6 +15,7 @@ local Workspace = game:GetService("Workspace")
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local ROOT_NAME = "Lane3_IslandEnvironment"
+local FOLDERS = { "Flora", "ParkDressing" } -- where swaying plants live (rebuilt folders are rescanned)
 local OVERRIDE = "Lane3ReducedMotionOverride"
 local SWAY_RANGE = 140 -- studs from the camera (Tunable)
 local MAX_ACTIVE = 48 -- canopies moved per frame at most (Tunable)
@@ -42,19 +43,26 @@ local function run(trove: Trove.Trove, root: Instance)
 	local axis = Vector3.new(0, 1, 0):Cross(WIND)
 
 	local function scan()
-		for _, d in root:GetDescendants() do
-			if d:IsA("BasePart") and not items[d] then
-				local strength = d:GetAttribute("Sway")
-				if type(strength) == "number" and strength > 0 then
-					local pivotY = d:GetAttribute("SwayPivotY")
-					local p = d.Position
-					items[d] = {
-						part = d,
-						rest = d.CFrame,
-						pivot = Vector3.new(p.X, if type(pivotY) == "number" then pivotY else p.Y - d.Size.Y / 2, p.Z),
-						strength = strength,
-						phase = (p.X * 0.137 + p.Z * 0.091) % (math.pi * 2),
-					}
+		for _, name in FOLDERS do
+			local folder = root:FindFirstChild(name)
+			for _, d in if folder then folder:GetDescendants() else {} do
+				if d:IsA("BasePart") and not items[d] then
+					local strength = d:GetAttribute("Sway")
+					if type(strength) == "number" and strength > 0 then
+						local pivotY = d:GetAttribute("SwayPivotY")
+						local p = d.Position
+						items[d] = {
+							part = d,
+							rest = d.CFrame,
+							pivot = Vector3.new(
+								p.X,
+								if type(pivotY) == "number" then pivotY else p.Y - d.Size.Y / 2,
+								p.Z
+							),
+							strength = strength,
+							phase = (p.X * 0.137 + p.Z * 0.091) % (math.pi * 2),
+						}
+					end
 				end
 			end
 		end
@@ -143,7 +151,7 @@ local function attach(root: Instance)
 	local trove = Trove.new()
 	current = trove
 	trove:Add(task.spawn(function()
-		run(trove, root:WaitForChild("Flora"))
+		run(trove, root)
 	end))
 	trove:Connect(root.AncestryChanged, function()
 		if not root:IsDescendantOf(Workspace) then
