@@ -380,6 +380,12 @@ local function buildPortals(model: Model)
 			SURFACE,
 			{ name = "Pad", color = Palette.Rock, collide = true, castShadow = false }
 		)
+		-- with the environment dressed, the frameless fields (Environment/PortalRig and the
+		-- client's Portals script) replace the greybox disc, halo, chains and sign
+		if dressed() then
+			portal.Parent = folder
+			continue
+		end
 		local discY = SURFACE + spec.width / 2 + 2
 		local discCFrame = CFrame.new(W(centre, discY)) * CFrame.Angles(0, math.rad(90), 0)
 		local glow = Kit.part(portal, Vector3.new(0.6, spec.width, spec.width), discCFrame, {

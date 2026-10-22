@@ -1,13 +1,16 @@
 --!strict
--- One hub plot, greybox: front to back the entrance court and gate, kiosk, Paddock with 15
--- bays, the walkway, the pit lanes and the base Speedway oval (surface, barrier, curb,
--- yellow edge lines, checkered start / finish line, barrier banners) and the base flag line
--- in the sign band. Everything later (bleachers, grandstand, floodlights, gantry, loop, signs)
--- is reserved space only and drawn by the reservation overlay. No ownership or gameplay.
+-- One hub plot at its base tier (Task 3, 2026-10-22): front to back the entrance court and gate
+-- with its nameplate, the kiosk placeholder, the Paddock with 15 marked bay placeholders, the
+-- walkway, the pit lanes, the base Speedway (asphalt, racing line, painted lines, curbs, low white
+-- wall, checkered start / finish, mowed infield, fictional banners) and the base flag line with
+-- bunting in the sign band. Everything later (bleachers, grandstand, floodlights, gantry, loop,
+-- signs) is reserved space only. Visuals only: no ownership, saved data or gameplay.
 
 local Kit = require(script.Parent.Parent.Parent.Kit)
+local KitAssets = require(script.Parent.Parent.Environment.KitAssets)
 local Layout = require(script.Parent.Parent.Layout)
 local Palette = require(script.Parent.Parent.Parent.WorldPalette)
+local Signs = require(script.Parent.Parent.Environment.Signs)
 
 local PlotRecipe = {}
 
@@ -124,61 +127,173 @@ local function polyline(
 	end
 end
 
-local function buildSpeedway(visual: Folder, bearing: number)
+-- Base-tier Speedway (Task 3, Adam 2026-10-22): dark asphalt with a slightly darker racing line,
+-- a double yellow inside line, a dashed yellow lane line, a thin white outer line, red and white
+-- curbs on the turns, a mowed-stripe infield, a low clean white wall and fictional banners on the
+-- wall's inner face where the entrance sees them. Nothing from later tiers: every piece stays in
+-- the Track reservation (barrier height) or lies flat in the infield.
+local ASPHALT = Color3.fromRGB(58, 62, 70)
+local RACING = Color3.fromRGB(46, 49, 56)
+local LINE_YELLOW = Color3.fromRGB(246, 200, 60)
+local WALL = Color3.fromRGB(246, 246, 242)
+local WALL_CAP = Color3.fromRGB(214, 220, 228)
+local CURB_RED = Color3.fromRGB(214, 62, 56)
+local STRIPE_A = Color3.fromRGB(104, 178, 84)
+local STRIPE_B = Color3.fromRGB(88, 160, 72)
+
+local function onArc(s: number): boolean
+	for _, seg in Layout.Segments do
+		if seg.kind == "arc" and s >= seg.s0 - 1e-6 and s < seg.s0 + seg.length - 1e-6 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Lateral offset of the racing line at lap distance s: wide on the straights, crossing to the
+-- inside at each turn's apex.
+local function racingOffset(s: number): number
+	for _, seg in Layout.Segments do
+		if s >= seg.s0 - 1e-6 and s <= seg.s0 + seg.length + 1e-6 then
+			if seg.kind == "arc" then
+				return 3 - 7 * math.sin(math.pi * (s - seg.s0) / seg.length)
+			end
+			return 3
+		end
+	end
+	return 3
+end
+
+local function ringBy(
+	parent: Instance,
+	bearing: number,
+	offsetAt: (Node) -> number,
+	width: number,
+	thickness: number,
+	topY: number,
+	options: (number, Node) -> Kit.PartOptions,
+	overlap: number
+)
+	local n = #NODES
+	for i = 1, n do
+		local a, b = NODES[i], NODES[i % n + 1]
+		local pa = a.p + Layout.outward(a.t) * offsetAt(a)
+		local pb = b.p + Layout.outward(b.t) * offsetAt(b)
+		Kit.strip(
+			parent,
+			Layout.plotToWorld(bearing, pa),
+			Layout.plotToWorld(bearing, pb),
+			width,
+			thickness,
+			topY,
+			options(i, a),
+			overlap
+		)
+	end
+end
+
+local function buildSpeedway(visual: Folder, bearing: number, index: number)
 	local track = Instance.new("Folder")
 	track.Name = "Speedway"
 	track.Parent = visual
-	ring(
+	ring(track, bearing, 0, HALF_W * 2, 0.4, TRACK_TOP, {
+		name = "Surface",
+		color = ASPHALT,
+		material = Enum.Material.Asphalt,
+		collide = true,
+		castShadow = false,
+	}, 2)
+	-- the racing line, a shade darker (arcs only vary; the straights hold the outside)
+	ringBy(
 		track,
 		bearing,
-		0,
-		HALF_W * 2,
-		0.4,
-		TRACK_TOP,
-		{ name = "Surface", color = Palette.Navy, collide = true, castShadow = false },
-		2
+		function(node)
+			return racingOffset(node.s)
+		end,
+		3.5,
+		0.04,
+		TRACK_TOP + 0.01,
+		function()
+			return { name = "RacingLine", color = RACING, material = Enum.Material.Asphalt, castShadow = false }
+		end,
+		0.8
 	)
-	for _, side in { -1, 1 } do
-		ring(
-			track,
-			bearing,
-			side * (HALF_W - 0.9),
-			0.5,
-			0.05,
-			TRACK_TOP + 0.03,
-			{ name = "YellowLine", color = Palette.Yellow, castShadow = false },
-			0.3
-		)
+	-- double yellow inside line, thin white outer line
+	for _, off in { -(HALF_W - 0.75), -(HALF_W - 1.35) } do
+		ring(track, bearing, off, 0.3, 0.04, TRACK_TOP + 0.03, {
+			name = "YellowLine",
+			color = LINE_YELLOW,
+			castShadow = false,
+		}, 0.2)
 	end
-	ring(
+	ring(track, bearing, HALF_W - 0.6, 0.3, 0.04, TRACK_TOP + 0.03, {
+		name = "WhiteLine",
+		color = Color3.new(1, 1, 1),
+		castShadow = false,
+	}, 0.2)
+	-- dashed yellow lane line on the centre: 3 studs painted, 3 studs open
+	local dashes = Instance.new("Folder")
+	dashes.Name = "LaneDashes"
+	dashes.Parent = track
+	local s = 0
+	while s < Layout.PathLength - 3 do
+		local steps = if onArc(s) then 3 else 1
+		for k = 0, steps - 1 do
+			local pa = Layout.pointAt(s + 3 * k / steps)
+			local pb = Layout.pointAt(s + 3 * (k + 1) / steps)
+			Kit.strip(
+				dashes,
+				Layout.plotToWorld(bearing, pa),
+				Layout.plotToWorld(bearing, pb),
+				0.3,
+				0.04,
+				TRACK_TOP + 0.03,
+				{ name = "LaneDash", color = LINE_YELLOW, castShadow = false },
+				0.05
+			)
+		end
+		s += 6
+	end
+	-- the low clean white outer wall with a pale cap (open at the pit lanes)
+	ring(track, bearing, HALF_W + 0.55, 0.8, 1.5, TRACK_TOP + 1.5, {
+		name = "Barrier",
+		color = WALL,
+		collide = true,
+		castShadow = false,
+	}, 0.6, Layout.inPitGap)
+	ring(track, bearing, HALF_W + 0.55, 1.05, 0.14, TRACK_TOP + 1.64, {
+		name = "BarrierCap",
+		color = WALL_CAP,
+		castShadow = false,
+	}, 0.6, Layout.inPitGap)
+	-- inside curb: red and white on the turns, white on the straights
+	ringBy(
 		track,
 		bearing,
-		HALF_W + 0.5,
+		function()
+			return -HALF_W - 0.5
+		end,
 		1,
-		2,
-		TRACK_TOP + 2,
-		{ name = "Barrier", color = Palette.Cream, collide = true, castShadow = false },
-		0.6,
-		Layout.inPitGap
-	)
-	ring(
-		track,
-		bearing,
-		-HALF_W - 0.5,
-		1,
-		0.35,
-		TRACK_TOP + 0.15,
-		{ name = "Curb", color = Color3.new(1, 1, 1), collide = true, castShadow = false },
-		0.4
+		0.3,
+		TRACK_TOP + 0.12,
+		function(i, node)
+			return {
+				name = "Curb",
+				color = if onArc(node.s) and i % 2 == 0 then CURB_RED else Color3.new(1, 1, 1),
+				collide = true,
+				castShadow = false,
+			}
+		end,
+		0.3
 	)
 
-	-- Checkered start / finish line: 8 tiles across, 2 rows
+	-- Checkered start / finish line: 8 tiles across, 3 rows
 	local sp, st = Layout.pointAt(Layout.StartS)
 	local n = Layout.outward(st)
 	local tile = HALF_W * 2 / 8
-	for row = 0, 1 do
+	for row = 0, 2 do
 		for k = 0, 7 do
-			local c = sp + n * (-HALF_W + tile * (k + 0.5)) + st * (row - 0.5) * tile
+			local c = sp + n * (-HALF_W + tile * (k + 0.5)) + st * (row - 1) * tile
 			Kit.strip(
 				track,
 				Layout.plotToWorld(bearing, c - st * tile / 2),
@@ -196,55 +311,158 @@ local function buildSpeedway(visual: Folder, bearing: number)
 		end
 	end
 
-	-- Banners on the barrier's outer face along both straights
-	local colours = { Palette.Coral, Palette.Mint, Palette.Yellow }
-	for side, seg in { Layout.RightStraight, Layout.LeftStraight } do
-		local dir = (seg.to - seg.from).Unit
-		local out = Layout.outward(dir)
-		local count = 4
-		for k = 1, count do
-			local mid = seg.from + dir * (seg.length * (k - 0.5) / count) + out * (HALF_W + 1.06)
-			Kit.part(
-				track,
-				Vector3.new(0.1, 1.6, 10),
-				CFrame.lookAt(
-					Layout.plotToWorld(bearing, mid, TRACK_TOP + 1.1),
-					Layout.plotToWorld(bearing, mid + dir, TRACK_TOP + 1.1)
-				),
-				{ name = "Banner", color = colours[(k + side) % 3 + 1], castShadow = false }
-			)
-		end
+	-- the mowed-stripe infield: strips along the straights, clipped to the infield's rounded ends
+	local infield = Instance.new("Folder")
+	infield.Name = "Infield"
+	infield.Parent = track
+	-- stripes run on under the curb and the asphalt (radius 27.3; the curb starts at 26), so the
+	-- track hides their stepped ends round the turns
+	local R = Layout.TurnRadius - HALF_W + 0.3
+	local uNear, uFar = Layout.RightStraight.from.Y, Layout.RightStraight.to.Y
+	local width = 3.25
+	local strips = math.floor(2 * R / width)
+	local x0 = -strips * width / 2
+	for k = 0, strips - 1 do
+		local xa, xb = x0 + k * width, x0 + (k + 1) * width
+		local half = math.sqrt(math.max(0, R * R - math.min(math.abs(xa), math.abs(xb)) ^ 2))
+		Kit.strip(
+			infield,
+			Layout.plotToWorld(bearing, Vector2.new((xa + xb) / 2, uNear - half)),
+			Layout.plotToWorld(bearing, Vector2.new((xa + xb) / 2, uFar + half)),
+			width,
+			0.08,
+			SURFACE + 0.09,
+			{
+				name = "Stripe",
+				color = if k % 2 == 0 then STRIPE_A else STRIPE_B,
+				material = Enum.Material.Grass,
+				castShadow = false,
+			},
+			0
+		)
+	end
+
+	-- fictional banners on the wall's inner face round the far turn and the far ends of the
+	-- straights; the owner's banner at the apex faces the entrance
+	local banners = Instance.new("Folder")
+	banners.Name = "Banners"
+	banners.Parent = track
+	local far = Layout.Segments[2]
+	local placements = {
+		{ s = far.s0 + far.length * 0.5, art = "Owner" },
+		{ s = far.s0 + far.length * 0.2, art = "BannerA" },
+		{ s = far.s0 + far.length * 0.8, art = "BannerB" },
+		{ s = Layout.RightStraight.s0 + Layout.RightStraight.length * 0.75, art = "BannerC" },
+		{ s = Layout.LeftStraight.s0 + Layout.LeftStraight.length * 0.25, art = "BannerD" },
+	}
+	for _, pl in placements do
+		local p, t = Layout.pointAt(pl.s)
+		local out = Layout.outward(t)
+		local at = p + out * (HALF_W + 0.12)
+		local a = Layout.plotToWorld(bearing, at, TRACK_TOP + 0.78)
+		local inward = Layout.plotToWorld(bearing, at - out, TRACK_TOP + 0.78)
+		local board = Kit.part(
+			banners,
+			Vector3.new(10, 1.4, 0.06),
+			CFrame.lookAt(a, inward),
+			{ name = "Banner", color = WALL, castShadow = false }
+		)
+		Signs.banner(board, pl.art, index)
 	end
 end
 
--- Base flag line in the outer sign band (replaced by signs at tier 2, a later upgrade).
+-- Base flag line in the outer sign band (the band allows flags; tier 2 replaces them with signs):
+-- poles with cloth flags (beams the client waves) and pennant bunting sagging between them.
 local function buildFlags(visual: Folder, bearing: number)
 	local flags = Instance.new("Folder")
 	flags.Name = "FlagLine"
+	flags:SetAttribute("FlagLine", true)
 	flags.Parent = visual
 	local _, u0, _, u1 = Layout.bounds(Layout.reservation("SignBand").poly)
 	local u = (u0 + u1) / 2
-	local colours = { Palette.Coral, Palette.Yellow, Palette.Mint, Color3.new(1, 1, 1) }
+	local cloths = { "FlagChecker", "FlagStripesA", "FlagStar", "FlagStripesB" }
+	local host = Kit.part(flags, Vector3.one, CFrame.new(Layout.plotToWorld(bearing, Vector2.new(0, u), SURFACE)), {
+		name = "BeamHost",
+		transparency = 1,
+		castShadow = false,
+	})
+	local function attach(pos: Vector3, x: Vector3, y: Vector3): Attachment
+		local a = Instance.new("Attachment")
+		a.CFrame = host.CFrame:ToObjectSpace(CFrame.fromMatrix(pos, x, y))
+		a.Parent = host
+		return a
+	end
+	local along = (Layout.plotToWorld(bearing, Vector2.new(1, u)) - Layout.plotToWorld(bearing, Vector2.new(0, u))).Unit
+	local lateral = along:Cross(Vector3.new(0, 1, 0)).Unit
+	local poleTop = 9.6
+	local tops = {}
 	for k = -4, 4 do
-		local x = k * 20
-		Kit.part(
-			flags,
-			Vector3.new(0.5, 12, 0.5),
-			CFrame.new(Layout.plotToWorld(bearing, Vector2.new(x, u), SURFACE + 6)),
-			{ name = "FlagPole", color = Palette.Cream, collide = true }
-		)
-		local a = Layout.plotToWorld(bearing, Vector2.new(x, u), SURFACE + 10.5)
-		local b = Layout.plotToWorld(bearing, Vector2.new(x + 1, u), SURFACE + 10.5)
-		Kit.part(
-			flags,
-			Vector3.new(4, 2.5, 0.2),
-			CFrame.lookAt(a, a + (a - b):Cross(Vector3.yAxis)) * CFrame.new(2.2, 0, 0),
-			{ name = "Flag", color = colours[(k + 4) % 4 + 1], castShadow = false }
-		)
+		local base = Layout.plotToWorld(bearing, Vector2.new(k * 20, u), SURFACE)
+		if KitAssets.has("Flagpole") then
+			local pole = KitAssets.place("Flagpole", CFrame.lookAt(base, base + lateral), 1, true)
+			pole.Parent = flags
+			poleTop = KitAssets.info("Flagpole").meta.flag_top or poleTop
+		else
+			Kit.part(flags, Vector3.new(0.5, 10, 0.5), CFrame.new(base + Vector3.new(0, 5, 0)), {
+				name = "FlagPole",
+				color = Palette.Cream,
+				collide = true,
+			})
+		end
+		local top = base + Vector3.new(0, poleTop, 0)
+		table.insert(tops, top)
+		-- the flag: a beam from the pole out along the band, 2 tall; the client waves it by
+		-- bending the beam sideways (curves bend along the attachments' X, here lateral)
+		local flagMid = top - Vector3.new(0, 1, 0)
+		local a0 = attach(flagMid + along * 0.25, lateral, Vector3.new(0, 1, 0))
+		local a1 = attach(flagMid + along * 4.2, lateral, Vector3.new(0, 1, 0))
+		local b = Instance.new("Beam")
+		b.Name = "Flag"
+		b.Attachment0, b.Attachment1 = a0, a1
+		b.Texture = Signs.texture(cloths[(k + 4) % #cloths + 1])
+		b.TextureMode = Enum.TextureMode.Stretch
+		b.TextureLength = 1
+		b.Width0, b.Width1 = 2, 2
+		b.FaceCamera = false
+		b.Segments = 12
+		b.LightInfluence = 1
+		b:SetAttribute("FlagWave", (k + 4) * 0.7)
+		b.Parent = host
+	end
+	-- bunting between neighbouring poles, sagging a little under the flags
+	for i = 1, #tops - 1 do
+		local p0 = tops[i] - Vector3.new(0, 2.6, 0)
+		local p1 = tops[i + 1] - Vector3.new(0, 2.6, 0)
+		local down = Vector3.new(0, -1, 0)
+		local a0 = attach(p0, down, lateral)
+		local a1 = attach(p1, down, lateral)
+		local b = Instance.new("Beam")
+		b.Name = "Bunting"
+		b.Attachment0, b.Attachment1 = a0, a1
+		b.Texture = Signs.texture("Pennants")
+		b.TextureMode = Enum.TextureMode.Wrap
+		b.TextureLength = 6
+		b.Width0, b.Width1 = 1.4, 1.4
+		b.FaceCamera = true
+		b.Segments = 16
+		b.CurveSize0 = 2.2
+		b.CurveSize1 = -2.2
+		b.LightInfluence = 1
+		b:SetAttribute("BuntingSag", 2.2)
+		b.Parent = host
 	end
 end
 
-local function buildFront(visual: Folder, bearing: number)
+-- A thin invisible face part for a SurfaceGui, centred at `at`, its Front face toward `toward`.
+local function facePart(parent: Instance, name: string, at: Vector3, toward: Vector3, w: number, h: number): Part
+	return Kit.part(parent, Vector3.new(w, h, 0.02), CFrame.lookAt(at, toward), {
+		name = name,
+		transparency = 1,
+		castShadow = false,
+	})
+end
+
+local function buildFront(visual: Folder, bearing: number, index: number)
 	local r0 = Layout.EntranceRadius
 	local W = function(x: number, u: number, y: number?): Vector3
 		return Layout.plotToWorld(bearing, Vector2.new(x, u), y)
@@ -252,6 +470,7 @@ local function buildFront(visual: Folder, bearing: number)
 	local front = Instance.new("Folder")
 	front.Name = "Front"
 	front.Parent = visual
+	local parkward = (W(0, r0 - 10) - W(0, r0)).Unit
 
 	local cx0, cu0, cx1, cu1 = Layout.bounds(Layout.reservation("EntranceCourt").poly)
 	rect(
@@ -266,35 +485,83 @@ local function buildFront(visual: Folder, bearing: number)
 		{ name = "Court", color = Palette.Court, collide = true, castShadow = false }
 	)
 
-	-- Gate arch at the promenade's outer edge, facing the park, with a blank nameplate
+	-- Gate arch at the promenade's outer edge, facing the park, with the nameplate on top
 	local half = Layout.GateHalfWidth
-	for _, side in { -1, 1 } do
-		Kit.part(
+	if KitAssets.has("PlotGate") then
+		local at = W(0, r0, SURFACE)
+		local base = CFrame.lookAt(at, at - parkward)
+		-- visual only: a box collider would close the opening, so the posts get their own
+		-- invisible colliders, as the greybox posts were
+		local gate = KitAssets.place("PlotGate", base, 1)
+		gate.Name = "GateArch"
+		gate.Parent = front
+		for _, side in { -1, 1 } do
+			Kit.part(front, Vector3.new(1.5, 9, 1.5), CFrame.new(W(side * (half + 0.75), r0, SURFACE + 4.5)), {
+				name = "GatePostCollider",
+				color = Palette.Coral,
+				collide = true,
+				transparency = 1,
+				castShadow = false,
+			})
+		end
+		-- the nameplate face (kit_plot.py): 9.6 x 2.1 inside the coral frame, at the approved
+		-- nameplate height, 1.0 in front of the mesh origin (mesh front is +Z)
+		local face = base * CFrame.new(0, Layout.NameplateY, 1.02)
+		local plate = facePart(front, "Nameplate", face.Position, face.Position + parkward, 9.6, 2.1)
+		Signs.nameplate(plate, index)
+	else
+		for _, side in { -1, 1 } do
+			Kit.part(
+				front,
+				Vector3.new(1.5, 9, 1.5),
+				CFrame.new(W(side * (half + 0.75), r0, SURFACE + 4.5)),
+				{ name = "GatePost", color = Palette.Coral, collide = true }
+			)
+		end
+		Kit.strip(
 			front,
-			Vector3.new(1.5, 9, 1.5),
-			CFrame.new(W(side * (half + 0.75), r0, SURFACE + 4.5)),
-			{ name = "GatePost", color = Palette.Coral, collide = true }
+			W(-half - 1.5, r0),
+			W(half + 1.5, r0),
+			1.5,
+			1.2,
+			SURFACE + 9.6,
+			{ name = "GateLintel", color = Palette.Coral },
+			0
+		)
+		local plate = Kit.part(
+			front,
+			Vector3.new(10, 2.5, 0.4),
+			CFrame.lookAt(W(0, r0 - 0.8, SURFACE + Layout.NameplateY), W(0, r0 - 2, SURFACE + Layout.NameplateY)),
+			{ name = "Nameplate", color = Palette.Cream, castShadow = false }
+		)
+		Signs.nameplate(plate, index)
+	end
+
+	-- the upgrade kiosk: a placeholder booth with a blank-for-now panel (no prices or prompts)
+	local kx0, ku0, kx1, ku1 = Layout.bounds(Layout.reservation("Kiosk").poly)
+	if KitAssets.has("KioskBooth") then
+		local at = W((kx0 + kx1) / 2, (ku0 + ku1) / 2, SURFACE)
+		local base = CFrame.lookAt(at, at - parkward)
+		local kiosk = KitAssets.place("KioskBooth", base, 1, true)
+		kiosk.Name = "Kiosk"
+		kiosk:SetAttribute("Placeholder", "upgrade kiosk; interactions belong to Lane 2")
+		kiosk.Parent = front
+		-- the panel face (kit_plot.py): 5.0 x 0.9 at 5.35 up, 2.76 in front of the mesh origin
+		local face = base * CFrame.new(0, 5.35, 2.78)
+		local panel = facePart(front, "KioskPanel", face.Position, face.Position + parkward, 5, 0.9)
+		Signs.kioskPanel(panel)
+	else
+		box(
+			front,
+			bearing,
+			kx0 + 1,
+			ku0 + 1,
+			kx1 - 1,
+			ku1 - 1,
+			6,
+			{ name = "Kiosk", color = Palette.Mint, collide = true }
 		)
 	end
-	Kit.strip(
-		front,
-		W(-half - 1.5, r0),
-		W(half + 1.5, r0),
-		1.5,
-		1.2,
-		SURFACE + 9.6,
-		{ name = "GateLintel", color = Palette.Coral },
-		0
-	)
-	Kit.part(
-		front,
-		Vector3.new(10, 2.5, 0.4),
-		CFrame.lookAt(W(0, r0 - 0.8, SURFACE + Layout.NameplateY), W(0, r0 - 2, SURFACE + Layout.NameplateY)),
-		{ name = "Nameplate", color = Palette.Cream, castShadow = false }
-	)
-
-	local kx0, ku0, kx1, ku1 = Layout.bounds(Layout.reservation("Kiosk").poly)
-	box(front, bearing, kx0 + 1, ku0 + 1, kx1 - 1, ku1 - 1, 6, { name = "Kiosk", color = Palette.Mint, collide = true })
 
 	local wx0, wu0, wx1, wu1 = Layout.bounds(Layout.reservation("PlotWalk").poly)
 	rect(
@@ -309,45 +576,52 @@ local function buildFront(visual: Folder, bearing: number)
 		{ name = "Walkway", color = Palette.Paving, collide = true, castShadow = false }
 	)
 
-	-- Paddock: floor, aisle, bays (Bay01 to Bay03 shown in yellow), pit lanes
+	-- Paddock: floor, aisle, bays (placeholders: painted outlines and numbers; Bay01 to Bay03 are
+	-- the starting bays, outlined in yellow), pit lanes
 	local paddock = Instance.new("Folder")
 	paddock.Name = "Paddock"
 	paddock.Parent = visual
 	local px0, pu0, px1, pu1 = Layout.bounds(Layout.reservation("Paddock").poly)
-	rect(
-		paddock,
-		bearing,
-		px0,
-		pu0,
-		px1,
-		pu1,
-		SURFACE + 0.1,
-		0.2,
-		{ name = "Floor", color = Palette.Paving, collide = true, castShadow = false }
-	)
-	rect(
-		paddock,
-		bearing,
-		px0,
-		Layout.Aisle[1],
-		px1,
-		Layout.Aisle[2],
-		SURFACE + 0.12,
-		0.2,
-		{ name = "Aisle", color = Palette.Promenade, collide = true, castShadow = false }
-	)
+	rect(paddock, bearing, px0, pu0, px1, pu1, SURFACE + 0.1, 0.2, {
+		name = "Floor",
+		color = Color3.fromRGB(206, 200, 190),
+		material = Enum.Material.Concrete,
+		collide = true,
+		castShadow = false,
+	})
+	rect(paddock, bearing, px0, Layout.Aisle[1], px1, Layout.Aisle[2], SURFACE + 0.12, 0.2, {
+		name = "Aisle",
+		color = Color3.fromRGB(150, 154, 160),
+		material = Enum.Material.Asphalt,
+		collide = true,
+		castShadow = false,
+	})
 	for _, bay in Layout.Bays do
 		local rowU = if bay.row == "A" then Layout.RowA else Layout.RowB
 		local tile =
-			rect(paddock, bearing, bay.x - 4.2, rowU[1] + 0.3, bay.x + 4.2, rowU[2] - 0.3, SURFACE + 0.16, 0.06, {
+			rect(paddock, bearing, bay.x - 4.2, rowU[1] + 0.3, bay.x + 4.2, rowU[2] - 0.3, SURFACE + 0.14, 0.04, {
 				name = string.format("Bay%02d", bay.index),
-				color = if bay.initial then Palette.Yellow else Palette.BayReserved,
-				transparency = if bay.initial then 0 else 0.35,
+				color = if bay.initial then Color3.fromRGB(196, 190, 180) else Color3.fromRGB(214, 210, 202),
+				material = Enum.Material.Concrete,
 				castShadow = false,
 			})
 		if tile then
 			tile:SetAttribute("BayIndex", bay.index)
+			tile:SetAttribute("Placeholder", "bay; car placement belongs to Lane 2")
+			Signs.bayNumber(tile, bay.index, bay.initial, bay.facing)
 		end
+		-- painted outline: two sides and the back line (open toward the aisle)
+		local line = {
+			name = "BayLine",
+			color = if bay.initial then Color3.fromRGB(246, 200, 60) else Color3.new(1, 1, 1),
+			castShadow = false,
+		}
+		local back = if bay.row == "A" then rowU[1] + 0.3 else rowU[2] - 0.3
+		local open = if bay.row == "A" then rowU[2] - 0.3 else rowU[1] + 0.3
+		for _, sx in { -4.2, 4.2 } do
+			Kit.strip(paddock, W(bay.x + sx, back), W(bay.x + sx, open), 0.25, 0.03, SURFACE + 0.17, line, 0)
+		end
+		Kit.strip(paddock, W(bay.x - 4.2, back), W(bay.x + 4.2, back), 0.25, 0.03, SURFACE + 0.17, line, 0)
 	end
 	polyline(
 		paddock,
@@ -355,7 +629,7 @@ local function buildFront(visual: Folder, bearing: number)
 		Layout.PitOut,
 		Layout.PitLaneWidth,
 		SURFACE + 0.13,
-		{ name = "PitOut", color = Palette.Promenade, castShadow = false }
+		{ name = "PitOut", color = Color3.fromRGB(70, 74, 82), castShadow = false }
 	)
 	polyline(
 		paddock,
@@ -363,7 +637,7 @@ local function buildFront(visual: Folder, bearing: number)
 		Layout.PitIn,
 		Layout.PitLaneWidth,
 		SURFACE + 0.13,
-		{ name = "PitIn", color = Palette.Promenade, castShadow = false }
+		{ name = "PitIn", color = Color3.fromRGB(70, 74, 82), castShadow = false }
 	)
 end
 
@@ -371,8 +645,8 @@ function PlotRecipe.build(plot: Model, index: number)
 	local bearing = Layout.plotBearing(index)
 	local visual = Instance.new("Folder")
 	visual.Name = "Visual"
-	buildFront(visual, bearing)
-	buildSpeedway(visual, bearing)
+	buildFront(visual, bearing, index)
+	buildSpeedway(visual, bearing, index)
 	buildFlags(visual, bearing)
 	visual.Parent = plot
 end

@@ -24,10 +24,12 @@ local QUACK_SOUND = "rbxassetid://1845012569" -- Quack Duck, APM
 local FALLS_AT = Vector3.new(-121, 22, 270)
 local PARK_AT = Vector3.new(0, 12, -20)
 local QUACK_MIN, QUACK_MAX = 20, 40 -- seconds between quacks (Tunable)
--- Off: the proposed asset is a 63.1-second track (measured in a playtest, 2026-10-21), not a
--- single quack, so every 20 to 40 s it would stack long overlapping plays. A replacement needs
--- Adam's choice; the timer below is kept for it.
-local QUACK_ENABLED = false
+-- The proposed asset is a 63.05-second track of many quacks (measured in a playtest, 2026-10-21).
+-- One clean quack is played from it with a playback region: the waveform (AudioPlayer
+-- GetWaveformAsync, 50 ms bins, 2026-10-22) shows a lone burst at 1.40 to 1.55 s with silence
+-- from 1.15 s and until 1.80 s. Adam listens before it counts as final.
+local QUACK_ENABLED = true
+local QUACK_REGION = NumberRange.new(1.3, 1.68)
 
 local function emitterPart(trove: Trove.Trove, name: string, at: Vector3): Part
 	local p = trove:Add(Instance.new("Part"))
@@ -84,7 +86,9 @@ local function run(trove: Trove.Trove)
 	-- duck, so it follows her and goes when Wildlife removes her
 	local quack = sound(group, group, QUACK_SOUND, {
 		Name = "Lane3_Quack",
-		Volume = 0.45,
+		Volume = 0.32,
+		PlaybackRegionsEnabled = true,
+		PlaybackRegion = QUACK_REGION,
 		RollOffMode = Enum.RollOffMode.InverseTapered,
 		RollOffMinDistance = 8,
 		RollOffMaxDistance = 70,
@@ -100,6 +104,12 @@ local function run(trove: Trove.Trove)
 				q.Parent = duck
 				q.Ended:Once(function()
 					q:Destroy()
+				end)
+				-- the region stops the sound; this only tidies up if no end event arrives
+				task.delay(3, function()
+					if q.Parent then
+						q:Destroy()
+					end
 				end)
 				q:Play()
 			end

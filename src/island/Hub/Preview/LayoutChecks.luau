@@ -3,7 +3,11 @@
 -- instances themselves (markers and parts), not from the plan's numbers:
 --   markers identical in every plot's own frame, the lap length from the path markers,
 --   every plot part inside its sector with the buffer, nothing taller than eye level in a
---   viewing corridor, the bridge count, and the fountain rim height.
+--   viewing corridor, the bridge count, and the fountain rim height;
+--   every later-tier ("future") reservation empty: no plot part that stands above the ground
+--   (more than 0.6 studs) has its centre inside a future reservation, except where the plan
+--   allows the overlap (allowedPairs) or the reservation's own note allows it (the base flag
+--   line in the SignBand).
 --
 --   local I = game.ServerStorage.Island:Clone()
 --   require(I.Hub.Preview.LayoutChecks).run()
@@ -41,6 +45,120 @@ local function inTriangle(p: Vector2, a: Vector2, b: Vector2, c: Vector2): boole
 	local neg = d1 < 0 or d2 < 0 or d3 < 0
 	local pos = d1 > 0 or d2 > 0 or d3 > 0
 	return not (neg and pos)
+end
+
+local function inPoly(p: Vector2, poly: { Vector2 }): boolean
+	local inside = false
+	local j = #poly
+	for i = 1, #poly do
+		local a, b = poly[i], poly[j]
+		if (a.Y > p.Y) ~= (b.Y > p.Y) and p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X then
+			inside = not inside
+		end
+		j = i
+	end
+	return inside
+end
+
+local function inReservation(p: Vector2, r: any): boolean
+	if not inPoly(p, r.poly) then
+		return false
+	end
+	local ring = r.ring
+	return not (ring and #ring >= 3 and inPoly(p, ring))
+end
+
+-- Parts allowed inside a future reservation by name or attribute (the base flag line in the
+-- SignBand, whose note says the tier 2 flag line starts there).
+local FUTURE_ALLOWED: { [string]: (BasePart) -> boolean } = {
+	SignBand = function(part)
+		local line = part:FindFirstAncestor("FlagLine")
+		return line ~= nil and line:GetAttribute("FlagLine") == true
+	end,
+}
+
+local function reservationCheck(plots: Folder): { [string]: any }
+	local future, base = {}, {}
+	for _, res in Layout.Data.reservations do
+		if res.layer == "future" then
+			table.insert(future, res)
+		else
+			table.insert(base, res)
+		end
+	end
+	local allowed: { [string]: boolean } = {}
+	for _, pair in Layout.Data.allowedPairs do
+		allowed[pair.a .. "|" .. pair.b] = true
+		allowed[pair.b .. "|" .. pair.a] = true
+	end
+	local violations, checked = {}, 0
+	local byZone: { [string]: number } = {}
+	for _, plot in plots:GetChildren() do
+		local index = tonumber(string.match(plot.Name, "%d+"))
+		if not index then
+			continue
+		end
+		local bearing = Layout.plotBearing(index)
+		for _, part in plot:GetDescendants() do
+			if not part:IsA("BasePart") then
+				continue
+			end
+			checked += 1
+			local top = part.Position.Y + part.Size.Y / 2
+			if part:IsA("Part") then
+				local h = 0
+				for _, c in corners(part) do
+					h = math.max(h, c.Y)
+				end
+				top = h
+			end
+			if top <= Layout.SurfaceY + 0.6 then
+				continue -- flat ground dressing does not occupy a reservation
+			end
+			-- the part's centre decides its home (base) reservation; any corner of its footprint
+			-- inside a later-tier reservation counts as occupying it
+			local q = Layout.planToPlot(bearing, Vector2.new(part.Position.X, -part.Position.Z))
+			local pts = { q }
+			for _, c in corners(part) do
+				table.insert(pts, Layout.planToPlot(bearing, Vector2.new(c.X, -c.Z)))
+			end
+			local home = nil
+			for _, res in base do
+				if inReservation(q, res) then
+					home = res.id
+					break
+				end
+			end
+			for _, res in future do
+				local touches = false
+				for _, pt in pts do
+					if inReservation(pt, res) then
+						touches = true
+						break
+					end
+				end
+				if touches then
+					local ok = (home ~= nil and allowed[home .. "|" .. res.id])
+						or (FUTURE_ALLOWED[res.id] ~= nil and FUTURE_ALLOWED[res.id](part))
+					if not ok then
+						byZone[res.id] = (byZone[res.id] or 0) + 1
+						if #violations < 12 then
+							table.insert(
+								violations,
+								string.format(
+									"%s %s in %s",
+									plot.Name,
+									part:GetFullName():match("[^.]+%.[^.]+$") or part.Name,
+									res.id
+								)
+							)
+						end
+					end
+				end
+			end
+		end
+	end
+	return { partsChecked = checked, violations = violations, violationsByReservation = byZone }
 end
 
 function LayoutChecks.run(): { [string]: any }
@@ -181,6 +299,7 @@ function LayoutChecks.run(): { [string]: any }
 	report.bridgesPlanned = #Layout.Data.park.bridges
 	local rim = plaza:FindFirstChild("FountainRim") :: BasePart
 	report.fountainRimTop = round(rim.Position.Y + rim.Size.X / 2 - Layout.SurfaceY)
+	report.futureReservations = reservationCheck(plots)
 	return report
 end
 

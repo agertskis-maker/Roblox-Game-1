@@ -530,6 +530,26 @@ def signpost(name, boards):
     return b, {"height": 8.6, "boards": boards}
 
 
+def signpost_board(name):
+    # one arrow board pointing along +x (square end in the post, tip 0.6 long), so the build can
+    # turn each board toward its destination; faces are plank brown (decided 2026-10-22) and the
+    # icon and word go on a SurfaceGui per the Figma spec (vault/design/ui/island-signs.md)
+    b = Builder(name)
+    L, H = 4.2, 0.95
+    c = Vector((L / 2 - 0.1, 0, 0))
+    d = Vector((1, 0, 0))
+    s = Vector((0, 1, 0))
+    pts = [c - d * L / 2 + Vector((0, 0, H / 2)), c + d * (L / 2 - 0.6) + Vector((0, 0, H / 2)), c + d * L / 2, c + d * (L / 2 - 0.6) - Vector((0, 0, H / 2)), c - d * L / 2 - Vector((0, 0, H / 2))]
+    front = [p - s * 0.12 for p in pts]
+    back = [p + s * 0.12 for p in pts]
+    b.face(front, "plank")
+    b.face(list(reversed(back)), "plank")
+    for k in range(len(pts)):
+        k2 = (k + 1) % len(pts)
+        b.quad(front[k2], front[k], back[k], back[k2], "plank_dark")
+    return b, {"length": L, "height": H, "thickness": 0.24, "start": -0.1}
+
+
 def bridge(name, span, deck, rails=True):
     rng = random.Random(seed_of(name))
     b = Builder(name)
@@ -662,6 +682,8 @@ def build_all(emit):
     emit(*topiary("TopiaryCone", "cone"), P + "Hedge")
     emit(*car_topiary("CarTopiary"), P + "Hedge")
     emit(*signpost("Signpost", 3), P + "Park")
+    emit(*signpost("SignpostPost", 0), P + "Park")
+    emit(*signpost_board("SignpostBoard"), P + "Park")
     emit(*bridge("BridgeAvenue", 16, 18), P + "Bridge")
     emit(*bridge("BridgeLakeside", 16, 12), P + "Bridge")
     emit(*bridge("BridgeGarden", 16, 10), P + "Bridge")

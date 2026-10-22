@@ -257,3 +257,102 @@ Source: https://create.roblox.com/docs/projects/assets/privacy (read through the
   Collaborators, with a friend or a group where the owner has the required permission). Who:
   Adam (peskaface), as the asset owner. Game grants are permanent.
 - **Open team decision (Adam, Brian R, Brian L):** who owns the published experience.
+
+## Task 3 uploads (2026-10-22)
+
+Owner peskaface, images uploaded through the Studio MCP. Privacy: unchanged (not checked, not
+set). Load: all sign art and portal textures render in the Studio captures. PortalBeam, Mote
+and Ember logged "Asset content representation is being generated" at the first playtest and
+rendered later. Ids are also in `src/island/Hub/Environment/AssetIds.luau`.
+
+### Palette
+
+| Asset | Id | Source | State |
+|---|---|---|---|
+| Palette, revision 3 | 84613406678497 | `kitlib.py` → `palette.png` | uploaded, in use; four swatches appended (steel, brass, coral, mint), earlier cells unchanged; replaces 112727480640146 (no longer referenced) |
+
+### Portal and track textures
+
+Files: `Car-Hop-Art/island-kit/textures/` (drawn by `textures.js`).
+
+| Asset | Id | File | State |
+|---|---|---|---|
+| PortalSwirlA | 92093492199405 | `portal-swirl-a.png` | in use |
+| PortalSwirlB | 108950429777685 | `portal-swirl-b.png` | in use |
+| PortalCloudTile | 123976736191333 | `portal-cloud-tile.png` | in use |
+| PortalCore | 71006997459996 | `portal-core.png` | in use |
+| PortalVeil | 80047315268792 | `portal-veil.png` | in use |
+| PortalVeilB | 122267435775183 | `portal-veil-b.png` | in use |
+| PortalMask | 112768234647366 | `portal-mask.png` | in use |
+| PortalBeam | 99849771860096 | `portal-beam.png` | in use |
+| PortalDepth, v1 | 126970565337092 | `portal-depth.png` | **superseded**, not referenced |
+| PortalDepth, v2 | 77298104491687 | `portal-depth-v2.png` | in use (smoother edge) |
+| PortalCloudBall | 98562926959140 | `portal-cloud-ball.png` | in use |
+| PortalCloudBallB | 85244900910059 | `portal-cloud-ball-b.png` | in use |
+| PortalBand | 90038845373360 | `portal-band.png` | in use (dark recess band) |
+| GroundPool | 100675320642077 | `ground-pool.png` | in use |
+| Mote | 128577684526564 | `mote.png` | in use |
+| Ember | 117732180184030 | `ember.png` | in use |
+| Shimmer | 113969750355597 | `shimmer.png` | in use |
+| Pennants | 129394675251472 | `pennants.png` | in use (track bunting) |
+| FlagChecker | 113814256495528 | `flag-checker.png` | in use |
+| FlagStripesA | 97908223611462 | `flag-stripes-a.png` | in use |
+| FlagStripesB | 81318556896008 | `flag-stripes-b.png` | in use |
+| FlagStar | 93044374349935 | `flag-star.png` | in use |
+
+### Sign art
+
+From the Figma mocks (Car Hop UI, page "Island signs"; specs `vault/design/ui/island-signs.md`,
+`plot-track-signs.md`, `portal-sign.md`). Files: `Car-Hop-Art/island-kit/textures/signs/`. Live
+text (names, numbers) is a TextLabel over a text-free background.
+
+| Asset | Id | File | Note |
+|---|---|---|---|
+| HeaderHotDog | 111209092984557 | `header-hotdog.png` | Figma export |
+| HeaderIceCream | 131134583059892 | `header-icecream.png` | Figma export |
+| HeaderLemonade | 89775297450442 | `header-lemonade.png` | Figma export |
+| HeaderPopcorn | 132673341754270 | `header-popcorn.png` | Figma export |
+| BannerA (ZOOPA FIZZ) | 121463232337129 | `banner-zoopa-fizz.png` | Figma export |
+| BannerB (CRUNCHKIN PUFFS) | 110246953719901 | `banner-crunchkin-puffs.png` | Figma export |
+| BannerC (STICKYTOE TYRES) | 78479045044254 | `banner-stickytoe-tyres.png` | Figma export |
+| BannerD (WOBBLEBOT TOYS) | 140634403555411 | `banner-wobblebot-toys.png` | **stitched from two exports**, not a direct render |
+| OwnerBanner background | 103587041167945 | `owner-banner-bg.png` | name is a TextLabel |
+| Nameplate background | 101228763400140 | `nameplate-bg.png` | name is a TextLabel |
+| Kiosk | 137428624345478 | `kiosk-bg.png` | **drawn by `kiosk.js`**, not a direct render |
+| IconPortal | 101447318056634 | `icon-portal.png` | Figma export |
+| IconGarage | 139283194336735 | `icon-garage.png` | Figma export |
+| IconStunt | 136778609492666 | `icon-stunt.png` | Figma export |
+| IconPlots | 92929508456128 | `icon-plots.png` | Figma export |
+| IconLake | 135234520936833 | `icon-lake.png` | Figma export |
+| IconArrow | 75221826934795 | `icon-arrow.png` | Figma export |
+| IconCoin | 99492109262754 | `icon-coin.png` | Figma export |
+| IconTick | 103260929176535 | `icon-tick.png` | Figma export |
+| IconLock | 125248424108608 | `icon-lock.png` | Figma export |
+| IconWrench | 125308628941246 | `icon-wrench.png` | Figma export |
+
+### Meshes: 2 new recipes, 11 meshes waiting for the import
+
+New recipes in `kit_props.py`: **SignpostPost** (38 triangles) and **SignpostBoard** (16
+triangles). The full kit is now 151 meshes, 90,986 triangles; no existing mesh changed (the
+manifest diff is additions only). Other new Task 3 recipes are in `kit_plot.py` and
+`kit_portal.py`.
+
+**Not uploaded (blocked):** `Car-Hop-Art/island-kit/island-kit-task3.obj` holds 11 meshes:
+ChainLink, PadlockBody, PadlockShackle, ChainAnchorPost, PortalSign, PlotGate, KioskBooth,
+Flagpole, HeaderBoard, SignpostPost, SignpostBoard. The 3D Importer needs UI clicks; the
+session's attempt to click the Import Queue was denied by the auto-mode permission classifier,
+so it stopped there. Until Adam imports the file: in edit mode they show as session previews;
+in a playtest they render as plain white boxes, and the portal locks use part-built pieces (267
+parts per lock instead of about 70).
+
+### Sounds in use (Creator Store audio, not uploaded)
+
+Licence text **not verified** for any of them. **Nobody has listened** yet.
+
+| Use | Asset | Id | Source | In game |
+|---|---|---|---|---|
+| Portal hum | Metallic Glow Constant Deep Ticking Bassy Hum 2 (SFX) | 9125674114 | Pro Sound Effects | looped, positional per portal; volume 0.22 to 0.62 by proximity, halved and at 0.85 speed when locked; one load attempt, no retry |
+| Portal shimmer | Heavenly Harmonic Presence Glowing Crystal Ringing 2 (SFX) | 9125602541 | Pro Sound Effects | layer over the hum; volume 0.06 to 0.22 by proximity, 0 when locked; one load attempt, no retry |
+| Duck quack | Quack Duck (63.05 s track) | 1845012569 | APM | **now on** (was off in revision 2): `PlaybackRegion` 1.3 to 1.68 s (one clean quack, from the waveform), every 20 to 40 s at random on the mother duck while the family is near this client, volume 0.32, roll-off 8 to 70; a missed quack is skipped, not queued |
+
+The falls loop (9120552550) and park birdsong (9113444360) are unchanged from the table above.

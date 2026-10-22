@@ -24,6 +24,7 @@ local GroundCover = require(script.Parent.GroundCover)
 local LakeDressing = require(script.Parent.LakeDressing)
 local Look = require(script.Parent.Look)
 local ParkDressing = require(script.Parent.ParkDressing)
+local PortalRig = require(script.Parent.PortalRig)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 local Waterfall = require(script.Parent.Waterfall)
 local WildlifeKit = require(script.Parent.WildlifeKit)
@@ -117,6 +118,8 @@ function EnvironmentBuild.build(options: Options?): { [string]: any }
 
 	local hub = HubBuild.build()
 	phase("hubParts")
+	-- after the hub, so each portal's ground height comes from the plaza
+	report.portals = PortalRig.build(s)
 	progress("done", 1)
 
 	local parts = 0
@@ -162,7 +165,9 @@ function EnvironmentBuild.redress(): { [string]: any }
 	local wildlife = WildlifeKit.build(s)
 	local lanes = BoostLanes.build(s)
 	local hub = HubBuild.build()
+	local portals = PortalRig.build(s)
 	return {
+		portals = portals,
 		lake = lake,
 		groundCover = ground,
 		park = park,

@@ -47,6 +47,8 @@ PALETTE = [
     ("sapling", (120, 180, 92)), ("bunting_red", (230, 70, 70)), ("bunting_blue", (80, 140, 230)),
     ("bunting_yellow", (250, 206, 70)), ("bunting_green", (90, 180, 110)), ("sign_board", (236, 214, 170)),
     ("rope", (200, 176, 130)), ("leaf_litter", (150, 112, 62)), ("dirt", (122, 92, 64)),
+    # appended for the portal lock, sign and plot front (Task 3); existing cells are unchanged
+    ("steel", (96, 102, 110)), ("brass", (200, 158, 66)), ("coral", (244, 127, 112)), ("mint", (128, 216, 189)),
 ]
 SW = {name: i for i, (name, _) in enumerate(PALETTE)}
 GRID = 16

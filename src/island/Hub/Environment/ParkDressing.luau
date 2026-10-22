@@ -21,10 +21,12 @@
 local HttpService = game:GetService("HttpService")
 
 local AssetIds = require(script.Parent.AssetIds)
+local Field = require(script.Parent.Field)
 local Flora = require(script.Parent.Flora)
 local KitAssets = require(script.Parent.KitAssets)
 local Layout = require(script.Parent.Parent.Layout)
 local Sightlines = require(script.Parent.Sightlines)
+local Signs = require(script.Parent.Signs)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local ParkDressing = {}
@@ -561,9 +563,58 @@ local function buildStands(ctx: Ctx)
 	end
 	local side = Vector2.new(-f.facing.Y, f.facing.X)
 	local items = { "HotDogCart", "IceCreamStand", "LemonadeStand", "PopcornCart" }
+	-- each stand's header board (3.0 x 1.6, approved 2026-10-22; kit HeaderBoard, its printable
+	-- face 2.8 x 1.4 inside a bark frame): carts hang it on two straps from the awning front edge
+	-- (eave 2.1 out, 6.6 up), 4.45 to 6.05 up; booths hang it on the roof fascia in front of the
+	-- scallops (eave 2.9 out), 3.8 to 5.4 up (vault/design/ui/island-signs.md)
+	local headers = {
+		HotDogCart = { art = "HotDog", bottom = 4.45, front = 2.15, straps = true },
+		IceCreamStand = { art = "IceCream", bottom = 3.8, front = 3.0 },
+		LemonadeStand = { art = "Lemonade", bottom = 3.8, front = 3.0 },
+		PopcornCart = { art = "Popcorn", bottom = 4.45, front = 2.15, straps = true },
+	}
 	for k, name in items do
 		local offset = (k - 2.5) * 8
-		put(ctx, "FoodStands", name, f.centre + side * offset, yawFacing(f.facing), 1, { solid = true })
+		local at = f.centre + side * offset
+		local stand = put(ctx, "FoodStands", name, at, yawFacing(f.facing), 1, { solid = true })
+		local h = headers[name]
+		if stand and h and KitAssets.has("HeaderBoard") then
+			local front = at + f.facing * h.front
+			local base = CFrame.new(front.X, groundY(at) + h.bottom + 0.8, -front.Y)
+				* CFrame.Angles(0, yawFacing(f.facing), 0)
+			local board = KitAssets.place("HeaderBoard", base, 1)
+			board.Name = "Header" .. h.art
+			board.Parent = folder(ctx, "FoodStands")
+			ctx.counts.HeaderBoard = (ctx.counts.HeaderBoard or 0) + 1
+			local face = Instance.new("Part")
+			face.Name = "HeaderFace"
+			face.Anchored = true
+			face.CanCollide = false
+			face.CanQuery = false
+			face.CanTouch = false
+			face.CastShadow = false
+			face.Transparency = 1
+			face.Size = Vector3.new(2.8, 1.4, 0.05)
+			-- mesh front is +Z after the turn; the face plane is 0.09 in front of the origin
+			face.CFrame = base * CFrame.new(0, 0, 0.11) * CFrame.Angles(0, math.pi, 0)
+			face.Parent = board
+			Signs.header(face, h.art)
+			if h.straps then
+				for _, x in { -1.0, 1.0 } do
+					local strap = Instance.new("Part")
+					strap.Name = "Strap"
+					strap.Anchored = true
+					strap.CanCollide = false
+					strap.CanQuery = false
+					strap.CanTouch = false
+					strap.Size = Vector3.new(0.1, 0.62, 0.06)
+					strap.CFrame = base * CFrame.new(x, 1.06 + 0.31 - 0.25, 0)
+					strap.Color = Color3.fromRGB(59, 42, 30)
+					strap.Material = Enum.Material.SmoothPlastic
+					strap.Parent = board
+				end
+			end
+		end
 	end
 	-- bunting on three slim poles in front of the stands, or behind them where the front reaches
 	-- into a viewing corridor (the poles and strings are taller than 3); none if both do
@@ -668,6 +719,81 @@ local function nearSign(ctx: Ctx, p: Vector2): boolean
 	return false
 end
 
+-- Where each signpost destination is, in the plan frame (x, plan y): the portal row, the
+-- Garage door, the Stunt Circuit gate, the nearest plot entrance and the nearest lake shore.
+local function destinations(at: Vector2): { [string]: Vector2 }
+	local out: { [string]: Vector2 } = {
+		Portals = Vector2.new(0, park.portal.frontY + 4),
+	}
+	local garage = buildingById("Garage")
+	if garage then
+		out.Garage = garage.door
+	end
+	local stunt = buildingById("StuntGate")
+	if stunt then
+		out.Stunts = stunt.door
+	end
+	local best = math.huge
+	for _, tri in park.corridors do
+		local d = (tri[1] - at).Magnitude
+		if d < best then
+			best = d
+			out.Plots = tri[1]
+		end
+	end
+	local lake = Field.Lake
+	local nearest, nd = lake.centre, math.huge
+	for k = 0, 35 do
+		local t = k / 36 * math.pi * 2
+		local q = lake.centre + Vector2.new(math.cos(t) * lake.rx, math.sin(t) * lake.ry)
+		local d = (q - at).Magnitude
+		if d < nd then
+			nd = d
+			nearest = q
+		end
+	end
+	out.Lake = nearest
+	return out
+end
+
+-- The three boards on a signpost (heights 7.0, 5.65 and 4.3, as on the old kit signpost), each
+-- turned toward one of the post's three nearest destinations (straight-line bearing, a labelled
+-- simplification of "along the paths"); the face part carries the icon and word on both sides.
+local function signBoards(ctx: Ctx, post: BasePart, at: Vector2)
+	local list = {}
+	for name, q in destinations(at) do
+		table.insert(list, { name = name, q = q, d = (q - at).Magnitude })
+	end
+	table.sort(list, function(a, b)
+		return a.d < b.d
+	end)
+	local y = groundY(at)
+	for i = 1, math.min(3, #list) do
+		local dir = (list[i].q - at).Unit
+		-- board +X along dir: plan (x, y) is world (x, -z)
+		local yaw = math.atan2(dir.Y, dir.X)
+		local base = CFrame.new(at.X, y + 7.0 - 1.35 * (i - 1), -at.Y) * CFrame.Angles(0, yaw, 0)
+		local board = KitAssets.place("SignpostBoard", base, 1)
+		board.Parent = post.Parent
+		ctx.counts.SignpostBoard = (ctx.counts.SignpostBoard or 0) + 1
+		ctx.triangles += KitAssets.info("SignpostBoard").triangles
+		local face = Instance.new("Part")
+		face.Name = "BoardFace"
+		face.Anchored = true
+		face.CanCollide = false
+		face.CanQuery = false
+		face.CanTouch = false
+		face.CastShadow = false
+		face.Transparency = 1
+		face.Size = Vector3.new(4.2, 0.95, 0.26)
+		face.CFrame = base * CFrame.new(2.0, 0, 0)
+		face.Parent = board
+		Signs.signpostBoard(face, list[i].name)
+		board:SetAttribute("Destination", list[i].name)
+	end
+	post:SetAttribute("Boards", math.min(3, #list))
+end
+
 local function buildFurniture(ctx: Ctx)
 	-- benches facing the path, on alternate sides
 	walkPaths(26, 13, function(p, _dir, normal, path, n)
@@ -701,16 +827,21 @@ local function buildFurniture(ctx: Ctx)
 	end)
 	-- signpost structures where paths meet the promenade and the garden ring (blank boards)
 	walkPaths(24, 10, function(p, _dir, normal, path, _n)
-		if (ctx.counts.Signpost or 0) >= 6 then
+		if (ctx.counts.SignpostPost or 0) >= 6 then
+			return
+		end
+		local half = if p.X < 0 then "SignpostsWest" else "SignpostsEast"
+		if ((ctx.counts :: any)[half] or 0) >= 3 then
 			return
 		end
 		local width = (path :: any).width or 8
 		for _, side in { 1, -1 } do
 			local at = p + normal * side * (width / 2 + 2.5)
 			if lawnOk(at, 1.5, 1.2) and free(ctx, at, 4) and not inCorridor(at) and not nearSign(ctx, at) then
-				local s = put(ctx, "Signposts", "Signpost", at, ctx.rng:NextNumber(0, 6.28), 1, { r = 4 })
+				local s = put(ctx, "Signposts", "SignpostPost", at, 0, 1, { r = 4 })
 				if s then
-					s:SetAttribute("BoardsDesign", "pending Figma mock and spec (vault/design/ui)")
+					ctx.counts[half] = (ctx.counts[half] or 0) + 1
+					signBoards(ctx, s, at)
 					return
 				end
 			end

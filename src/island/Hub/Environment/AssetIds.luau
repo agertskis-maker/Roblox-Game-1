@@ -29,10 +29,74 @@ AssetIds.Textures = {
 	-- boost-lane chevron (textures.js chevron.png), uploaded 2026-10-21 (revision 2)
 	-- (the first upload, 136467391577760, drew the chevron sideways on a beam; superseded)
 	Chevron = id(96352143506498),
+	-- Task 3 (2026-10-22): portal field layers and particles, track pennants and flag cloth
+	PortalSwirlA = id(92093492199405),
+	PortalSwirlB = id(108950429777685),
+	PortalCloudTile = id(123976736191333),
+	PortalCore = id(71006997459996),
+	PortalVeil = id(80047315268792),
+	PortalVeilB = id(122267435775183),
+	PortalMask = id(112768234647366),
+	PortalBeam = id(99849771860096),
+	-- frameless field shapes (2026-10-22 review fix): soft oval depth and two cloudy bodies
+	PortalDepth = id(77298104491687), -- v2 (smoother edge); v1 126970565337092 not referenced
+	PortalCloudBall = id(98562926959140),
+	PortalCloudBallB = id(85244900910059),
+	PortalBand = id(90038845373360), -- the dark recess band inside the edge (review round 3)
+	GroundPool = id(100675320642077),
+	Mote = id(128577684526564),
+	Ember = id(117732180184030),
+	Shimmer = id(113969750355597),
+	Pennants = id(129394675251472),
+	FlagChecker = id(113814256495528),
+	FlagStripesA = id(97908223611462),
+	FlagStripesB = id(81318556896008),
+	FlagStar = id(93044374349935),
 }
 
+-- Creator Store audio under test (Roblox's licensed partners; not owned by this project). Adam
+-- listens before any of these counts as final (assets/island/kit/manifest.md).
+AssetIds.Sounds = {
+	PortalHum = id(9125674114), -- Metallic Glow Constant Deep Ticking Bassy Hum 2 (SFX), Pro Sound Effects
+	PortalShimmer = id(9125602541), -- Heavenly Harmonic Presence Glowing Crystal Ringing 2 (SFX), Pro Sound Effects
+	FallsLoop = id(9120552550), -- Waterfall Steady Stream 1 (SFX), Pro Sound Effects
+	ParkBirds = id(9113444360), -- Birds Park 2 (SFX), Pro Sound Effects
+	Quack = id(1845012569), -- Quack Duck, APM (63.05 s; one quack is played with a playback region)
+} :: { [string]: string }
+
+-- Sign art from the Figma mocks (Car Hop UI, page "Island signs"; specs in vault/design/ui:
+-- island-signs, plot-track-signs, portal-sign), uploaded under peskaface 2026-10-22 through the
+-- Studio MCP. Text that will be live (names, numbers) is a TextLabel over a text-free background.
+-- Files: Car-Hop-Art/island-kit/textures/signs/. Two were not direct Figma renders (see the asset
+-- manifest): BannerWobblebotToys (stitched from two exports) and Kiosk (drawn by kiosk.js).
+AssetIds.SignArt = {
+	HeaderHotDog = id(111209092984557),
+	HeaderIceCream = id(131134583059892),
+	HeaderLemonade = id(89775297450442),
+	HeaderPopcorn = id(132673341754270),
+	BannerA = id(121463232337129), -- ZOOPA FIZZ
+	BannerB = id(110246953719901), -- CRUNCHKIN PUFFS
+	BannerC = id(78479045044254), -- STICKYTOE TYRES
+	BannerD = id(140634403555411), -- WOBBLEBOT TOYS
+	OwnerBanner = id(103587041167945), -- background; the name is a TextLabel
+	Nameplate = id(101228763400140), -- background; the name is a TextLabel
+	Kiosk = id(137428624345478),
+	IconPortal = id(101447318056634),
+	IconGarage = id(139283194336735),
+	IconStunt = id(136778609492666),
+	IconPlots = id(92929508456128),
+	IconLake = id(135234520936833),
+	IconArrow = id(75221826934795),
+	IconCoin = id(99492109262754),
+	IconTick = id(103260929176535),
+	IconLock = id(125248424108608),
+	IconWrench = id(125308628941246),
+} :: { [string]: string }
+
 -- The kit palette (assets/island/kit/kitlib.py, 16 x 16 swatches), uploaded 2026-10-21.
-AssetIds.Palette = id(112727480640146)
+-- revision 3 (2026-10-22): four swatches appended (steel, brass, coral, mint); earlier cells
+-- unchanged, so every older mesh looks the same. The first palette was 112727480640146.
+AssetIds.Palette = id(84613406678497)
 
 -- Kit meshes (assets/island/kit/, KitManifest), by mesh name, uploaded 2026-10-21 through the 3D
 -- Importer from island-kit.obj (Creator "Me"). The importer stores each mesh turned 180 degrees

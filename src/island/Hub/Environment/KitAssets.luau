@@ -20,6 +20,10 @@ local turns: { [string]: CFrame } = {}
 local HALF_TURN = CFrame.Angles(0, math.pi, 0)
 local sources: { [string]: string } = {}
 
+function KitAssets.has(name: string): boolean
+	return (KitManifest :: any)[name] ~= nil
+end
+
 function KitAssets.info(name: string): KitManifest.Entry
 	local entry = KitManifest[name]
 	assert(entry, "no kit mesh called " .. name)

@@ -1,6 +1,7 @@
 --!strict
 -- DEVELOPMENT CHECKS (Lane 3). Ray tests in the built island (edit mode) of how much of each
--- portal placeholder's glowing disc can be seen from each plot entrance. From each entrance,
+-- portal can be seen from each plot entrance: the frameless field (Environment/PortalRig) when
+-- the environment is built, else the greybox disc. From each entrance,
 -- 27 eye points (eye 4.5, 5.5 and 6.5 studs up; 3 studs either side and 4 ahead and behind the
 -- entrance point, for player and camera variation), rays to points filling each portal's disc
 -- (radius 11, every 1.5 studs, plus 32 points on its edge). A ray is blocked by any solid part,
@@ -28,6 +29,7 @@ function PortalSight.run(): { [string]: any }
 	local portals = preview:FindFirstChild("Portals", true)
 	assert(portals, "No portal placeholders")
 	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	local rig = env and env:FindFirstChild("Portals")
 	local switched: { BasePart } = {}
 	if env then
 		for _, d in env:GetDescendants() do
@@ -92,16 +94,27 @@ function PortalSight.run(): { [string]: any }
 			local model = portals:FindFirstChild(q.id) :: Model?
 			local centre = if model then model:GetBoundingBox().Position else Vector3.new(q.x, CY, 57)
 			local targets: { Vector3 } = {}
-			for u = -R, R, 1.5 do
-				for v = -R, R, 1.5 do
-					if u * u + v * v <= R * R then
-						table.insert(targets, Vector3.new(centre.X + u, CY + v, centre.Z - 1))
+			local field = rig and rig:FindFirstChild(q.id) :: BasePart?
+			if field then
+				-- the frameless field: points filling its 20 x 30 outline, 1 stud in front of it
+				local fw, fh = field:GetAttribute("Width") :: number, field:GetAttribute("Height") :: number
+				for u = -fw / 2 + 1, fw / 2 - 1, 1.5 do
+					for v = -fh / 2 + 1, fh / 2 - 1, 1.5 do
+						table.insert(targets, (field.CFrame * CFrame.new(u, v, -1)).Position)
 					end
 				end
-			end
-			for a = 0, 31 do
-				local t = a / 32 * math.pi * 2
-				table.insert(targets, Vector3.new(centre.X + math.cos(t) * R, CY + math.sin(t) * R, centre.Z - 1))
+			else
+				for u = -R, R, 1.5 do
+					for v = -R, R, 1.5 do
+						if u * u + v * v <= R * R then
+							table.insert(targets, Vector3.new(centre.X + u, CY + v, centre.Z - 1))
+						end
+					end
+				end
+				for a = 0, 31 do
+					local t = a / 32 * math.pi * 2
+					table.insert(targets, Vector3.new(centre.X + math.cos(t) * R, CY + math.sin(t) * R, centre.Z - 1))
+				end
 			end
 			local total, blocked = 0, 0
 			local by: { [string]: number } = {}
