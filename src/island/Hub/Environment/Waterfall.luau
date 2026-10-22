@@ -61,6 +61,16 @@ local function fade(a: number, b: number): NumberSequence
 	return NumberSequence.new({ NumberSequenceKeypoint.new(0, a), NumberSequenceKeypoint.new(1, b) })
 end
 
+-- How far south (world z) the written terrain reaches at (x, y) looking north from the lake,
+-- or nil; the lower streams start just in front of it so the rock never hides them.
+local function faceZ(x: number, y: number): number?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	local hit = workspace:Raycast(Vector3.new(x, y, 230), Vector3.new(0, 0, 80), params)
+	return hit and hit.Position.Z
+end
+
 local function world(p: Vector2, h: number): Vector3
 	return Vector3.new(p.X, h, -p.Y)
 end
@@ -128,9 +138,9 @@ end
 -- A layered free fall between two points: body, fast and slow strands, highlights.
 local FALL_LAYERS: { { any } } = {
 	-- name, texture, width0, width1, speed, repeat length, transparency top, bottom, whiten, arc
-	{ "Body", TEX.WaterBody, 1.0, 1.35, 1.6, 10, 0.1, 0.28, 0, 0 },
+	{ "Body", TEX.WaterBody, 1.0, 1.3, 1.6, 10, 0.2, 0.32, 0, 0 },
 	{ "FastStrands", TEX.WaterStrandsFast, 1.1, 1.5, 3.1, 8, 0.22, 0.12, 0.12, 0.8 },
-	{ "SlowStrands", TEX.WaterStrandsSlow, 1.25, 1.7, 1.15, 15, 0.42, 0.3, 0.05, -0.6 },
+	{ "SlowStrands", TEX.WaterStrandsSlow, 1.15, 1.5, 1.15, 15, 0.42, 0.3, 0.05, -0.6 },
 	{ "Highlights", TEX.WaterHighlights, 0.75, 1.1, 3.7, 6, 0.38, 0.3, 0.5, 0.3 },
 }
 
@@ -150,7 +160,8 @@ local function fall(
 	local rng = Random.new(#name * 131 + math.floor(math.abs(top.X) * 10))
 	for k = 1, math.min(layers, #FALL_LAYERS) do
 		local sp = FALL_LAYERS[k]
-		local dx = (rng:NextNumber() - 0.5) * 0.9 * scale
+		-- layers stay on the fall's own line, offset a little each, so gaps between falls stay open
+		local dx = (rng:NextNumber() - 0.5) * 0.22 * scale
 		local a0 = attach(host, top + Vector3.new(dx, 0, 0), out)
 		local a1 = attach(host, bottom + Vector3.new(dx * 1.6, 0, 0), Vector3.new(0, -1, 0))
 		beam(folder, a0, a1, {
@@ -391,12 +402,21 @@ function Waterfall.build(parent: Instance): Model
 		}, false)
 	end
 
-	-- lower falls: three unequal streams off the lower lip, converging on the plunge pool
+	-- lower falls: three unequal streams off the lower lip, converging on the plunge pool. Each
+	-- is drawn narrower than its channel and they draw together only partly, so dark rock shows
+	-- between them on the upper half of the drop
 	local pool = Cascade.Pool
 	local poolLanding = world(pool.centre + Vector2.new(0, -1.5), Field.LakeLevel + 0.2)
 	for k, s in Cascade.LowerStreams do
-		local top = Vector3.new(s.x, Cascade.LowerLip.height + 0.35, -(Cascade.LowerLip.y + 0.4))
-		local bottom = poolLanding + Vector3.new((s.x - X) * 0.42, 0, 0)
+		local topZ = -(Cascade.LowerLip.y + 0.4)
+		for _, y in { Cascade.LowerLip.height - 4, Cascade.LowerLip.height - 20, Cascade.LowerLip.height - 40 } do
+			local z = faceZ(s.x, y)
+			if z then
+				topZ = math.min(topZ, z - 1.2)
+			end
+		end
+		local top = Vector3.new(s.x, Cascade.LowerLip.height + 0.35, topZ)
+		local bottom = poolLanding + Vector3.new((s.x - X) * 0.62, 0, 0)
 		local layers = if s.width > 5 then 4 else 3
 		fall(
 			folders.LowerFalls,
@@ -407,7 +427,7 @@ function Waterfall.build(parent: Instance): Model
 			Vector3.new(0, -0.45, -1),
 			0.5,
 			1,
-			s.width,
+			s.width * 0.78,
 			layers,
 			2.6 + k * 0.4
 		)
@@ -548,7 +568,8 @@ function Waterfall.build(parent: Instance): Model
 	-- a faint mist rainbow across the lower falls' spray (the client fades it by viewpoint)
 	local left = Vector3.new(X - 17, 4, -(pool.centre.Y + 5))
 	local right = Vector3.new(X + 15, 4, -(pool.centre.Y + 5))
-	-- curves bend along X (up); the band is as wide as Y, east-west, so it faces the plaza
+	-- curves bend along X (up); the band faces the camera, so it keeps its width over the top of
+	-- the arc, and the texture is stretched once along it
 	local r0 = Instance.new("Attachment")
 	r0.CFrame = CFrame.fromMatrix(left, Vector3.yAxis, Vector3.xAxis)
 	r0.Parent = host
@@ -566,13 +587,16 @@ function Waterfall.build(parent: Instance): Model
 		transparency = fade(0.82, 0.82),
 		curve0 = 19,
 		curve1 = -19,
-		faceCamera = false,
+		faceCamera = true,
 		light = 0.6,
+		-- drawn over the falls behind it (it hangs in the spray in front of them)
+		z = 2,
 	})
 	bow:SetAttribute("BaseTransparency", 0.82)
 	bow.TextureMode = Enum.TextureMode.Stretch
+	bow.TextureLength = 1
 
-	model:SetAttribute("Version", "falls-2")
+	model:SetAttribute("Version", "falls-3")
 	model:SetAttribute("TotalDrop", Cascade.LipHeight - Field.LakeLevel)
 	model.Parent = parent
 	return model
