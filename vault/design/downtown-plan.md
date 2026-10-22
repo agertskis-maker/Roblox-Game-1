@@ -16,7 +16,7 @@ assumptions stated. Evidence: `Car-Hop-Art/review/hud-downtown/` (Studio capture
 
 ## 1. Recommendation
 
-**Recommended: B, Bright Real City, with A's warmth borrowed for signs and street furniture** (the independent Downtown reviewer reached the same ranking at moderate confidence, about 55%, with A a close second).
+**Recommended: B, Bright Real City, with A's warmth borrowed for signs and street furniture** (the independent Downtown reviewer reached the same ranking at moderate confidence, about 60% after the recheck, with A a close second).
 Not selected — Adam decides.
 
 | | A Sunny Toy City | B Bright Real City | C Big Bright Metropolis |
