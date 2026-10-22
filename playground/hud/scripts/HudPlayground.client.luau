@@ -165,6 +165,9 @@ api.layers = layers
 -- Scenario host (scripted playback, cancellable, reproducible)
 local scenarios = Scenarios.new(api)
 api.scenarios = scenarios
+trove:Add(function()
+	scenarios:destroy()
+end)
 
 -- preview transitions (local only)
 local function goHome()

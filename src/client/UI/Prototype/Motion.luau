@@ -45,6 +45,7 @@ end
 local listeners: { (boolean) -> () } = {}
 local last = Motion.reduced()
 local accumulated = 0
+-- one module-lifetime poll (no change signal exists); lives as long as the client, by design
 RunService.Heartbeat:Connect(function(dt)
 	accumulated += dt
 	if accumulated < 0.5 then

@@ -1,15 +1,16 @@
 --!strict
--- "Already in your Garage" note for the run view (Lane 3 preview, worker H3). On a store event
--- { kind = "AlreadyOwned", car = CarRef? } it shows a neutral, small cream/navy ribbon under
--- Distance + coins for about 1.8 s. The live design has no JOYRIDE BONUS, so it shows no money
--- and implies no reward; it is information only.
+-- Already-owned note for the run view (Lane 3 preview). On a store event
+-- { kind = "AlreadyOwned", car = CarRef?, amount = number? } it shows a small cream/navy ribbon
+-- under Distance + coins for about 1.8 s: "JOYRIDE BONUS +$N" when the event carries an amount
+-- (the Joyride Bonus is Decided in the GDD; the amount is supplied by the owning lane, synthetic
+-- in the playground, never computed here), otherwise "Already in your Garage".
 --
 -- It shares the upper-screen message slot (priority 2: above milestones, below the capture
 -- celebration). If the celebration holds the slot the note is skipped (the newer, more
 -- important message wins); a milestone in the slot is replaced.
 --
 --   local note = AlreadyOwned.new(ctx)
---   note:show(car?)   -- the same as the event (preview)
+--   note:show(car?, amount?)   -- the same as the event (preview)
 --   note:layout(), note:setVisible(on), note:destroy(), note:getDebugState()
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

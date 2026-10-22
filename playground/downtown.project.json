@@ -20,7 +20,9 @@
     "ServerStorage": {
       "$className": "ServerStorage",
       "Lane3_DowntownKit": {
-        "$path": "../../Car-Hop-Art/downtown-kit/meshes"
+        "$path": {
+          "optional": "../../Car-Hop-Art/downtown-kit/meshes"
+        }
       },
       "Lane3_DowntownLayouts": {
         "$className": "Folder",
