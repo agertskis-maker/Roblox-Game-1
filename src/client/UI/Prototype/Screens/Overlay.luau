@@ -1,7 +1,9 @@
 --!strict
 -- Overlay: the shared shell for the prototype's screen mocks (Lane 3 HUD prototype, PREVIEW).
--- Every mock is drawn over the gameplay view: a semi-transparent dim (the HUD layer underneath
--- stays visible) and a panel in design pixels. Used only by the files in this folder.
+-- Every mock is drawn over the gameplay view: a semi-transparent dark dim (the HUD layer
+-- underneath stays visible) and a panel in design pixels. Used only by the files in this folder.
+-- HUD rebuild (2026-10-22): the text, title, close and progress helpers use the arcade kit
+-- (white outlined text on the deep panels from Style.luau; no cream).
 --
 --   local o = Overlay.new(ctx, { name = "Garage", onBack = fn })
 --   o.root      -- full-size design-coordinate frame with UIScale "HudScale" = screen:uiScale()
@@ -22,19 +24,22 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local Prototype = script.Parent.Parent
-local Gloss = require(Prototype.Gloss)
-local Icons = require(Prototype.Icons)
+local Arcade = require(Prototype.Arcade)
 local Motion = require(Prototype.Motion)
 local PreviewTokens = require(Prototype.PreviewTokens)
+local Priority = require(Prototype.Priority)
 local Screen = require(Prototype.Screen)
 local Sounds = require(Prototype.Sounds)
 local Store = require(Prototype.Store)
+local Style = require(script.Parent.Style)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local C = PreviewTokens.Color
 local M = PreviewTokens.Motion
-local make = Gloss.make
+local make = Arcade.make
+
+-- TOKEN CANDIDATE: width of the labelled CLOSE button (design px).
+local CLOSE_W = 124
 
 local Overlay = {}
 
@@ -43,6 +48,7 @@ export type Ctx = {
 	screen: Screen.ScreenObject,
 	layer: Frame,
 	world: Folder,
+	priority: Priority.Arbiter?, -- the screen-slot arbiter (nil in isolated tests)
 }
 
 export type Kind = "Wide" | "Short" | "Tall"
@@ -116,7 +122,7 @@ function Overlay.new(ctx: Ctx, options: Options): Overlay
 	if options.dim ~= false then
 		local d: TextButton = make("TextButton", {
 			Name = "Dim",
-			BackgroundColor3 = C.Ink,
+			BackgroundColor3 = Style.Ink,
 			BackgroundTransparency = 1,
 			AutoButtonColor = false,
 			Selectable = false,
@@ -284,24 +290,24 @@ function Overlay.new(ctx: Ctx, options: Options): Overlay
 	return overlay
 end
 
--- A navy close button (48 px, the approved touch minimum) with the Close icon.
-function Overlay.closeButton(parent: Instance, onActivate: () -> ()): Gloss.Button
-	return Gloss.button(parent, {
+-- The labelled CLOSE button (kit red fill + Close icon; 48 px touch minimum).
+function Overlay.closeButton(parent: Instance, onActivate: () -> ()): Arcade.Button
+	return Arcade.button(parent, {
 		name = "Close",
-		size = Vector2.new(48, 48),
-		light = C.SettingsLight,
-		deep = C.SettingsDeep,
-		radius = 14,
-		icon = function(holder: Frame)
-			Icons.draw(holder, "Close", C.White)
-		end,
-		iconSize = 26,
+		label = "CLOSE",
+		fill = "Settings",
+		size = "Custom",
+		width = CLOSE_W,
+		height = Tokens.Touch.Minimum,
+		icon = "Close",
 		sound = "Close",
 		onActivate = onActivate,
 	})
 end
+Overlay.CloseWidth = CLOSE_W
 
--- A plain readable text line (no gradient), truncating instead of overflowing.
+-- A readable single line: white (or `colour`) with the kit's minor dark outline; shrinks to fit
+-- its box down to the 16 minimum instead of overflowing or cutting words.
 function Overlay.text(
 	parent: Instance,
 	text: string,
@@ -310,95 +316,72 @@ function Overlay.text(
 	align: Enum.TextXAlignment?,
 	z: number?
 ): TextLabel
-	return make("TextLabel", {
+	local s = math.max(size, Tokens.TextSize.Minimum)
+	local label: TextLabel = make("TextLabel", {
 		Name = "Text",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, math.max(size, Tokens.TextSize.Minimum) + 6),
+		Size = UDim2.new(1, 0, 0, s + 6),
 		FontFace = Tokens.font(),
 		Text = text,
-		TextSize = math.max(size, Tokens.TextSize.Minimum),
-		TextColor3 = colour or C.Ink,
+		TextSize = s,
+		TextScaled = true,
+		TextColor3 = colour or Color3.new(1, 1, 1),
 		TextXAlignment = align or Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
 		ZIndex = z or 6,
 		Parent = parent,
 	})
+	make("UITextSizeConstraint", { MaxTextSize = s, MinTextSize = Tokens.TextSize.Minimum, Parent = label })
+	make("UIPadding", { PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 3), Parent = label })
+	Arcade.outline(label, "Minor")
+	return label
 end
 
 -- Wrapped paragraph text that grows downward (AutomaticSize Y) inside a fixed width.
 function Overlay.paragraph(parent: Instance, text: string, size: number, colour: Color3?, z: number?): TextLabel
-	return make("TextLabel", {
-		Name = "Paragraph",
-		BackgroundTransparency = 1,
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Size = UDim2.fromScale(1, 0),
-		FontFace = Tokens.font(),
-		Text = text,
-		TextSize = math.max(size, Tokens.TextSize.Minimum),
-		TextWrapped = true,
-		TextColor3 = colour or C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		ZIndex = z or 6,
-		Parent = parent,
-	})
+	local p = Style.paragraph(parent, text, size, false, z)
+	if colour then
+		p.TextColor3 = colour
+	end
+	return p
 end
 
--- An outlined white headline with an optional gradient (major titles only).
-function Overlay.title(
-	parent: Instance,
-	text: string,
-	size: number,
-	light: Color3?,
-	deep: Color3?,
-	z: number?
-): TextLabel
-	local t = Gloss.title(parent, text, size, light, deep)
-	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.TextTruncate = Enum.TextTruncate.AtEnd
-	t.ZIndex = z or 6
+-- An outlined white headline in the kit's Display role (optional glyph face).
+function Overlay.title(parent: Instance, text: string, size: number, face: Arcade.FaceName?, z: number?): TextLabel
+	local t = Style.text(parent, text, "Display", { face = face, z = z or 6, size = size })
+	t.Name = "Title"
 	return t
 end
 
--- A progress bar: a track, a fill (0..1) and a text overlay. Returns a setter.
-function Overlay.progress(parent: Instance, light: Color3, deep: Color3, z: number?): (Frame, (number, string) -> ())
+-- A progress bar: a dark track with a dark boundary, a kit-fill bar (0..1) and outlined text.
+-- Returns the track and a setter.
+function Overlay.progress(parent: Instance, fill: Arcade.FillName, z: number?): (Frame, (number, string) -> ())
 	local zi = z or 6
-	local track = make("Frame", {
+	local track: Frame = make("Frame", {
 		Name = "Progress",
-		BackgroundColor3 = C.PanelShade,
+		BackgroundColor3 = Style.Well,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 22),
 		ZIndex = zi,
 		Parent = parent,
 	})
-	Gloss.corner(track, 11)
-	Gloss.stroke(track, 2)
-	local fill = make("Frame", {
+	Arcade.corner(track, 6)
+	Arcade.outline(track, "Minor")
+	local bar: Frame = make("Frame", {
 		Name = "Fill",
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(0, 1),
 		ZIndex = zi + 1,
 		Parent = track,
 	})
-	Gloss.corner(fill, 11)
-	Gloss.gradient(fill, light, deep)
-	local label = make("TextLabel", {
-		Name = "Text",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = Tokens.TextSize.Minimum,
-		TextColor3 = C.White,
-		ZIndex = zi + 2,
-		Parent = track,
-	})
-	Gloss.stroke(label, 2, C.Ink, Enum.ApplyStrokeMode.Contextual)
+	Arcade.corner(bar, 6)
+	make("UIGradient", { Color = PreviewTokens.Arcade.Fill[fill], Rotation = 90, Parent = bar })
+	local label = Overlay.text(track, "", 16, nil, Enum.TextXAlignment.Center, zi + 2)
+	label.Size = UDim2.fromScale(1, 1)
 	local function set(fraction: number, text: string)
 		local f = math.clamp(fraction, 0, 1)
-		fill.Size = UDim2.fromScale(f, 1)
-		fill.Visible = f > 0
+		bar.Size = UDim2.fromScale(f, 1)
+		bar.Visible = f > 0
 		label.Text = text
 	end
 	return track, set

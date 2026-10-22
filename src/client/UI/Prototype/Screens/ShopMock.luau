@@ -1,6 +1,8 @@
 --!strict
 -- ShopMock: a calm Shop mock drawn over gameplay (Lane 3 HUD prototype, PREVIEW only).
 -- Nothing here can be bought: there is no MarketplaceService call, no prompt and no grant.
+-- HUD rebuild (2026-10-22, H-15): restyled into the arcade family (deep panel, a STATIC rainbow
+-- header band, dark pass wells with kit icon tiles, white outlined text; no cream).
 --
 --   local shop = ShopMock.new(ctx, { onClose = fn? })
 --   shop:open(returnTo?)  shop:close()  shop:isOpen()
@@ -8,30 +10,29 @@
 --
 -- Content: exactly the three passes listed in outline v2.2 section 12 ("Delegated pass set,
 -- prices Open"): Double Lap Pay, Expanded Paddock, VIP. They are delegated choices in the
--- outline, not separately approved by the owner, so every card says "Pass concept (not
--- approved)". Each card shows what it does, what it never does, and "Robux price pending"
--- (no invented prices). Calm by rule: no countdowns, no flashing, no "best value", no idle
--- animation; only the shared panel open / close transition.
+-- outline, not separately approved by the owner: each card carries the harness caption "Pass
+-- concept (not approved)" (PreviewCaption) and "Robux price pending" (no invented prices).
+-- Calm by rule: no countdowns, no "limited", no "best value", no flashing, no idle animation
+-- (the header rainbow does not drift here), and no badges: this mock has no free fixture claim,
+-- so nothing earns a badge.
 
 local Prototype = script.Parent.Parent
-local Gloss = require(Prototype.Gloss)
-local Icons = require(Prototype.Icons)
+local Arcade = require(Prototype.Arcade)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
+local Style = require(script.Parent.Style)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local make = Arcade.make
 
 local ShopMock = {}
 
 export type Pass = {
 	id: string,
 	name: string,
-	icon: Icons.Name,
+	icon: string,
 	does: string,
 	never: string,
-	light: Color3,
-	deep: Color3,
+	fill: Arcade.FillName,
 }
 
 -- From outline v2.2 section 12 (wording shortened for a child-friendly card).
@@ -42,8 +43,7 @@ ShopMock.Passes = {
 		icon = "Track",
 		does = "Your cars earn 2x Lap Pay, online and offline.",
 		never = "Never changes race stats, Heat or Keys.",
-		light = C.CashLight,
-		deep = C.CashDeep,
+		fill = "Green",
 	},
 	{
 		id = "expanded-paddock",
@@ -51,8 +51,7 @@ ShopMock.Passes = {
 		icon = "Garage",
 		does = "+3 Slots above the normal maximum, with an extra pit garage.",
 		never = "Never changes how much each car earns.",
-		light = C.GarageLight,
-		deep = C.GarageDeep,
+		fill = "Garage",
 	},
 	{
 		id = "vip",
@@ -60,8 +59,7 @@ ShopMock.Passes = {
 		icon = "Star",
 		does = "VIP Pearl paints, a name tag, a lounge on your plot, and a 12-hour offline cap.",
 		never = "No advantage in runs or races.",
-		light = C.KeysLight,
-		deep = C.KeysDeep,
+		fill = "Gold",
 	},
 } :: { Pass }
 
@@ -78,6 +76,8 @@ export type DebugState = {
 	passes: number,
 	prices: { string },
 	labels: { string },
+	badges: number,
+	instances: number,
 }
 
 export type Shop = {
@@ -100,69 +100,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local content = overlay.content
 	local itemTrove = trove:Extend()
 
-	local panel = Gloss.panel(content, {
-		name = "Panel",
-		size = UDim2.fromOffset(700, 400),
-		anchor = Vector2.new(0.5, 0.5),
-		position = UDim2.fromScale(0.5, 0.5),
-		radius = 20,
-		z = 3,
-	})
-	local panelShadow = content:FindFirstChild("Shadow") :: Frame?
-
-	local headerIcon = make("Frame", {
-		Name = "Icon",
-		Position = UDim2.fromOffset(16, 12),
-		Size = UDim2.fromOffset(40, 40),
-		BackgroundTransparency = 1,
-		ZIndex = 6,
-		Parent = panel,
-	})
-	Icons.draw(headerIcon, "Shop", C.PrimaryDeep)
-	local title = Overlay.title(panel, "SHOP", 30, C.PrimaryLight, C.PrimaryDeep, 6)
-	title.Position = UDim2.fromOffset(64, 12)
-	title.Size = UDim2.fromOffset(160, 40)
-	-- a thin static rainbow accent (the Shop's friendly identity; it never moves)
-	local accent = make("Frame", {
-		Name = "Accent",
-		Position = UDim2.fromOffset(16, 58),
-		Size = UDim2.new(1, -32, 0, 4),
-		BackgroundColor3 = C.White,
-		BorderSizePixel = 0,
-		ZIndex = 5,
-		Parent = panel,
-	})
-	Gloss.corner(accent, 2)
-	make("UIGradient", {
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 120, 120)),
-			ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 196, 80)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(110, 220, 130)),
-			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(90, 170, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 120, 255)),
-		}),
-		Parent = accent,
-	})
-	local note = Overlay.text(panel, "Preview: nothing can be bought here.", 16, C.InkSoft, nil, 6)
+	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local panel = shell.body
+	local header = Style.header(panel, { fill = "Rainbow", title = "SHOP", icon = "Shop" })
+	local note = Overlay.text(panel, "Preview: nothing can be bought here.", 16, Style.TextSoft, nil, 6)
+	note:SetAttribute("PreviewCaption", true) -- harness caption
 	local closeButton = Overlay.closeButton(panel, function()
 		shop:close()
 	end)
 	trove:Add(closeButton.trove)
-	closeButton.root.AnchorPoint = Vector2.new(1, 0)
-	closeButton.root.Position = UDim2.new(1, -10, 0, 8)
+	closeButton.root.AnchorPoint = Vector2.new(1, 0.5)
+	closeButton.root.ZIndex = 12
 
-	local list: ScrollingFrame = make("ScrollingFrame", {
-		Name = "Passes",
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		CanvasSize = UDim2.new(),
-		ScrollBarThickness = 8,
-		ScrollBarImageColor3 = C.Ink,
-		ScrollBarImageTransparency = 0.3,
-		Selectable = false,
-		ZIndex = 5,
-		Parent = panel,
-	})
+	local list = Style.scroll(panel, "Passes", 5)
 	local listLayout: UIListLayout = make("UIListLayout", {
 		Padding = UDim.new(0, 14),
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -179,23 +129,15 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	local priceLabels: { TextLabel } = {}
 	local conceptLabels: { TextLabel } = {}
-	local firstItem: GuiObject? = nil
 
 	-- One pass card. "column" = a portrait card (desktop, tablet, phone portrait);
 	-- "row" = icon | text | price (phone landscape, where height is short).
 	local function buildItem(pass: Pass, order: number, width: number, row: boolean)
-		local card = itemTrove:Add(make("Frame", {
-			Name = "Pass_" .. pass.id,
-			Size = UDim2.fromOffset(width, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundColor3 = C.White,
-			BorderSizePixel = 0,
-			LayoutOrder = order,
-			ZIndex = 6,
-			Parent = list,
-		}))
-		Gloss.corner(card, 16)
-		Gloss.stroke(card, 3)
+		local card = Style.well(list, "Pass_" .. pass.id, 6)
+		itemTrove:Add(card)
+		card.Size = UDim2.fromOffset(width, 0)
+		card.AutomaticSize = Enum.AutomaticSize.Y
+		card.LayoutOrder = order
 		make("UIPadding", {
 			PaddingTop = UDim.new(0, 12),
 			PaddingBottom = UDim.new(0, 12),
@@ -203,29 +145,31 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			PaddingRight = UDim.new(0, 12),
 			Parent = card,
 		})
-		local tile = make("Frame", {
+		-- kit icon tile: the pass fill, dark boundary, gloss
+		local tile: Frame = make("Frame", {
 			Name = "IconTile",
-			Size = UDim2.fromOffset(56, 56),
-			BackgroundColor3 = C.White,
+			Size = UDim2.fromOffset(60, 60),
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
 			ZIndex = 7,
 			Parent = card,
 		})
-		Gloss.corner(tile, 14)
-		Gloss.stroke(tile, 2)
-		Gloss.gradient(tile, pass.light, pass.deep)
-		local iconHolder = make("Frame", {
+		Arcade.corner(tile, 7)
+		Arcade.outline(tile, "Button")
+		make("UIGradient", { Color = PreviewTokens.Arcade.Fill[pass.fill], Rotation = 90, Parent = tile })
+		Arcade.gloss(tile)
+		local iconHolder: Frame = make("Frame", {
 			Name = "Icon",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(36, 36),
+			Size = UDim2.fromOffset(48, 48),
 			BackgroundTransparency = 1,
-			ZIndex = 8,
+			ZIndex = 9,
 			Parent = tile,
 		})
-		Icons.draw(iconHolder, pass.icon, C.White)
+		Arcade.icon(iconHolder, pass.icon)
 
-		local textCol = make("Frame", {
+		local textCol: Frame = make("Frame", {
 			Name = "Text",
 			BackgroundTransparency = 1,
 			AutomaticSize = Enum.AutomaticSize.Y,
@@ -237,55 +181,41 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = textCol,
 		})
-		local name = Overlay.text(textCol, pass.name, 22, C.Ink, nil, 8)
+		local name = Overlay.text(textCol, pass.name, 24, nil, nil, 8)
 		name.LayoutOrder = 1
-		local tag = Overlay.text(textCol, ShopMock.ConceptLabel, 16, C.InkSoft, nil, 8)
+		local tag = Overlay.text(textCol, ShopMock.ConceptLabel, 16, Style.TextSoft, nil, 8)
 		tag:SetAttribute("PreviewCaption", true)
 		tag.LayoutOrder = 2
 		table.insert(conceptLabels, tag)
-		local does = Overlay.paragraph(textCol, pass.does, 16, C.Ink, 8)
+		local does = Style.paragraph(textCol, pass.does, 18, false, 8)
 		does.LayoutOrder = 3
-		local never = Overlay.paragraph(textCol, pass.never, 16, C.InkSoft, 8)
+		local never = Style.paragraph(textCol, pass.never, 16, true, 8)
 		never.LayoutOrder = 4
 
-		local price = make("Frame", {
-			Name = "Price",
-			Size = UDim2.fromOffset(if row then 150 else width - 24, 44),
-			BackgroundColor3 = C.PanelShade,
-			BorderSizePixel = 0,
-			ZIndex = 7,
-			Parent = card,
-		})
-		Gloss.corner(price, 12)
-		Gloss.stroke(price, 2).Transparency = 0.4
-		local priceText = Overlay.text(price, ShopMock.PriceLabel, 16, C.Ink, Enum.TextXAlignment.Center, 8)
-		priceText.TextWrapped = true
-		priceText.TextTruncate = Enum.TextTruncate.None
+		-- the price box: a neutral dark chip (no sale colours, no urgency)
+		local price = Style.well(card, "Price", 7)
+		price.Size = UDim2.fromOffset(if row then 150 else width - 24, 46)
+		local priceText = Overlay.text(price, ShopMock.PriceLabel, 18, nil, Enum.TextXAlignment.Center, 8)
 		priceText.Size = UDim2.new(1, -8, 1, 0)
 		priceText.Position = UDim2.fromOffset(4, 0)
 		table.insert(priceLabels, priceText)
 
 		if row then
-			-- icon | text | price
-			textCol.Position = UDim2.fromOffset(56 + 12, 0)
-			textCol.Size = UDim2.fromOffset(width - 24 - 56 - 12 - 150 - 12, 0)
+			textCol.Position = UDim2.fromOffset(60 + 12, 0)
+			textCol.Size = UDim2.fromOffset(width - 24 - 60 - 12 - 150 - 12, 0)
 			price.AnchorPoint = Vector2.new(1, 0)
 			price.Position = UDim2.new(1, 0, 0, 6)
 			make("Frame", {
 				Name = "MinHeight",
-				Size = UDim2.fromOffset(1, 60),
+				Size = UDim2.fromOffset(1, 64),
 				BackgroundTransparency = 1,
 				Parent = card,
 			})
 		else
-			-- icon on top, then name, label, text and the price box in one list
-			textCol.Position = UDim2.fromOffset(0, 64)
+			textCol.Position = UDim2.fromOffset(0, 70)
 			textCol.Size = UDim2.fromOffset(width - 24, 0)
 			price.LayoutOrder = 5
 			price.Parent = textCol
-		end
-		if not firstItem then
-			firstItem = card
 		end
 	end
 
@@ -297,38 +227,36 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if kind == "Wide" then
 			pw, ph = math.min(ds.X - 32, 940), math.min(ds.Y - 24, 600)
 		elseif kind == "Short" then
-			pw, ph = ds.X - 24, ds.Y - 16
+			pw, ph = ds.X - 24, ds.Y - 18
 		else
-			pw, ph = ds.X - 16, ds.Y - 16
+			pw, ph = ds.X - 16, ds.Y - 18
 		end
-		panel.Size = UDim2.fromOffset(pw, ph)
-		if panelShadow then
-			panelShadow.Size = panel.Size
-		end
-		note.Position = UDim2.fromOffset(16, 66)
-		note.Size = UDim2.new(1, -32, 0, 22)
-		list.Position = UDim2.fromOffset(8, 94)
-		list.Size = UDim2.new(1, -16, 1, -102)
+		shell.root.Size = UDim2.fromOffset(pw, ph)
+		shell.root.Position = UDim2.new(0.5, 0, 0.5, -2)
+		local headH = if kind == "Short" then Style.HeaderHeightShort else Style.HeaderHeight
+		header.setHeight(headH)
+		closeButton.root.Position = UDim2.new(1, -8, 0, headH / 2)
+		local titleLeft = header.title.Position.X.Offset
+		header.title.Size = UDim2.new(1, -titleLeft - Overlay.CloseWidth - 18, 0, math.min(44, headH - 6))
+		note.Position = UDim2.fromOffset(14, headH + 6)
+		note.Size = UDim2.new(1, -28, 0, 22)
+		list.Position = UDim2.fromOffset(8, headH + 30)
+		list.Size = UDim2.new(1, -16, 1, -(headH + 30 + 8))
 		itemTrove:Clean()
 		table.clear(priceLabels)
 		table.clear(conceptLabels)
-		firstItem = nil
-		local innerW = pw - 16 - 16
+		local innerW = pw - 16 - 16 - 8
 		if kind == "Wide" then
 			listLayout.FillDirection = Enum.FillDirection.Horizontal
 			listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-			list.ScrollingDirection = Enum.ScrollingDirection.Y
-			list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			local w = math.floor((innerW - 8 - 2 * 14) / 3)
+			local w = math.floor((innerW - 2 * 14) / 3)
 			for i, pass in ShopMock.Passes do
 				buildItem(pass, i, w, false)
 			end
 		else
 			listLayout.FillDirection = Enum.FillDirection.Vertical
-			list.ScrollingDirection = Enum.ScrollingDirection.Y
-			list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 			for i, pass in ShopMock.Passes do
-				buildItem(pass, i, innerW - 8, kind == "Short")
+				buildItem(pass, i, innerW, kind == "Short")
 			end
 		end
 	end
@@ -375,12 +303,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			for _, l in conceptLabels do
 				table.insert(labels, l.Text)
 			end
+			local badges = 0
+			for _, d in overlay.root:GetDescendants() do
+				if d.Name == "Badge" and d:IsA("GuiObject") and d.Visible then
+					badges += 1
+				end
+			end
 			return {
 				open = overlay:isOpen(),
 				kind = overlay:kind(),
 				passes = #ShopMock.Passes,
 				prices = prices,
 				labels = labels,
+				badges = badges,
+				instances = #overlay.root:GetDescendants(),
 			}
 		end,
 	}

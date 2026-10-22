@@ -48,6 +48,7 @@ export type Backdrop = {
 	props: { garage: BasePart, kiosk: BasePart, portal: BasePart },
 	lapCars: { BasePart },
 	traffic: { Model },
+	trafficCars: { Fixtures.CarRef },
 	ride: Model,
 	target: Model,
 	setRunCamera: (on: boolean) -> (),
@@ -156,12 +157,20 @@ function Backdrop.build(): Backdrop
 	for _, p in { garage, kiosk, portal } do
 		p:SetAttribute("Dummy", "playground prop for prompt presentation only")
 	end
+	-- ProxyCar's pivot is its Body part, not the wheels: place the bounding-box bottom on the
+	-- surface instead (HUD rebuild fix; cars sat about 2 studs into the road).
+	local function seat(m: Model, cf: CFrame)
+		m:PivotTo(cf)
+		local box, size = m:GetBoundingBox()
+		local bottom = box.Position.Y - size.Y / 2
+		m:PivotTo(cf + Vector3.new(0, cf.Position.Y - bottom, 0))
+	end
 	-- local-owned fixture cars parked on the lot (Lap Pay sources)
 	local lapCars = {}
 	for i = 1, 3 do
 		local c = Fixtures.Cars[i]
 		local m = ProxyCar.build(c)
-		m:PivotTo(lot * CFrame.new(18 + i * 9, 0.4, 14) * CFrame.Angles(0, math.rad(20), 0))
+		seat(m, lot * CFrame.new(18 + i * 9, 0.4, 14) * CFrame.Angles(0, math.rad(20), 0))
 		m.Parent = folder
 		table.insert(lapCars, m.PrimaryPart :: BasePart)
 	end
@@ -169,15 +178,23 @@ function Backdrop.build(): Backdrop
 	-- traffic for run mode: the ridden car, a Hop target ahead and a few more
 	local function carOnRoad(c: Fixtures.CarRef, lane: number, z: number): Model
 		local m = ProxyCar.build(c)
-		m:PivotTo(CFrame.new(-roadW / 2 + (lane - 0.5) * LANE, 0.2, z))
+		seat(m, CFrame.new(-roadW / 2 + (lane - 0.5) * LANE, 0.2, z))
 		m.Parent = folder
 		return m
 	end
 	local ride = carOnRoad(Fixtures.Cars[1], 2, -40)
 	local target = carOnRoad(Fixtures.Cars[5], 3, -75)
 	local traffic = { ride, target }
+	-- the car data for each traffic model, same order (nameplates use "traffic-<index>" ids,
+	-- because model names repeat)
+	local trafficCars: { Fixtures.CarRef } = { Fixtures.Cars[1], Fixtures.Cars[5] }
 	for i, lane in { 1, 4, 2, 3 } do
-		table.insert(traffic, carOnRoad(Fixtures.Cars[((i + 2) % #Fixtures.Cars) + 1], lane, -110 - i * 45))
+		local c = Fixtures.Cars[((i + 2) % #Fixtures.Cars) + 1]
+		table.insert(traffic, carOnRoad(c, lane, -110 - i * 45))
+		table.insert(trafficCars, c)
+	end
+	for i, m in traffic do
+		m:SetAttribute("PreviewInstanceId", "traffic-" .. i)
 	end
 
 	folder.Parent = Workspace
@@ -223,6 +240,7 @@ function Backdrop.build(): Backdrop
 		props = { garage = garage, kiosk = kiosk, portal = portal },
 		lapCars = lapCars,
 		traffic = traffic,
+		trafficCars = trafficCars,
 		ride = ride,
 		target = target,
 		setRunCamera = setRunCamera,

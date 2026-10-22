@@ -1,24 +1,31 @@
 --!strict
--- Home HUD: preview Settings panel (Lane 3 preview). Every control does exactly what it says
--- for this session only; nothing is saved ("Preview: not saved" is shown on the card).
+-- Home HUD: preview Settings panel (Lane 3 preview, HUD rebuild 2026-10-22; ledger H-14).
+-- Every control does exactly what it says for this session only; nothing is saved and no
+-- schema is added ("Preview: not saved" is a harness caption on the card).
 --
---   Music          slider -> Sounds.musicGroup().Volume (preview SoundGroup "Lane3PreviewMusic")
---   Sound effects  slider -> Sounds.group().Volume      (preview SoundGroup "Lane3PreviewUI")
+--   Music          slider -> store.settings.music via Home/MusicSetting, which sets the preview
+--                  music SoundGroup "Lane3PreviewMusic" (0 while the Home Music toggle is Off;
+--                  the line under the label says so)
+--   Sound effects  slider -> store.settings.sfx -> the preview SoundGroup "Lane3PreviewUI"
 --   Reduce motion  three choices -> Motion.setOverride(nil | true | false):
 --                  "Use Roblox setting" (default, follows GuiService.ReducedMotionEnabled),
 --                  "On", "Off". The line under the label shows the effective state.
 --
+-- Look (Arcade kit family): a deep navy card with the thick dark boundary and a shallow lip, a
+-- big white outlined "Settings" title, a red labelled "Close" button (kit Small, the same family
+-- as the Home Settings rectangle), white outlined row labels, chunky sliders (dark track, green
+-- fill, white knob with a dark outline) and segment buttons (gold when chosen, with a tick, so
+-- the state is not colour alone).
+--
 -- Input: sliders take drag and tap (mouse and touch) and, while selected with a gamepad or
 -- keyboard navigation, Left / Right (arrow keys, D-pad) in 10% steps (ContextActionService,
--- bound only while the slider is selected). The close button (X), Escape and ButtonB close the
--- panel (Back is bound only while open; Escape may also open the Roblox menu, which this
--- preview cannot suppress). Tapping the dim backdrop also closes it. Opening selects the first
+-- bound only while the slider is selected). Close, Escape and ButtonB close the panel (Back is
+-- bound only while open). Tapping the dim backdrop also closes it. Opening selects the first
 -- control when the last input was a gamepad (or keyboard navigation was active); closing returns
--- the selection to the opener button when it is still on screen, and otherwise clears it.
--- Gamepad selection is kept inside the card (SelectionGroup with Stop behaviours).
+-- the selection to the opener (the Home Settings button) when it is still on screen, otherwise
+-- clears it. Gamepad selection is kept inside the card (SelectionGroup with Stop behaviours).
 --
--- Layout: a centred cream card with a navy "SETTINGS" title. Wide rows (label left, control
--- right) on Desktop, Tablet and PhoneLandscape; stacked rows (label above control) on
+-- Layout: centred card; wide rows on Desktop, Tablet and PhoneLandscape; stacked rows on
 -- PhonePortrait. Hit targets are 48 px or larger.
 --
 -- API: SettingsPanel.new(ctx, { onClosed: (() -> ())? }?) -> SettingsPanel
@@ -33,28 +40,34 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
+local Arcade = require(script.Parent.Parent.Arcade)
 local Fade = require(script.Parent.Fade)
-local Gloss = require(script.Parent.Parent.Gloss)
-local Icons = require(script.Parent.Parent.Icons)
+local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
+local MusicSetting = require(script.Parent.MusicSetting)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Sounds = require(script.Parent.Parent.Sounds)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
 
-local C = PreviewTokens.Color
+local A = PreviewTokens.Arcade
+local B = A.Button
 local PM = PreviewTokens.Motion
-local make = Gloss.make
+local make = Arcade.make
 
 local OVERRIDE = "Lane3ReducedMotionOverride"
 local BACK_ACTION = "Lane3PreviewSettingsBack"
 local SLIDER_ACTION = "Lane3PreviewSettingsSlider"
 local PAD = 20
-local KNOB = 28
-local LABEL = 20
-local VALUE = 16
+local KNOB = 30
+local LABEL = Tokens.TextSize.Value
+local VALUE = Tokens.TextSize.Minimum
+local TITLE_H = 64
+-- TOKEN CANDIDATE: the settings card body (deep navy) and an unchosen segment.
+local CARD_FILL = ColorSequence.new(Color3.fromRGB(58, 74, 126), Color3.fromRGB(28, 36, 72))
+local SEGMENT_OFF = Color3.fromRGB(70, 86, 140)
 
 export type Options = { onClosed: (() -> ())? }
 
@@ -79,7 +92,7 @@ type Slider = {
 	set: (v: number, fromUser: boolean) -> (),
 }
 
-type Segment = { button: TextButton, choice: string, tick: Frame, text: TextLabel }
+type Segment = { button: TextButton, choice: string, tick: Frame, text: TextLabel, gradient: UIGradient }
 
 local SettingsPanel = {}
 SettingsPanel.__index = SettingsPanel
@@ -92,17 +105,17 @@ local function isGamepad(t: Enum.UserInputType): boolean
 	return t.Name:sub(1, 7) == "Gamepad"
 end
 
-local function selectionRing(parent: GuiObject, radius: number): Frame
+local function selectionRing(parent: GuiObject): Frame
 	local ring = make("Frame", {
 		Name = "SelectionRing",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 8, 1, 8),
-		Position = UDim2.fromOffset(-4, -4),
+		Size = UDim2.new(1, 10, 1, 10),
+		Position = UDim2.fromOffset(-5, -5),
 		Visible = false,
 		Parent = parent,
 	})
-	Gloss.corner(ring, radius + 4)
-	Gloss.stroke(ring, 3, C.Ink)
+	Arcade.corner(ring, B.Radius + 5)
+	Arcade.outline(ring, 3, Color3.new(1, 1, 1))
 	return ring
 end
 
@@ -115,6 +128,10 @@ local function choiceNow(): string
 		return "Off"
 	end
 	return "Roblox"
+end
+
+local function pct(v: number): string
+	return string.format("%d%%", math.floor(v * 100 + 0.5))
 end
 
 function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
@@ -145,20 +162,18 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	local scrim = make("TextButton", {
 		Name = "Backdrop",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = C.Ink,
-		BackgroundTransparency = 0.55,
+		BackgroundColor3 = A.Ink,
+		BackgroundTransparency = 0.5,
 		AutoButtonColor = false,
 		Selectable = false,
 		Text = "",
 		ZIndex = 40,
 		Parent = root,
 	})
-	self._scrim = scrim
 	self._trove:Connect(scrim.Activated, function()
 		self:close()
 	end)
 
-	-- Drag tracking (connected once; does nothing unless a drag is active).
 	self._trove:Connect(UserInputService.InputChanged, function(input: InputObject)
 		local slider: Slider? = self._dragSlider
 		local drag: InputObject? = self._dragging
@@ -179,6 +194,9 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	end)
 	self._trove:Add(Motion.onReducedChanged(function()
 		self:_refreshMotion()
+	end))
+	self._trove:Add(ctx.store:subscribe("settings", function()
+		self:_refreshSound()
 	end))
 	self._trove:Add(function()
 		ContextActionService:UnbindAction(BACK_ACTION)
@@ -225,49 +243,47 @@ function SettingsPanel._makeSlider(
 	local hit = make("TextButton", {
 		Name = name .. "Slider",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(width, 48),
+		Size = UDim2.fromOffset(width, Tokens.Touch.Minimum),
 		AutoButtonColor = false,
 		Selectable = true,
 		Text = "",
 		ZIndex = 44,
 		Parent = parent,
 	})
-	hit.SelectionImageObject = selectionRing(hit, 14)
+	hit.SelectionImageObject = selectionRing(hit)
 	hit.NextSelectionLeft = hit
 	hit.NextSelectionRight = hit
 	local track = make("Frame", {
 		Name = "Track",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, KNOB / 2, 0.5, 0),
-		Size = UDim2.new(1, -KNOB, 0, 12),
-		BackgroundColor3 = C.PanelShade,
-		BorderSizePixel = 0,
+		Size = UDim2.new(1, -KNOB, 0, 14),
+		BackgroundColor3 = A.Ink,
 		ZIndex = 45,
 		Parent = hit,
 	})
-	Gloss.corner(track, 6)
-	Gloss.stroke(track, 2)
+	Arcade.corner(track, 7)
+	Arcade.outline(track, 2, Color3.new(1, 1, 1))
 	local fill = make("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(initial, 1),
-		BackgroundColor3 = C.GarageDeep,
-		BorderSizePixel = 0,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 46,
 		Parent = track,
 	})
-	Gloss.corner(fill, 6)
+	Arcade.corner(fill, 7)
+	make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = fill })
 	local knob = make("Frame", {
 		Name = "Knob",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(initial, 0.5),
 		Size = UDim2.fromOffset(KNOB, KNOB),
-		BackgroundColor3 = C.White,
-		BorderSizePixel = 0,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 47,
 		Parent = track,
 	})
-	Gloss.corner(knob, KNOB / 2)
-	Gloss.stroke(knob, 3)
+	Arcade.corner(knob, B.Radius)
+	Arcade.outline(knob, "Button")
 	local slider: Slider
 	slider = {
 		hit = hit,
@@ -337,8 +353,8 @@ function SettingsPanel._refreshMotion(self: any)
 	local choice = choiceNow()
 	for _, seg in self._segments do
 		local on = seg.choice == choice
-		seg.button.BackgroundColor3 = if on then C.Ink else C.PanelShade
-		seg.text.TextColor3 = if on then C.White else C.Ink
+		seg.gradient.Enabled = on
+		seg.button.BackgroundColor3 = if on then Color3.new(1, 1, 1) else SEGMENT_OFF
 		seg.tick.Visible = on
 	end
 	if self._motionValue then
@@ -346,17 +362,35 @@ function SettingsPanel._refreshMotion(self: any)
 	end
 end
 
--- One labelled row; returns the frame that holds the control and the value label.
+function SettingsPanel._refreshSound(self: any)
+	local s = self._ctx.store:get().settings
+	local music: Slider? = self._sliders.music
+	if music then
+		music.set(s.music, false)
+	end
+	local sfx: Slider? = self._sliders.sfx
+	if sfx then
+		sfx.set(s.sfx, false)
+	end
+	if self._musicValue then
+		self._musicValue.Text = if s.musicOn == false then pct(s.music) .. " · Music is Off" else pct(s.music)
+	end
+	if self._sfxValue then
+		self._sfxValue.Text = pct(s.sfx)
+	end
+end
+
+-- One labelled row; returns the control frame, the value label and the row height.
 function SettingsPanel._row(
 	_self: any,
 	parent: Instance,
 	order: number,
-	icon: Icons.Name,
+	icons: { string },
 	text: string,
 	stacked: boolean,
 	cardInner: number
 ): (Frame, TextLabel, number)
-	local rowH = if stacked then 30 + 6 + 48 else 56
+	local rowH = if stacked then 34 + 6 + 48 else 60
 	local row = make("Frame", {
 		Name = "Row" .. order,
 		BackgroundTransparency = 1,
@@ -368,50 +402,45 @@ function SettingsPanel._row(
 	local iconHolder = make("Frame", {
 		Name = "Icon",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, if stacked then 1 else 4),
-		Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.fromOffset(0, 2),
+		Size = UDim2.fromOffset(30, 30),
 		ZIndex = 43,
 		Parent = row,
 	})
-	Icons.draw(iconHolder, icon, C.White)
-	make("TextLabel", {
-		Name = "Label",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(36, if stacked then 0 else 2),
-		Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 4, 30),
-		FontFace = Tokens.font(),
-		Text = text,
-		TextSize = LABEL,
-		TextColor3 = C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 43,
-		Parent = row,
+	IconArt.draw(iconHolder, icons)
+	local label = Arcade.text(row, {
+		text = text,
+		role = "Label",
+		name = "Label",
+		size = LABEL,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 43,
 	})
-	local value = make("TextLabel", {
-		Name = "Value",
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = VALUE,
-		TextColor3 = C.InkSoft,
-		ZIndex = 43,
-		Parent = row,
+	label.Position = UDim2.fromOffset(38, 0)
+	label.Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 12, 34)
+	local value = Arcade.text(row, {
+		text = "",
+		role = "Small",
+		name = "Value",
+		size = VALUE,
+		colour = Color3.fromRGB(214, 226, 255),
+		z = 43,
 	})
-	local labelColumn = 200
+	local labelColumn = 210
 	if stacked then
 		value.AnchorPoint = Vector2.new(1, 0)
-		value.Position = UDim2.new(1, 0, 0, 4)
-		value.Size = UDim2.fromOffset(150, 24)
+		value.Position = UDim2.new(1, 0, 0, 6)
+		value.Size = UDim2.fromOffset(170, 24)
 		value.TextXAlignment = Enum.TextXAlignment.Right
 	else
-		value.Position = UDim2.fromOffset(36, 30)
+		value.Position = UDim2.fromOffset(38, 34)
 		value.Size = UDim2.fromOffset(labelColumn - 40, 22)
 		value.TextXAlignment = Enum.TextXAlignment.Left
 	end
 	local control = make("Frame", {
 		Name = "Control",
 		BackgroundTransparency = 1,
-		Position = if stacked then UDim2.fromOffset(0, 36) else UDim2.fromOffset(labelColumn, 4),
+		Position = if stacked then UDim2.fromOffset(0, 40) else UDim2.fromOffset(labelColumn, 6),
 		Size = UDim2.fromOffset(if stacked then cardInner else cardInner - labelColumn, 48),
 		ZIndex = 43,
 		Parent = row,
@@ -420,6 +449,7 @@ function SettingsPanel._row(
 end
 
 function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
+	local ctx: Types.Ctx = self._ctx
 	local selected = GuiService.SelectedObject
 	local hadSelection = selected ~= nil and selected:IsDescendantOf(self.root)
 	self._content:Clean()
@@ -430,174 +460,163 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 		self._fade = nil
 	end
 	local inner = cardWidth - 2 * PAD
-	local card = self._content:Add(make("Frame", {
-		Name = "Card",
+	local holder = self._content:Add(make("Frame", {
+		Name = "CardHolder",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(cardWidth, 100),
-		BackgroundColor3 = C.Panel,
-		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
+		ZIndex = 41,
+		Parent = self.root,
+	}))
+	self._pop = make("UIScale", { Name = "Open", Scale = 1, Parent = holder })
+	local lip = make("Frame", {
+		Name = "Lip",
+		Position = UDim2.fromOffset(0, B.DepthOffset + 2),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = A.Ink,
+		ZIndex = 41,
+		Parent = holder,
+	})
+	Arcade.corner(lip, B.Radius + 3)
+	local card = make("Frame", {
+		Name = "Card",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 41,
 		SelectionGroup = true,
 		SelectionBehaviorUp = Enum.SelectionBehavior.Stop,
 		SelectionBehaviorDown = Enum.SelectionBehavior.Stop,
 		SelectionBehaviorLeft = Enum.SelectionBehavior.Stop,
 		SelectionBehaviorRight = Enum.SelectionBehavior.Stop,
-		Parent = self.root,
-	}))
-	Gloss.corner(card, 20)
-	Gloss.stroke(card, 3)
-	local shadow = Gloss.shadow(card, 20)
-	self._content:Add(shadow)
-	self._card = card
-	self._cardShadow = shadow
-	self._pop = make("UIScale", { Name = "Open", Scale = 1, Parent = card })
-
-	make("TextLabel", {
-		Name = "Title",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(PAD, 12),
-		Size = UDim2.new(1, -2 * PAD - 56, 0, 40),
-		FontFace = Tokens.font(),
-		Text = "SETTINGS",
-		TextSize = 30,
-		TextColor3 = C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 42,
-		Parent = card,
+		Parent = holder,
 	})
-	local close = Gloss.button(card, {
+	Arcade.corner(card, B.Radius + 3)
+	Arcade.outline(card, "Button")
+	make("UIGradient", { Color = CARD_FILL, Rotation = 90, Parent = card })
+	self._card = card
+	self._holder = holder
+
+	local title = Arcade.text(card, {
+		text = "Settings",
+		role = "Display",
+		name = "Title",
+		xAlign = Enum.TextXAlignment.Left,
+		z = 42,
+	})
+	title.Position = UDim2.fromOffset(PAD, 12)
+	title.Size = UDim2.new(1, -2 * PAD - B.SmallW - 8, 0, 44)
+	local close = Arcade.button(card, {
 		name = "Close",
-		size = Vector2.new(48, 48),
-		position = UDim2.new(1, -12, 0, 10),
-		anchor = Vector2.new(1, 0),
-		light = C.SettingsLight,
-		deep = C.SettingsDeep,
-		radius = 14,
-		icon = function(holder: Frame)
-			Icons.draw(holder, "Close")
-		end,
-		iconSize = 26,
+		label = "Close",
+		fill = "Settings",
+		size = "Small",
 		sound = "Tap",
+		position = UDim2.new(1, -14, 0, 10),
+		anchor = Vector2.new(1, 0),
 		onActivate = function()
 			self:close()
 		end,
 	})
 	self._content:Add(close.trove)
+	close.root.ZIndex = 44
 	self._closeButton = close.body
 
 	local list = make("Frame", {
 		Name = "Rows",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(PAD, 66),
+		Position = UDim2.fromOffset(PAD, TITLE_H + 6),
 		Size = UDim2.fromOffset(inner, 100),
 		ZIndex = 42,
 		Parent = card,
 	})
+	local gap = if stacked then 14 else 10
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, if stacked then 14 else 10),
+		Padding = UDim.new(0, gap),
 		Parent = list,
 	})
 	local total = 0
-	local gap = if stacked then 14 else 10
+	local settings = ctx.store:get().settings
 
-	-- Music
-	local musicControl, musicValue, h1 = self:_row(list, 1, "Music", "Music", stacked, inner)
-	local musicGroup = Sounds.musicGroup()
-	local music = self:_makeSlider(musicControl, "Music", musicControl.Size.X.Offset, musicGroup.Volume, function(v)
-		Sounds.musicGroup().Volume = v
-		musicValue.Text = string.format("%d%%", math.floor(v * 100 + 0.5))
+	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", stacked, inner)
+	self._musicValue = musicValue
+	local music = self:_makeSlider(musicControl, "Music", musicControl.Size.X.Offset, settings.music, function(v)
+		MusicSetting.setLevel(ctx.store, v)
 	end)
-	musicValue.Text = string.format("%d%%", math.floor(musicGroup.Volume * 100 + 0.5))
 	self._sliders.music = music
 	total += h1 + gap
 
-	-- Sound effects
-	local sfxControl, sfxValue, h2 = self:_row(list, 2, "Speaker", "Sound effects", stacked, inner)
-	local sfxGroup = Sounds.group()
-	local sfx = self:_makeSlider(sfxControl, "Sfx", sfxControl.Size.X.Offset, sfxGroup.Volume, function(v)
-		Sounds.group().Volume = v
-		sfxValue.Text = string.format("%d%%", math.floor(v * 100 + 0.5))
+	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", stacked, inner)
+	self._sfxValue = sfxValue
+	local sfx = self:_makeSlider(sfxControl, "Sfx", sfxControl.Size.X.Offset, settings.sfx, function(v)
+		MusicSetting.setSfx(ctx.store, v)
 	end)
-	sfxValue.Text = string.format("%d%%", math.floor(sfxGroup.Volume * 100 + 0.5))
 	self._sliders.sfx = sfx
 	total += h2 + gap
 
-	-- Reduce motion: three choices
-	local motionControl, motionValue, h3 = self:_row(list, 3, "Motion", "Reduce motion", stacked, inner)
+	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", stacked, inner)
 	self._motionValue = motionValue
 	local choices = { { "Roblox", "Use Roblox setting" }, { "On", "On" }, { "Off", "Off" } }
 	local x = 0
 	for _, pair in choices do
 		local label = pair[2]
-		local w = math.max(64, math.ceil(measure(label, VALUE)) + 20 + 22)
+		local w = math.max(72, math.ceil(measure(label, VALUE)) + 20 + 26)
 		local b = make("TextButton", {
 			Name = "Motion" .. pair[1],
 			Position = UDim2.fromOffset(x, 0),
-			Size = UDim2.fromOffset(w, 48),
-			BackgroundColor3 = C.PanelShade,
+			Size = UDim2.fromOffset(w, Tokens.Touch.Minimum),
+			BackgroundColor3 = SEGMENT_OFF,
 			AutoButtonColor = false,
 			Selectable = true,
 			Text = "",
 			ZIndex = 44,
 			Parent = motionControl,
 		})
-		Gloss.corner(b, 12)
-		Gloss.stroke(b, 2.5)
-		b.SelectionImageObject = selectionRing(b, 12)
+		Arcade.corner(b)
+		Arcade.outline(b, "Button")
+		local g = make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Enabled = false, Parent = b })
+		b.SelectionImageObject = selectionRing(b)
 		local tick = make("Frame", {
 			Name = "Tick",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 8, 0.5, 0),
-			Size = UDim2.fromOffset(18, 18),
+			Position = UDim2.new(0, 6, 0.5, 0),
+			Size = UDim2.fromOffset(20, 20),
 			BackgroundTransparency = 1,
 			Visible = false,
 			ZIndex = 45,
 			Parent = b,
 		})
-		Icons.draw(tick, "Check", C.SuccessLight)
-		local t = make("TextLabel", {
-			Name = "Text",
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(26, 0),
-			Size = UDim2.new(1, -32, 1, 0),
-			FontFace = Tokens.font(),
-			Text = label,
-			TextSize = VALUE,
-			TextColor3 = C.Ink,
-			ZIndex = 45,
-			Parent = b,
-		})
+		IconArt.draw(tick, { "Check" })
+		local t = Arcade.text(b, { text = label, role = "Small", name = "Text", size = VALUE, z = 45 })
+		t.Position = UDim2.fromOffset(26, 0)
+		t.Size = UDim2.new(1, -30, 1, 0)
 		local choice = pair[1]
 		self._content:Connect(b.Activated, function()
 			Sounds.play("Tap")
 			self:_choose(choice)
 		end)
-		table.insert(self._segments, { button = b, choice = choice, tick = tick, text = t })
-		x += w + 6
+		table.insert(self._segments, { button = b, choice = choice, tick = tick, text = t, gradient = g })
+		x += w + 8
 	end
 	total += h3
 
-	-- Footer
-	local footer = make("TextLabel", {
-		Name = "PreviewNote", -- harness caption (hidden in player-facing captures)
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(PAD, 66 + total + 10),
-		Size = UDim2.new(1, -2 * PAD, 0, 20),
-		FontFace = Tokens.font(),
-		Text = "Preview: not saved",
-		TextSize = VALUE,
-		TextColor3 = C.InkSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 42,
-		Parent = card,
+	local footer = Arcade.text(card, {
+		text = "Preview: not saved",
+		role = "Small",
+		name = "PreviewNote", -- harness caption (hidden in player-facing captures)
+		size = VALUE,
+		colour = Color3.fromRGB(255, 236, 140),
+		xAlign = Enum.TextXAlignment.Left,
+		z = 42,
 	})
+	footer:SetAttribute("PreviewCaption", true)
+	footer.Position = UDim2.fromOffset(PAD, TITLE_H + 6 + total + 10)
+	footer.Size = UDim2.new(1, -2 * PAD, 0, 22)
 	list.Size = UDim2.fromOffset(inner, total)
-	local cardH = 66 + total + 10 + footer.Size.Y.Offset + 16
-	card.Size = UDim2.fromOffset(cardWidth, cardH)
-	shadow.Size = card.Size
+	local cardH = TITLE_H + 6 + total + 10 + 22 + 16
+	holder.Size = UDim2.fromOffset(cardWidth, cardH)
 	self._cardHeight = cardH
 
 	-- Selection order: music -> sfx -> motion choices -> close.
@@ -616,6 +635,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 
 	self._fade = Fade.capture(self.root)
 	self:_refreshMotion()
+	self:_refreshSound()
 	if hadSelection and self._open then
 		GuiService.SelectedObject = music.hit
 	end
@@ -626,10 +646,10 @@ function SettingsPanel.layout(self: any)
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local L = Layout.forProfile(ctx.screen:profile(), scale)
-	-- The root is the safe area in design px, so after HudScale it fills the layer exactly.
+	-- the root is the safe area in design px, so after HudScale it fills the layer exactly
 	self.root.Size = UDim2.fromOffset(L.safeW, L.safeH)
 	local stacked = L.profile == "PhonePortrait"
-	local width = if stacked then L.safeW - 16 else math.min(600, L.safeW - 24)
+	local width = if stacked then L.safeW - 16 else math.min(620, L.safeW - 24)
 	local kind = string.format("%s:%d", if stacked then "Stacked" else "Wide", width)
 	if kind ~= self._kind then
 		self._kind = kind
@@ -652,9 +672,7 @@ function SettingsPanel.open(self: any, opener: GuiObject?)
 	self._opener = opener
 	self._closeToken += 1
 	local useSelection = lastInputIsGamepad() or GuiService.SelectedObject ~= nil
-	-- Refresh the controls from the live preview mix (another tool may have changed it).
-	self._sliders.music.set(Sounds.musicGroup().Volume, false)
-	self._sliders.sfx.set(Sounds.group().Volume, false)
+	self:_refreshSound()
 	self:_refreshMotion()
 	self.root.Visible = true
 	Sounds.play("Open")
@@ -746,12 +764,16 @@ function SettingsPanel.getDebugState(self: any): { [string]: any }
 	local selected = GuiService.SelectedObject
 	local pos, size = ctx.screen:rectOf(self._card)
 	local player = Players.LocalPlayer
+	local s = ctx.store:get().settings
 	return {
 		open = self._open,
 		visible = self.root.Visible,
 		layout = self._kind,
 		music = Sounds.musicGroup().Volume,
 		sfx = Sounds.group().Volume,
+		musicSetting = s.music,
+		musicOn = s.musicOn ~= false,
+		sfxSetting = s.sfx,
 		musicSlider = self._sliders.music.value,
 		sfxSlider = self._sliders.sfx.value,
 		motionChoice = choiceNow(),

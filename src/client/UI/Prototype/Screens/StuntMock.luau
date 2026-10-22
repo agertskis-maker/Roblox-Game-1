@@ -1,14 +1,16 @@
 --!strict
 -- StuntMock: a mock-only Stunt Circuit HUD (Lane 3 HUD prototype, PREVIEW only). There is no
 -- racing simulation, no leaderboard and no reward: every number is a placeholder that the
--- caller sets (or the local display clock started by :play()).
+-- caller sets (or the local display clock started by :play()). HUD rebuild (2026-10-22, H-15):
+-- restyled into the arcade family: the lap timer is a large italic outlined number with no
+-- backing card; the mode tag, checkpoints, ghost and medal list are compact dark kit chips with
+-- the thick boundary (no cream pills).
 --
 --   local stunt = StuntMock.new(ctx, { onExit = fn? })
 --   stunt:open(returnTo?)  stunt:close()  stunt:isOpen()
 --   stunt:setTime(seconds)              -- lap timer display, m:ss.cc
 --   stunt:setCheckpoint(n, total)       -- "CHECKPOINT 3 / 5" plus segment ticks
---   stunt:setGhostGap(seconds?)         -- "+0.42" (behind) / "-0.42" (ahead), labelled
---                                          "ghost (mock)"; nil hides it
+--   stunt:setGhostGap(seconds?)         -- "+0.42 behind" / "-0.42 ahead" with "ghost"; nil hides
 --   stunt:setMedals({ gold, silver, bronze })   -- placeholder target times in seconds
 --   stunt:play() / stunt:stop()         -- a local 10 Hz display clock (not a simulation)
 --   stunt:layout()  stunt:setVisible(on)  stunt:destroy()  stunt:getDebugState()
@@ -16,16 +18,17 @@
 -- Consistency with outline v2.2 section 10: one lap of about 60-90 s, checkpoints about every
 -- 15 s (so the default total is 5, not 8), Bronze / Silver / Gold medal times, your own best
 -- run always shown as a ghost, Heat off (no Heat bar here). Medal colours always come with the
--- medal word and its letter. Back (Escape / gamepad B) closes the mock.
+-- medal word and its letter. "mock HUD" and "placeholder times" are harness captions.
+-- Back (Escape / gamepad B) closes the mock.
 
 local Prototype = script.Parent.Parent
-local Gloss = require(Prototype.Gloss)
-local Icons = require(Prototype.Icons)
+local Arcade = require(Prototype.Arcade)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
+local Style = require(script.Parent.Style)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local A = PreviewTokens.Arcade
+local make = Arcade.make
 
 local StuntMock = {}
 
@@ -81,19 +84,9 @@ local MEDALS = {
 	{ key = "bronze", word = "BRONZE", letter = "B", colour = Color3.fromRGB(214, 140, 70) },
 }
 
-local function chip(parent: Instance, name: string, z: number): Frame
-	local f = make("Frame", {
-		Name = name,
-		BackgroundColor3 = C.Panel,
-		BackgroundTransparency = 0.08,
-		BorderSizePixel = 0,
-		ZIndex = z,
-		Parent = parent,
-	})
-	Gloss.corner(f, 14)
-	Gloss.stroke(f, 3)
-	return f
-end
+-- TOKEN CANDIDATE: ghost chip tints (behind = warm, ahead = cool) over the dark chip.
+local GHOST_BEHIND = Color3.fromRGB(255, 196, 120)
+local GHOST_AHEAD = Color3.fromRGB(120, 245, 225)
 
 function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local opts: Options = options or {}
@@ -110,56 +103,54 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local content = overlay.content
 
 	-- mode tag (top-left; Heat is off in the Stunt Circuit, so this corner is free)
-	local tag = chip(content, "ModeTag", 4)
-	local tagIcon = make("Frame", {
+	local tag = Style.chip(content, "ModeTag", 4)
+	local tagIcon: Frame = make("Frame", {
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 10, 0.5, 0),
-		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(0, 6, 0.5, 0),
+		Size = UDim2.fromOffset(36, 36),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = tag,
 	})
-	Icons.draw(tagIcon, "Flag", C.Ink)
-	local tagText = Overlay.text(tag, "STUNT CIRCUIT", 18, C.Ink, nil, 6)
+	Arcade.icon(tagIcon, "Flag")
+	local tagText = Overlay.text(tag, "STUNT CIRCUIT", 20, nil, nil, 6)
 	tagText.AnchorPoint = Vector2.new(0, 0.5)
-	tagText.Position = UDim2.new(0, 40, 0.5, -8)
-	tagText.Size = UDim2.new(1, -48, 0, 22)
-	local tagSub = Overlay.text(tag, "mock HUD", 16, C.InkSoft, nil, 6)
+	tagText.Position = UDim2.new(0, 46, 0.5, -8)
+	tagText.Size = UDim2.new(1, -52, 0, 24)
+	local tagSub = Overlay.text(tag, "mock HUD", 16, Style.TextSoft, nil, 6)
 	tagSub:SetAttribute("PreviewCaption", true)
 	tagSub.AnchorPoint = Vector2.new(0, 0.5)
-	tagSub.Position = UDim2.new(0, 40, 0.5, 12)
-	tagSub.Size = UDim2.new(1, -48, 0, 20)
+	tagSub.Position = UDim2.new(0, 46, 0.5, 12)
+	tagSub.Size = UDim2.new(1, -52, 0, 20)
 
-	-- lap timer (top centre; outlined digits, no panel, like the run's Distance)
-	local timer = make("Frame", { Name = "Timer", BackgroundTransparency = 1, ZIndex = 4, Parent = content })
-	local timerIcon = make("Frame", {
+	-- lap timer (top centre; a big italic outlined number, no panel, like the run's Distance)
+	local timer: Frame = make("Frame", { Name = "Timer", BackgroundTransparency = 1, ZIndex = 4, Parent = content })
+	local timerIcon: Frame = make("Frame", {
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(34, 34),
+		Size = UDim2.fromOffset(42, 42),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = timer,
 	})
-	Icons.draw(timerIcon, "Timer", C.White)
-	local timerText = Gloss.title(timer, "0:00.00", 40)
+	Arcade.icon(timerIcon, "Timer")
+	local timerText = Style.text(timer, "0:00.00", "Value", { name = "Time", italic = true, face = "White", z = 6 })
 	timerText.AnchorPoint = Vector2.new(0, 0.5)
-	timerText.Position = UDim2.new(0, 42, 0.5, 0)
-	timerText.Size = UDim2.new(1, -42, 0, 48)
-	timerText.TextXAlignment = Enum.TextXAlignment.Left
-	timerText.ZIndex = 6
+	timerText.Position = UDim2.new(0, 48, 0.5, 0)
+	timerText.Size = UDim2.new(1, -48, 0, 48)
 
 	-- checkpoints
-	local cp = chip(content, "Checkpoints", 4)
-	local cpText = Overlay.text(cp, "", 18, C.Ink, Enum.TextXAlignment.Center, 6)
-	cpText.Position = UDim2.fromOffset(0, 4)
-	cpText.Size = UDim2.new(1, 0, 0, 22)
-	local ticks = make("Frame", {
+	local cp = Style.chip(content, "Checkpoints", 4)
+	local cpText = Overlay.text(cp, "", 18, nil, Enum.TextXAlignment.Center, 6)
+	cpText.Position = UDim2.fromOffset(0, 3)
+	cpText.Size = UDim2.new(1, 0, 0, 24)
+	local ticks: Frame = make("Frame", {
 		Name = "Ticks",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 30),
-		Size = UDim2.new(1, -24, 0, 10),
+		Size = UDim2.new(1, -24, 0, 12),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = cp,
@@ -174,17 +165,23 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local tickTrove = trove:Extend()
 
 	-- ghost gap
-	local ghost = chip(content, "GhostGap", 4)
-	local ghostValue = Overlay.text(ghost, "", 20, C.Ink, Enum.TextXAlignment.Center, 6)
-	ghostValue.Position = UDim2.fromOffset(0, 2)
-	ghostValue.Size = UDim2.new(1, 0, 0, 28)
-	local ghostLabel = Overlay.text(ghost, "ghost", 16, C.InkSoft, Enum.TextXAlignment.Center, 6)
+	local ghost = Style.chip(content, "GhostGap", 4)
+	local ghostValue = Style.text(ghost, "", "Value", {
+		name = "Gap",
+		italic = true,
+		size = 22,
+		xAlign = Enum.TextXAlignment.Center,
+		z = 6,
+	})
+	ghostValue.Position = UDim2.fromOffset(4, 2)
+	ghostValue.Size = UDim2.new(1, -8, 0, 28)
+	local ghostLabel = Overlay.text(ghost, "ghost", 16, Style.TextSoft, Enum.TextXAlignment.Center, 6)
 	ghostLabel.Position = UDim2.fromOffset(0, 30)
 	ghostLabel.Size = UDim2.new(1, 0, 0, 20)
 
 	-- medal targets
-	local medalCard = chip(content, "Medals", 4)
-	local medalList = make("Frame", {
+	local medalCard = Style.chip(content, "Medals", 4)
+	local medalList: Frame = make("Frame", {
 		Name = "List",
 		Position = UDim2.fromOffset(8, 6),
 		Size = UDim2.new(1, -16, 1, -12),
@@ -199,38 +196,47 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	})
 	local medalTimes: { [string]: TextLabel } = {}
 	for i, m in MEDALS do
-		local row = make("Frame", {
+		local row: Frame = make("Frame", {
 			Name = "Medal_" .. m.word,
-			Size = UDim2.new(1, 0, 0, 26),
+			Size = UDim2.new(1, 0, 0, 28),
 			BackgroundTransparency = 1,
 			LayoutOrder = i,
 			ZIndex = 5,
 			Parent = medalList,
 		})
-		local disc = make("Frame", {
+		local disc: Frame = make("Frame", {
 			Name = "Disc",
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.fromScale(0, 0.5),
-			Size = UDim2.fromOffset(24, 24),
+			Size = UDim2.fromOffset(26, 26),
 			BackgroundColor3 = m.colour,
 			BorderSizePixel = 0,
 			ZIndex = 6,
 			Parent = row,
 		})
-		Gloss.corner(disc, 12)
-		Gloss.stroke(disc, 2)
-		local letter = Overlay.text(disc, m.letter, 16, C.Ink, Enum.TextXAlignment.Center, 7)
+		Arcade.corner(disc, 13)
+		Arcade.outline(disc, 2.5)
+		local letter = Overlay.text(disc, m.letter, 16, A.Ink, Enum.TextXAlignment.Center, 7)
 		letter.Size = UDim2.fromScale(1, 1)
-		local word = Overlay.text(row, m.word, 16, C.Ink, nil, 6)
-		word.Position = UDim2.fromOffset(30, 0)
-		word.Size = UDim2.new(1, -30 - 72, 1, 0)
-		local t = Overlay.text(row, "", 16, C.Ink, Enum.TextXAlignment.Right, 6)
+		local stroke = letter:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Enabled = false -- dark letter on a light disc needs no outline
+		end
+		local word = Overlay.text(row, m.word, 16, nil, nil, 6)
+		word.Position = UDim2.fromOffset(32, 0)
+		word.Size = UDim2.new(1, -32 - 76, 1, 0)
+		local t = Style.text(row, "", "Small", {
+			name = "Time",
+			italic = true,
+			xAlign = Enum.TextXAlignment.Right,
+			z = 6,
+		})
 		t.AnchorPoint = Vector2.new(1, 0)
 		t.Position = UDim2.fromScale(1, 0)
-		t.Size = UDim2.new(0, 72, 1, 0)
+		t.Size = UDim2.new(0, 76, 1, 0)
 		medalTimes[m.key] = t
 	end
-	local medalCaption = Overlay.text(medalList, "placeholder times", 16, C.InkSoft, Enum.TextXAlignment.Right, 6)
+	local medalCaption = Overlay.text(medalList, "placeholder times", 16, Style.TextSoft, Enum.TextXAlignment.Right, 6)
 	medalCaption:SetAttribute("PreviewCaption", true)
 	medalCaption.LayoutOrder = 10
 	medalCaption.Size = UDim2.new(1, 0, 0, 20)
@@ -240,17 +246,19 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		cpText.Text = string.format("CHECKPOINT %d / %d", checkpoint, checkpoints)
 		tickTrove:Clean()
 		for i = 1, checkpoints do
-			local tick = tickTrove:Add(make("Frame", {
+			-- passed ticks are filled AND taller (state is not colour alone)
+			local passed = i <= checkpoint
+			local tick: Frame = tickTrove:Add(make("Frame", {
 				Name = "Tick" .. i,
-				Size = UDim2.fromOffset(18, 10),
-				BackgroundColor3 = if i <= checkpoint then C.HopDeep else C.White,
+				Size = UDim2.fromOffset(18, if passed then 12 else 8),
+				BackgroundColor3 = if passed then Color3.new(1, 1, 1) else Style.Well,
 				BorderSizePixel = 0,
 				LayoutOrder = i,
 				ZIndex = 7,
 				Parent = ticks,
 			}))
-			Gloss.corner(tick, 5)
-			Gloss.stroke(tick, 1.5)
+			Arcade.corner(tick, 3)
+			Arcade.outline(tick, 1.5)
 		end
 		local gap = ghostGap
 		ghost.Visible = gap ~= nil
@@ -262,7 +270,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 				math.abs(gap),
 				if behind then "behind" else "ahead"
 			)
-			ghost.BackgroundColor3 = if behind then Color3.fromRGB(255, 226, 190) else Color3.fromRGB(200, 246, 236)
+			ghostValue.TextColor3 = if behind then GHOST_BEHIND else GHOST_AHEAD
 			ghostLabel.Text = "ghost"
 		end
 		for _, m in MEDALS do
@@ -274,39 +282,38 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		overlay:applyScale()
 		local ds = overlay:designSize()
 		local kind = Overlay.kindFor(ds)
-		local timerW = 196
+		local timerW = 210
 		if kind == "Tall" then
 			tag.Position = UDim2.fromOffset(8, 6)
-			tag.Size = UDim2.fromOffset(190, 52)
+			tag.Size = UDim2.fromOffset(200, 54)
 			timer.AnchorPoint = Vector2.new(0.5, 0)
-			timer.Position = UDim2.new(0.5, 0, 0, 66)
-			timer.Size = UDim2.fromOffset(timerW, 52)
+			timer.Position = UDim2.new(0.5, 0, 0, 68)
+			timer.Size = UDim2.fromOffset(timerW, 54)
 			cp.AnchorPoint = Vector2.new(0.5, 0)
-			cp.Position = UDim2.new(0.5, -84, 0, 124)
-			cp.Size = UDim2.fromOffset(196, 48)
+			cp.Position = UDim2.new(0.5, -84, 0, 128)
+			cp.Size = UDim2.fromOffset(196, 50)
 			ghost.AnchorPoint = Vector2.new(0.5, 0)
-			ghost.Position = UDim2.new(0.5, 112, 0, 124)
-			ghost.Size = UDim2.fromOffset(152, 52)
-			-- medals: a compact card under the chips
+			ghost.Position = UDim2.new(0.5, 112, 0, 128)
+			ghost.Size = UDim2.fromOffset(152, 54)
 			medalCard.AnchorPoint = Vector2.new(0.5, 0)
-			medalCard.Position = UDim2.new(0.5, 0, 0, 184)
-			medalCard.Size = UDim2.fromOffset(240, 120)
+			medalCard.Position = UDim2.new(0.5, 0, 0, 192)
+			medalCard.Size = UDim2.fromOffset(250, 124)
 		else
 			local short = kind == "Short"
 			tag.Position = UDim2.fromOffset(8, 6)
-			tag.Size = UDim2.fromOffset(190, 52)
+			tag.Size = UDim2.fromOffset(200, 54)
 			timer.AnchorPoint = Vector2.new(0.5, 0)
 			timer.Position = UDim2.new(0.5, 0, 0, 4)
-			timer.Size = UDim2.fromOffset(timerW, 52)
+			timer.Size = UDim2.fromOffset(timerW, 54)
 			cp.AnchorPoint = Vector2.new(1, 0)
-			cp.Position = UDim2.new(0.5, -6, 0, 60)
-			cp.Size = UDim2.fromOffset(196, 48)
+			cp.Position = UDim2.new(0.5, -6, 0, 62)
+			cp.Size = UDim2.fromOffset(196, 50)
 			ghost.AnchorPoint = Vector2.new(0, 0)
-			ghost.Position = UDim2.new(0.5, 6, 0, 60)
-			ghost.Size = UDim2.fromOffset(if short then 150 else 176, 52)
+			ghost.Position = UDim2.new(0.5, 6, 0, 62)
+			ghost.Size = UDim2.fromOffset(if short then 156 else 180, 54)
 			medalCard.AnchorPoint = Vector2.new(1, 0)
 			medalCard.Position = UDim2.new(1, -8, 0, 6)
-			medalCard.Size = UDim2.fromOffset(if short then 184 else 210, 120)
+			medalCard.Size = UDim2.fromOffset(if short then 196 else 220, 124)
 		end
 	end
 

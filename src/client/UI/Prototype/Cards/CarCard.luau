@@ -1,41 +1,50 @@
 --!strict
 -- CarCard: the signature reusable portrait car card (Lane 3 HUD prototype, PREVIEW only).
+-- HUD rebuild (2026-10-22): restyled into the arcade kit family (Prototype/Arcade.luau): a thick
+-- near-black boundary, limited rounding, a hard dark lip instead of a soft shadow, a dark inner
+-- panel with white outlined text (no cream).
 --
 --   local card = CarCard.new(parent, car, { size = Vector2.new(200, 280), spinning = true })
 --   card:setCar(car)          -- rebuilds the model ONCE (never per frame)
---   card:setSelected(true)    -- thicker white ring + a slight lift
+--   card:setSelected(true)    -- thick white ring + a slight lift over the dark lip
 --   card:setSpinning(true)    -- slow turn (20 deg/s) on the shared ticker; static 3/4 otherwise
 --   card:setSize(Vector2)     -- re-lays out the card and refits the camera (model kept)
 --   card:loadModel()          -- for lazy cards (CardGrid builds models only near the view)
 --   card:setVisible(false)    -- hidden cards never spin
+--   card:setStamp(text?)      -- a small tilted gold stamp inside the stage (e.g. "SECURED"); nil
+--                                removes it
 --   card:destroy()
 --   card:getDebugState()      -- numbers for automated checks
 --
 -- Design (preview choices, see the handoff):
--- * Rarity reads without colour: a rarity LABEL plus 1-5 diamond PIPS (filled count out of 5).
--- * Variants (Gold / Chrome / Rainbow) are finishes, not rarities: an outer finish ring plus a
---   ribbon with the finish word. The rarity frame, label and pips stay as they are.
--- * Unowned: the model is shown as a near-black silhouette (recoloured once at build time); the
---   rarity frame, label, pips and the NAME stay visible (a child can still go and find "Rangy");
---   the quirk line becomes a lock + "Not owned yet".
+-- * Rarity reads without colour: a rarity frame (gradient) PLUS the rarity LABEL word PLUS 1-5
+--   diamond PIPS (filled count out of 5).
+-- * Variants (Gold / Chrome / Rainbow) are finishes, not rarities: a separate outer finish ring
+--   plus a ribbon with the finish word. The rarity frame, label and pips stay as they are.
+-- * Unowned: the model is a near-black silhouette (recoloured once at build time); the rarity
+--   frame, label, pips and the NAME stay visible; the quirk line becomes a lock + "Not owned yet".
 -- * car.model == nil: a neutral placeholder; "Loading..." when options.loading is true or the
 --   card is lazy and not built yet, otherwise "Unavailable".
--- * car.model == "Proxy": an original part-built scale proxy (ProxyCar) with a small PROXY tag.
---   Any other value is looked up under ReplicatedStorage.Cars (read-only clone, once per setCar).
--- * The name uses TextScaled with a UITextSizeConstraint (16..22). A name that does not fit on
---   one line at 16 is cut with an ellipsis, measured with TextService (so it never overflows).
+-- * car.model == "Proxy": an original part-built scale proxy (ProxyCar). Its "PROXY" tag is a
+--   HARNESS CAPTION (attribute PreviewCaption = true): the card only shows or hides the tag's
+--   holder; the tag's own Visible is left to the harness caption switch, so selecting or
+--   rebuilding a card can never bring it back in a player-facing capture.
+-- * Name rule: never truncated in a way that loses the model number. The name fits on one line
+--   at 22..16, else wraps to two lines at 22..16 (no word is split); only a name that cannot fit
+--   two lines at 16 is shortened, and then the LAST word is always kept ("Supercalifr… Deluxe").
+--   Measured with TextService; until the measurement returns, TextScaled + TextWrapped (16..22)
+--   keeps the name inside its box.
 --
 -- Viewport stage: a back gradient (UI), a floor disc and a darker contact disc (parts inside the
--- viewport, so they line up with the wheels at every angle), a rim highlight (UI), explicit
--- Ambient / LightColor / LightDirection. The camera is fitted to GetBoundingBox: the distance
--- comes from the field of view so the car's turning footprint fills about 70% of the stage width
--- (7-stud motorcycle to 26-stud bus). The light turns with the camera, so it looks like a
--- turntable under a fixed studio light.
+-- viewport, so they line up with the wheels at every angle), explicit Ambient / LightColor /
+-- LightDirection. The camera is fitted to GetBoundingBox: the turning footprint fills about 70%
+-- of the stage width (7-stud motorcycle to 26-stud bus). The light turns with the camera.
 --
 -- One shared ticker drives every spinning card: a RenderStepped connection exists only while at
 -- least one visible card is spinning; a 0.25 s poll (only while some card wants to spin) checks
 -- visibility (ancestors visible, ScreenGui enabled, inside clipping frames and the viewport).
--- Reduced motion stops all turning at once and snaps to the static 3/4 angle.
+-- Reduced motion stops all turning at once and snaps to the static 3/4 angle. CardGrid limits
+-- how many cards spin (6).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -43,18 +52,19 @@ local TextService = game:GetService("TextService")
 local Workspace = game:GetService("Workspace")
 
 local Prototype = script.Parent.Parent
+local Arcade = require(Prototype.Arcade)
 local Fixtures = require(Prototype.Fixtures)
-local Gloss = require(Prototype.Gloss)
 local Icons = require(Prototype.Icons)
 local Motion = require(Prototype.Motion)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local ProxyCar = require(Prototype.ProxyCar)
 local Sounds = require(Prototype.Sounds)
+local Style = require(Prototype.Screens.Style)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local A = PreviewTokens.Arcade
+local make = Arcade.make
 
 local CarCard = {}
 
@@ -67,9 +77,24 @@ CarCard.ElevationDegrees = 15
 CarCard.FieldOfView = 30
 CarCard.Fill = 0.7
 CarCard.Ellipsis = "\u{2026}"
+CarCard.NameMax = 22
+CarCard.NameMin = 16 -- the approved minimum
+
+-- TOKEN CANDIDATE: card corner radius (limited rounding).
+local R = 8
+-- TOKEN CANDIDATE: card lip depth (hard dark offset under the card).
+local LIP = 4
+-- TOKEN CANDIDATE: dark inner panel of the card.
+local INNER = Color3.fromRGB(22, 32, 68)
+-- TOKEN CANDIDATE: name area heights (two lines) for full / compact cards.
+local NAME_H = 46
+local NAME_H_COMPACT = 40
+-- TOKEN CANDIDATE: three-line name area (narrow cards that must keep long names whole).
+local NAME_H_3 = 60
 
 export type CarRef = Fixtures.CarRef
 export type Status = "Owned" | "Unowned" | "Loading" | "Unavailable"
+export type NameFit = "Pending" | "OneLine" | "TwoLines" | "Shortened"
 
 export type Options = {
 	size: Vector2?,
@@ -81,6 +106,7 @@ export type Options = {
 	lazy: boolean?, -- build the model only when :loadModel() is called
 	loading: boolean?, -- car.model == nil shows "Loading..." instead of "Unavailable"
 	name: string?,
+	nameLines: number?, -- 2 (default) or 3: lines reserved for the name before it is shortened
 }
 
 export type DebugState = {
@@ -88,10 +114,13 @@ export type DebugState = {
 	name: string,
 	shownName: string,
 	truncated: boolean,
+	nameFit: NameFit,
+	nameSize: number,
 	rarity: string,
 	rarityLabel: string,
 	pips: number,
 	variant: string,
+	variantLabel: string?,
 	status: Status,
 	owned: boolean,
 	selected: boolean,
@@ -102,13 +131,16 @@ export type DebugState = {
 	compact: boolean,
 	hasModel: boolean,
 	proxy: boolean,
+	proxyHolderVisible: boolean,
+	stamp: string?,
 	builds: number,
 	yawDegrees: number,
 	distance: number,
-	modelSize: Vector3,
-	size: Vector2,
+	modelSize: { number }, -- {x, y, z} studs (JSON-safe)
+	size: { number }, -- {w, h} design px (JSON-safe)
 	tickerConnected: boolean,
 	tickerCards: number,
+	instances: number,
 }
 
 export type Card = {
@@ -119,6 +151,7 @@ export type Card = {
 	setSpinning: (self: Card, on: boolean) -> (),
 	setSize: (self: Card, size: Vector2) -> (),
 	setVisible: (self: Card, on: boolean) -> (),
+	setStamp: (self: Card, text: string?) -> (),
 	loadModel: (self: Card) -> (),
 	car: (self: Card) -> CarRef,
 	destroy: (self: Card) -> (),
@@ -298,23 +331,32 @@ local function isShown(g: GuiObject): boolean
 end
 
 ---------------------------------------------------------------------------------------------
--- Text fitting
+-- Text fitting (the name rule)
 ---------------------------------------------------------------------------------------------
 
-local function measure(text: string, size: number): number?
+-- Bounds of `text` at `size`, wrapped inside `width` (single line when width is huge).
+local function measure(text: string, size: number, width: number): Vector2?
 	local params = Instance.new("GetTextBoundsParams")
 	params.Text = text
 	params.Font = Tokens.font()
 	params.Size = size
-	params.Width = 100000
+	params.Width = width
 	local ok, result = pcall(function()
 		return TextService:GetTextBoundsAsync(params)
 	end)
 	params:Destroy()
 	if ok and typeof(result) == "Vector2" then
-		return result.X
+		return result
 	end
 	return nil
+end
+
+local function words(text: string): { string }
+	local out = {}
+	for w in string.gmatch(text, "%S+") do
+		table.insert(out, w)
+	end
+	return out
 end
 
 local function prefix(text: string, count: number): string
@@ -329,6 +371,25 @@ local function trimRight(text: string): string
 	return (string.gsub(text, "%s+$", ""))
 end
 
+-- Fits within `width` x `height`: every word on one line by itself, the wrapped block within
+-- the height. Returns nil when the measurement failed (yielding; call from a task).
+local function fits(text: string, size: number, width: number, height: number): boolean?
+	for _, w in words(text) do
+		local b = measure(w, size, 100000)
+		if b == nil then
+			return nil
+		end
+		if b.X > width then
+			return false
+		end
+	end
+	local block = measure(text, size, width)
+	if block == nil then
+		return nil
+	end
+	return block.Y <= height + 0.5
+end
+
 ---------------------------------------------------------------------------------------------
 -- Card
 ---------------------------------------------------------------------------------------------
@@ -337,45 +398,22 @@ local function clampSize(v: Vector2): Vector2
 	return Vector2.new(math.max(v.X, CarCard.MinSize.X), math.max(v.Y, CarCard.MinSize.Y))
 end
 
-local function textLabel(parent: Instance, name: string, size: number, z: number): TextLabel
-	return make("TextLabel", {
-		Name = name,
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		TextSize = math.max(size, Tokens.TextSize.Minimum),
-		TextColor3 = C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		ZIndex = z,
-		Parent = parent,
-	})
-end
-
-local function pill(parent: Instance, name: string, text: string, z: number): (Frame, TextLabel)
-	local f = make("Frame", {
+-- A small outlined chip inside the stage (variant ribbon, NEW, PROXY).
+local function chip(parent: Instance, name: string, text: string, z: number): (Frame, TextLabel)
+	local f: Frame = make("Frame", {
 		Name = name,
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 22),
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = z,
 		Parent = parent,
 	})
-	Gloss.corner(f, 8)
-	Gloss.stroke(f, 2)
-	make("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), Parent = f })
-	local t = make("TextLabel", {
-		Name = "Text",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromScale(0, 1),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = text,
-		TextSize = Tokens.TextSize.Minimum,
-		TextColor3 = C.Ink,
-		ZIndex = z + 1,
-		Parent = f,
-	})
+	Arcade.corner(f, 4)
+	Arcade.outline(f, 2)
+	make("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = f })
+	local t = Arcade.text(f, { text = text, role = "Badge", name = "Text", autoWidth = true, z = z + 1 })
+	t.Size = UDim2.fromOffset(0, 22)
 	return f, t
 end
 
@@ -383,6 +421,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	local opts: Options = options or {}
 	local trove = Trove.new()
 	local modelTrove = trove:Extend()
+	local stampTrove = trove:Extend()
 
 	local car = initialCar
 	local size = clampSize(opts.size or CarCard.BaseSize)
@@ -401,12 +440,14 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	local status: Status = "Loading"
 	local shownName = car.name
 	local truncated = false
+	local nameFit: NameFit = "Pending"
+	local nameSize = CarCard.NameMax
 	local nameToken = 0
 	local compact = false
 	local stageSize = Vector2.new(1, 1)
 	local nameWidth = 100
-
-	local R = 16 -- corner radius
+	local nameHeight = NAME_H
+	local stampText: string? = nil
 
 	local root: Frame = trove:Add(make("Frame", {
 		Name = opts.name or ("CarCard_" .. car.id),
@@ -415,49 +456,50 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		Position = opts.position or UDim2.new(),
 		AnchorPoint = opts.anchor or Vector2.zero,
 	}))
-	local shadow = make("Frame", {
-		Name = "Shadow",
-		Position = UDim2.fromOffset(0, PreviewTokens.Size.ShadowOffset + 1),
+	-- hard dark lip (no soft shadow)
+	local lip: Frame = make("Frame", {
+		Name = "Lip",
+		Position = UDim2.fromOffset(0, LIP),
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = C.Shadow,
-		BackgroundTransparency = 0.55,
+		BackgroundColor3 = A.Ink,
 		BorderSizePixel = 0,
 		ZIndex = 1,
 		Parent = root,
 	})
-	Gloss.corner(shadow, R)
-	local lift = make("Frame", {
+	Arcade.corner(lip, R)
+	local lift: Frame = make("Frame", {
 		Name = "Lift",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = root,
 	})
-	local variantRing = make("Frame", {
+	-- the finish ring (variants only) sits outside the rarity frame
+	local variantRing: Frame = make("Frame", {
 		Name = "VariantRing",
 		Position = UDim2.fromOffset(-5, -5),
 		Size = UDim2.new(1, 10, 1, 10),
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		Visible = false,
 		ZIndex = 2,
 		Parent = lift,
 	})
-	Gloss.corner(variantRing, R + 5)
-	Gloss.stroke(variantRing, 2)
-	local variantGradient = Gloss.gradient(variantRing, C.White, C.White, 45)
-	local selectRing = make("Frame", {
+	Arcade.corner(variantRing, R + 4)
+	Arcade.outline(variantRing, 2)
+	local variantGradient: UIGradient = make("UIGradient", { Rotation = 45, Parent = variantRing })
+	local selectRing: Frame = make("Frame", {
 		Name = "SelectedRing",
-		Position = UDim2.fromOffset(-10, -10),
-		Size = UDim2.new(1, 20, 1, 20),
+		Position = UDim2.fromOffset(-9, -9),
+		Size = UDim2.new(1, 18, 1, 18),
 		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 2,
 		Parent = lift,
 	})
-	Gloss.corner(selectRing, R + 10)
-	Gloss.stroke(selectRing, 5, C.White)
-	local selectOuter = make("Frame", {
+	Arcade.corner(selectRing, R + 8)
+	Arcade.outline(selectRing, 4, Color3.new(1, 1, 1))
+	local selectOuter: Frame = make("Frame", {
 		Name = "Outer",
 		Position = UDim2.fromOffset(-4, -4),
 		Size = UDim2.new(1, 8, 1, 8),
@@ -465,23 +507,23 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		ZIndex = 2,
 		Parent = selectRing,
 	})
-	Gloss.corner(selectOuter, R + 14)
-	Gloss.stroke(selectOuter, 2, C.Ink)
+	Arcade.corner(selectOuter, R + 12)
+	Arcade.outline(selectOuter, 2, A.Ink)
 
 	local body: TextButton = make("TextButton", {
 		Name = "Body",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		AutoButtonColor = false,
 		Text = "",
 		Selectable = true,
 		ZIndex = 3,
 		Parent = lift,
 	})
-	Gloss.corner(body, R)
-	Gloss.stroke(body, 3)
-	local frameGradient = Gloss.gradient(body, C.White, C.White, 90)
-	local focusRing = make("Frame", {
+	Arcade.corner(body, R)
+	Arcade.outline(body, "Button")
+	local frameGradient: UIGradient = make("UIGradient", { Rotation = 90, Parent = body })
+	local focusRing: Frame = make("Frame", {
 		Name = "FocusRing",
 		Position = UDim2.fromOffset(-6, -6),
 		Size = UDim2.new(1, 12, 1, 12),
@@ -489,37 +531,43 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		Visible = false,
 		Parent = body,
 	})
-	Gloss.corner(focusRing, R + 6)
-	Gloss.stroke(focusRing, 3, C.White)
+	Arcade.corner(focusRing, R + 6)
+	Arcade.outline(focusRing, 3, Color3.new(1, 1, 1))
 	body.SelectionImageObject = focusRing
 
-	local inner = make("Frame", {
+	local inner: Frame = make("Frame", {
 		Name = "Inner",
-		Position = UDim2.fromOffset(6, 6),
-		Size = UDim2.new(1, -12, 1, -12),
-		BackgroundColor3 = C.Panel,
+		Position = UDim2.fromOffset(5, 5),
+		Size = UDim2.new(1, -10, 1, -10),
+		BackgroundColor3 = INNER,
 		BorderSizePixel = 0,
 		ZIndex = 4,
 		Parent = body,
 	})
-	Gloss.corner(inner, R - 5)
+	Arcade.corner(inner, R - 3)
+	Arcade.outline(inner, "Minor")
 
-	-- rarity strip: label + pips
-	local strip = make("Frame", {
+	-- rarity strip: the rarity word + pips (never colour alone)
+	local strip: Frame = make("Frame", {
 		Name = "RarityStrip",
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = 5,
 		Parent = inner,
 	})
-	Gloss.corner(strip, 8)
-	Gloss.stroke(strip, 2)
-	local stripGradient = Gloss.gradient(strip, C.White, C.White, 0)
-	local rarityLabel = textLabel(strip, "RarityLabel", 16, 6)
-	rarityLabel.TextColor3 = C.White
-	Gloss.stroke(rarityLabel, 2, C.Ink, Enum.ApplyStrokeMode.Contextual)
+	Arcade.corner(strip, 4)
+	Arcade.outline(strip, "Minor")
+	local stripGradient: UIGradient = make("UIGradient", { Rotation = 90, Parent = strip })
+	local rarityLabel = Arcade.text(strip, {
+		text = "",
+		role = "Small",
+		name = "RarityLabel",
+		xAlign = Enum.TextXAlignment.Left,
+		z = 7,
+	})
+	make("UITextSizeConstraint", { MaxTextSize = 16, MinTextSize = Tokens.TextSize.Minimum, Parent = rarityLabel })
 
-	local pips = make("Frame", {
+	local pips: Frame = make("Frame", {
 		Name = "Pips",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(60, 16),
@@ -528,66 +576,46 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 	local pipFrames: { Frame } = {}
 	for i = 1, 5 do
-		local p = make("Frame", {
+		local p: Frame = make("Frame", {
 			Name = "Pip" .. i,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0, 6 + (i - 1) * 12, 0.5, 0),
 			Size = UDim2.fromOffset(9, 9),
 			Rotation = 45,
-			BackgroundColor3 = C.White,
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
 			ZIndex = 7,
 			Parent = pips,
 		})
-		Gloss.stroke(p, 1.5)
-		Gloss.corner(p, 2)
+		Arcade.outline(p, 1.5)
+		Arcade.corner(p, 2)
 		table.insert(pipFrames, p)
 	end
 
 	-- stage
-	local stage = make("Frame", {
+	local stage: Frame = make("Frame", {
 		Name = "Stage",
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		ZIndex = 5,
 		Parent = inner,
 	})
-	Gloss.corner(stage, 10)
-	local stageStroke = Gloss.stroke(stage, 2)
-	stageStroke.Transparency = 0.45
-	local stageGradient = Gloss.gradient(stage, C.White, C.White, 90)
-	local rim = make("Frame", {
-		Name = "Rim",
-		Position = UDim2.fromOffset(2, 2),
-		Size = UDim2.new(1, -4, 1, -4),
-		BackgroundTransparency = 1,
-		ZIndex = 9,
-		Parent = stage,
-	})
-	Gloss.corner(rim, 8)
-	local rimStroke = Gloss.stroke(rim, 2, C.White)
-	make("UIGradient", {
-		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.15),
-			NumberSequenceKeypoint.new(0.45, 0.85),
-			NumberSequenceKeypoint.new(1, 1),
-		}),
-		Rotation = 45,
-		Parent = rimStroke,
-	})
-	local glow = make("Frame", {
+	Arcade.corner(stage, 5)
+	Arcade.outline(stage, "Minor")
+	local stageGradient: UIGradient = make("UIGradient", { Rotation = 90, Parent = stage })
+	local glow: Frame = make("Frame", {
 		Name = "BackGlow",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.42),
 		Size = UDim2.fromScale(0.9, 0.7),
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 0.55,
 		BorderSizePixel = 0,
 		ZIndex = 5,
 		Parent = stage,
 	})
-	Gloss.corner(glow, 999)
+	Arcade.corner(glow, 999)
 	make("UIGradient", {
 		Transparency = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 0),
@@ -614,7 +642,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 	viewport.CurrentCamera = camera
 
-	local placeholder = make("Frame", {
+	local placeholder: Frame = make("Frame", {
 		Name = "Placeholder",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -622,111 +650,120 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		ZIndex = 7,
 		Parent = stage,
 	})
-	local placeholderIcon = make("Frame", {
+	local placeholderIcon: Frame = make("Frame", {
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.4),
-		Size = UDim2.fromOffset(48, 48),
+		Size = UDim2.fromOffset(44, 44),
 		BackgroundTransparency = 1,
 		ZIndex = 8,
 		Parent = placeholder,
 	})
-	Icons.draw(placeholderIcon, "Car", rgb(176, 182, 196))
-	local placeholderText = make("TextLabel", {
-		Name = "Status",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0.4, 28),
-		Size = UDim2.new(1, -8, 0, 20),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "Loading" .. CarCard.Ellipsis,
-		TextSize = Tokens.TextSize.Minimum,
-		TextColor3 = C.InkSoft,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		ZIndex = 8,
-		Parent = placeholder,
+	Arcade.icon(placeholderIcon, "Car")
+	local placeholderText = Arcade.text(placeholder, {
+		text = "Loading" .. CarCard.Ellipsis,
+		role = "Small",
+		name = "Status",
+		z = 8,
 	})
+	placeholderText.AnchorPoint = Vector2.new(0.5, 0)
+	placeholderText.Position = UDim2.new(0.5, 0, 0.4, 24)
+	placeholderText.Size = UDim2.new(1, -8, 0, 22)
 
-	local proxyTag, _ = pill(stage, "ProxyTag", "PROXY", 10)
-	proxyTag:SetAttribute("PreviewCaption", true) -- harness caption
-	proxyTag.AnchorPoint = Vector2.new(1, 1)
-	proxyTag.Position = UDim2.new(1, -4, 1, -4)
-	proxyTag.BackgroundTransparency = 0.2
-
-	local ribbon = make("Frame", {
-		Name = "VariantRibbon",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -4, 0, 4),
+	-- PROXY harness caption: the card toggles the HOLDER only; the tag itself carries
+	-- PreviewCaption and its Visible belongs to the harness caption switch.
+	local proxyHolder: Frame = make("Frame", {
+		Name = "ProxyHolder",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -4, 1, -4),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 22),
-		BackgroundColor3 = C.White,
-		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 10,
 		Parent = stage,
 	})
-	Gloss.corner(ribbon, 8)
-	Gloss.stroke(ribbon, 2)
-	local ribbonGradient = Gloss.gradient(ribbon, C.White, C.White, 0)
-	make("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), Parent = ribbon })
-	local ribbonText = make("TextLabel", {
-		Name = "Text",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromScale(0, 1),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = Tokens.TextSize.Minimum,
-		TextColor3 = C.White,
-		ZIndex = 11,
-		Parent = ribbon,
-	})
-	Gloss.stroke(ribbonText, 2, C.Ink, Enum.ApplyStrokeMode.Contextual)
+	local proxyTag = chip(proxyHolder, "ProxyTag", "PROXY", 10)
+	proxyTag:SetAttribute("PreviewCaption", true) -- harness caption (hidden in player-facing view)
+	proxyTag.BackgroundColor3 = rgb(90, 100, 124)
 
-	local newTag, newText = pill(stage, "NewTag", "NEW", 10)
+	local ribbon, ribbonText = chip(stage, "VariantRibbon", "", 11)
+	ribbon.AnchorPoint = Vector2.new(1, 0)
+	ribbon.Position = UDim2.new(1, -4, 0, 4)
+	ribbon.Visible = false
+	local ribbonGradient: UIGradient = make("UIGradient", { Rotation = 0, Parent = ribbon })
+
+	local newTag = chip(stage, "NewTag", "NEW", 11)
 	newTag.Position = UDim2.fromOffset(4, 4)
-	newTag.BackgroundColor3 = C.Badge
-	newText.TextColor3 = C.White
+	newTag.BackgroundColor3 = A.Badge
 
 	-- name + rows
-	local nameLabel = make("TextLabel", {
+	local nameLabel: TextLabel = make("TextLabel", {
 		Name = "CarName",
 		BackgroundTransparency = 1,
 		FontFace = Tokens.font(),
 		Text = car.name,
 		TextScaled = true,
-		TextWrapped = false,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		TextColor3 = C.Ink,
+		TextWrapped = true,
+		TextTruncate = Enum.TextTruncate.None,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		LineHeight = 0.95,
 		ZIndex = 6,
 		Parent = inner,
 	})
-	make("UITextSizeConstraint", { MinTextSize = 16, MaxTextSize = 22, Parent = nameLabel })
+	local nameConstraint: UITextSizeConstraint = make("UITextSizeConstraint", {
+		MinTextSize = CarCard.NameMin,
+		MaxTextSize = CarCard.NameMax,
+		Parent = nameLabel,
+	})
+	local _ = nameConstraint
+	Arcade.outline(nameLabel, "Minor")
 
-	local familyRow = make("Frame", { Name = "FamilyRow", BackgroundTransparency = 1, ZIndex = 5, Parent = inner })
-	local familyIcon = make("Frame", {
+	local familyRow: Frame =
+		make("Frame", { Name = "FamilyRow", BackgroundTransparency = 1, ZIndex = 5, Parent = inner })
+	local familyIcon: Frame = make("Frame", {
 		Name = "FamilyIcon",
-		Size = UDim2.fromOffset(20, 20),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(18, 18),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = familyRow,
 	})
-	local familyLabel = textLabel(familyRow, "Family", 16, 6)
-	familyLabel.TextColor3 = C.InkSoft
-	familyLabel.Position = UDim2.fromOffset(26, 0)
-	familyLabel.Size = UDim2.new(1, -26, 1, 0)
+	local familyLabel = Arcade.text(familyRow, {
+		text = "",
+		role = "Small",
+		name = "Family",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 6,
+	})
+	familyLabel.Position = UDim2.fromOffset(22, 0)
+	familyLabel.Size = UDim2.new(1, -22, 1, 0)
+	familyLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local quirkRow = make("Frame", { Name = "QuirkRow", BackgroundTransparency = 1, ZIndex = 5, Parent = inner })
-	local quirkIcon = make("Frame", {
+	local quirkRow: Frame = make("Frame", { Name = "QuirkRow", BackgroundTransparency = 1, ZIndex = 5, Parent = inner })
+	local quirkIcon: Frame = make("Frame", {
 		Name = "QuirkIcon",
-		Size = UDim2.fromOffset(20, 20),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(18, 18),
 		BackgroundTransparency = 1,
 		ZIndex = 6,
 		Parent = quirkRow,
 	})
-	local quirkLabel = textLabel(quirkRow, "Quirk", 16, 6)
-	quirkLabel.Position = UDim2.fromOffset(26, 0)
-	quirkLabel.Size = UDim2.new(1, -26, 1, 0)
+	local quirkLabel = Arcade.text(quirkRow, {
+		text = "",
+		role = "Small",
+		name = "Quirk",
+		xAlign = Enum.TextXAlignment.Left,
+		z = 6,
+	})
+	quirkLabel.Position = UDim2.fromOffset(22, 0)
+	quirkLabel.Size = UDim2.new(1, -22, 1, 0)
+	quirkLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 	-------------------------------------------------------------------------------------------
 	-- camera
@@ -752,104 +789,151 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		local tanV = math.tan(math.rad(CarCard.FieldOfView) / 2)
 		local tanH = tanV * aspect
 		local el = math.rad(CarCard.ElevationDegrees)
-		-- horizontal: the turning footprint (a circle) fills Fill of the stage width
 		local rH = 0.5 * math.sqrt(modelSize.X ^ 2 + modelSize.Z ^ 2)
 		local dH = rH / math.sin(math.atan(CarCard.Fill * tanH))
-		-- vertical: projected height (body height plus the footprint seen from above) in 80%
 		local halfV = 0.5 * (modelSize.Y * math.cos(el) + 2 * rH * math.sin(el))
 		local dV = halfV / (0.8 * tanV) + rH * 0.3
 		distance = math.max(dH, dV)
-		-- look a little above the centre so the car sits low on its floor disc
 		target = Vector3.new(0, modelSize.Y * 0.55, 0)
 		placeCamera()
 	end
 
 	-------------------------------------------------------------------------------------------
-	-- layout
+	-- name rule
 	-------------------------------------------------------------------------------------------
 
 	local function fitName()
 		nameToken += 1
 		local token = nameToken
 		local text = car.name
+		local width, height = nameWidth, nameHeight
+		-- provisional: the engine keeps it inside the box (wraps, 16..22) until measured
 		nameLabel.Text = text
+		nameLabel.TextScaled = true
 		shownName = text
 		truncated = false
-		local width = nameWidth
+		nameFit = "Pending"
 		task.spawn(function()
-			local full = measure(text, 16)
-			if destroyed or token ~= nameToken or full == nil or full <= width then
-				return
+			local function stale(): boolean
+				return destroyed or token ~= nameToken
 			end
-			local count = utf8.len(text) or #text
-			local lo, hi, best = 1, count - 1, 1
-			while lo <= hi do
-				local mid = (lo + hi) // 2
-				local w = measure(trimRight(prefix(text, mid)) .. CarCard.Ellipsis, 16)
-				if destroyed or token ~= nameToken or w == nil then
+			-- one line, largest size first
+			for s = CarCard.NameMax, CarCard.NameMin, -1 do
+				local one = measure(text, s, 100000)
+				if stale() or one == nil then
 					return
 				end
-				if w <= width then
+				if one.X <= width then
+					nameLabel.TextScaled = false
+					nameLabel.TextSize = s
+					nameSize, nameFit = s, "OneLine"
+					return
+				end
+			end
+			-- two lines, no word split
+			for s = CarCard.NameMax, CarCard.NameMin, -1 do
+				local ok = fits(text, s, width, height)
+				if stale() or ok == nil then
+					return
+				end
+				if ok then
+					nameLabel.TextScaled = false
+					nameLabel.TextSize = s
+					nameSize, nameFit = s, "TwoLines"
+					return
+				end
+			end
+			-- shortened at 16, always keeping the last word (the model number / word)
+			local list = words(text)
+			local last = list[#list] or text
+			local head = trimRight(string.sub(text, 1, #text - #last))
+			local count = utf8.len(head) or #head
+			local lo, hi, best = 1, math.max(count - 1, 1), 0
+			while lo <= hi do
+				local mid = (lo + hi) // 2
+				local candidate = trimRight(prefix(head, mid)) .. CarCard.Ellipsis .. " " .. last
+				local ok = fits(candidate, CarCard.NameMin, width, height)
+				if stale() or ok == nil then
+					return
+				end
+				if ok then
 					best = mid
 					lo = mid + 1
 				else
 					hi = mid - 1
 				end
 			end
-			local cut = trimRight(prefix(text, best)) .. CarCard.Ellipsis
+			local cut = if best > 0
+				then trimRight(prefix(head, best)) .. CarCard.Ellipsis .. " " .. last
+				else CarCard.Ellipsis .. " " .. last
+			nameLabel.TextScaled = false
+			nameLabel.TextSize = CarCard.NameMin
 			nameLabel.Text = cut
 			shownName = cut
 			truncated = true
+			nameSize, nameFit = CarCard.NameMin, "Shortened"
 		end)
+	end
+
+	-------------------------------------------------------------------------------------------
+	-- layout
+	-------------------------------------------------------------------------------------------
+
+	local function placeTags()
+		-- NEW top-left, finish ribbon top-right; on narrow stages with both, NEW drops below
+		newTag.Position = UDim2.fromOffset(4, if compact and ribbon.Visible then 30 else 4)
 	end
 
 	local function applyLayout()
 		local W, H = size.X, size.Y
 		compact = W < CarCard.CompactBelow
 		root.Size = UDim2.fromOffset(W, H)
-		local iw, ih = W - 12, H - 12
-		local x = 6
-		local w = iw - 12
-		local y = 6
+		local iw, ih = W - 10, H - 10
+		local x = 5
+		local w = iw - 10
+		local y = 5
 		strip.Position = UDim2.fromOffset(x, y)
 		strip.Size = UDim2.fromOffset(w, 24)
 		y += 24 + 4
-		local bottom = if compact then 24 + 2 + 16 + 6 else 26 + 2 + 20 + 2 + 20 + 6
+		nameHeight = if (opts.nameLines or 2) >= 3 then NAME_H_3 elseif compact then NAME_H_COMPACT else NAME_H
+		local bottom = nameHeight + 2 + (if compact then 16 + 4 else 20 + 2 + 20 + 4)
 		local stageH = math.max(ih - y - 4 - bottom, 40)
 		stage.Position = UDim2.fromOffset(x, y)
 		stage.Size = UDim2.fromOffset(w, stageH)
 		stageSize = Vector2.new(w, stageH)
-		y += stageH + 4
-		local nameH = if compact then 24 else 26
-		nameLabel.Position = UDim2.fromOffset(x + 4, y)
-		nameLabel.Size = UDim2.fromOffset(w - 8, nameH)
-		nameWidth = w - 8
-		y += nameH + 2
+		y += stageH + 2
+		nameLabel.Position = UDim2.fromOffset(x, y)
+		nameLabel.Size = UDim2.fromOffset(w, nameHeight)
+		nameWidth = w - 4
+		y += nameHeight + 2
 		if compact then
-			rarityLabel.Position = UDim2.fromOffset(6, 0)
-			rarityLabel.Size = UDim2.new(1, -12, 1, 0)
+			rarityLabel.Position = UDim2.fromOffset(4, 0)
+			rarityLabel.Size = UDim2.new(1, -8, 1, 0)
 			rarityLabel.TextXAlignment = Enum.TextXAlignment.Center
+			rarityLabel.TextScaled = true
 			pips.Parent = inner
 			pips.AnchorPoint = Vector2.new(0.5, 0)
 			pips.Position = UDim2.new(0.5, 0, 0, y)
 			familyRow.Visible = false
 			quirkRow.Visible = false
 		else
-			rarityLabel.Position = UDim2.fromOffset(8, 0)
-			rarityLabel.Size = UDim2.new(1, -16 - 64, 1, 0)
+			rarityLabel.Position = UDim2.fromOffset(4, 0)
+			rarityLabel.Size = UDim2.new(1, -8 - 64, 1, 0)
 			rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+			rarityLabel.TextScaled = true
 			pips.Parent = strip
 			pips.AnchorPoint = Vector2.new(1, 0.5)
-			pips.Position = UDim2.new(1, -6, 0.5, 0)
+			pips.Position = UDim2.new(1, -4, 0.5, 0)
 			familyRow.Visible = true
 			quirkRow.Visible = true
-			familyRow.Position = UDim2.fromOffset(x + 4, y)
-			familyRow.Size = UDim2.fromOffset(w - 8, 20)
+			familyRow.Position = UDim2.fromOffset(x + 2, y)
+			familyRow.Size = UDim2.fromOffset(w - 4, 20)
 			y += 22
-			quirkRow.Position = UDim2.fromOffset(x + 4, y)
-			quirkRow.Size = UDim2.fromOffset(w - 8, 20)
+			quirkRow.Position = UDim2.fromOffset(x + 2, y)
+			quirkRow.Size = UDim2.fromOffset(w - 4, 20)
 		end
 		pips.ZIndex = 7
+		placeTags()
 		fitCamera()
 		fitName()
 	end
@@ -859,10 +943,10 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	-------------------------------------------------------------------------------------------
 
 	local function setStatusVisuals()
-		local showPlaceholder = not hasModel
-		placeholder.Visible = showPlaceholder
+		placeholder.Visible = not hasModel
 		viewport.Visible = hasModel
-		proxyTag.Visible = hasModel and isProxy
+		-- only the holder: the PROXY tag's own Visible is the harness caption switch
+		proxyHolder.Visible = hasModel and isProxy
 		placeholderText.Text = if status == "Unavailable" then "Unavailable" else "Loading" .. CarCard.Ellipsis
 	end
 
@@ -883,6 +967,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			end
 		end
 		if not model then
+			isProxy = false
 			status = if car.model == nil and opts.loading == true then "Loading" else "Unavailable"
 			setStatusVisuals()
 			return
@@ -890,7 +975,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		local m = model :: Model
 		builds += 1
 		modelTrove:Add(m)
-		-- sit the model on y = 0, centred on the origin
 		local cf, bounds = m:GetBoundingBox()
 		m:PivotTo(m:GetPivot() - Vector3.new(cf.X, cf.Y - bounds.Y / 2, cf.Z))
 		for _, d in m:GetDescendants() do
@@ -899,7 +983,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				d.CanCollide = false
 				d.CanQuery = false
 				d.CanTouch = false
-				if not car.owned then
+				if car.owned ~= true then
 					d.Color = SILHOUETTE
 					d.Material = Enum.Material.SmoothPlastic
 					d.Reflectance = 0
@@ -910,7 +994,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			end
 		end
 		modelSize = bounds
-		-- floor disc and a darker contact disc (cylinders: axis along X, so turn them upright)
 		local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
 		local footprint = math.sqrt(bounds.X ^ 2 + bounds.Z ^ 2)
 		local upright = CFrame.Angles(0, 0, math.rad(90))
@@ -920,7 +1003,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		floor.Anchored = true
 		floor.Size = Vector3.new(0.2, footprint * 1.2, footprint * 1.2)
 		floor.CFrame = CFrame.new(0, -0.12, 0) * upright
-		floor.Color = rarity.light:Lerp(C.White, 0.55)
+		floor.Color = rarity.light:Lerp(Color3.new(1, 1, 1), 0.55)
 		floor.Material = Enum.Material.SmoothPlastic
 		floor.Parent = m
 		local contact = Instance.new("Part")
@@ -929,13 +1012,13 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		contact.Anchored = true
 		contact.Size = Vector3.new(0.2, footprint * 0.82, math.max(bounds.X, bounds.Z) * 0.82)
 		contact.CFrame = CFrame.new(0, -0.08, 0) * upright
-		contact.Color = rarity.deep:Lerp(C.Ink, 0.5)
+		contact.Color = rarity.deep:Lerp(A.Ink, 0.5)
 		contact.Transparency = 0.35
 		contact.Material = Enum.Material.SmoothPlastic
 		contact.Parent = m
 		m.Parent = viewport
 		hasModel = true
-		status = if car.owned then "Owned" else "Unowned"
+		status = if car.owned == true then "Owned" else "Unowned"
 		setStatusVisuals()
 		fitCamera()
 	end
@@ -944,13 +1027,14 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
 		root.Name = opts.name or ("CarCard_" .. car.id)
 		frameGradient.Color = ColorSequence.new(rarity.light, rarity.deep)
-		stripGradient.Color = ColorSequence.new(rarity.light:Lerp(rarity.deep, 0.25), rarity.deep)
-		stageGradient.Color = ColorSequence.new(rarity.deep:Lerp(C.White, 0.45), rarity.light:Lerp(C.White, 0.82))
+		stripGradient.Color = ColorSequence.new(rarity.light:Lerp(rarity.deep, 0.35), rarity.deep)
+		stageGradient.Color =
+			ColorSequence.new(rarity.deep:Lerp(Color3.new(1, 1, 1), 0.4), rarity.light:Lerp(Color3.new(1, 1, 1), 0.78))
 		rarityLabel.Text = rarity.label
 		for i, p in pipFrames do
 			local filled = i <= rarity.pips
-			p.BackgroundColor3 = if filled then C.White else C.Ink
-			p.BackgroundTransparency = if filled then 0 else 0.75
+			p.BackgroundColor3 = if filled then Color3.new(1, 1, 1) else A.Ink
+			p.BackgroundTransparency = if filled then 0 else 0.55
 		end
 		local finish = VARIANT[car.variant]
 		variantRing.Visible = finish ~= nil
@@ -960,24 +1044,26 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			ribbonGradient.Color = finish.sequence
 			ribbonText.Text = finish.label
 		end
-		newTag.Visible = car.unseen == true
+		newTag.Visible = car.unseen == true and car.owned == true
+		placeTags()
 		familyIcon:ClearAllChildren()
-		Icons.draw(familyIcon, "Car", C.InkSoft)
+		Icons.draw(familyIcon, "Car", Style.TextSoft)
 		familyLabel.Text = car.family
 		quirkIcon:ClearAllChildren()
-		if car.owned then
-			Icons.draw(quirkIcon, "Bolt", C.PrimaryDeep)
+		if car.owned == true then
+			Icons.draw(quirkIcon, "Bolt", PreviewTokens.Color.KeysLight)
 			quirkLabel.Text = car.quirk
-			quirkLabel.TextColor3 = C.Ink
+			quirkLabel.TextColor3 = Color3.new(1, 1, 1)
 		else
-			Icons.draw(quirkIcon, "Lock", C.InkSoft)
+			Icons.draw(quirkIcon, "Lock", Style.TextSoft)
 			quirkLabel.Text = "Not owned yet"
-			quirkLabel.TextColor3 = C.InkSoft
+			quirkLabel.TextColor3 = Style.TextSoft
 		end
 		fitName()
 		if lazy then
 			modelTrove:Clean()
 			hasModel = false
+			isProxy = false
 			status = "Loading"
 			setStatusVisuals()
 		else
@@ -1049,13 +1135,27 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 
 	local function applySelected(animate: boolean)
 		selectRing.Visible = selected
-		local goal = UDim2.fromOffset(0, if selected then -6 else 0)
+		local goal = UDim2.fromOffset(0, if selected then -5 else 0)
 		if animate and not Motion.reduced() then
 			Motion.tween(lift, "lift", Motion.info(PreviewTokens.Motion.Release), { Position = goal })
 		else
 			Motion.cancelAll(lift)
 			lift.Position = goal
 		end
+	end
+
+	local function applyStamp()
+		stampTrove:Clean()
+		local text = stampText
+		if not text then
+			return
+		end
+		local s = Style.stamp(stage, text, "Gold", 12)
+		s.frame.Name = "Stamp"
+		s.frame.AnchorPoint = Vector2.new(0, 1)
+		-- inside the stage (which clips): the tilt never reaches the edge
+		s.frame.Position = UDim2.new(0, 7, 1, -8)
+		stampTrove:Add(s.frame)
 	end
 
 	applyLayout()
@@ -1106,6 +1206,13 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			root.Visible = on
 			wake()
 		end,
+		setStamp = function(_self: Card, text: string?)
+			if stampText == text then
+				return
+			end
+			stampText = text
+			applyStamp()
+		end,
 		loadModel = function(_self: Card)
 			if lazy then
 				lazy = false
@@ -1124,17 +1231,21 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		getDebugState = function(_self: Card): DebugState
 			local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
 			local shownNow = not destroyed and isShown(stage)
+			local finish = VARIANT[car.variant]
 			return {
 				id = car.id,
 				name = car.name,
 				shownName = shownName,
 				truncated = truncated,
+				nameFit = nameFit,
+				nameSize = nameSize,
 				rarity = car.rarity,
 				rarityLabel = rarityLabel.Text,
 				pips = rarity.pips,
 				variant = car.variant,
+				variantLabel = if finish then finish.label else nil,
 				status = status,
-				owned = car.owned,
+				owned = car.owned == true,
 				selected = selected,
 				spinning = spinning,
 				active = spinner.wants() and shownNow and renderConnection ~= nil,
@@ -1143,13 +1254,16 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				compact = compact,
 				hasModel = hasModel,
 				proxy = isProxy,
+				proxyHolderVisible = proxyHolder.Visible,
+				stamp = stampText,
 				builds = builds,
 				yawDegrees = math.deg(yaw),
 				distance = distance,
-				modelSize = modelSize,
-				size = size,
+				modelSize = { modelSize.X, modelSize.Y, modelSize.Z },
+				size = { size.X, size.Y },
 				tickerConnected = renderConnection ~= nil,
 				tickerCards = registryCount(),
+				instances = if destroyed then 0 else #root:GetDescendants(),
 			}
 		end,
 	}

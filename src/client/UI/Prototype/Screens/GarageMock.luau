@@ -1,6 +1,8 @@
 --!strict
 -- GarageMock: a navigable Garage / Index mock drawn over gameplay (Lane 3 HUD prototype,
--- PREVIEW only; no ownership, purchase or save logic).
+-- PREVIEW only; no ownership, purchase or save logic). HUD rebuild (2026-10-22, H-15): restyled
+-- into the arcade family (Style.luau + the kit): deep panel, Garage-blue header band, kit tabs
+-- and buttons, white outlined text; no cream.
 --
 --   local garage = GarageMock.new(ctx, { onDrive = function(car) end, onClose = fn? })
 --   garage:open(returnTo?)  garage:close()  garage:isOpen()
@@ -12,26 +14,26 @@
 -- Content (synthetic): Downtown lists Fixtures.Cars, the three Variant examples, the long-name
 -- and missing-asset cases; Dusty Highway is the EMPTY case; Summit Pass is the LOADING case
 -- (it stays loading in this mock). The collection total comes from store.garage
--- ("3 / 12", synthetic). "Drive" only calls options.onDrive(car) for an owned car.
+-- ("3 / 12", synthetic). "Drive" only calls options.onDrive(car) for an owned car; an unowned
+-- car shows how to get it instead of a greyed button.
 -- Back (Escape / gamepad B): closes the phone detail view first, then the Garage.
 -- Quirk sentences paraphrase outline v2.2 section 07 (delegated, tunable), not final copy.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Prototype = script.Parent.Parent
+local Arcade = require(Prototype.Arcade)
 local CarCard = require(Prototype.Cards.CarCard)
 local CardGrid = require(Prototype.Cards.CardGrid)
 local Fixtures = require(Prototype.Fixtures)
-local Gloss = require(Prototype.Gloss)
-local Icons = require(Prototype.Icons)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
-local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
+local Style = require(script.Parent.Style)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local make = Arcade.make
 
 local GarageMock = {}
+
+-- TOKEN CANDIDATE: collection chip width in the header.
+local CHIP_W = 124
 
 export type CarRef = CarCard.CarRef
 export type Tab = "Downtown" | "Dusty" | "Summit"
@@ -49,9 +51,12 @@ export type DebugState = {
 	detailOpen: boolean,
 	collection: string,
 	driveEnabled: boolean,
+	driveVisible: boolean,
+	howToGetVisible: boolean,
 	driveCalls: number,
 	grid: CardGrid.DebugState,
 	detailCard: CarCard.DebugState?,
+	instances: number,
 }
 
 export type Garage = {
@@ -78,6 +83,8 @@ GarageMock.QuirkText = {
 	Plow = "Smashes through construction barriers.",
 	Magnet = "Pulls in road coins from nearby lanes.",
 } :: { [string]: string }
+
+GarageMock.HowToGet = "Hop on one during a run and hold on to claim it!"
 
 local TABS: { { id: Tab, long: string, short: string } } = {
 	{ id = "Downtown", long = "Downtown", short = "Downtown" },
@@ -116,128 +123,60 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	local trove = overlay.trove
 	local content = overlay.content
 
-	local panel = Gloss.panel(content, {
-		name = "Panel",
-		size = UDim2.fromOffset(600, 400),
-		anchor = Vector2.new(0.5, 0.5),
-		position = UDim2.fromScale(0.5, 0.5),
-		radius = 20,
-		z = 3,
-	})
-	local panelShadow = content:FindFirstChild("Shadow") :: Frame?
+	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local panel = shell.body
 
-	-- header
-	local title = Overlay.title(panel, "GARAGE", 30, C.GarageLight, C.GarageDeep, 6)
-	title.Size = UDim2.fromOffset(150, 40)
-	local countPill = make("Frame", {
-		Name = "Collection",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 36),
-		BackgroundColor3 = C.White,
-		BorderSizePixel = 0,
-		ZIndex = 6,
-		Parent = panel,
-	})
-	Gloss.corner(countPill, 18)
-	Gloss.stroke(countPill, 2)
-	make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 12), Parent = countPill })
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 6),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = countPill,
-	})
-	local countIcon = make("Frame", {
+	-- header band: icon + GARAGE, the collection chip, CLOSE
+	local header = Style.header(panel, { fill = "Garage", title = "GARAGE", icon = "Garage" })
+	local countChip = Style.well(panel, "Collection", 12)
+	countChip.Size = UDim2.fromOffset(CHIP_W, 40)
+	local countIcon: Frame = make("Frame", {
 		Name = "Icon",
-		Size = UDim2.fromOffset(24, 24),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 4, 0.5, 0),
+		Size = UDim2.fromOffset(34, 34),
 		BackgroundTransparency = 1,
-		LayoutOrder = 1,
-		ZIndex = 7,
-		Parent = countPill,
+		ZIndex = 13,
+		Parent = countChip,
 	})
-	Icons.draw(countIcon, "Garage", C.GarageDeep)
-	local countText = make("TextLabel", {
-		Name = "Count",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 30),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "0 / 0",
-		TextSize = Tokens.TextSize.Value - 2,
-		TextColor3 = C.Ink,
-		LayoutOrder = 2,
-		ZIndex = 7,
-		Parent = countPill,
+	Arcade.icon(countIcon, "Car")
+	local countText = Style.text(countChip, "0 / 0", "Value", {
+		name = "Count",
+		italic = true,
+		face = "Cars",
+		size = 26,
+		xAlign = Enum.TextXAlignment.Center,
+		z = 13,
 	})
+	countText.AnchorPoint = Vector2.new(0, 0.5)
+	countText.Position = UDim2.new(0, 40, 0.5, 0)
+	countText.Size = UDim2.new(1, -44, 0, 32)
 	local closeButton = Overlay.closeButton(panel, function()
 		garage:close()
 	end)
 	trove:Add(closeButton.trove)
-	closeButton.root.AnchorPoint = Vector2.new(1, 0)
+	closeButton.root.AnchorPoint = Vector2.new(1, 0.5)
+	closeButton.root.ZIndex = 12
 
 	-- tabs
-	type TabButton = { id: Tab, button: TextButton, label: TextLabel, gradient: UIGradient, stroke: UIStroke }
-	local tabButtons: { TabButton } = {}
-	local function styleTab(t: TabButton)
-		local on = t.id == tab
-		t.gradient.Enabled = on
-		t.button.BackgroundColor3 = if on then C.White else C.Panel
-		t.label.TextColor3 = if on then C.White else C.Ink
-		t.stroke.Thickness = if on then 3 else 2
-		local labelStroke = t.label:FindFirstChildOfClass("UIStroke")
-		if labelStroke then
-			labelStroke.Enabled = on
-		end
-	end
+	type TabEntry = { id: Tab, tab: Style.Tab }
+	local tabs: { TabEntry } = {}
 	for i, def in TABS do
-		local b: TextButton = make("TextButton", {
-			Name = "Tab_" .. def.id,
-			Size = UDim2.fromOffset(160, 48),
-			BackgroundColor3 = C.Panel,
-			AutoButtonColor = false,
-			Text = "",
-			LayoutOrder = i,
-			Selectable = true,
-			ZIndex = 6,
-			Parent = panel,
+		local t = Style.tab(panel, {
+			name = "Tab_" .. def.id,
+			label = def.long,
+			onActivate = function()
+				garage:selectTab(def.id)
+			end,
 		})
-		Gloss.corner(b, 14)
-		local stroke = Gloss.stroke(b, 2)
-		local gradient = Gloss.gradient(b, C.GarageLight, C.GarageDeep)
-		local label = make("TextLabel", {
-			Name = "Text",
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, -12, 1, 0),
-			Position = UDim2.fromOffset(6, 0),
-			FontFace = Tokens.font(),
-			Text = def.long,
-			TextSize = Tokens.TextSize.Label,
-			TextColor3 = C.Ink,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			ZIndex = 7,
-			Parent = b,
-		})
-		local ls = Gloss.stroke(label, 2, C.Ink, Enum.ApplyStrokeMode.Contextual)
-		ls.Enabled = false
-		local t: TabButton = { id = def.id, button = b, label = label, gradient = gradient, stroke = stroke }
-		table.insert(tabButtons, t)
-		trove:Connect(b.Activated, function()
-			garage:selectTab(def.id)
-		end)
+		t.root.LayoutOrder = i
+		trove:Add(t.trove)
+		table.insert(tabs, { id = def.id, tab = t })
 	end
 
 	-- grid
-	local gridHolder = make("Frame", {
-		Name = "GridHolder",
-		BackgroundColor3 = C.PanelShade,
-		BackgroundTransparency = 0.4,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		ZIndex = 4,
-		Parent = panel,
-	})
-	Gloss.corner(gridHolder, 14)
+	local gridHolder = Style.well(panel, "GridHolder", 4)
+	gridHolder.ClipsDescendants = true
 	local grid = CardGrid.new(gridHolder, {
 		cell = Vector2.new(200, 280),
 		onSelect = function(car: CarRef)
@@ -249,41 +188,38 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	end)
 
 	-- detail
-	local detail = make("Frame", {
-		Name = "Detail",
-		BackgroundColor3 = C.Panel,
-		BorderSizePixel = 0,
-		ZIndex = 6,
-		Parent = panel,
-	})
-	Gloss.corner(detail, 14)
-	Gloss.stroke(detail, 2).Transparency = 0.5
+	local detail = Style.well(panel, "Detail", 6)
 	local detailCard = CarCard.new(detail, Fixtures.Cars[1], { size = Vector2.new(200, 280), spinning = false })
 	trove:Add(function()
 		detailCard:destroy()
 	end)
-	local detailEmpty = Overlay.text(detail, "Pick a car to see it here", 18, C.InkSoft, Enum.TextXAlignment.Center, 7)
-	local info = make("Frame", { Name = "Info", BackgroundTransparency = 1, ZIndex = 7, Parent = detail })
+	local detailEmpty =
+		Overlay.text(detail, "Pick a car to see it here", 18, Style.TextSoft, Enum.TextXAlignment.Center, 7)
+	local info: Frame = make("Frame", { Name = "Info", BackgroundTransparency = 1, ZIndex = 7, Parent = detail })
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, 4),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = info,
 	})
-	local quirkTitle = Overlay.text(info, "", 22, C.Ink, nil, 7)
+	local quirkTitle = Overlay.text(info, "", 22, nil, nil, 7)
 	quirkTitle.LayoutOrder = 1
-	local quirkLine = Overlay.paragraph(info, "", 16, C.InkSoft, 7)
+	local quirkLine = Style.paragraph(info, "", 16, true, 7)
 	quirkLine.LayoutOrder = 2
-	local finishLine = Overlay.text(info, "", 16, C.InkSoft, nil, 7)
+	local finishLine = Overlay.text(info, "", 16, Style.TextSoft, nil, 7)
 	finishLine.LayoutOrder = 3
+	local howToGet = Style.paragraph(info, GarageMock.HowToGet, 18, false, 7)
+	howToGet.Name = "HowToGet"
+	howToGet.LayoutOrder = 4
+	howToGet.Visible = false
 
-	local driveButton = Gloss.button(detail, {
+	local driveButton = Arcade.button(detail, {
 		name = "Drive",
-		size = Vector2.new(180, 56),
-		light = C.PrimaryLight,
-		deep = C.PrimaryDeep,
-		text = "DRIVE",
-		textSize = 24,
+		label = "DRIVE",
+		fill = "Green",
+		size = "Custom",
+		width = 180,
+		height = 58,
 		onActivate = function()
 			if driveEnabled and selected and opts.onDrive then
 				driveCalls += 1
@@ -292,13 +228,14 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		end,
 	})
 	trove:Add(driveButton.trove)
-	local backButton = Gloss.button(detail, {
+	driveButton.root.ZIndex = 12
+	local backButton = Arcade.button(detail, {
 		name = "Back",
-		size = Vector2.new(112, 48),
-		light = C.SettingsLight,
-		deep = C.SettingsDeep,
-		text = "BACK",
-		textSize = 18,
+		label = "BACK",
+		fill = "Garage",
+		size = "Custom",
+		width = 116,
+		height = 48,
 		sound = "Close",
 		onActivate = function()
 			if detailOpen then
@@ -308,6 +245,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		end,
 	})
 	trove:Add(backButton.trove)
+	backButton.root.ZIndex = 12
 
 	local function updateCollection()
 		local g = ctx.store:get().garage
@@ -327,36 +265,41 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		if not car then
 			driveEnabled = false
 			driveButton.root.Visible = false
+			howToGet.Visible = false
 			return
 		end
-		driveButton.root.Visible = true
 		if detailCard:car() ~= car then
 			detailCard:setCar(car)
 		end
 		local rarity = (PreviewTokens.Rarity :: any)[car.rarity]
 		quirkTitle.Text = car.quirk .. "  \u{00B7}  " .. car.family
 		quirkLine.Text = GarageMock.QuirkText[car.quirk] or ""
-		local finish = if car.variant ~= "None" then car.variant .. " finish" else rarity.label
+		-- rarity and finish are separate fields: both are named when a finish exists
+		local finish = if car.variant ~= "None"
+			then rarity.label .. "  \u{00B7}  " .. car.variant .. " finish"
+			else rarity.label
 		if not car.owned then
 			finishLine.Text = finish .. "  \u{00B7}  not owned yet"
 		elseif car.model == nil then
-			finishLine.Text = finish .. "  \u{00B7}  model unavailable"
+			finishLine.Text = finish .. "  \u{00B7}  not ready yet"
 		else
 			finishLine.Text = finish
 		end
+		-- an unowned car explains how to get it (no greyed DRIVE)
+		howToGet.Visible = not car.owned
+		driveButton.root.Visible = car.owned
 		driveEnabled = car.owned and car.model ~= nil
 		driveButton.setEnabled(driveEnabled)
 	end
 
 	local function applyTab()
-		for _, t in tabButtons do
-			styleTab(t)
+		for _, t in tabs do
+			t.tab.set(t.id == tab)
 		end
 		if tab == "Downtown" and not loadingOverride then
 			grid:setCars(downtown)
 			local keep = selected
 			if not keep or not table.find(downtown, keep) then
-				-- pick the first owned car
 				keep = nil
 				for _, c in downtown do
 					if c.owned then
@@ -385,52 +328,63 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		local kind = Overlay.kindFor(ds)
 		local pw, ph
 		if kind == "Wide" then
-			pw, ph = math.min(ds.X - 24, 1120), math.min(ds.Y - 16, 680)
+			pw, ph = math.min(ds.X - 24, 1120), math.min(ds.Y - 20, 680)
 		elseif kind == "Short" then
-			pw, ph = ds.X - 24, ds.Y - 16
+			pw, ph = ds.X - 24, ds.Y - 18
 		else
-			pw, ph = ds.X - 16, ds.Y - 16
+			pw, ph = ds.X - 16, ds.Y - 18
 		end
-		panel.Size = UDim2.fromOffset(pw, ph)
-		if panelShadow then
-			panelShadow.Size = panel.Size
+		shell.root.Size = UDim2.fromOffset(pw, ph)
+		shell.root.Position = UDim2.new(0.5, 0, 0.5, -2)
+		local short = kind == "Short"
+		local tall = kind == "Tall"
+		local headH = if short then Style.HeaderHeightShort else Style.HeaderHeight
+		header.setHeight(headH)
+		closeButton.root.Position = UDim2.new(1, -8, 0, headH / 2)
+		-- the chip sits in the band on wide / short screens, under it on phone portrait
+		local chipY = if tall then headH + 8 else math.floor((headH - 40) / 2)
+		countChip.AnchorPoint = Vector2.new(1, 0)
+		countChip.Position = UDim2.new(1, if tall then -10 else -(8 + Overlay.CloseWidth + 10), 0, chipY)
+		local rightUsed = if tall then Overlay.CloseWidth + 16 else Overlay.CloseWidth + 18 + CHIP_W + 10
+		local titleLeft = header.title.Position.X.Offset
+		header.title.Size =
+			UDim2.new(1, -titleLeft - rightUsed, 0, math.min(PreviewTokens.Arcade.Text.Display + 8, headH - 6))
+		for _, t in tabs do
+			local def = TABS[t.tab.root.LayoutOrder]
+			t.tab.setText(if kind ~= "Wide" then def.short else def.long)
 		end
-		closeButton.root.Position = UDim2.new(1, -10, 0, 8)
-		title.Position = UDim2.fromOffset(16, 12)
-		countPill.Position = UDim2.fromOffset(16 + 150 + 4, 14)
-		local tabNames = kind ~= "Wide"
-		for _, t in tabButtons do
-			local def = TABS[t.button.LayoutOrder]
-			t.label.Text = if tabNames then def.short else def.long
-		end
+		local tabsY = headH + 10 + (if tall then 48 else 0)
 		local bodyX, bodyY, bodyW, bodyH
 		local wide = kind == "Wide"
-		if kind == "Wide" then
-			for i, t in tabButtons do
-				t.button.Position = UDim2.fromOffset(16 + (i - 1) * 176, 64)
-				t.button.Size = UDim2.fromOffset(168, 48)
+		if wide then
+			for i, t in tabs do
+				t.tab.root.Position = UDim2.fromOffset(14 + (i - 1) * 178, tabsY)
+				t.tab.root.Size = UDim2.fromOffset(168, 48)
 			end
-			bodyX, bodyY, bodyW, bodyH = 12, 122, pw - 24, ph - 134
-		elseif kind == "Short" then
-			for i, t in tabButtons do
-				t.button.Position = UDim2.fromOffset(12, 64 + (i - 1) * 56)
-				t.button.Size = UDim2.fromOffset(136, 48)
+			bodyX, bodyY = 12, tabsY + 48 + 10
+			bodyW, bodyH = pw - 24, ph - bodyY - 12
+		elseif short then
+			for i, t in tabs do
+				t.tab.root.Position = UDim2.fromOffset(12, tabsY + (i - 1) * 56)
+				t.tab.root.Size = UDim2.fromOffset(136, 48)
 			end
-			bodyX, bodyY, bodyW, bodyH = 156, 60, pw - 168, ph - 68
+			bodyX, bodyY = 156, headH + 10
+			bodyW, bodyH = pw - 168, ph - bodyY - 10
 		else
 			local tw = math.floor((pw - 24 - 16) / 3)
-			for i, t in tabButtons do
-				t.button.Position = UDim2.fromOffset(12 + (i - 1) * (tw + 8), 64)
-				t.button.Size = UDim2.fromOffset(tw, 48)
+			for i, t in tabs do
+				t.tab.root.Position = UDim2.fromOffset(12 + (i - 1) * (tw + 8), tabsY)
+				t.tab.root.Size = UDim2.fromOffset(tw, 48)
 			end
-			bodyX, bodyY, bodyW, bodyH = 8, 122, pw - 16, ph - 130
+			bodyX, bodyY = 8, tabsY + 48 + 10
+			bodyW, bodyH = pw - 16, ph - bodyY - 10
 		end
 		-- grid cell per layout (CarCard switches to its compact layout below 180 wide); widths
 		-- leave room for the 8 px scroll bar so the column count never drops
 		local desktop = wide and pw >= 1000
 		local cell = if wide
 			then (if desktop then Vector2.new(200, 280) else Vector2.new(170, 238))
-			elseif kind == "Short" then Vector2.new(140, 196)
+			elseif short then Vector2.new(140, 196)
 			else Vector2.new(150, 210)
 		grid:setCell(cell)
 		if wide then
@@ -445,15 +399,13 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			driveButton.root.AnchorPoint = Vector2.new(0.5, 1)
 			driveButton.root.Position = UDim2.new(0.5, 0, 1, -12)
 			if desktop then
-				-- big card on top, text below, Drive at the bottom
 				local cardSize = Vector2.new(200, 280)
 				detailCard:setSize(cardSize)
 				detailCard.root.AnchorPoint = Vector2.new(0.5, 0)
 				detailCard.root.Position = UDim2.new(0.5, 0, 0, 16)
 				info.Position = UDim2.fromOffset(16, 16 + cardSize.Y + 14)
-				info.Size = UDim2.new(1, -32, 0, 110)
+				info.Size = UDim2.new(1, -32, 0, 120)
 			else
-				-- tablet: card on the left, text on the right, Drive below both
 				local cardSize = Vector2.new(150, 210)
 				detailCard:setSize(cardSize)
 				detailCard.root.AnchorPoint = Vector2.zero
@@ -470,7 +422,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			detail.Position = UDim2.fromOffset(bodyX, bodyY)
 			detail.Size = UDim2.fromOffset(bodyW, bodyH)
 			backButton.root.Visible = true
-			if kind == "Short" then
+			if short then
 				local cardSize = Vector2.new(150, 210)
 				detailCard:setSize(cardSize)
 				detailCard.root.AnchorPoint = Vector2.zero
@@ -526,7 +478,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		end,
 		open = function(_self: Garage, returnTo: GuiObject?)
 			layoutNow()
-			overlay:open(grid:firstBody() or tabButtons[1].button, returnTo)
+			overlay:open(grid:firstBody() or tabs[1].tab.root, returnTo)
 			detailCard:setSpinning(true)
 			task.defer(function()
 				grid:refresh()
@@ -589,9 +541,12 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				detailOpen = detailOpen,
 				collection = countText.Text,
 				driveEnabled = driveEnabled,
+				driveVisible = driveButton.root.Visible,
+				howToGetVisible = howToGet.Visible,
 				driveCalls = driveCalls,
 				grid = grid:getDebugState(),
 				detailCard = if selected then detailCard:getDebugState() else nil,
+				instances = #overlay.root:GetDescendants(),
 			}
 		end,
 	}

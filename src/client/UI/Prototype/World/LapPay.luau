@@ -1,5 +1,7 @@
 --!strict
--- Lap Pay world feedback (Lane 3 preview, worker H3): a "+$120" label rising about 3 studs above
+-- Lap Pay world feedback (Lane 3 preview, worker H3; restyled to the ARCADE kit in the HUD
+-- rebuild 2026-10-22, worker HW: Arcade.text, Cash face, italic number, major dark outline, no
+-- backing card; behaviour unchanged): a "+$120" label rising about 3 studs above
 -- a local-owned fixture car, lasting about 1.2 s. VISUAL ONLY: it displays the amount it is
 -- given (FIXTURE values from the preview adapter); it calculates and grants nothing. Brian L owns
 -- the real rate, its units and when a lap pays.
@@ -26,7 +28,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Format = require(ReplicatedStorage.Shared.UI.Format)
-local Gloss = require(script.Parent.Parent.Gloss)
+local Arcade = require(script.Parent.Parent.Arcade)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunLayout = require(script.Parent.Parent.Run.RunLayout)
@@ -34,16 +36,16 @@ local Sounds = require(script.Parent.Parent.Sounds)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local C = PreviewTokens.Color
 local M = PreviewTokens.Motion
-local make = Gloss.make
+local make = Arcade.make
 
 local POOL = 4
 local RISE = 3
 local START = 1.5 -- studs above the top of the car at spawn
 local MERGE_PX = 56
 local NEAREST_CAR = 10
-local SIZE = Vector2.new(150, 48)
+local SIZE = Vector2.new(170, 52)
+local TEXT_SIZE = 34
 
 local LapPay = {}
 LapPay.__index = LapPay
@@ -97,15 +99,23 @@ function LapPay.new(ctx: RunLayout.Ctx)
 			ResetOnSpawn = false,
 			Parent = folder,
 		})
-		local scale = make("UIScale", { Name = "HudScale", Scale = 1 })
 		local holder = make("Frame", {
 			Name = "Holder",
 			BackgroundTransparency = 1,
 			Size = UDim2.fromOffset(SIZE.X, SIZE.Y),
 			Parent = board,
-			Children = { scale },
 		})
-		local text = Gloss.title(holder, "+$0", 30, C.CashLight, C.CashDeep)
+		local scale = make("UIScale", { Name = "HudScale", Scale = 1, Parent = holder })
+		-- kit look (HUD rebuild 2026-10-22): big italic green number, Cash face, dark outline, no card
+		local text = Arcade.text(holder, {
+			text = "+$0",
+			role = "Value",
+			name = "Amount",
+			size = TEXT_SIZE,
+			face = "Cash",
+			italic = true,
+			outline = "Major",
+		})
 		text.Size = UDim2.fromScale(1, 1)
 		table.insert(self._labels, {
 			board = board,
@@ -364,7 +374,7 @@ function LapPay.getDebugState(self: LapPay): { [string]: any }
 		sounds = self._sounds,
 		maxDistance = self._labels[1].board.MaxDistance,
 		cars = #self._cars,
-		textSize = 30,
+		textSize = TEXT_SIZE,
 	}
 end
 

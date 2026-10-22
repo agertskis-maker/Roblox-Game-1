@@ -1,5 +1,6 @@
 --!strict
--- CardGrid: a scrolling grid of CarCards (Lane 3 HUD prototype, PREVIEW only).
+-- CardGrid: a scrolling grid of CarCards (Lane 3 HUD prototype, PREVIEW only). HUD rebuild
+-- (2026-10-22): dark kit wells for the loading tiles, white outlined empty text (no cream).
 --
 --   local grid = CardGrid.new(parent, { cell = Vector2.new(200, 280), onSelect = fn })
 --   grid.root                      -- a Frame; size and place it like any frame
@@ -21,14 +22,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent.Parent
 local CarCard = require(script.Parent.CarCard)
-local Gloss = require(Prototype.Gloss)
-local Icons = require(Prototype.Icons)
-local PreviewTokens = require(Prototype.PreviewTokens)
+local Arcade = require(Prototype.Arcade)
+local Style = require(Prototype.Screens.Style)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local make = Arcade.make
 
 local CardGrid = {}
 
@@ -55,7 +54,7 @@ export type DebugState = {
 	loading: boolean,
 	empty: boolean,
 	selectedId: string?,
-	cell: Vector2,
+	cell: { number }, -- {w, h} (JSON-safe)
 	canvasY: number,
 }
 
@@ -132,7 +131,7 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarThickness = 8,
-		ScrollBarImageColor3 = C.Ink,
+		ScrollBarImageColor3 = Color3.new(1, 1, 1),
 		ScrollBarImageTransparency = 0.3,
 		VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
 		Selectable = false,
@@ -174,7 +173,7 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 		ZIndex = 4,
 		Parent = empty,
 	})
-	Icons.draw(emptyIcon, "Car", Color3.fromRGB(190, 196, 210))
+	Arcade.icon(emptyIcon, "Car")
 	local emptyText = make("TextLabel", {
 		Name = "Text",
 		Position = UDim2.fromOffset(0, 60),
@@ -184,10 +183,11 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 		Text = opts.emptyText or "No cars here yet",
 		TextSize = Tokens.TextSize.Label,
 		TextWrapped = true,
-		TextColor3 = C.InkSoft,
+		TextColor3 = Style.TextSoft,
 		ZIndex = 4,
 		Parent = empty,
 	})
+	Arcade.outline(emptyText, "Minor")
 
 	-- loading skeleton
 	local skeleton = make("Frame", {
@@ -219,15 +219,15 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 			local tile = skeletonTrove:Add(make("Frame", {
 				Name = "Skeleton" .. i,
 				LayoutOrder = i,
-				BackgroundColor3 = Color3.fromRGB(226, 220, 206),
+				BackgroundColor3 = Style.Well,
+				BackgroundTransparency = Style.WellTransparency,
 				BorderSizePixel = 0,
 				ZIndex = 4,
 				Parent = skeleton,
 			}))
-			Gloss.corner(tile, 16)
-			local stroke = Gloss.stroke(tile, 3)
-			stroke.Transparency = 0.6
-			make("TextLabel", {
+			Arcade.corner(tile, 8)
+			Arcade.outline(tile, "Button")
+			local tileText = make("TextLabel", {
 				Name = "Text",
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.5),
@@ -236,11 +236,12 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 				FontFace = Tokens.font(),
 				Text = opts.loadingText or ("Loading cars" .. CarCard.Ellipsis),
 				TextSize = Tokens.TextSize.Minimum,
-				TextColor3 = C.InkSoft,
+				TextColor3 = Style.TextSoft,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				ZIndex = 5,
 				Parent = tile,
 			})
+			Arcade.outline(tileText, "Minor")
 		end
 	end
 
@@ -413,7 +414,7 @@ function CardGrid.new(parent: Instance, options: Options?): Grid
 				loading = loading,
 				empty = not loading and #cards == 0,
 				selectedId = selectedId,
-				cell = cell,
+				cell = { cell.X, cell.Y },
 				canvasY = scroll.CanvasPosition.Y,
 			}
 		end,

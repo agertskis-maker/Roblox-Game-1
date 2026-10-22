@@ -10,7 +10,10 @@
 --   ReplicatedStorage.Lane3Playground:SetAttribute("LookDevCommand", "<unique id> <verb> <arg>")
 -- verbs: pass | sample <seconds> | frame <s> | ped <1|2> | restore | ambient <on|off> |
 --        reduced <on|off> (the preview-only Lane3ReducedMotionOverride; never saved) | stats
--- Results are printed as "[Lane3LookDev] <verb> <json>" for get_console_output.
+-- Downtown B city (LookDev.Downtown.City, client-side in Play; the fixture ambient stops first):
+--        city run [seed] | city sample [seconds] | city stats | city stop | city camera <FIXTURE|HIGH> |
+--        city frame <s> | city width | city reset
+-- Results are printed as "[Lane3LookDev] <verb> <json>" (and "[Lane3City] ...") for get_console_output.
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -71,6 +74,38 @@ local function run(command: string)
 		report("reduced", arg == "on")
 	elseif verb == "stats" then
 		report("stats", Ambient.stats())
+	elseif verb == "city" then
+		local City = require(Downtown:WaitForChild("City")) :: any
+		local sub, value = arg, words[4]
+		if sub == "run" then
+			Ambient.stop()
+			ChaseCamera.stop()
+			task.spawn(function()
+				report("city run", City.run({ seed = tonumber(value) or 2207 }))
+			end)
+		elseif sub == "sample" then
+			task.spawn(function()
+				report("city sample", City.sample(tonumber(value) or 20))
+			end)
+		elseif sub == "stats" then
+			report("city stats", City.stats())
+		elseif sub == "stop" then
+			City.stop()
+			report("city stop", "ok")
+		elseif sub == "camera" then
+			City.camera(value or "FIXTURE")
+			report("city camera", value or "FIXTURE")
+		elseif sub == "frame" then
+			City.frame(tonumber(value) or 0)
+			report("city frame", tonumber(value) or 0)
+		elseif sub == "width" then
+			local result = City.widthStudy()
+			report("city width", result.rows)
+		elseif sub == "reset" then
+			City.reset()
+		else
+			report("unknown", command)
+		end
 	else
 		report("unknown", command)
 	end

@@ -55,7 +55,6 @@ function Scenarios.new(api: any)
 		"Run: Keys capture",
 		"Run: Already owned",
 		"Run: Hop, Dash, milestones",
-		"Run: Heat proposal variant",
 		"Results: typical",
 		"Results: no rewards",
 		"Results: many cars",
@@ -80,7 +79,43 @@ function Scenarios.new(api: any)
 			return
 		end
 		local r = table.clone(state.run)
+		local before = r.distance
 		r.distance += FIXTURE_SPEED_MPS * dt
+		-- DistrictEnter on each explicit boundary crossing of the fixture plan (Lane 1 would
+		-- supply this event; the cycle index is local to the fixture)
+		local plan = r.districtPlan
+		if plan and #plan.districts > 0 then
+			local function locate(distance: number): (number, number)
+				local total = 0
+				for _, d in plan.districts do
+					total += d.length
+				end
+				local cycle = math.floor(distance / total)
+				if not plan.repeats then
+					cycle = math.min(cycle, 0)
+				end
+				local within = distance - cycle * total
+				local reached = 0
+				for i, d in plan.districts do
+					reached += d.length
+					if within < reached then
+						return i, cycle + 1
+					end
+				end
+				return #plan.districts, cycle + 1
+			end
+			local i0, c0 = locate(before)
+			local i1, c1 = locate(r.distance)
+			if i0 ~= i1 or c0 ~= c1 then
+				local d = plan.districts[i1]
+				self.store:emit({
+					id = "district-r" .. tostring(self._runIndex) .. "-" .. c1 .. "-" .. d.id,
+					kind = "DistrictEnter",
+					district = d.id,
+					cycle = c1,
+				})
+			end
+		end
 		r.hopCooldown01 = math.max(0, r.hopCooldown01 - dt / 1.5)
 		if r.dash then
 			r.dash = math.max(0, r.dash - dt / 2.5)
@@ -107,6 +142,8 @@ Scenarios.DistrictPlan = table.freeze({
 })
 
 function Scenarios.startRunState(self: any)
+	-- a new run gets fresh event ids (the store remembers recent ids for dedupe)
+	self._runIndex = (self._runIndex or 0) + 1
 	self.store:set("run", {
 		distance = 0,
 		coins = 0,
@@ -154,6 +191,19 @@ local function runPatch(store: any, patch: { [string]: any })
 	local n = table.clone(r)
 	for k, v in patch do
 		n[k] = v
+	end
+	store:set("run", n)
+end
+
+-- clears run fields (runPatch cannot set a field to nil)
+local function runClear(store: any, ...: string)
+	local r = store:get().run
+	if not r then
+		return
+	end
+	local n = table.clone(r)
+	for _, k in { ... } do
+		n[k] = nil
 	end
 	store:set("run", n)
 end
@@ -389,44 +439,38 @@ steps["Run: Heat"] = function(self)
 	task.wait(1.5)
 end
 
-steps["Run: Heat proposal variant"] = function(self)
-	local run = self.api.components.run
-	if run and run.setHeatVariant then
-		run:setHeatVariant("Proposal")
-	end
-	steps["Run: Heat"](self)
-	if run and run.setHeatVariant then
-		run:setHeatVariant("Approved")
-	end
-end
-
 steps["Run: Keys capture"] = function(self)
 	enterRun(self)
 	local s = self.store
 	local target = car("rev6")
+	local cid = "cap-builtin-" .. tostring(math.random(1, 1e6))
 	-- the Keys meter fills while riding the unowned car, so the ride chip names it from the start
 	runPatch(s, { ride = target })
+	emit(s, "KeysStart", { captureId = cid, car = target })
 	for p = 0, 1, 0.1 do
-		runPatch(s, { keys = { target = target, progress = p, status = "Holding" } })
+		runPatch(s, { keys = { id = cid, target = target, progress = p, status = "Holding" } })
 		task.wait(0.25)
 	end
-	runPatch(s, { keys = { target = target, progress = 1, status = "Pending" } }) -- 100% is NOT ownership
+	runPatch(s, { keys = { id = cid, target = target, progress = 1, status = "Pending" } }) -- 100% is NOT ownership
 	task.wait(1.4)
-	runPatch(s, { keys = { target = target, progress = 1, status = "Confirmed" } })
-	emit(s, "KeysConfirmed", { car = target }) -- the explicit confirmed-claim event
+	emit(s, "KeysConfirmed", { captureId = cid, car = target }) -- the explicit confirmed-claim event
+	runPatch(s, { keys = { id = cid, target = target, progress = 1, status = "Confirmed" } })
 	task.wait(3)
-	runPatch(s, { keys = nil, ride = target })
+	runClear(s, "keys")
 	task.wait(1)
 end
 
 steps["Run: Already owned"] = function(self)
 	enterRun(self)
 	local target = car("puglet")
-	runPatch(self.store, { keys = { target = target, progress = 1, status = "Confirmed" } })
+	local cid = "cap-owned-" .. tostring(math.random(1, 1e6))
+	emit(self.store, "KeysStart", { captureId = cid, car = target })
+	runPatch(self.store, { keys = { id = cid, target = target, progress = 1, status = "Pending" } })
+	task.wait(0.6)
 	-- the Joyride Bonus is decided (GDD); +$50 is a SYNTHETIC fixture amount (Brian L owns it)
-	emit(self.store, "AlreadyOwned", { car = target, amount = 50 })
+	emit(self.store, "AlreadyOwned", { captureId = cid, car = target, amount = 50 })
 	task.wait(2.5)
-	runPatch(self.store, { keys = nil })
+	runClear(self.store, "keys")
 end
 
 steps["Run: Hop, Dash, milestones"] = function(self)
@@ -472,7 +516,7 @@ local function results(self: any, key: string)
 	self.store:set("results", res)
 	self.store:setMode("Results")
 	local card = self.api.components.results
-	local capture = self.api.components.capture
+	local capture = self.api.components.ribbon
 	if capture and capture.takePendingCards then
 		for _, c in capture:takePendingCards() do
 			table.insert(claimed, c)
@@ -551,7 +595,7 @@ steps["Mode change mid-animation"] = function(self)
 	emit(s, "CashGain", { amount = 5000 })
 	task.wait(0.1)
 	enterRun(self)
-	emit(s, "KeysConfirmed", { car = car("hurrikan") })
+	emit(s, "KeysConfirmed", { captureId = "cap-modechange-" .. tostring(math.random(1, 1e6)), car = car("hurrikan") })
 	task.wait(0.3)
 	s:setMode("Home")
 	task.wait(2)
@@ -654,7 +698,7 @@ function Scenarios.play(self: any, name: string): boolean
 	end
 	self:cancel()
 	-- a new scenario starts from a clean overlay stack (a cancelled one cannot close its own)
-	for _, key in { "settings", "garage", "portalCard", "welcome", "shop", "stunt" } do
+	for _, key in { "settings", "garage", "portalCard", "welcome", "shop", "stunt", "cardSheet" } do
 		self.api.close(key)
 	end
 	self.api.applyMode()

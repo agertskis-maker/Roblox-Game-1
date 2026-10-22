@@ -1,6 +1,8 @@
 --!strict
 -- WelcomeBackMock: the short "Welcome back!" card drawn over gameplay (Lane 3 HUD prototype,
--- PREVIEW only). All values are synthetic; nothing is granted.
+-- PREVIEW only). All values are synthetic; nothing is granted. HUD rebuild (2026-10-22, H-15):
+-- restyled into the arcade family (deep panel, green header band, kit COLLECT button, italic
+-- Cash-face total; no cream).
 --
 --   local welcome = WelcomeBackMock.new(ctx, { onCollect = fn? })
 --   welcome:open(returnTo?)      -- plays the Lineup lap and the earnings count-up
@@ -23,15 +25,15 @@ local Prototype = script.Parent.Parent
 local CarCard = require(Prototype.Cards.CarCard)
 local Fixtures = require(Prototype.Fixtures)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
-local Gloss = require(Prototype.Gloss)
+local Arcade = require(Prototype.Arcade)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Sounds = require(Prototype.Sounds)
+local Style = require(script.Parent.Style)
 
-local C = PreviewTokens.Color
 local M = PreviewTokens.Motion
-local make = Gloss.make
+local make = Arcade.make
 
 local WelcomeBackMock = {}
 
@@ -83,15 +85,8 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	local revealTrove = trove:Extend()
 	local content = overlay.content
 
-	local panel = Gloss.panel(content, {
-		name = "Panel",
-		size = UDim2.fromOffset(700, 400),
-		anchor = Vector2.new(0.5, 0.5),
-		position = UDim2.fromScale(0.5, 0.5),
-		radius = 22,
-		z = 3,
-	})
-	local panelShadow = content:FindFirstChild("Shadow") :: Frame?
+	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local panel = shell.body
 	-- a full-panel catcher: tapping the card during the reveal skips it
 	local catcher: TextButton = make("TextButton", {
 		Name = "SkipCatcher",
@@ -107,11 +102,17 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		welcome:skip()
 	end)
 
-	local title = Overlay.title(panel, "Welcome back!", 34, C.PrimaryLight, C.PrimaryDeep, 6)
-	local subtitle =
-		Overlay.text(panel, "Your Lineup kept racing while you were away.", 16, C.InkSoft, Enum.TextXAlignment.Left, 6)
+	local header = Style.header(panel, { fill = "Green", title = "WELCOME BACK!", icon = "Track" })
+	local subtitle = Overlay.text(
+		panel,
+		"Your Lineup kept racing while you were away.",
+		18,
+		Style.TextSoft,
+		Enum.TextXAlignment.Left,
+		6
+	)
 
-	-- mini track strip
+	-- mini track strip (asphalt grey with the kit's dark boundary)
 	local track = make("Frame", {
 		Name = "Track",
 		BackgroundColor3 = Color3.fromRGB(70, 78, 98),
@@ -120,8 +121,8 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		ZIndex = 4,
 		Parent = panel,
 	})
-	Gloss.corner(track, 16)
-	Gloss.stroke(track, 3)
+	Arcade.corner(track, 8)
+	Arcade.outline(track, "Button")
 	local lane = make("Frame", {
 		Name = "Lane",
 		AnchorPoint = Vector2.new(0, 1),
@@ -136,7 +137,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 			Name = "Dash",
 			Position = UDim2.new(i / 16, 6, 0, 0),
 			Size = UDim2.fromScale(1 / 32, 1),
-			BackgroundColor3 = C.White,
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			BackgroundTransparency = 0.2,
 			BorderSizePixel = 0,
 			ZIndex = 5,
@@ -149,7 +150,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -18, 0, 0),
 		Size = UDim2.new(0, 16, 1, 0),
-		BackgroundColor3 = C.White,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = 5,
 		Parent = track,
@@ -161,7 +162,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 					Name = "Check",
 					Position = UDim2.fromScale(col / 2, row / 12),
 					Size = UDim2.fromScale(1 / 2, 1 / 12),
-					BackgroundColor3 = C.Ink,
+					BackgroundColor3 = Style.Ink,
 					BorderSizePixel = 0,
 					ZIndex = 6,
 					Parent = finish,
@@ -198,20 +199,25 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 
 	-- earnings
 	local earnBlock = make("Frame", { Name = "Earnings", BackgroundTransparency = 1, ZIndex = 5, Parent = panel })
-	local earnLabel = Overlay.text(earnBlock, "While you were away", 18, C.InkSoft, Enum.TextXAlignment.Center, 6)
+	local earnLabel = Overlay.text(earnBlock, "While you were away", 18, Style.TextSoft, Enum.TextXAlignment.Center, 6)
 	earnLabel.Position = UDim2.fromOffset(0, 0)
-	local earnValue = Gloss.title(earnBlock, "$0", 48, C.CashLight, C.CashDeep)
+	local earnValue = Style.text(earnBlock, "$0", "Value", {
+		name = "Value",
+		italic = true,
+		face = "Cash",
+		size = 48,
+		xAlign = Enum.TextXAlignment.Center,
+		z = 6,
+	})
 	earnValue.Position = UDim2.fromOffset(0, 26)
-	earnValue.ZIndex = 6
-	earnValue.TextXAlignment = Enum.TextXAlignment.Center
-	local collect = Gloss.button(panel, {
+	local collect = Arcade.button(panel, {
 		name = "Collect",
-		size = Vector2.new(200, 60),
-		light = C.CashLight,
-		deep = C.CashDeep,
-		text = "COLLECT",
-		textSize = 26,
-		radius = 18,
+		label = "COLLECT",
+		fill = "Green",
+		size = "Custom",
+		width = 210,
+		height = 62,
+		pattern = true,
 		cooldown = 0.6,
 		onActivate = function()
 			if revealing then
@@ -247,7 +253,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	local function startCount()
 		local duration = math.clamp(M.CountUpMin + 0.1 * math.log10(math.max(earnings, 1)), M.CountUpMin, M.CountUpMax)
 		local t0 = os.clock()
-		Sounds.play("ResultsCount")
+		revealTrove:Add(Sounds.loop("ResultsCount"))
 		revealTrove:Connect(RunService.Heartbeat, function()
 			local a = math.clamp((os.clock() - t0) / duration, 0, 1)
 			local eased = 1 - (1 - a) ^ 3
@@ -295,8 +301,8 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		local gap = 10
 		if kind == "Wide" then
 			-- tall enough for 150 x 200 cards (desktop); otherwise smaller cards (tablet)
-			local roomy = ds.Y - 24 >= 520
-			pw, ph = math.min(ds.X - 32, 760), if roomy then 520 else ds.Y - 24
+			local roomy = ds.Y - 24 >= 560
+			pw, ph = math.min(ds.X - 32, 760), if roomy then 560 else ds.Y - 24
 			cardSize = if roomy then Vector2.new(150, 200) else Vector2.new(120, 160)
 		elseif kind == "Short" then
 			pw, ph = ds.X - 24, ds.Y - 16
@@ -310,36 +316,33 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		subtitle.Text = if kind == "Tall"
 			then "Your cars kept racing!"
 			else "Your Lineup kept racing while you were away."
-		panel.Size = UDim2.fromOffset(pw, ph)
-		if panelShadow then
-			panelShadow.Size = panel.Size
-		end
-		title.Position = UDim2.fromOffset(20, 14)
-		title.Size = UDim2.new(1, -40, 0, 42)
-		title.TextSize = if kind == "Short" then 30 else 34
-		subtitle.Position = UDim2.fromOffset(22, 56)
-		subtitle.Size = UDim2.new(1, -44, 0, 22)
+		shell.root.Size = UDim2.fromOffset(pw, ph)
+		shell.root.Position = UDim2.new(0.5, 0, 0.5, -2)
+		local headH = if kind == "Short" then Style.HeaderHeightShort else Style.HeaderHeight
+		header.setHeight(headH)
+		subtitle.Position = UDim2.fromOffset(16, headH + 8)
+		subtitle.Size = UDim2.new(1, -32, 0, 24)
+		local trackY = headH + 40
 		local rowW = #cards * cardSize.X + math.max(#cards - 1, 0) * gap
 		local trackH = cardSize.Y + 36
 		local trackW
 		if kind == "Short" then
 			trackW = rowW + 60
-			track.Position = UDim2.fromOffset(16, 86)
-			earnBlock.Position = UDim2.fromOffset(16 + trackW + 12, 96)
+			track.Position = UDim2.fromOffset(16, trackY)
+			earnBlock.Position = UDim2.fromOffset(16 + trackW + 12, trackY + 10)
 			earnBlock.Size = UDim2.fromOffset(pw - trackW - 44, 90)
 			collect.root.AnchorPoint = Vector2.new(0.5, 1)
 			collect.root.Position = UDim2.new(0, 16 + trackW + 12 + (pw - trackW - 44) / 2, 1, -14)
 		else
 			trackW = math.min(pw - 32, rowW + 80)
-			track.Position = UDim2.new(0.5, -trackW / 2, 0, 88)
-			earnBlock.Position = UDim2.fromOffset(16, 88 + trackH + 10)
+			track.Position = UDim2.new(0.5, -trackW / 2, 0, trackY)
+			earnBlock.Position = UDim2.fromOffset(16, trackY + trackH + 10)
 			earnBlock.Size = UDim2.new(1, -32, 0, 90)
 			collect.root.AnchorPoint = Vector2.new(0.5, 1)
 			collect.root.Position = UDim2.new(0.5, 0, 1, -14)
 		end
 		track.Size = UDim2.fromOffset(trackW, trackH)
 		earnValue.Size = UDim2.new(1, 0, 0, 56)
-		earnValue.TextSize = if kind == "Short" then 40 else 48
 		-- bays: the cards sit on the strip, finish line on the right
 		local x0 = math.max(math.floor((trackW - 34 - rowW) / 2), 6)
 		table.clear(slotPositions)

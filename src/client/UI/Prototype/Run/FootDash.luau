@@ -1,5 +1,7 @@
 --!strict
--- Foot Dash indicator for the run view (Lane 3 preview, worker H3). Display only: it shows
+-- Foot Dash indicator for the run view (Lane 3 preview, worker H3; restyled to the Arcade kit by
+-- HUD rebuild worker HR, U-08: a thick dark ring boundary, white draining arc, illustrated
+-- sneaker on a cream plate, white outlined "DASH" label; placement from RunLayout.dashRect). Display only: it shows
 -- store.run.dash (remaining 0..1 while a Foot Dash runs, nil otherwise) as supplied and changes
 -- no rule. A sneaker icon on a cream disc inside a draining white arc, with a "DASH" cue.
 -- Optional mild edge desaturation: a very light grey tint on the screen edges only while a dash
@@ -14,17 +16,15 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Arc = require(script.Parent.Arc)
-local Gloss = require(script.Parent.Parent.Gloss)
-local Icons = require(script.Parent.Parent.Icons)
+local Arcade = require(script.Parent.Parent.Arcade)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunLayout = require(script.Parent.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
-local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local C = PreviewTokens.Color
-local make = Gloss.make
+local make = Arcade.make
 
 local RING = 64
 local INNER = 46
@@ -98,14 +98,14 @@ function FootDash.new(ctx: RunLayout.Ctx)
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0),
 		Size = UDim2.fromOffset(RING, RING),
-		BackgroundColor3 = C.Ink,
+		BackgroundColor3 = PreviewTokens.Arcade.Ink,
 		BackgroundTransparency = 0.35,
 		BorderSizePixel = 0,
 		ZIndex = 2,
 		Parent = group,
 	})
-	Gloss.corner(ring, RING / 2)
-	Gloss.stroke(ring, 3, C.Ink)
+	make("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = ring })
+	Arcade.outline(ring, "Button")
 	local arc = Arc.new(ring, RING, C.White, 0, 3)
 	self._arc = arc
 	local inner = make("Frame", {
@@ -118,8 +118,8 @@ function FootDash.new(ctx: RunLayout.Ctx)
 		ZIndex = 5,
 		Parent = ring,
 	})
-	Gloss.corner(inner, INNER / 2)
-	Gloss.stroke(inner, 2.5, C.Ink)
+	make("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = inner })
+	Arcade.outline(inner, "Major")
 	local icon = make("Frame", {
 		Name = "Sneaker",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -129,21 +129,11 @@ function FootDash.new(ctx: RunLayout.Ctx)
 		ZIndex = 6,
 		Parent = inner,
 	})
-	Icons.draw(icon, "Sneaker", C.PrimaryDeep)
-	local cue = make("TextLabel", {
-		Name = "Cue",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 1),
-		Size = UDim2.new(1, 0, 0, 22),
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "DASH",
-		TextSize = Tokens.TextSize.Label,
-		TextColor3 = C.White,
-		ZIndex = 6,
-		Parent = group,
-	})
-	Gloss.stroke(cue, 2.5, C.Ink, Enum.ApplyStrokeMode.Contextual)
+	Arcade.icon(icon, "Sneaker")
+	local cue = Arcade.text(group, { text = "DASH", role = "Label", name = "Cue", z = 6 })
+	cue.AnchorPoint = Vector2.new(0.5, 1)
+	cue.Position = UDim2.fromScale(0.5, 1)
+	cue.Size = UDim2.new(1, 0, 0, 24)
 	self._cue = cue
 
 	self._trove:Add(function()

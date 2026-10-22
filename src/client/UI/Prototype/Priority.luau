@@ -18,8 +18,8 @@
 --   })
 --   arb:release(h)                            -- when finished (also drops it from the queue)
 --   arb:holder("Side") -> (id, level)?        -- for debug and tests
---   arb:suppress("Upper", "Safety")           -- while active, the slot grants nothing below it
---   arb:unsuppress("Upper")
+--   arb:suppress("Upper", "Safety", "results") -- while any owner suppresses, the slot grants
+--   arb:unsuppress("Upper", "results")         -- nothing below the highest owner's level
 --
 -- Duplicate ids: requesting an id that already holds or waits for the slot returns the same
 -- handle, so a repeated event cannot show twice.
@@ -59,7 +59,7 @@ function Priority.new()
 	local self = setmetatable({}, Priority)
 	self._holders = {} :: { [string]: Entry? }
 	self._queues = {} :: { [string]: { Entry } }
-	self._suppressed = {} :: { [string]: number }
+	self._suppressed = {} :: { [string]: { [string]: number } } -- slot -> owner -> rank
 	self.Changed = Signal.new() -- (slot)
 	return self
 end
@@ -76,8 +76,21 @@ local function grant(self: Arbiter, entry: Entry)
 	task.spawn(entry.callbacks.grant)
 end
 
+local function floorOf(self: Arbiter, slot: Slot): number?
+	local owners = self._suppressed[slot]
+	local floor: number? = nil
+	if owners then
+		for _, r in owners do
+			if floor == nil or r > (floor :: number) then
+				floor = r
+			end
+		end
+	end
+	return floor
+end
+
 local function allowed(self: Arbiter, slot: Slot, level: Level): boolean
-	local floor = self._suppressed[slot]
+	local floor = floorOf(self, slot)
 	return floor == nil or rank(level) >= floor
 end
 
@@ -199,9 +212,15 @@ function Priority.holder(self: Arbiter, slot: Slot): (string?, Level?)
 	return nil, nil
 end
 
--- While suppressed, the slot grants nothing below `level`; a current lower holder is revoked.
-function Priority.suppress(self: Arbiter, slot: Slot, level: Level)
-	self._suppressed[slot] = rank(level)
+-- While any owner suppresses the slot, it grants nothing below that owner's level; a current
+-- lower holder is revoked. Owners are independent: one owner's unsuppress never clears another's.
+function Priority.suppress(self: Arbiter, slot: Slot, level: Level, owner: string?)
+	local owners = self._suppressed[slot]
+	if not owners then
+		owners = {}
+		self._suppressed[slot] = owners
+	end
+	(owners :: { [string]: number })[owner or "default"] = rank(level)
 	local h = self._holders[slot]
 	if h and rank(h.level) < rank(level) then
 		h.released = true
@@ -213,8 +232,14 @@ function Priority.suppress(self: Arbiter, slot: Slot, level: Level)
 	end
 end
 
-function Priority.unsuppress(self: Arbiter, slot: Slot)
-	self._suppressed[slot] = nil
+function Priority.unsuppress(self: Arbiter, slot: Slot, owner: string?)
+	local owners = self._suppressed[slot]
+	if owners then
+		owners[owner or "default"] = nil
+		if next(owners) == nil then
+			self._suppressed[slot] = nil
+		end
+	end
 	advance(self, slot)
 end
 
@@ -242,7 +267,7 @@ function Priority.getDebugState(self: Arbiter): { [string]: any }
 			holder = h and h.id,
 			level = h and h.level,
 			waiting = q and #q or 0,
-			suppressedBelow = self._suppressed[slot],
+			suppressedBelow = floorOf(self, slot),
 		}
 	end
 	return out

@@ -1,13 +1,45 @@
 --!strict
--- Home HUD: Cash line, top-left (Lane 3 preview). Presentation only: it shows the values the
--- store supplies and never changes, saves or decides an amount. A client animation is not proof
--- that a reward happened.
+-- Home HUD: Cash line (Lane 3 preview). Presentation only: it shows the values the store
+-- supplies and never changes, saves or decides an amount. A client animation is not proof that a
+-- reward happened.
 --
--- Reuses the approved CurrencyCounter + CashIcon unchanged (floating, no panel, icon fixed,
--- number grows rightward, Format.cash). Around it:
+-- HUD REBUILD 2026-10-22 (ledger H-07, H-08, H-10, C4): the old top-left position is superseded
+-- (Cash moves to the bottom left). This file was changed ONLY for position/anchor (embedded mode:
+-- the StatsStack parents and places it), the icon art (the original CashStack art from Icons2
+-- when it exists, drawn into the SAME icon box so the counter's geometry and timing are
+-- unchanged; the approved CashIcon otherwise or when options.approvedIcon is set) and the
+-- exact-value tooltip styling (kit text with a dark outline, no cream card). One neutral hook
+-- was added (options.onGainShown, fired where the earning line already ducked) so the stack's
+-- own earning line can make room for the counter's "+$N" label. No timing, threshold, pool,
+-- sound or reduced-motion path was changed.
+--
+-- BIG-GAIN REGRESSION CHECKLIST (must be identical to the baseline = overnight reel 1 at 1.5 s;
+-- compare the new recording against it):
+--   1. Counter count-up: Tokens.Motion.CashGainSeconds 0.35 s, ease-out quad, lands exactly on
+--      the newest supplied value; spend count-down CashSpendSeconds 0.18 s, no punch.
+--   2. Punch: 12% (CashPunch), 16% (CashPunchBig) when delta >= max($1,000, 25% of the previous
+--      value) — inside CurrencyCounter, untouched; about the number's left edge.
+--   3. Icon pop: 8% about the icon centre (ICON_POP), with the punch wave.
+--   4. Sparkles: 3 from the counter pool (0.45 s, staggered 0.06 s) around the icon.
+--   5. Label: "+$N" (22 px) under the number, rises 16 px over 0.7 s (CashGainLabelSeconds),
+--      coalescing gains within 0.25 s (CashCoalesceSeconds).
+--   6. Preview extras (kept as they were, C4): gain chip hold 0.22 s + fly 0.38 s, chip
+--      coalescing 0.6 s, pool 3; big-gain preview policy max(10% of balance, $500) with an 8 s
+--      cooldown, whole-counter pop 1.06 about the icon centre, 6 bill sparks (0.55 s); spend
+--      glow + "-$N" chip (pool 2, 0.9 s).
+--   7. Sound hooks: "CashGain" per landed chip, "CashBig" instead for a celebrated big gain,
+--      "CashSpend" per spend; the throttle is the chip coalescing (one sound per chip).
+--   8. Reduced motion: no chip flight (the chip fades in place 0.6 s), the counter snaps, no
+--      pop, no sparks (a short calm glow instead); switching mid-animation lands everything.
+--   9. Icon anchor fixed while digits grow rightward; Format.cash text.
+-- Reduced-motion review (this task): no accessibility defect found in this path, so no
+-- exception was needed.
+--
+-- Reuses the approved CurrencyCounter (floating, no panel, icon fixed, number grows rightward,
+-- Format.cash). Around it:
 --   * Exact value: tapping, clicking, hovering or gamepad-focusing the counter shows the exact
---     supplied store.exactCash ("$1,250,000", whole dollars as supplied) in a small cream
---     tooltip for PreviewTokens.Motion.ExactValueSeconds.
+--     supplied store.exactCash ("$1,250,000", whole dollars as supplied) as outlined kit text
+--     right of the number for PreviewTokens.Motion.ExactValueSeconds.
 --   * Gain chip "+$120": appears at the origin, then merges into the number; the counter is
 --     updated (count-up, approved punch and "+$N" label) when the chip lands. Gains within
 --     COALESCE seconds of a chip's start join that chip. Pool of 3 chips; when all are busy the
@@ -34,23 +66,28 @@
 -- after the set (or right before it) is paired with it. Store.reset snaps the counter (it
 -- fires Changed("mode") first, which only reset does).
 --
--- API: CashLine.new(ctx) -> CashLine
+-- API: CashLine.new(ctx, Options?) -> CashLine
 --   :layout()  :setVisible(on)  :destroy()
 --   :gain(amount, worldPosition?)  -- visual only (the store event calls it)
 --   :spend(amount)                 -- visual only
 --   :showExact()
 --   :getDebugState()
+-- Options: parent (embedded: the StatsStack frame; no own HudScale or placement),
+--   approvedIcon (keep the approved CashIcon), showEarning (default: standalone only),
+--   onGainShown (called when the counter's own "+$N" label starts).
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 local Workspace = game:GetService("Workspace")
 
+local Arcade = require(script.Parent.Parent.Arcade)
 local CashIcon = require(script.Parent.Parent.Parent.CurrencyCounter.CashIcon)
 local CurrencyCounter = require(script.Parent.Parent.Parent.CurrencyCounter)
 local Fade = require(script.Parent.Fade)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Gloss = require(script.Parent.Parent.Gloss)
+local IconArt = require(script.Parent.IconArt)
 local Icons = require(script.Parent.Parent.Icons)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
@@ -74,6 +111,39 @@ local SPEND_POOL = 2
 local SPEND_SECONDS = 0.9
 local SPARKS = 6
 local SPARK_SECONDS = 0.55
+
+export type Options = {
+	parent: Instance?,
+	approvedIcon: boolean?,
+	showEarning: boolean?,
+	onGainShown: (() -> ())?,
+}
+
+-- The icon for the approved counter: the original CashStack art (Icons2) drawn into a box of
+-- the approved CashIcon's size, so CurrencyCounter's measured geometry (icon centre, GAP to the
+-- "$" ink, row height) and every timing stay exactly as approved. Falls back to the approved
+-- CashIcon when the art does not exist yet. `used` records which one was drawn.
+local function cashIconBuilder(approved: boolean, used: { kind: string }): (Instance, any) -> Frame
+	return function(parent: Instance, palette: any): Frame
+		if not approved then
+			local box = Instance.new("Frame")
+			box.Name = "CashStackIcon"
+			box.AnchorPoint = Vector2.new(0.5, 0.5)
+			box.Position = UDim2.fromScale(0.5, 0.5)
+			box.Size = UDim2.fromOffset(CashIcon.Size.X, CashIcon.Size.Y)
+			box.BackgroundTransparency = 1
+			box.Parent = parent
+			local ok = pcall(Arcade.icon, box, "CashStack")
+			if ok and IconArt.hasArt(box) then
+				used.kind = "CashStack"
+				return box
+			end
+			box:Destroy()
+		end
+		used.kind = "Approved"
+		return CashIcon.build(parent, palette)
+	end
+end
 
 export type CashLine = {
 	root: Frame,
@@ -129,11 +199,13 @@ local function outlined(
 	return t
 end
 
-function CashLine.new(ctx: Types.Ctx): CashLine
+function CashLine.new(ctx: Types.Ctx, options: Options?): CashLine
 	local self = setmetatable({}, CashLine) :: any
 	local trove = Trove.new()
 	self._trove = trove
 	self._ctx = ctx
+	self._opts = options or {}
+	self._embedded = self._opts.parent ~= nil
 	self._destroyed = false
 	local state = ctx.store:get()
 	local m = Layout.cashMetrics()
@@ -144,10 +216,13 @@ function CashLine.new(ctx: Types.Ctx): CashLine
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(m.reservedWidth, m.reservedHeight + 30),
 		ZIndex = 4,
-		Parent = ctx.layer,
+		Parent = self._opts.parent or ctx.layer,
 	}))
 	self.root = root
-	self._scale = make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
+	-- embedded: the parent (StatsStack) carries the HudScale; scaling twice would be wrong
+	self._scale = if self._embedded
+		then nil
+		else make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
 
 	-- The approved counter sits in a wrap anchored at the icon centre, so a big-gain pop of
 	-- the whole counter keeps the icon in place.
@@ -178,9 +253,10 @@ function CashLine.new(ctx: Types.Ctx): CashLine
 	Gloss.corner(glow, 14)
 	self._glow = glow
 
+	self._iconUsed = { kind = "None" }
 	local counter = CurrencyCounter.new(wrap, {
 		name = "Cash",
-		buildIcon = CashIcon.build,
+		buildIcon = cashIconBuilder(self._opts.approvedIcon == true, self._iconUsed),
 		iconSize = CashIcon.Size,
 		iconArtSize = CashIcon.ArtSize,
 		format = Format.cash,
@@ -242,29 +318,30 @@ function CashLine.new(ctx: Types.Ctx): CashLine
 		end
 	end)
 
-	-- Exact-value tooltip.
+	-- Exact-value detail (rebuild styling): kit text with a dark outline floating right of the
+	-- number, no cream card; placed at show time so it follows the number's current end.
 	local tip = make("Frame", {
 		Name = "ExactValue",
-		Position = UDim2.fromOffset(m.valueX - 4, m.rowHeight + 2),
-		Size = UDim2.fromOffset(140, 34),
-		BackgroundColor3 = C.Panel,
-		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromOffset(m.valueX + 120, m.rowHeight / 2),
+		Size = UDim2.fromOffset(0, 34),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 20,
 		Parent = root,
 	})
-	Gloss.corner(tip, 10)
-	Gloss.stroke(tip, 2.5)
-	local tipText = make("TextLabel", {
-		Name = "Value",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		FontFace = Tokens.font(),
-		TextSize = 20,
-		TextColor3 = C.Ink,
-		Text = "",
-		ZIndex = 21,
-		Parent = tip,
+	local tipText = Arcade.text(tip, {
+		text = "",
+		role = "Label",
+		name = "Value",
+		size = Tokens.TextSize.Value,
+		face = "Cash",
+		italic = true,
+		outline = "Major",
+		xAlign = Enum.TextXAlignment.Left,
+		autoWidth = true,
+		z = 21,
 	})
 	self._tip = tip
 	self._tipText = tipText
@@ -454,14 +531,21 @@ function CashLine.new(ctx: Types.Ctx): CashLine
 end
 
 function CashLine.layout(self: any)
+	local m = self._m
+	if self._embedded then
+		-- the StatsStack places this root (top-left of the Cash row) and owns the scale
+		self.root.Size = UDim2.fromOffset(m.reservedWidth, m.reservedHeight)
+		self._inline = true
+		self._earning.Position = UDim2.fromOffset(m.artLeft, m.rowHeight + 2)
+		return
+	end
 	local ctx: Types.Ctx = self._ctx
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local L = Layout.forProfile(ctx.screen:profile(), scale)
-	local m = self._m
 	-- a UIScale does not move its own object: the position is in layer pixels
 	self.root.Position = UDim2.fromOffset(L.cash.x * scale, L.cash.y * scale)
-	self.root.Size = UDim2.fromOffset(m.reservedWidth, L.cash.bottom - L.cash.y)
+	self.root.Size = UDim2.fromOffset(m.reservedWidth, m.reservedHeight)
 	self._inline = L.cash.inlineEarning
 	self._earning.Position = UDim2.fromOffset(m.artLeft, L.cash.earningY)
 end
@@ -559,6 +643,9 @@ function CashLine._apply(self: any, gain: number?)
 	if target > previous and self._inline then
 		self:_duckEarning()
 	end
+	if target > previous and self._opts.onGainShown then
+		self._opts.onGainShown()
+	end
 	if big then
 		self:_celebrate()
 	end
@@ -629,7 +716,11 @@ function CashLine._duckEarning(self: any)
 end
 
 function CashLine._setEarning(self: any, rate: number?)
-	if rate == nil then
+	local show = self._opts.showEarning
+	if show == nil then
+		show = not self._embedded
+	end
+	if rate == nil or not show then
 		self._earning.Visible = false
 		return
 	end
@@ -641,7 +732,8 @@ function CashLine._setTipText(self: any)
 	local exact: number = self._exact or self._applied
 	local text = "$" .. Format.group(exact)
 	self._tipText.Text = text
-	self._tip.Size = UDim2.fromOffset(math.ceil(textWidth(text, 20)) + 24, 34)
+	-- right of the number's current end (the number grows rightward; the icon never moves)
+	self._tip.Position = UDim2.fromOffset(self:_numberEnd() + 12, self._m.rowHeight / 2)
 end
 
 function CashLine.showExact(self: any)
@@ -894,7 +986,9 @@ function CashLine.getDebugState(self: any): { [string]: any }
 		earningFade = self._earningFade.value,
 		inlineEarning = self._inline,
 		reduced = Motion.reduced(),
-		scale = self._scale.Scale,
+		scale = if self._scale then self._scale.Scale else nil,
+		embedded = self._embedded,
+		icon = self._iconUsed.kind, -- "CashStack" (Icons2 art) | "Approved" (rev-4 CashIcon)
 		counter = self._counter:getDebugState(),
 	}
 end

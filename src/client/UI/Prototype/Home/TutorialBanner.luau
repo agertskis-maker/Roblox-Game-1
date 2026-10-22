@@ -1,23 +1,27 @@
 --!strict
--- Home HUD: tutorial objective banner near the top centre (Lane 3 preview). The tutorial content
--- is a PLACEHOLDER fixture list, not the real onboarding flow, and the banner grants nothing.
+-- Home HUD: tutorial objective banner (Lane 3 preview, HUD rebuild 2026-10-22; ledger H-13).
+-- The tutorial content is a PLACEHOLDER fixture list, not the real onboarding flow, and the
+-- banner grants nothing.
 --
--- Look: yellow rounded body with a small "TUTORIAL" tab, a navy status disc (flag while
--- active, tick when done), high-contrast navy objective text, a counter "(1/3)" and a thin
--- progress strip. States from store.tutorial (Store.Tutorial):
+-- Look (Arcade kit): a yellow ("Gold" fill) rectangle with limited rounding, the thick dark
+-- button boundary and a narrow gloss band, a small yellow "TUTORIAL" tab, an ink status disc
+-- (flag while active, tick when done). Text hierarchy — not every line enlarged equally:
+--   1. objective   largest: white, Value size (24), heavy dark outline, wraps (never clipped)
+--   2. progress    smaller italic counter "1/3" (Label 18) and a segmented-looking strip
+--   3. micro-hint  smallest: white Small (16) with a light outline floating under the banner,
+--                  no cream pill
+-- States from store.tutorial (Store.Tutorial):
 --   Active  objective + counter + strip
---   Hint    the same plus a neutral cream micro-hint line under the banner (tutorial.hint)
---   Done    tick, brief green treatment, full strip, bounded confetti (16 pieces, none in
+--   Hint    the same plus the micro-hint (tutorial.hint)
+--   Done    tick, green body ("Green" fill), full strip, bounded confetti (16 pieces, none in
 --           reduced motion), sound hook TutorialDone. After DONE_SECONDS the optional
---           opts.onDoneShown(step) callback fires once so the playground can advance the
---           fixture; the banner itself never writes the store.
--- A new step crossfades (and slides 12 px in, not in reduced motion) to the next objective.
--- nil tutorial fades the banner out. Nothing here is interactive: input passes through, there
--- is no modal and no full-screen layer.
+--           opts.onDoneShown(step) fires once so the playground can advance the fixture; the
+--           banner itself never writes the store.
+-- A new step crossfades (and slides 12 px in, not in reduced motion). nil fades it out. Nothing
+-- here is interactive: input passes through, no modal, no full-screen layer.
 --
--- Placement (Home/Layout): top centre between Cash's reserved width and the top-right
--- Settings/ride-chip area; on PhonePortrait a full-width banner under the menu row, with
--- wrapping objective text. The body grows to fit wrapped text (never clipped).
+-- Placement (Home/Layout): top centre, clear of the left menu; full width at the top on
+-- PhonePortrait. The body grows to fit wrapped text.
 --
 -- API: TutorialBanner.new(ctx, { onDoneShown: ((step: number) -> ())? }?) -> TutorialBanner
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()
@@ -25,10 +29,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
+local Arcade = require(script.Parent.Parent.Arcade)
 local Fade = require(script.Parent.Fade)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
-local Gloss = require(script.Parent.Parent.Gloss)
-local Icons = require(script.Parent.Parent.Icons)
+local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
@@ -38,15 +42,17 @@ local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
+local A = PreviewTokens.Arcade
+local B = A.Button
 
 local DONE_SECONDS = 1.6
 local CONFETTI = 16
 local CONFETTI_SECONDS = 0.9
 local STATUS = 36
 local PAD = 12
-local STRIP = 6
+local STRIP = 8
+local COUNTER_SIZE = A.Text.Label
+local HINT_SIZE = A.Text.Small
 local CONFETTI_COLOURS = {
 	Color3.fromRGB(255, 120, 170),
 	Color3.fromRGB(90, 190, 255),
@@ -78,7 +84,7 @@ local function counterText(t: Store.Tutorial): string
 	if t.state == "Done" then
 		count = t.goal
 	end
-	return string.format("(%s/%s)", Format.group(count), Format.group(t.goal))
+	return string.format("%s/%s", Format.group(count), Format.group(t.goal))
 end
 
 function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
@@ -89,12 +95,12 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	self._opts = opts or {}
 	self._destroyed = false
 	self._width = 400
-	self._textSize = 20
-	self._bodyH = 56
+	self._textSize = Tokens.TextSize.Value
+	self._bodyH = 60
 	self._tutorial = nil :: Store.Tutorial?
 	self._doneToken = 0
-	self._shownToken = 0
 	self._wanted = true
+	local make = Arcade.make
 
 	local root = trove:Add(make("Frame", {
 		Name = "TutorialBanner",
@@ -111,7 +117,6 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	self.root = root
 	self._scale = make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
 
-	-- Everything that fades in and out together sits in `all`.
 	local all = make("Frame", {
 		Name = "All",
 		BackgroundTransparency = 1,
@@ -121,47 +126,46 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	})
 	self._all = all
 
+	-- shallow dark lip under the body (kit depth), then the body
+	local lip = make("Frame", {
+		Name = "Lip",
+		Position = UDim2.fromOffset(0, Layout.BannerTabOverlap + B.DepthOffset),
+		Size = UDim2.fromOffset(400, 60),
+		BackgroundColor3 = A.Ink,
+		ZIndex = 5,
+		Parent = all,
+	})
+	Arcade.corner(lip)
+	self._lip = lip
 	local body = make("Frame", {
 		Name = "Body",
 		Position = UDim2.fromOffset(0, Layout.BannerTabOverlap),
-		Size = UDim2.fromOffset(400, 56),
-		BackgroundColor3 = C.White,
-		BorderSizePixel = 0,
+		Size = UDim2.fromOffset(400, 60),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 6,
 		Parent = all,
 	})
-	Gloss.corner(body, 16)
-	Gloss.stroke(body, 3)
-	self._gradient = Gloss.gradient(body, C.TutorialLight, C.TutorialDeep)
-	Gloss.highlight(body, 16)
-	self._shadow = Gloss.shadow(body, 16)
+	Arcade.corner(body)
+	Arcade.outline(body, "Button")
+	self._gradient = make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Parent = body })
+	Arcade.gloss(body)
 	self._body = body
 
-	local tabText = "TUTORIAL"
 	local tab = make("Frame", {
 		Name = "Tab",
-		Position = UDim2.fromOffset(18, 0),
-		Size = UDim2.fromOffset(math.ceil(measure(tabText, 16).X) + 20, 24),
-		BackgroundColor3 = C.TutorialDeep,
-		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(16, 0),
+		Size = UDim2.fromOffset(math.ceil(measure("TUTORIAL", HINT_SIZE).X) + 22, 26),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 9,
 		Parent = all,
 	})
-	Gloss.corner(tab, 10)
-	Gloss.stroke(tab, 2.5)
-	make("TextLabel", {
-		Name = "Text",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		FontFace = Tokens.font(),
-		Text = tabText,
-		TextSize = 16,
-		TextColor3 = C.Ink,
-		ZIndex = 10,
-		Parent = tab,
-	})
+	Arcade.corner(tab, 5)
+	Arcade.outline(tab, "Button")
+	make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Parent = tab })
+	local tabText = Arcade.text(tab, { text = "TUTORIAL", role = "Small", name = "Text", z = 10 })
+	tabText.Size = UDim2.fromScale(1, 1)
 
-	-- Content that crossfades on a new step.
+	-- content that crossfades on a new step
 	local content = make("Frame", {
 		Name = "Content",
 		BackgroundTransparency = 1,
@@ -173,16 +177,14 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	local status = make("Frame", {
 		Name = "Status",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, PAD, 0.5, -3),
+		Position = UDim2.new(0, PAD, 0.5, 0),
 		Size = UDim2.fromOffset(STATUS, STATUS),
-		BackgroundColor3 = C.Ink,
-		BorderSizePixel = 0,
+		BackgroundColor3 = A.Ink,
 		ZIndex = 9,
 		Parent = content,
 	})
-	Gloss.corner(status, STATUS / 2)
-	Gloss.stroke(status, 2, C.White)
-	-- Both status icons are built once (so the fades capture them) and toggled.
+	Arcade.corner(status, STATUS)
+	Arcade.outline(status, 2, Color3.new(1, 1, 1))
 	self._statusIcons = {} :: { [string]: Frame }
 	for _, name in { "Flag", "Check" } do
 		local holder = make("Frame", {
@@ -195,84 +197,66 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 			ZIndex = 10,
 			Parent = status,
 		})
-		Icons.draw(holder, name :: Icons.Name)
+		IconArt.draw(holder, { name })
 		self._statusIcons[name] = holder
 	end
 	self._status = status
 	self._statusName = "Flag"
-	local objective = make("TextLabel", {
-		Name = "Objective",
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = 20,
-		TextColor3 = C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		TextWrapped = true,
-		ZIndex = 9,
-		Parent = content,
+
+	local objective = Arcade.text(content, {
+		text = "",
+		role = "Button",
+		name = "Objective",
+		size = Tokens.TextSize.Value,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 9,
 	})
+	objective.TextWrapped = true
 	self._objective = objective
-	local counter = make("TextLabel", {
-		Name = "Counter",
-		BackgroundTransparency = 1,
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = 20,
-		TextColor3 = C.Ink,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 9,
-		Parent = content,
+	local counter = Arcade.text(content, {
+		text = "",
+		role = "Label",
+		name = "Counter",
+		size = COUNTER_SIZE,
+		italic = true,
+		xAlign = Enum.TextXAlignment.Right,
+		z = 9,
 	})
 	self._counter = counter
 	local track = make("Frame", {
 		Name = "Strip",
-		BackgroundColor3 = C.Ink,
-		BackgroundTransparency = 0.75,
-		BorderSizePixel = 0,
+		BackgroundColor3 = A.Ink,
+		BackgroundTransparency = 0.45,
 		ZIndex = 9,
 		Parent = body,
 	})
-	Gloss.corner(track, STRIP / 2)
+	Arcade.corner(track, STRIP / 2)
+	Arcade.outline(track, "Minor")
 	local fill = make("Frame", {
 		Name = "Fill",
-		BackgroundColor3 = C.Ink,
-		BorderSizePixel = 0,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Size = UDim2.fromScale(0, 1),
 		ZIndex = 10,
 		Parent = track,
 	})
-	Gloss.corner(fill, STRIP / 2)
+	Arcade.corner(fill, STRIP / 2)
+	self._fillGradient = make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = fill })
 	self._track = track
 	self._fill = fill
 	self._progress = 0
 
-	-- Neutral micro-hint line under the banner.
+	-- micro-hint: floating outlined text under the banner (smallest line, no pill)
 	local hint = make("Frame", {
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Size = UDim2.fromOffset(200, Layout.HintHeight),
-		BackgroundColor3 = C.Panel,
-		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 6,
 		Parent = all,
 	})
-	Gloss.corner(hint, Layout.HintHeight / 2)
-	Gloss.stroke(hint, 2)
-	local hintText = make("TextLabel", {
-		Name = "Text",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -16, 1, 0),
-		Position = UDim2.fromOffset(8, 0),
-		FontFace = Tokens.font(),
-		Text = "",
-		TextSize = 16,
-		TextColor3 = C.InkSoft,
-		ZIndex = 7,
-		Parent = hint,
-	})
+	local hintText = Arcade.text(hint, { text = "", role = "Small", name = "Text", size = HINT_SIZE, z = 7 })
+	hintText.Size = UDim2.fromScale(1, 1)
 	self._hint = hint
 	self._hintText = hintText
 	self._hintFade = Fade.capture(hint)
@@ -286,7 +270,6 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		Motion.cancelAll(fill)
 	end)
 
-	-- Confetti pool.
 	self._confetti = {} :: { Frame }
 	for i = 1, CONFETTI do
 		local piece = make("Frame", {
@@ -299,7 +282,7 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 			ZIndex = 12,
 			Parent = root,
 		})
-		Gloss.corner(piece, 2)
+		Arcade.corner(piece, 2)
 		table.insert(self._confetti, piece)
 	end
 	trove:Add(function()
@@ -326,7 +309,7 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	return self :: TutorialBanner
 end
 
-function TutorialBanner._setStatusIcon(self: any, name: Icons.Name)
+function TutorialBanner._setStatusIcon(self: any, name: string)
 	if self._statusName == name then
 		return
 	end
@@ -336,36 +319,33 @@ function TutorialBanner._setStatusIcon(self: any, name: Icons.Name)
 	end
 end
 
--- Places every piece for the current width, text size and text.
 function TutorialBanner._arrange(self: any)
 	local width: number = self._width
 	local size: number = self._textSize
-	local counterW = math.ceil(measure(self._counter.Text, size).X) + 4
+	local counterW = math.ceil(measure(self._counter.Text, COUNTER_SIZE).X * 1.1) + 12
 	local textX = PAD + STATUS + 10
-	local objectiveW = width - textX - counterW - PAD - 6
-	local textH = measure(self._objective.Text, size, objectiveW).Y
-	local bodyH = math.max(56, math.ceil(textH) + 22 + STRIP)
+	local objectiveW = width - textX - counterW - PAD
+	local textH = measure(self._objective.Text, size, objectiveW - 10).Y
+	local bodyH = math.max(60, math.ceil(textH) + 24 + STRIP)
 	self._bodyH = bodyH
 	self._objective.TextSize = size
-	self._counter.TextSize = size
-	self._objective.Position = UDim2.fromOffset(textX, 4)
-	self._objective.Size = UDim2.fromOffset(objectiveW, bodyH - STRIP - 14)
-	self._counter.Position = UDim2.fromOffset(width - PAD - counterW, 4)
-	self._counter.Size = UDim2.fromOffset(counterW, bodyH - STRIP - 14)
+	self._objective.Position = UDim2.fromOffset(textX, 6)
+	self._objective.Size = UDim2.fromOffset(objectiveW, bodyH - STRIP - 18)
+	self._counter.Position = UDim2.fromOffset(width - PAD - counterW, 6)
+	self._counter.Size = UDim2.fromOffset(counterW, bodyH - STRIP - 18)
 	self._body.Size = UDim2.fromOffset(width, bodyH)
-	self._shadow.Size = self._body.Size
-	self._shadow.Position = self._body.Position + UDim2.fromOffset(0, PreviewTokens.Size.ShadowOffset)
-	self._track.Position = UDim2.fromOffset(textX, bodyH - STRIP - 8)
+	self._lip.Size = self._body.Size
+	self._track.Position = UDim2.fromOffset(textX, bodyH - STRIP - 9)
 	self._track.Size = UDim2.fromOffset(width - textX - PAD, STRIP)
-	local hintW = math.min(width, math.ceil(measure(self._hintText.Text, 16).X) + 28)
+	local hintW = math.min(width, math.ceil(measure(self._hintText.Text, HINT_SIZE).X) + 24)
 	self._hint.Size = UDim2.fromOffset(hintW, Layout.HintHeight)
-	self._hint.Position = UDim2.fromOffset(width / 2, Layout.BannerTabOverlap + bodyH + Layout.HintGap)
-	self.root.Size = UDim2.fromOffset(width, Layout.BannerTabOverlap + bodyH + Layout.HintGap + Layout.HintHeight)
+	self._hint.Position = UDim2.fromOffset(width / 2, Layout.BannerTabOverlap + bodyH + B.DepthOffset + Layout.HintGap)
+	self.root.Size =
+		UDim2.fromOffset(width, Layout.BannerTabOverlap + bodyH + B.DepthOffset + Layout.HintGap + Layout.HintHeight)
 end
 
-function TutorialBanner._setProgress(self: any, p: number, done: boolean)
+function TutorialBanner._setProgress(self: any, p: number)
 	local fill: Frame = self._fill
-	fill.BackgroundColor3 = if done then C.Success else C.Ink
 	self._progress = p
 	if Motion.reduced() then
 		Motion.cancelAll(fill)
@@ -379,17 +359,16 @@ function TutorialBanner._applyContent(self: any, t: Store.Tutorial)
 	self._objective.Text = t.objective
 	self._counter.Text = counterText(t)
 	local done = t.state == "Done"
-	self._gradient.Color = if done
-		then ColorSequence.new(C.SuccessLight, C.Success)
-		else ColorSequence.new(C.TutorialLight, C.TutorialDeep)
-	self._status.BackgroundColor3 = if done then C.Success else C.Ink
-	local icon: Icons.Name = if done then "Check" else "Flag"
-	self:_setStatusIcon(icon)
+	self._gradient.Color = if done then A.Fill.Green else A.Fill.Gold
+	self._status.BackgroundColor3 = if done then Color3.fromRGB(30, 150, 60) else A.Ink
+	self:_setStatusIcon(if done then "Check" else "Flag")
 	local hintOn = t.state == "Hint" and t.hint ~= nil and t.hint ~= ""
-	self._hintText.Text = if hintOn then t.hint :: string else self._hintText.Text
+	if hintOn then
+		self._hintText.Text = t.hint :: string
+	end
 	self:_arrange()
 	local p = if t.goal > 0 then math.clamp(t.count / t.goal, 0, 1) else 0
-	self:_setProgress(if done then 1 else p, done)
+	self:_setProgress(if done then 1 else p)
 	if hintOn and not self._hint.Visible then
 		self._hint.Visible = true
 		self._hintFade:set(1)
@@ -436,7 +415,6 @@ function TutorialBanner._set(self: any, t: Store.Tutorial?)
 	end
 	local newStep = previous ~= nil and previous.step ~= tut.step
 	if newStep then
-		-- Crossfade (and a short slide when motion is allowed) to the next objective.
 		local content: Frame = self._content
 		self._contentFade:set(1)
 		self:_applyContent(tut)
@@ -517,7 +495,7 @@ function TutorialBanner.layout(self: any)
 	local b = Layout.forProfile(ctx.screen:profile(), scale).banner
 	self._width = b.width
 	self._textSize = math.max(b.textSize, Tokens.TextSize.Minimum)
-	self.root.Position = UDim2.fromOffset(b.cx * scale, b.y * scale) -- layer px (UIScale does not move it)
+	self.root.Position = UDim2.fromOffset(b.cx * scale, b.y * scale) -- layer px
 	self:_arrange()
 end
 
@@ -544,7 +522,10 @@ function TutorialBanner.getDebugState(self: any): { [string]: any }
 		state = if t then t.state else nil,
 		step = if t then t.step else nil,
 		objective = self._objective.Text,
+		objectiveSize = self._objective.TextSize,
 		counter = self._counter.Text,
+		counterSize = self._counter.TextSize,
+		hintSize = self._hintText.TextSize,
 		progress = self._progress,
 		hintVisible = self._hint.Visible,
 		hint = self._hintText.Text,
@@ -552,7 +533,6 @@ function TutorialBanner.getDebugState(self: any): { [string]: any }
 		confettiPool = CONFETTI,
 		bodyHeight = self._bodyH,
 		width = self._width,
-		textSize = self._objective.TextSize,
 		objectiveFits = self._objective.TextFits,
 		devicePos = pos,
 		deviceSize = size,

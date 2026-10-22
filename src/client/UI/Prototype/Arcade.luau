@@ -216,8 +216,13 @@ function Arcade.icon(holder: Frame, name: string): boolean
 	local ok = pcall(function()
 		Icons.draw(holder, name :: any)
 	end)
-	if ok and holder:FindFirstChild("Art") then
+	local art = holder:FindFirstChild("Art")
+	if ok and art and #art:GetChildren() > 0 then
 		return true
+	end
+	-- Icons.draw leaves an empty "Art" frame for a name it does not know: replace it
+	if art then
+		art:Destroy()
 	end
 	-- neutral missing-icon glyph: a rounded square with a "?" (never an empty hole)
 	local box = make("Frame", {
@@ -604,8 +609,28 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 	-- rainbow drift: shifts the gradient offset slowly; paused when hidden or reduced motion
 	if spec.drift and spec.fill == "Rainbow" then
 		local t = 0
+		-- shown only when the root and every GuiObject/ScreenGui above it is visible
+		local function onScreen(): boolean
+			local node: Instance? = root
+			while node do
+				if node:IsA("GuiObject") and not node.Visible then
+					return false
+				elseif node:IsA("LayerCollector") then
+					return node.Enabled
+				end
+				node = node.Parent
+			end
+			return false
+		end
+		local check = 0
+		local shown = true
 		trove:Connect(RunService.Heartbeat, function(dt)
-			if Motion.reduced() or not root.Visible or not root:IsDescendantOf(game) then
+			check -= dt
+			if check <= 0 then
+				check = 0.25
+				shown = onScreen()
+			end
+			if Motion.reduced() or not shown then
 				if grad.Offset ~= Vector2.zero and Motion.reduced() then
 					grad.Offset = Vector2.zero
 				end

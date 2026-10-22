@@ -33,6 +33,11 @@ Ledger and plan: [[hud-rebuild-downtown-b]]. Branch `feature/lane3-hud-downtown-
    families list Black Italic 900). Fredoka One stays for labels.
 2. Decision note number 0019 (0016–0018 used on the island branch / this branch).
 3. Board claim on main via the clean tooling worktree (board-only commit).
+4. Keys ring: 8 segments (brief range 8–12; capture research suggested 4; low end of the brief kept for phone clarity).
+5. Arcade tokens retuned to the measured references: wide 150×60, corner 5, boundary 3, label 28, icons 0.74×h inside the edge, gap 8; Settings 84×40 visual with a 48 hit box (measured 35 is below the approved touch size).
+6. References: HUD screenshots copied as 1920-wide JPGs (originals 5 MB PNGs stay in Car-Hop-Art); 11 dino frames + analysis copied verbatim to vault/design/references/dino-study/; provenance README.
+7. Sound candidates (16 verified ids) loaded through Sounds.luau routes, two per category, A/B switchable; CashBig deliberately left without an asset (none was ever approved).
+8. Downtown kit contract set by the lead (pivot front-left of footprint, 96/192 straights, R 360 curves, 4 × 17 lanes default); the research note proposed bottom-centre pivots and 192-only segments — kept as a later option.
 
 ## Current files (this task)
 - Docs: `vault/design/specs/hud-rebuild-downtown-b.md`, this file,
@@ -42,8 +47,12 @@ Ledger and plan: [[hud-rebuild-downtown-b]]. Branch `feature/lane3-hud-downtown-
 
 ## Lock log
 - 09:20 island lock present (07:40). Repo work only.
+- 09:39 still present; passes 2 h at 09:40 — per the lock rule, told Adam instead of touching it.
+
+## Workers (launched 09:30–09:45)
+HA icons+specimen, HH home, HS screens/Results, HR run+Keys, HW world+fixtures, DK Blender kit (only Blender operator), DC city grammar (asked to run client-side in Play too). Lead-owned files committed in 2d1b401.
 
 ## Next actions
-1. Core contracts: PreviewTokens Arcade block, Arcade.luau, Store types, Priority.luau.
-2. Launch workers HA HH HS HR HW DK DC with owned files.
-3. Recheck the Studio lock about every 10 minutes.
+1. Integrate worker reports: mount lines in HudPlayground, Backdrop needs, lint.
+2. When the Studio lock is free: write own lock, rojo build both places, open the HUD place, specimen sheet first.
+3. Recheck the lock about every 10 minutes.

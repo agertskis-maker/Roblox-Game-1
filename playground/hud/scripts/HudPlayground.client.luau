@@ -126,17 +126,21 @@ local function applyCaptions(root: Instance)
 	for _, d in root:GetDescendants() do
 		if d:IsA("GuiObject") and (d:GetAttribute("PreviewCaption") == true or d.Name == "PreviewNote") then
 			d.Visible = api.captions
+		elseif d:IsA("LayerCollector") and d:GetAttribute("PreviewCaption") == true then
+			d.Enabled = api.captions
 		end
 	end
 end
 function api.setCaptions(on: boolean)
 	api.captions = on
 	applyCaptions(gui)
+	applyCaptions(backdrop.world)
 end
 trove:Add(task.spawn(function()
 	while true do
 		task.wait(0.5)
 		applyCaptions(gui)
+		applyCaptions(backdrop.world)
 	end
 end))
 trove:Connect(gui.DescendantAdded, function(d)
@@ -165,7 +169,7 @@ end
 
 -- Hide or show the run HUD (the Stunt Circuit mock has its own HUD)
 function api.setRunHudVisible(on: boolean)
-	for _, key in { "run", "ride", "keys", "hop", "dash" } do
+	for _, key in { "run", "ride", "strip", "heat", "tray", "keys", "hop", "dash" } do
 		local c = components[key]
 		if c and c.setVisible then
 			c:setVisible(on)
@@ -205,8 +209,64 @@ end
 api.goHome = goHome
 api.goRun = goRun
 
+-- RunEnd hand-off: Results from the current run state (preview: the HUD never computes rewards;
+-- the fixture fills what Lane 1 / Lane 2 would supply). Confirmed claims stay; a capture the
+-- ribbon could not show is merged once.
+function api.resultsFromRun(reason: string?)
+	local state = store:get()
+	if state.mode ~= "Run" then
+		return
+	end
+	local run = state.run
+	local claimed = {}
+	local seen: { [string]: boolean } = {}
+	if run and run.claims then
+		for _, c in run.claims do
+			if not seen[c.id] then
+				seen[c.id] = true
+				table.insert(claimed, c.car)
+			end
+		end
+	end
+	local ribbon = components.ribbon
+	if ribbon and ribbon.takePendingCards then
+		for _, car in ribbon:takePendingCards() do
+			local key = "car:" .. tostring(car.id)
+			local dup = false
+			for _, c in claimed do
+				if c.id == car.id then
+					dup = true
+				end
+			end
+			if not dup and not seen[key] then
+				seen[key] = true
+				table.insert(claimed, car)
+			end
+		end
+	end
+	local distance = if run then math.floor(run.distance) else 0
+	local best = if run then run.best else 0
+	local res = {
+		distance = distance,
+		coins = if run then run.coins else 0,
+		best = math.max(best, distance),
+		newBest = distance > best,
+		claimed = claimed,
+		earnings = 120 * #claimed + 40, -- FIXTURE amount (Lane 2 supplies real earnings)
+		endReason = reason,
+	}
+	store:set("results", res)
+	if store:setMode("Results") then
+		local card = components.results
+		if card and card.show then
+			card:show(res, claimed)
+		end
+	end
+end
+
 -- Home HUD
-mount("cash", { "Home", "CashLine" }, "Hud")
+mount("stats", { "Home", "StatsStack" }, "Hud")
+mount("timers", { "Home", "TimerStack" }, "Hud")
 mount("menu", { "Home", "LeftMenu" }, "Hud", {
 	onGarage = function()
 		api.open("garage")
@@ -253,6 +313,9 @@ mount("results", { "Screens", "ResultsCard" }, "Modal", {
 	end,
 })
 mount("stunt", { "Screens", "StuntMock" }, "Run", {})
+-- Specimen sheet (harness overlay, hidden by default; HUD rebuild V-01)
+mount("specimen", { "Specimen" }, "Overlay")
+mount("cardSheet", { "Cards", "StatesSheet" }, "Overlay", {})
 -- Run HUD and world feedback
 mount("run", { "Run", "RunLayer" }, "Run")
 mount("ride", { "Run", "RideChip" }, "Run", {
@@ -260,9 +323,18 @@ mount("ride", { "Run", "RideChip" }, "Run", {
 		api.open("settings")
 	end,
 })
-mount("keys", { "Run", "KeysRing" }, "Run")
-mount("capture", { "Run", "CaptureCelebration" }, "Feedback")
-mount("owned", { "Run", "AlreadyOwned" }, "Feedback")
+mount("strip", { "Run", "DistrictStrip" }, "Run")
+mount("heat", { "Run", "HeatBar" }, "Run")
+mount("tray", { "Run", "ClaimTray" }, "Run")
+mount("keys", { "Run", "KeysLock" }, "Run", { anchor = backdrop.ride })
+mount("banner", { "Run", "DistrictBanner" }, "Feedback")
+mount("ribbon", { "Run", "CaptureRibbon" }, "Feedback")
+mount("runEnd", { "Run", "RunEnd" }, "Feedback", {
+	anchor = backdrop.ride,
+	onFinished = function(reason: string?)
+		api.resultsFromRun(reason)
+	end,
+})
 mount("hop", { "Run", "HopButton" }, "Run", {
 	onHopIntent = function()
 		api.harness("Hop intent (preview only)")
@@ -271,6 +343,17 @@ mount("hop", { "Run", "HopButton" }, "Run", {
 mount("dash", { "Run", "FootDash" }, "Run")
 mount("milestones", { "Run", "Milestones" }, "Feedback")
 mount("hopRing", { "World", "HopRing" }, "Run", { target = backdrop.target })
+mount("nameplates", { "World", "Nameplates" }, "Feedback")
+mount("rareReveal", { "World", "RareReveal" }, "Feedback", {
+	isPresent = function(id: string): boolean
+		local plates = components.nameplates
+		return plates ~= nil and plates:isTracked(id)
+	end,
+})
+mount("hopArc", { "World", "ArcTelegraph" }, "Run", { ride = backdrop.ride, target = backdrop.target })
+mount("captureFx", { "World", "CaptureFx" }, "Feedback", { ride = backdrop.ride, rideId = "traffic-1" })
+mount("warnFx", { "World", "WarnFx" }, "Feedback", { ride = backdrop.ride, rideId = "traffic-1", badge = false })
+mount("tumble", { "World", "TumbleProxy" }, "Feedback", { ride = backdrop.ride })
 mount("lapPay", { "World", "LapPay" }, "Feedback", { cars = backdrop.lapCars })
 mount("prompts", { "World", "Prompts" }, "Feedback", {
 	props = backdrop.props,
@@ -304,6 +387,19 @@ do
 		hop:setHopIntent(function()
 			api.harness("Hop intent sent (preview only)")
 		end)
+	end
+	-- nameplates over the backdrop traffic (ids "traffic-<index>"; ridden = 1, Hop target = 2)
+	local plates = components.nameplates
+	if plates and plates.track then
+		for i, m in backdrop.traffic do
+			plates:track("traffic-" .. i, m, backdrop.trafficCars[i])
+		end
+		plates:setRidden("traffic-1")
+		plates:setTarget("traffic-2")
+	end
+	local fx = components.captureFx
+	if fx and fx.setNameplates then
+		fx:setNameplates(plates)
 	end
 	-- dummy prompts on the playground props (presentation only; triggering does nothing real)
 	local prompts = components.prompts
@@ -346,8 +442,8 @@ function api.close(name: string)
 end
 
 -- visibility by mode
-local HOME = { "cash", "menu", "tutorial", "route" }
-local RUN = { "run", "ride", "keys", "hop", "dash" }
+local HOME = { "stats", "menu", "tutorial", "route", "timers" }
+local RUN = { "run", "ride", "strip", "heat", "tray", "keys", "hop", "dash", "runEnd" }
 local function applyMode(mode: string)
 	for _, k in HOME do
 		local c = components[k]
@@ -361,6 +457,13 @@ local function applyMode(mode: string)
 			c:setVisible(mode == "Run")
 		end
 	end
+	local stats = components.stats
+	if stats and stats.setVisible then
+		stats:setVisible(mode ~= "Results")
+		if stats.setCompact then
+			stats:setCompact(mode == "Run")
+		end
+	end
 	backdrop.setRunCamera(mode == "Run")
 	if mode == "Home" then
 		-- stand on the playground lot facing the dummy Garage, kiosk and portal
@@ -372,6 +475,14 @@ local function applyMode(mode: string)
 	local ring = components.hopRing
 	if ring and ring.setState then
 		ring:setState(if mode == "Run" then "Available" else "Hidden")
+	end
+	local arc = components.hopArc
+	if arc and arc.setState then
+		arc:setState(if mode == "Run" then "Available" else "Hidden")
+	end
+	local platesNow = components.nameplates
+	if platesNow and platesNow.setVisible then
+		platesNow:setVisible(mode == "Run")
 	end
 	if mode ~= "Results" then
 		local r = components.results
@@ -430,7 +541,11 @@ end
 function api.reset()
 	scenarios:cancel()
 	priority:clear()
-	for _, k in { "settings", "garage", "portalCard", "welcome", "shop" } do
+	local specimen = components.specimen
+	if specimen and specimen.setVisible then
+		specimen:setVisible(false)
+	end
+	for _, k in { "settings", "garage", "portalCard", "welcome", "shop", "cardSheet" } do
 		api.close(k)
 	end
 	store:reset()

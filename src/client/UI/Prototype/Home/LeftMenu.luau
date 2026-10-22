@@ -1,51 +1,54 @@
 --!strict
--- Home HUD: left menu under Cash (Lane 3 preview). Buttons only call the callbacks they are
--- given; nothing here opens a real shop, grants, buys or saves anything.
+-- Home HUD: the arcade left menu (Lane 3 preview, HUD rebuild 2026-10-22; ledger H-01..H-05,
+-- H-12, V-07). Built only from the Arcade kit (Prototype/Arcade.luau). Buttons only call the
+-- callbacks they are given; nothing here opens a real shop, grants, buys or saves anything.
 --
---   Garage   cyan, Garage icon, label "GARAGE", collection progress pill "3/12"
---            (store.garage.owned / total), red badge = store.garage.unseen (earned, not seen)
---   Shop     friendly rainbow body, Shop icon, label "SHOP". No badge and no attention
---            animation, ever (calm paid UI, no pressure).
---   Missions orange, clipboard icon, label "MISSIONS", badge = store.missionsClaimable
---            (earned free claims only)
---   Settings smaller (48) navy gear, icon only (decision: the gear is universally read, and a
---            label would give a secondary control the same weight as the main three; its
---            accessible name is the button's Name "Settings").
+--   Settings  small red labelled rectangle ("Settings" fill, Small size) ABOVE the stack and
+--             centred on it (Desktop/Tablet); no Gear, no second button.
+--   Shop      Wide, "Rainbow" fill with the slow sideways drift (stopped in reduced motion and
+--             while hidden — the kit does this), Gift icon left (Cart if Gift has no art), large
+--             "Shop" label, faint motor pattern. Badge ONLY for actual free fixture claims
+--             (options.shopFreeClaims or :setShopFreeClaims; default none). Never purchase
+--             urgency, never an attention animation.
+--   Garage    Wide, "Garage" fill, GarageBook icon, earned-unseen badge = store.garage.unseen.
+--   Missions  Wide, "Missions" fill, Clipboard icon, earned-claim badge = store.missionsClaimable.
+--   Music     Arcade.toggle bound to store.settings.musicOn (a real local preview setting:
+--             Home/MusicSetting sets the preview music SoundGroup volume). No fake Slow Mode.
+-- The three big buttons have equal widths, so their icon centres line up; gaps are B.Gap.
+-- Badges live on each button's fixed root (the kit's design), so a press scale never shrinks or
+-- clips them. Removed from the overnight menu: the "3/12" chip and the gear-only Settings.
+-- No right-side square buttons, no Daily/Goals, no hotbar.
 --
--- Labels sit under each body (not inside it), so long labels never clip: each item is as wide
--- as max(body + badge room, measured label). Badges: 0 hidden, 1..9, then "9+" (Gloss.badge).
--- Bodies are 64 design px (96 device px on 1080p at scale 1.5) on Desktop and Tablet, 48 on
--- phones (the touch minimum) with 16 px labels. Placement comes from Home/Layout: a column on
--- Desktop, a row on Tablet and phones so the menu ends above the reserved thumbstick zone.
--- Text is never shrunk below 16.
+-- Placement per device comes from Home/Layout (Column on Desktop, TabletColumn on Tablet, a
+-- two-row PhoneBlock on phones; see that file for why phones are not a column).
 --
--- API: LeftMenu.new(ctx, { onGarage, onShop, onMissions, onSettings }) -> LeftMenu
---   :layout()  :setVisible(on)  :destroy()
---   :getButton(name) -> GuiObject?   -- "Garage" | "Shop" | "Missions" | "Settings" (focus return)
---   :setLabelOverride(name, text?)   -- test hook for long labels (e.g. "COLLECTION")
---   :getDebugState()
+-- API: LeftMenu.new(ctx, Options?) -> LeftMenu
+--   :layout()  :setVisible(on)  :destroy()  :getDebugState()
+--   :getButton(name) -> GuiObject?            -- "Settings" | "Shop" | "Garage" | "Missions" | "Music"
+--   :setLabelOverride(name, text?)            -- test hook for long labels (wraps to two lines)
+--   :setIconOverride(name, iconName?)         -- test hook for a missing icon
+--   :setShopFreeClaims(count?)                -- actual free fixture claims only
+--   :setPressed(name, down)                   -- test hook: hold the press scale (badge survival)
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextService = game:GetService("TextService")
 
-local Gloss = require(script.Parent.Parent.Gloss)
-local Icons = require(script.Parent.Parent.Icons)
+local Arcade = require(script.Parent.Parent.Arcade)
+local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
-local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local MusicSetting = require(script.Parent.MusicSetting)
 local Store = require(script.Parent.Parent.Store)
-local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
 
-local C = PreviewTokens.Color
-local make = Gloss.make
-
-export type Callbacks = {
+export type Options = {
 	onGarage: (() -> ())?,
 	onShop: (() -> ())?,
 	onMissions: (() -> ())?,
 	onSettings: (() -> ())?,
+	-- LOCAL OPTION (not a Store field): the number of actually free fixture claims waiting in
+	-- the Shop. nil/0 = no badge. Never a sale, a timer or a purchase prompt.
+	shopFreeClaims: number?,
 }
 
 export type LeftMenu = {
@@ -55,101 +58,84 @@ export type LeftMenu = {
 	destroy: (self: LeftMenu) -> (),
 	getButton: (self: LeftMenu, name: string) -> GuiObject?,
 	setLabelOverride: (self: LeftMenu, name: string, text: string?) -> (),
+	setIconOverride: (self: LeftMenu, name: string, icon: string?) -> (),
+	setShopFreeClaims: (self: LeftMenu, count: number?) -> (),
+	setPressed: (self: LeftMenu, name: string, down: boolean) -> (),
 	getDebugState: (self: LeftMenu) -> { [string]: any },
 }
 
-type ItemDef = {
+type Def = {
 	name: string,
-	label: string?,
-	icon: Icons.Name,
-	light: Color3,
-	deep: Color3,
-	small: boolean,
-	rainbow: boolean,
+	label: string,
+	fill: Arcade.FillName,
+	icon: string?,
+	fallbacks: { string }, -- tried in order when the Icons2 name has no art yet
+	pattern: boolean,
+	drift: boolean,
 	callback: string,
 }
 
-local ITEMS: { ItemDef } = {
+local DEFS: { Def } = {
 	{
-		name = "Garage",
-		label = Layout.MenuLabels.Garage,
-		icon = "Garage",
-		light = C.GarageLight,
-		deep = C.GarageDeep,
-		small = false,
-		rainbow = false,
-		callback = "onGarage",
+		name = "Settings",
+		label = "Settings",
+		fill = "Settings",
+		icon = nil,
+		fallbacks = {},
+		pattern = false,
+		drift = false,
+		callback = "onSettings",
 	},
 	{
 		name = "Shop",
-		label = Layout.MenuLabels.Shop,
-		icon = "Shop",
-		light = C.White,
-		deep = C.White,
-		small = false,
-		rainbow = true,
+		label = "Shop",
+		fill = "Rainbow",
+		icon = "Gift",
+		fallbacks = { "Cart", "Shop" },
+		pattern = true,
+		drift = true,
 		callback = "onShop",
 	},
 	{
-		name = "Missions",
-		label = Layout.MenuLabels.Missions,
-		icon = "Missions",
-		light = C.MissionsLight,
-		deep = C.MissionsDeep,
-		small = false,
-		rainbow = false,
-		callback = "onMissions",
+		name = "Garage",
+		label = "Garage",
+		fill = "Garage",
+		icon = "GarageBook",
+		fallbacks = { "Garage" },
+		pattern = true,
+		drift = false,
+		callback = "onGarage",
 	},
 	{
-		name = "Settings",
-		label = nil,
-		icon = "Settings",
-		light = C.SettingsLight,
-		deep = C.SettingsDeep,
-		small = true,
-		rainbow = false,
-		callback = "onSettings",
+		name = "Missions",
+		label = "Missions",
+		fill = "Missions",
+		icon = "Clipboard",
+		fallbacks = { "Missions" },
+		pattern = true,
+		drift = false,
+		callback = "onMissions",
 	},
-}
-
--- Soft candy rainbow (6 stops, the documented maximum for a cheap gradient).
-local RAINBOW = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 120, 170)),
-	ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 170, 70)),
-	ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 225, 80)),
-	ColorSequenceKeypoint.new(0.6, Color3.fromRGB(110, 220, 120)),
-	ColorSequenceKeypoint.new(0.8, Color3.fromRGB(90, 190, 255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 130, 255)),
-})
-
-type Item = {
-	def: ItemDef,
-	frame: Frame,
-	button: Gloss.Button,
-	label: TextLabel?,
-	badge: Frame?,
-	progress: TextLabel?,
-	width: number,
-	height: number,
 }
 
 local LeftMenu = {}
 LeftMenu.__index = LeftMenu
 
-local function measure(text: string, size: number): number
-	return TextService:GetTextSize(text, size, Enum.Font.FredokaOne, Vector2.new(4096, 4096)).X
-end
-
-function LeftMenu.new(ctx: Types.Ctx, callbacks: Callbacks?): LeftMenu
+function LeftMenu.new(ctx: Types.Ctx, options: Options?): LeftMenu
 	local self = setmetatable({}, LeftMenu) :: any
 	self._trove = Trove.new()
 	self._ctx = ctx
-	self._callbacks = callbacks or {}
-	self._overrides = {} :: { [string]: string }
-	self._items = {} :: { Item }
+	self._opts = options or {}
+	self._labels = {} :: { [string]: string }
+	self._icons = {} :: { [string]: string }
+	self._buttons = {} :: { [string]: Arcade.Button }
+	self._iconDrawn = {} :: { [string]: string }
+	self._shopFree = self._opts.shopFreeClaims
 	self._itemTrove = self._trove:Extend()
 	self._builtFor = ""
-	local root = self._trove:Add(make("Frame", {
+	self._kind = ""
+	self._toggle = nil :: Arcade.Toggle?
+	local root = self._trove:Add(Arcade.make("Frame", {
 		Name = "LeftMenu",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromOffset(100, 100),
@@ -157,7 +143,7 @@ function LeftMenu.new(ctx: Types.Ctx, callbacks: Callbacks?): LeftMenu
 		Parent = ctx.layer,
 	}))
 	self.root = root
-	self._scale = make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
+	self._scale = Arcade.make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
 
 	self._trove:Add(ctx.store:subscribe("garage", function()
 		self:_refresh()
@@ -165,124 +151,111 @@ function LeftMenu.new(ctx: Types.Ctx, callbacks: Callbacks?): LeftMenu
 	self._trove:Add(ctx.store:subscribe("missionsClaimable", function()
 		self:_refresh()
 	end))
+	self._trove:Add(ctx.store:subscribe("settings", function()
+		local t: Arcade.Toggle? = self._toggle
+		if t then
+			t.set(MusicSetting.isOn(ctx.store))
+		end
+		MusicSetting.apply(ctx.store)
+	end))
 	self._trove:Connect(ctx.screen.Changed, function()
 		self:layout()
 	end)
+	MusicSetting.apply(ctx.store)
 	self:layout()
 	return self :: LeftMenu
 end
 
+-- The kit drew the preferred name; when that has no art yet (Icons2 may not exist), the
+-- fallbacks are tried in order (the overnight Icons art), and a neutral "?" glyph is shown only
+-- when none has art (Home/IconArt). Returns the drawn name, or nil for the glyph.
+local function redrawIcon(holder: Frame, preferred: string, fallbacks: { string }): string?
+	if IconArt.hasArt(holder) then
+		return preferred
+	end
+	local names = { preferred }
+	for _, n in fallbacks do
+		table.insert(names, n)
+	end
+	return IconArt.draw(holder, names)
+end
+
 function LeftMenu._build(self: any, menu: Layout.MenuLayout)
-	-- Keep gamepad focus on the same button across a rebuild.
+	local ctx: Types.Ctx = self._ctx
+	-- keep gamepad focus on the same control across a rebuild
 	local selectedName: string? = nil
-	for _, item in self._items do
-		if GuiService.SelectedObject == item.button.body then
-			selectedName = item.def.name
+	for name, b in self._buttons do
+		if GuiService.SelectedObject == b.body then
+			selectedName = name
 		end
 	end
+	local toggleSelected = self._toggle ~= nil
+		and GuiService.SelectedObject ~= nil
+		and (GuiService.SelectedObject :: GuiObject):IsDescendantOf(self._toggle.root)
 	self._itemTrove:Clean()
-	table.clear(self._items)
-	for _, def in ITEMS do
-		local body = if def.small then menu.small else menu.body
-		local labelText = self._overrides[def.name] or def.label
-		local width = Layout.menuItemWidth(menu, def.name, labelText)
-		local height = body + 4 + (if labelText then 2 + menu.labelSize + 4 else 0)
-		local frame = self._itemTrove:Add(make("Frame", {
-			Name = "Item_" .. def.name,
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(width, height),
-			ZIndex = 4,
-			Parent = self.root,
-		}))
-		local cb = self._callbacks[def.callback]
-		local button = Gloss.button(frame, {
+	table.clear(self._buttons)
+	table.clear(self._iconDrawn)
+	self._toggle = nil
+
+	for _, def in DEFS do
+		local small = def.name == "Settings"
+		local iconName = self._icons[def.name] or def.icon
+		local cb = self._opts[def.callback]
+		local spec: Arcade.ButtonSpec = {
 			name = def.name,
-			size = Vector2.new(body, body),
-			position = UDim2.fromScale(0.5, 0),
-			anchor = Vector2.new(0.5, 0),
-			light = def.light,
-			deep = def.deep,
-			radius = if def.small then 14 else 18,
-			icon = function(holder: Frame)
-				Icons.draw(holder, def.icon)
-			end,
-			iconSize = math.floor(body * (if def.small then 0.66 else 0.7)),
+			label = self._labels[def.name] or def.label,
+			fill = def.fill,
+			size = if small then "Small" else menu.size,
+			width = if small then nil else menu.buttonW,
+			height = if small then nil else menu.buttonH,
+			icon = iconName,
+			pattern = def.pattern and not small,
+			drift = def.drift,
 			sound = "Tap",
 			onActivate = function()
 				if cb then
 					cb()
 				end
 			end,
-		})
+		}
+		local button = Arcade.button(self.root, spec)
 		self._itemTrove:Add(button.trove)
-		if def.rainbow then
-			local g = button.body:FindFirstChildOfClass("UIGradient")
-			if g then
-				g.Color = RAINBOW
-				g.Rotation = 35
-			end
+		-- the kit makes the root; the trove above destroys it with the item trove
+		local pos = menu.items[def.name]
+		button.root.Position = UDim2.fromOffset(pos.x, pos.y)
+		if iconName and button.iconHolder then
+			-- an override (test hook) keeps its own result, so a missing icon stays visible
+			local fallbacks = if self._icons[def.name] then {} else def.fallbacks
+			self._iconDrawn[def.name] = redrawIcon(button.iconHolder, iconName, fallbacks) or "Missing"
 		end
-		local label: TextLabel? = nil
-		if labelText then
-			local l = make("TextLabel", {
-				Name = "Label",
-				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.new(0.5, 0, 0, body + 4 + 2),
-				Size = UDim2.new(1, 0, 0, menu.labelSize + 4),
-				BackgroundTransparency = 1,
-				FontFace = Tokens.font(),
-				Text = labelText,
-				TextSize = math.max(menu.labelSize, Tokens.TextSize.Minimum),
-				TextColor3 = C.White,
-				TextWrapped = false,
-				ZIndex = 6,
-				Parent = frame,
-			})
-			Gloss.stroke(l, 2.5, C.Ink, Enum.ApplyStrokeMode.Contextual)
-			label = l
+		button.root.Visible = self.root.Visible
+		if self._labels[def.name] then
+			-- long override labels may wrap to two lines inside the body (never below 16)
+			button.label.TextWrapped = true
 		end
-		local badge: Frame? = nil
-		local progress: TextLabel? = nil
-		if def.name == "Garage" or def.name == "Missions" then
-			badge = Gloss.badge(button.body, 0)
-		end
-		if def.name == "Garage" then
-			local pill = make("Frame", {
-				Name = "Progress",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, -6, 1, -8),
-				Size = UDim2.fromOffset(44, 22),
-				BackgroundColor3 = C.Ink,
-				BorderSizePixel = 0,
-				ZIndex = button.body.ZIndex + 5,
-				Parent = button.body,
-			})
-			Gloss.corner(pill, 11)
-			Gloss.stroke(pill, 2, C.White)
-			progress = make("TextLabel", {
-				Name = "Count",
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-				FontFace = Tokens.font(),
-				TextSize = Tokens.TextSize.Minimum,
-				TextColor3 = C.White,
-				Text = "",
-				ZIndex = pill.ZIndex + 1,
-				Parent = pill,
-			})
-		end
-		table.insert(self._items, {
-			def = def,
-			frame = frame,
-			button = button,
-			label = label,
-			badge = badge,
-			progress = progress,
-			width = width,
-			height = height,
-		})
+		self._buttons[def.name] = button
 		if selectedName == def.name then
 			GuiService.SelectedObject = button.body
+		end
+	end
+
+	local toggle = Arcade.toggle(self.root, {
+		name = "Music",
+		label = "Music",
+		value = MusicSetting.isOn(ctx.store),
+		onChanged = function(on: boolean)
+			MusicSetting.setOn(ctx.store, on)
+		end,
+	})
+	self._itemTrove:Add(toggle.trove)
+	local mpos = menu.items.Music
+	toggle.root.Size = UDim2.fromOffset(Layout.MusicWidth, Layout.MusicHeight)
+	toggle.root.Position = UDim2.fromOffset(mpos.x, mpos.y)
+	self._toggle = toggle
+	if toggleSelected then
+		local hit = toggle.root:FindFirstChild("Hit") :: GuiObject?
+		if hit then
+			GuiService.SelectedObject = hit
 		end
 	end
 	self:_refresh()
@@ -290,20 +263,18 @@ end
 
 function LeftMenu._refresh(self: any)
 	local state: Store.State = self._ctx.store:get()
-	for _, item in self._items do
-		if item.def.name == "Garage" then
-			if item.badge then
-				Gloss.setBadge(item.badge, state.garage.unseen)
-			end
-			if item.progress then
-				local text = string.format("%d/%d", state.garage.owned, state.garage.total)
-				item.progress.Text = text
-				local pill = item.progress.Parent :: Frame
-				pill.Size = UDim2.fromOffset(math.max(44, math.ceil(measure(text, Tokens.TextSize.Minimum)) + 14), 22)
-			end
-		elseif item.def.name == "Missions" and item.badge then
-			Gloss.setBadge(item.badge, state.missionsClaimable)
-		end
+	local garage = self._buttons.Garage
+	if garage then
+		garage.setBadge(state.garage.unseen)
+	end
+	local missions = self._buttons.Missions
+	if missions then
+		missions.setBadge(state.missionsClaimable)
+	end
+	local shop = self._buttons.Shop
+	if shop then
+		local n: number? = self._shopFree
+		shop.setBadge(if n and n > 0 then n else nil)
 	end
 end
 
@@ -312,93 +283,121 @@ function LeftMenu.layout(self: any)
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local menu = Layout.forProfile(ctx.screen:profile(), scale).menu
-	local key = string.format("%s:%d:%d:%d", menu.kind, menu.body, menu.small, menu.labelSize)
+	local key = string.format("%s:%d:%d", menu.kind, menu.buttonW, menu.buttonH)
 	if key ~= self._builtFor then
 		self._builtFor = key
 		self:_build(menu)
-	end
-	-- Place the items: a column (left-aligned, centred on the widest body) or a row.
-	local x, y = 0, 0
-	local w, h = 0, 0
-	local colWidth = 0
-	for _, item in self._items do
-		colWidth = math.max(colWidth, item.width)
-	end
-	for _, item in self._items do
-		if menu.kind == "Column" then
-			item.frame.Position = UDim2.fromOffset((colWidth - item.width) / 2, y)
-			y += item.height + menu.gap
-			w = colWidth
-			h = y - menu.gap
-		else
-			item.frame.Position = UDim2.fromOffset(x, 0)
-			x += item.width + menu.gap
-			w = x - menu.gap
-			h = math.max(h, item.height)
+	else
+		for name, b in self._buttons do
+			local pos = menu.items[name]
+			b.root.Position = UDim2.fromOffset(pos.x, pos.y)
+		end
+		local t: Arcade.Toggle? = self._toggle
+		if t then
+			local mpos = menu.items.Music
+			t.root.Position = UDim2.fromOffset(mpos.x, mpos.y)
 		end
 	end
-	self.root.Position = UDim2.fromOffset(menu.x * scale, menu.y * scale) -- layer px (UIScale does not move it)
-	self.root.Size = UDim2.fromOffset(w, h)
 	self._kind = menu.kind
+	self._menu = menu
+	self.root.Position = UDim2.fromOffset(menu.x * scale, menu.y * scale) -- layer px
+	self.root.Size = UDim2.fromOffset(menu.width, menu.height)
 end
 
 function LeftMenu.setVisible(self: any, on: boolean)
 	self.root.Visible = on
+	-- the kit pauses the rainbow drift only when the button's own root is hidden
+	for _, b in self._buttons do
+		b.root.Visible = on
+	end
 	if not on then
-		for _, item in self._items do
-			if GuiService.SelectedObject == item.button.body then
-				GuiService.SelectedObject = nil
-			end
+		local selected = GuiService.SelectedObject
+		if selected and selected:IsDescendantOf(self.root) then
+			GuiService.SelectedObject = nil
 		end
 	end
 end
 
 function LeftMenu.getButton(self: any, name: string): GuiObject?
-	for _, item in self._items do
-		if item.def.name == name then
-			return item.button.body
-		end
+	if name == "Music" then
+		local t: Arcade.Toggle? = self._toggle
+		return if t then t.root:FindFirstChild("Hit") :: GuiObject? else nil
 	end
-	return nil
+	local b = self._buttons[name]
+	return if b then b.body else nil
 end
 
 function LeftMenu.setLabelOverride(self: any, name: string, text: string?)
-	self._overrides[name] = text :: any
+	self._labels[name] = text :: any
 	self._builtFor = ""
 	self:layout()
+end
+
+function LeftMenu.setIconOverride(self: any, name: string, icon: string?)
+	self._icons[name] = icon :: any
+	self._builtFor = ""
+	self:layout()
+end
+
+function LeftMenu.setShopFreeClaims(self: any, count: number?)
+	self._shopFree = count
+	self:_refresh()
+end
+
+function LeftMenu.setPressed(self: any, name: string, down: boolean)
+	local b = self._buttons[name]
+	if not b then
+		return
+	end
+	local press = b.body:FindFirstChild("Press") :: UIScale?
+	if press then
+		press.Scale = if down then 0.95 else 1
+	end
 end
 
 function LeftMenu.getDebugState(self: any): { [string]: any }
 	local ctx: Types.Ctx = self._ctx
 	local items = {}
-	for _, item in self._items do
-		local pos, size = ctx.screen:rectOf(item.button.body)
-		local labelFits = true
-		if item.label then
-			labelFits = item.label.TextFits and item.label.TextBounds.X <= item.label.AbsoluteSize.X + 0.5
-		end
-		items[item.def.name] = {
-			body = item.button.body.Size.X.Offset,
-			deviceBody = size,
+	local instances = 0
+	for _ in self.root:GetDescendants() do
+		instances += 1
+	end
+	for name, b in self._buttons do
+		local pos, size = ctx.screen:rectOf(b.body)
+		local badge = b.badge.frame
+		local bpos, bsize = ctx.screen:rectOf(badge)
+		local press = b.body:FindFirstChild("Press") :: UIScale?
+		local count = badge:FindFirstChild("Count") :: TextLabel?
+		items[name] = {
+			label = b.label.Text,
+			labelFits = b.label.TextFits,
+			labelSize = b.label.TextBounds,
+			bodyDesign = b.size,
 			devicePos = pos,
-			label = if item.label then item.label.Text else nil,
-			labelSize = if item.label then item.label.TextSize else nil,
-			labelFits = labelFits,
-			badgeVisible = if item.badge then item.badge.Visible else false,
-			badgeText = if item.badge then (item.badge:FindFirstChild("Count") :: TextLabel).Text else nil,
-			progress = if item.progress then item.progress.Text else nil,
+			deviceSize = size,
+			iconArt = self._iconDrawn[name],
+			badgeVisible = badge.Visible,
+			badgeText = if count then count.Text else nil,
+			badgeDevicePos = bpos,
+			badgeDeviceSize = bsize,
+			pressScale = if press then press.Scale else 1,
 			reserved = ctx.screen:overlapsReserved(pos, size),
 		}
 	end
+	local toggle: Arcade.Toggle? = self._toggle
 	local rpos, rsize = ctx.screen:rectOf(self.root)
 	return {
 		visible = self.root.Visible,
 		kind = self._kind,
 		scale = self._scale.Scale,
 		items = items,
+		music = if toggle then toggle.get() else nil,
+		musicSetting = MusicSetting.isOn(ctx.store),
+		shopFreeClaims = self._shopFree,
 		devicePos = rpos,
 		deviceSize = rsize,
 		reservedOverlap = ctx.screen:overlapsReserved(rpos, rsize),
+		instances = instances,
 	}
 end
 
