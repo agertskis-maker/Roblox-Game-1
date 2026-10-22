@@ -109,7 +109,20 @@ function DestinationChecks.envelope(): ({ any }, number)
 				zoneLo, zoneHi = flo, fhi
 			end
 			local worst = 0
-			for _, c in corners(d) do
+			local points = corners(d)
+			if d.Name == "Disc" or d.Name == "Ring" then
+				-- a round turntable: its bounding box corners stick out when it is turned, the
+				-- disc itself does not (justified joint: test the circle, not the box)
+				local r = math.max(d.Size.X, d.Size.Z) / 2
+				local pc = base:PointToObjectSpace(d.Position)
+				points = {}
+				for _, off in
+					{ Vector3.new(r, 0, 0), Vector3.new(-r, 0, 0), Vector3.new(0, 0, r), Vector3.new(0, 0, -r) }
+				do
+					table.insert(points, base:PointToWorldSpace(pc + off))
+				end
+			end
+			for _, c in points do
 				local p = base:PointToObjectSpace(c)
 				worst = math.max(
 					worst,

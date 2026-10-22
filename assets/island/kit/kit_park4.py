@@ -509,6 +509,7 @@ BR_PIER_X, BR_PIER_HW, BR_NOSE, BR_PIER_HEAD = 3.0, 0.6, 1.2, -0.75   # piers on
 BR_ABF, BR_PIL = 8.2, 1.2                               # abutment river face, pilaster length
 BR_FOOT = -1.8                                          # abutment and wing-wall footing (buried)
 BR_POSTS = 8                                            # bays per side
+BR_CAP = 2.8                                            # nothing above the deck top higher than this (corridor rule)
 
 
 def river_z(d):
@@ -610,26 +611,26 @@ def bridge_river(name, W):
         for i in range(BR_POSTS + 1):
             x = -xn + 2 * xn * i / BR_POSTS
             if i in (0, BR_POSTS):
-                cbox(b, Vector((x, s * yr, 1.7)), (0.8, 0.8, 3.4), "cream", c=0.08, edge="stone_light")
-                cbox(b, Vector((x, s * yr, 3.48)), (0.96, 0.96, 0.16), "navy", c=0.04)
-                base, half, top = 3.56, 0.34, 4.0
+                cbox(b, Vector((x, s * yr, 1.175)), (0.8, 0.8, 2.35), "cream", c=0.08, edge="stone_light")
+                cbox(b, Vector((x, s * yr, 2.41)), (0.96, 0.96, 0.12), "navy", c=0.04)
+                base, half, top = 2.47, 0.34, BR_CAP   # end posts are the tallest part, at the cap
             else:
-                cbox(b, Vector((x, s * yr, 1.5)), (0.42, 0.42, 3.0), "cream", c=0.06, edge="stone_light")
-                base, half, top = 3.0, 0.24, 3.28
+                cbox(b, Vector((x, s * yr, 1.05)), (0.42, 0.42, 2.1), "cream", c=0.06, edge="stone_light")
+                base, half, top = 2.1, 0.24, 2.3
             sq = [Vector((x + qx * half, s * yr + qy * half, base)) for qx, qy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
             tip = Vector((x, s * yr, top))
             for k in range(4):
                 oface(b, [sq[k], sq[(k + 1) % 4], tip], "navy", Vector((x, s * yr, base + 0.02)))
         L = 2 * xn - 0.8
-        cbox(b, Vector((0, s * yr, 2.72)), (L, 0.3, 0.32), "navy", c=0.07)
-        cbox(b, Vector((0, s * yr, 1.65)), (L, 0.2, 0.22), "teal", c=0.05)
-        cbox(b, Vector((0, s * yr, 0.6)), (L, 0.2, 0.2), "teal", c=0.05)
+        cbox(b, Vector((0, s * yr, 1.9)), (L, 0.3, 0.28), "navy", c=0.07)
+        cbox(b, Vector((0, s * yr, 1.15)), (L, 0.2, 0.2), "teal", c=0.05)
+        cbox(b, Vector((0, s * yr, 0.45)), (L, 0.2, 0.18), "teal", c=0.05)
     corners = [[sx * HL, sy * hw, 0] for sx in (-1, 1) for sy in (-1, 1)]
     return b, {
-        "height": 4.0, "deck_top": 0, "place": "mesh z 0 at the world path surface (+0.08)",
+        "height": BR_CAP, "corridor_cap": "nothing above z 2.8 (viewing corridors allow 3 above the walking surface)", "deck_top": 0, "place": "mesh z 0 at the world path surface (+0.08)",
         "deck_length": 2 * HL, "deck_width": W, "walk_width": round(2 * (yr - 0.21), 2),
         "DeckEnds": [[-HL, 0, 0], [HL, 0, 0]], "DeckCorners": corners,
-        "RailEnds": [[sx * xn, sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)], "rail_line_y": yr, "rail_top": 2.88,
+        "RailEnds": [[sx * xn, sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)], "rail_line_y": yr, "rail_top": 2.04,
         "FencePost": [[sx * (HL + 0.35), sy * yr, 0] for sx in (-1, 1) for sy in (-1, 1)],
         "profile": {"source": "Field.riverProfile", "path_world": BR_PATH, "water_world": BR_WATER_W, "bed_world": BR_BED_W,
                     "water_mesh": round(BR_WATER, 3), "bed_mesh": round(BR_BED, 3), "bed_half": BR_BED_HALF,
@@ -638,7 +639,7 @@ def bridge_river(name, W):
         "abutment_face_x": BR_ABF, "piers_x": [-BR_PIER_X, BR_PIER_X], "pier_width": 2 * BR_PIER_HW,
         "wing_walls": "45 degrees from the pilasters at x +/-8.45 to the bank top at x +/-11.7, tops 0 to -0.06",
         "ends": "flush and square: the deck top is flat z 0 end to end and the path meets the vertical end face at x +/-13 at z 0 on level ground (beyond the bank top at 11.5); no taper, nothing above z 0 at the ends",
-        "collision": {"deck": [[-HL, -hw, -BR_FASCIA], [HL, hw, 0]], "rails": "one box per side: x +/-12.6, y rail_line_y +/-0.4, z 0..3.0"},
+        "collision": {"deck": [[-HL, -hw, -BR_FASCIA], [HL, hw, 0]], "rails": "one box per side: x +/-12.6, y rail_line_y +/-0.4, z 0..2.3"},
         "note": "FencePost: the first path-fence post centre just outside each deck corner, on the rail line; piers stand on the bed (feet 0.4 below the local bed)",
     }
 

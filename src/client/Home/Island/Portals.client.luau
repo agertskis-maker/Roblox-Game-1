@@ -639,85 +639,90 @@ local function run(trove: Trove.Trove, rig: Instance)
 		return (out:gsub("^,", ""))
 	end
 
-	-- the requirement plaque's face: the spec's 800 x 400 px canvas at 100 px per stud
-	local function requirementFace(p: Portal, gui: SurfaceGui, size: Vector2)
+	-- the requirement plaque's face: a 700 x 275 px canvas at 100 px per stud on the plaque's
+	-- 7.0 x 2.75 face (the corridor-height plaque). Spec 2b's 800 x 400 layout re-cut to fit: every
+	-- element kept (title, state pill, two rows of icon, label, PREVIEW tag, numbers, bar and tick
+	-- slot), type about 0.75 of the spec's, and the Peek strip (from the plaque meta) left empty.
+	type PeekRect = { x: number, y: number, w: number, h: number }
+	local REQ_W, REQ_H = 700, 275
+	local function requirementFace(p: Portal, gui: SurfaceGui, size: Vector2, peekRect: PeekRect)
 		local canvas = Instance.new("Frame")
 		canvas.Name = "Requirement"
 		canvas.AnchorPoint = Vector2.new(0.5, 0.5)
 		canvas.Position = UDim2.fromScale(0.5, 0.5)
-		canvas.Size = UDim2.fromOffset(800, 400)
-		-- Texture hook: once plaque-requirement-bg-<world>.png is approved and uploaded, an
-		-- ImageLabel with that id replaces this plank fill and the title strip (the title is baked).
+		canvas.Size = UDim2.fromOffset(REQ_W, REQ_H)
+		-- Texture hook: once plaque-requirement-bg-<world>.png is approved and uploaded (re-cut to
+		-- this face), an ImageLabel with that id replaces this plank fill and the title strip.
 		canvas.BackgroundColor3 = PLANK
 		canvas.BorderSizePixel = 0
-		rounded(canvas, 24, 8)
+		rounded(canvas, 18, 6)
 		local scale = Instance.new("UIScale")
-		scale.Scale = math.min(size.X * 100 / 800, size.Y * 100 / 400)
+		scale.Scale = math.min(size.X * 100 / REQ_W, size.Y * 100 / REQ_H)
 		scale.Parent = canvas
 		canvas.Parent = gui
-		local strip = box(canvas, 0, 0, 800, 84, TITLE_STRIP[p.world] or CREAM)
-		rounded(strip, 24)
-		box(canvas, 0, 60, 800, 24, TITLE_STRIP[p.world] or CREAM)
-		local title = text(canvas, "TO OPEN " .. (WORLD_NAMES[p.world] or p.world), 36, 3)
-		title.Position = UDim2.fromOffset(24, 12)
-		title.Size = UDim2.fromOffset(610, 60)
+		local strip = box(canvas, 0, 0, REQ_W, 56, TITLE_STRIP[p.world] or CREAM)
+		rounded(strip, 18)
+		box(canvas, 0, 38, REQ_W, 18, TITLE_STRIP[p.world] or CREAM)
+		local title = text(canvas, "TO OPEN " .. (WORLD_NAMES[p.world] or p.world), 26, 2)
+		title.Position = UDim2.fromOffset(16, 8)
+		title.Size = UDim2.fromOffset(556, 40)
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.ZIndex = 2
-		local pill = box(canvas, 652, 20, 128, 40, INK)
+		local pill = box(canvas, 588, 11, 100, 34, INK)
 		pill.ZIndex = 2
-		rounded(pill, 20)
-		local pt = text(pill, "LOCKED", 24, 0)
+		rounded(pill, 17)
+		local pt = text(pill, "LOCKED", 18, 0)
 		pt.Size = UDim2.fromScale(1, 1)
 		pt.ZIndex = 3
 		for k, row in ROWS[p.world] or {} do
-			local y = if k == 1 then 92 else 196
+			local y = if k == 1 then 62 else 137
 			local met = row.have >= row.need
-			icon(canvas, row.icon, 14, y + 10, 72)
-			local label = text(canvas, row.label, 28, 3)
-			label.Position = UDim2.fromOffset(100, y + 2)
-			label.Size = UDim2.fromOffset(330, 36)
+			icon(canvas, row.icon, 10, y + 6, 52)
+			local label = text(canvas, row.label, 21, 2)
+			label.Position = UDim2.fromOffset(70, y)
+			label.Size = UDim2.fromOffset(300, 28)
 			label.TextXAlignment = Enum.TextXAlignment.Left
-			-- the PREVIEW tag 8 px left of the numbers, whose right edge is at x 700
+			-- the PREVIEW tag 6 px left of the numbers, whose right edge is at x 602
 			local group = Instance.new("Frame")
 			group.BackgroundTransparency = 1
 			group.AnchorPoint = Vector2.new(1, 0)
-			group.Position = UDim2.fromOffset(700, y + 2)
-			group.Size = UDim2.fromOffset(360, 36)
+			group.Position = UDim2.fromOffset(602, y)
+			group.Size = UDim2.fromOffset(300, 28)
 			local list = Instance.new("UIListLayout")
 			list.FillDirection = Enum.FillDirection.Horizontal
 			list.HorizontalAlignment = Enum.HorizontalAlignment.Right
 			list.VerticalAlignment = Enum.VerticalAlignment.Center
 			list.SortOrder = Enum.SortOrder.LayoutOrder
-			list.Padding = UDim.new(0, 8)
+			list.Padding = UDim.new(0, 6)
 			list.Parent = group
 			group.Parent = canvas
-			local tag = box(group, 0, 0, 0, 24, Color3.new(1, 1, 1))
+			local tag = box(group, 0, 0, 0, 20, Color3.new(1, 1, 1))
 			tag.AutomaticSize = Enum.AutomaticSize.X
 			tag.LayoutOrder = 1
-			rounded(tag, 6, 2, MAGENTA)
+			rounded(tag, 5, 2, MAGENTA)
 			local pad = Instance.new("UIPadding")
-			pad.PaddingLeft = UDim.new(0, 8)
-			pad.PaddingRight = UDim.new(0, 8)
+			pad.PaddingLeft = UDim.new(0, 6)
+			pad.PaddingRight = UDim.new(0, 6)
 			pad.Parent = tag
-			local tt = text(tag, "PREVIEW", 16, 0, MAGENTA)
+			local tt = text(tag, "PREVIEW", 13, 0, MAGENTA)
 			tt.AutomaticSize = Enum.AutomaticSize.X
-			tt.Size = UDim2.fromOffset(0, 24)
+			tt.Size = UDim2.fromOffset(0, 20)
 			tag:SetAttribute("Placeholder", "made-up value; real values need the agreed unlock contract")
-			local numbers = text(group, comma(row.have) .. " / " .. comma(row.need), 28, 3)
+			local numbers = text(group, comma(row.have) .. " / " .. comma(row.need), 21, 2)
 			numbers.AutomaticSize = Enum.AutomaticSize.X
-			numbers.Size = UDim2.fromOffset(0, 36)
+			numbers.Size = UDim2.fromOffset(0, 28)
 			numbers.LayoutOrder = 2
-			local track = box(canvas, 100, y + 44, 590, 38, TRACK)
-			rounded(track, 19, 3)
+			local track = box(canvas, 70, y + 31, 532, 28, TRACK)
+			rounded(track, 14, 2)
 			local frac = math.clamp(row.have / row.need, 0, 1)
-			local fill = box(canvas, 104, y + 48, math.max(1, 582 * frac), 30, if met then GREEN else row.fill)
+			local fill = box(canvas, 73, y + 34, math.max(1, 526 * frac), 22, if met then GREEN else row.fill)
 			fill.ZIndex = 2
-			rounded(fill, 15)
+			rounded(fill, 11)
 			if met then
-				icon(canvas, "IconTick", 712, y + 34, 56)
+				icon(canvas, "IconTick", 626, y + 22, 46)
 			else
-				local slot = box(canvas, 716, y + 38, 48, 48, TRACK)
-				rounded(slot, 0.5, 4, CREAM)
+				local slot = box(canvas, 630, y + 26, 38, 38, TRACK)
+				rounded(slot, 0.5, 3, CREAM)
 				local ring = slot:FindFirstChildOfClass("UIStroke")
 				if ring then
 					ring.Transparency = 0.5
@@ -728,8 +733,8 @@ local function run(trove: Trove.Trove, rig: Instance)
 		local peek = Instance.new("Frame")
 		peek.Name = "PeekReserved"
 		peek.BackgroundTransparency = 1
-		peek.Position = UDim2.fromOffset(10, 300)
-		peek.Size = UDim2.fromOffset(780, 90)
+		peek.Position = UDim2.fromOffset(peekRect.x, peekRect.y)
+		peek.Size = UDim2.fromOffset(peekRect.w, peekRect.h)
 		peek:SetAttribute("Reserved", "Peek (future); leave empty")
 		peek.Parent = canvas
 	end
@@ -897,14 +902,18 @@ local function run(trove: Trove.Trove, rig: Instance)
 				bit(m, Vector3.new(0.25, 0.9, 0.9), cf * CFrame.new(ring) * alongZ, STEEL, CYLINDER)
 			end
 		elseif name == "GateRequirementPlaque" then
-			-- a stone foot, a short cream post and the tilted board under the face
-			bit(m, Vector3.new(3.2, 0.6, 2.6), cf * CFrame.new(0, 0.3, 0), STONE)
-			bit(m, Vector3.new(1.1, 2.4, 1.1), cf * CFrame.new(0, 1.8, 0.1), CREAM)
-			local c = kitPoint(name, "sign_faces_1_centre", Vector3.new(0, 3.128, 0.254))
+			-- a low stone foot, a short cream post and the tilted board under the face (top under 3)
+			local c = kitPoint(name, "sign_faces_1_centre", Vector3.new(0, 1.765, 0.193))
 			local n = kitPoint(name, "sign_faces_1_normal", Vector3.new(0, 0.574, 0.819))
 			local u = kitPoint(name, "sign_faces_1_up", Vector3.new(0, 0.819, -0.574))
-			local at = c - n * 0.15
-			bit(m, Vector3.new(8.8, 4.8, 0.3), cf * CFrame.lookAt(at, at + n, u), NAVY)
+			-- the manifest's board point is (width, thickness, -length) in Roblox axes
+			local board = kitPoint(name, "board", Vector3.new(7.4, 0.35, -3.05))
+			local thick = math.abs(board.Y)
+			local at = c - n * (thick / 2)
+			local low = kitNumber(name, "board_low_edge_z", 0.482)
+			bit(m, Vector3.new(3, 0.3, 1.8), cf * CFrame.new(0, 0.15, at.Z), STONE)
+			bit(m, Vector3.new(0.9, math.max(0.1, low), 0.7), cf * CFrame.new(0, 0.3 + low / 2 - 0.15, at.Z), CREAM)
+			bit(m, Vector3.new(math.abs(board.X), math.abs(board.Z), thick), cf * CFrame.lookAt(at, at + n, u), NAVY)
 		else
 			m:Destroy()
 			return nil
@@ -1119,7 +1128,13 @@ local function run(trove: Trove.Trove, rig: Instance)
 			placePiece("GateRequirementPlaque", base, plaque)
 			local reqPart, reqSize = faceOf("GateRequirementPlaque", base, "RequirementFace", plaque)
 			if reqPart then
-				requirementFace(p, faceGui(reqPart, 100), reqSize)
+				local piece = "GateRequirementPlaque"
+				requirementFace(p, faceGui(reqPart, 100), reqSize, {
+					x = kitNumber(piece, "peek_reserved_canvas_px_x", 10),
+					y = kitNumber(piece, "peek_reserved_canvas_px_y", 213),
+					w = kitNumber(piece, "peek_reserved_canvas_px_w", 680),
+					h = kitNumber(piece, "peek_reserved_canvas_px_h", 62),
+				})
 			end
 		end
 		model:SetAttribute("Runs", runs)

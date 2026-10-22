@@ -477,7 +477,8 @@ function network(H, extras) {
 		const rB = (Math.atan2(b.door.x, b.door.y) * 180) / Math.PI;
 		const options = [
 			{ n: plaza(mul(b.door, P.plazaR / len(b.door)), "mouth" + b.id), d: len(b.door) - P.plazaR },
-			{ n: nearestRing(rB).n, d: null },
+			// Task 4: a wing building beyond the river joins the ring only by its bridged approach
+			...(b.links ? [] : [{ n: nearestRing(rB).n, d: null }]),
 		];
 		for (const o of options) edge(dn, o.n, o.d === null ? undefined : o.d, "spur");
 		if (b.lakeside) edge(dn, b.door.x < 0 ? stage[0] : stage[stage.length - 1], undefined, "stage");

@@ -88,6 +88,13 @@ local function dressed(): boolean
 	return env ~= nil and env:FindFirstChild("ParkDressing") ~= nil
 end
 
+-- With the Task 4 destinations built (Environment/Destinations), the greybox Garage, Stunt gate
+-- and leaderboard placeholders are not drawn.
+local function hasDestinations(): boolean
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	return env ~= nil and env:FindFirstChild("Destinations") ~= nil
+end
+
 local function hidden(o: Kit.PartOptions): Kit.PartOptions
 	if dressed() then
 		o.transparency = 1
@@ -410,6 +417,9 @@ local function buildBuildings(model: Model)
 	folder.Name = "Buildings"
 	folder.Parent = model
 	for _, b in park.buildings do
+		if (b.id == "Garage" or b.id == "StuntGate") and hasDestinations() then
+			continue
+		end
 		local building = Instance.new("Model")
 		building.Name = b.id
 		building:SetAttribute("Placeholder", true)
@@ -499,6 +509,9 @@ local function buildBuildings(model: Model)
 	end
 
 	for _, board in park.boards do
+		if hasDestinations() then
+			continue
+		end
 		local m = Instance.new("Model")
 		m.Name = board.id
 		m:SetAttribute("Placeholder", true)

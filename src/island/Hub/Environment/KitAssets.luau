@@ -48,16 +48,33 @@ function KitAssets.template(name: string): MeshPart
 		return cached
 	end
 	KitAssets.info(name)
-	local part: MeshPart
+	local part: MeshPart? = nil
 	local uploaded = (AssetIds.Meshes :: { [string]: string })[name]
 	if uploaded then
-		part = AssetService:CreateMeshPartAsync(Content.fromUri(uploaded), {
-			CollisionFidelity = Enum.CollisionFidelity.Box,
-			RenderFidelity = Enum.RenderFidelity.Automatic,
-		})
-		sources[name] = uploaded
-		turns[name] = HALF_TURN
-	else
+		local ok, loaded = pcall(function()
+			return AssetService:CreateMeshPartAsync(Content.fromUri(uploaded), {
+				CollisionFidelity = Enum.CollisionFidelity.Box,
+				RenderFidelity = Enum.RenderFidelity.Automatic,
+			})
+		end)
+		if ok then
+			part = loaded
+			sources[name] = uploaded
+			turns[name] = HALF_TURN
+		else
+			-- an uploaded mesh that will not load (Task 4: GrassTuftWide began failing with "Failed
+			-- to load mesh asset") falls back to its preview data, so one asset cannot stop a build
+			warn(
+				string.format(
+					"KitAssets: %s (%s) failed to load (%s); using the preview",
+					name,
+					uploaded,
+					tostring(loaded)
+				)
+			)
+		end
+	end
+	if not part then
 		local folder = ServerStorage:FindFirstChild("Lane3_KitData")
 		local module = folder and folder:FindFirstChild(name, true) -- Base and the Task 4 family folders
 		assert(
@@ -69,9 +86,10 @@ function KitAssets.template(name: string): MeshPart
 		sources[name] = "preview"
 		turns[name] = CFrame.identity
 	end
-	finish(part, name)
-	cache[name] = part
-	return part
+	local made = part :: MeshPart
+	finish(made, name)
+	cache[name] = made
+	return made
 end
 
 -- Where each template used so far came from: an asset id, or "preview".

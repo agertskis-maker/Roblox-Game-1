@@ -417,9 +417,9 @@ function PortalGates.build(
 	model:SetAttribute("Chained", chained)
 	if chained then
 		-- the suggested placement beside a column (Columns meta requirement_plaque_suggested),
-		-- on the gate's mesh-local -x side: world east with the half turn. For Summit Pass that is
-		-- the inner side and for Dusty Highway the outer side, which keeps the plaque out of the
-		-- lower-falls wedges from entrances 4 and 5 (reversible; see the hand-off)
+		-- on the gate's mesh-local -x side: world east with the half turn (Summit Pass: the inner
+		-- side; Dusty Highway: the outer side). The plaque's top is under 3, below the corridor
+		-- limit and the lower-falls sight ray (about 4.6 here), so either side works (reversible)
 		local at = columns.points["requirement_plaque_suggested.position"] or Vector3.new(-14, 0, 6.5)
 		local yaw = math.rad(columns.meta["requirement_plaque_suggested.yaw_deg"] or 25)
 		local frame = origin * CFrame.new(at) * CFrame.Angles(0, yaw, 0)

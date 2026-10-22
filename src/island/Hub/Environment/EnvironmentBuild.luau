@@ -16,6 +16,7 @@
 local RunService = game:GetService("RunService")
 
 local BoostLanes = require(script.Parent.BoostLanes)
+local Destinations = require(script.Parent.Destinations)
 local Field = require(script.Parent.Field)
 local Flora = require(script.Parent.Flora)
 local HubBuild = require(script.Parent.Parent.HubBuild)
@@ -114,6 +115,9 @@ function EnvironmentBuild.build(options: Options?): { [string]: any }
 	report.park = ParkDressing.build(s, grid, seed)
 	report.wildlifeKit = WildlifeKit.build(s)
 	report.boostLanes = BoostLanes.build(s)
+	-- Task 4: the Garage, Stunt Circuit entrance and leaderboards (before the hub parts, so the
+	-- greybox skips its placeholders for them)
+	report.destinations = Destinations.build(s)
 	phase("dressing")
 
 	local hub = HubBuild.build()
@@ -164,6 +168,7 @@ function EnvironmentBuild.redress(): { [string]: any }
 	local park = ParkDressing.build(s, grid, seed)
 	local wildlife = WildlifeKit.build(s)
 	local lanes = BoostLanes.build(s)
+	local destinations = Destinations.build(s)
 	local hub = HubBuild.build()
 	local portals = PortalRig.build(s)
 	return {
@@ -173,6 +178,7 @@ function EnvironmentBuild.redress(): { [string]: any }
 		park = park,
 		wildlifeKit = wildlife,
 		boostLanes = lanes,
+		destinations = destinations,
 		hubParts = hub.parts,
 	}
 end

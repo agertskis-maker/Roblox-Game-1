@@ -109,7 +109,9 @@ end
 local function buildingClear(p: Vector2): number
 	local best = math.huge
 	for _, b in park.buildings do
-		best = math.min(best, boxClear(p, b.centre, b.facing, b.width, b.depth))
+		-- the Garage and Stunt entrance keep their forecourt (14 in front) clear of park furniture
+		local fore = if b.id == "Garage" or b.id == "StuntGate" then 14 else 0
+		best = math.min(best, boxClear(p, b.centre + b.facing * fore / 2, b.facing, b.width, b.depth + fore))
 	end
 	for _, b in park.boards do
 		best = math.min(best, boxClear(p, b.centre, b.facing or Vector2.new(0, 1), b.width, b.depth))
@@ -282,6 +284,9 @@ local function put(
 		return nil
 	end
 	local part = KitAssets.place(name, base, scale, o.solid)
+	-- the placement point (mesh origin) in plan, for the mirror check (a mesh whose bounds are
+	-- off-centre has a mirrored origin but not a mirrored bounding-box centre)
+	part:SetAttribute("PlanAt", Vector2.new(p.X, p.Y))
 	if o.envelope then
 		part:SetAttribute("SightlineEnvelope", true)
 	end
@@ -312,13 +317,20 @@ type PutOptions = {
 -- Would put() accept this piece here? (corridor, falls, shore and free-space tests, no placing)
 local function canPut(ctx: Ctx, name: string, p: Vector2, yaw: number, scale: number, o: PutOptions): boolean
 	local base = CFrame.new(p.X, o.y or groundY(p), -p.Y) * CFrame.Angles(0, yaw, 0)
+	local why: string? = nil
 	if not corridorSafe(name, base, scale) then
+		why = "corridor"
+	elseif not o.wet and not landSafe((KitAssets.footprint(name, base, scale))) then
+		why = "shore"
+	elseif o.r ~= nil and not free(ctx, p, o.r :: number) then
+		why = "space"
+	end
+	if why then
+		local key = name .. ":" .. why -- counted per piece and reason, for the build report
+		ctx.rejected[key] = (ctx.rejected[key] or 0) + 1
 		return false
 	end
-	if not o.wet and not landSafe((KitAssets.footprint(name, base, scale))) then
-		return false
-	end
-	return o.r == nil or free(ctx, p, o.r :: number)
+	return true
 end
 
 -- A mirrored pair (Task 4, brief §6: mirror the non-tree dressing): the piece at p facing plan
@@ -666,6 +678,7 @@ local function standHeader(ctx: Ctx, name: string, at: Vector2, facing: Vector2)
 	local base = CFrame.new(front.X, groundY(at) + h.bottom + 0.8, -front.Y) * CFrame.Angles(0, yawFacing(facing), 0)
 	local board = KitAssets.place("HeaderBoard", base, 1)
 	board.Name = "Header" .. h.art
+	board:SetAttribute("Hanging", true) -- hangs from the stand; not ground-standing
 	board.Parent = folder(ctx, "SnackCorners")
 	ctx.counts.HeaderBoard = (ctx.counts.HeaderBoard or 0) + 1
 	local face = Instance.new("Part")
@@ -995,9 +1008,10 @@ local function buildSignposts(ctx: Ctx)
 		local a, b = pts[1], pts[#pts] -- promenade end first, plaza end last
 		local dir = (b - a).Unit
 		local normal = Vector2.new(-dir.Y, dir.X)
-		-- just before the garden ring, on the side away from the river bridge
-		local tRing = (a - Vector2.zero).Magnitude - park.ringRadius - 10
-		for _, offset in { tRing, tRing - 8, tRing + 14 } do
+		-- near the promenade end of the avenue, where the viewing corridor is still narrow enough
+		-- for a post beside the path to stand outside it (nearer the ring a 7-tall post would hide
+		-- the portals, and the river bank and the ring path take the rest)
+		for _, offset in { 6, 9, 12, 15, 18, 22, 26 } do
 			local placed = false
 			for _, s in { 1, -1 } do
 				local at = a + dir * offset + normal * s * (width / 2 + 2.5)
@@ -1100,7 +1114,7 @@ local function buildHedges(ctx: Ctx)
 	for _, path in park.paths do
 		local pts = (path :: any).points
 		local kind = (path :: any).kind
-		if pts and (string.find(kind, "Lakeside") or string.find(kind, "Forecourt")) then
+		if pts and string.find(kind, "Lakeside") then -- the forecourt walks stay open to the buildings
 			local width = (path :: any).width or 8
 			for i = 1, #pts - 1 do
 				local a, b = pts[i], pts[i + 1]
@@ -1142,7 +1156,10 @@ local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, path
 	local meta = KitAssets.info(name).meta or {}
 	local y = groundY(p)
 	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
-	local rx, ry = (meta.rx or 4.5) - 1.2, (meta.ry or 4.5) - 1.2
+	-- the planting radius: the recipe's rx / ry, else the bounds less the border
+	local info = KitAssets.info(name)
+	local rx = (meta.rx or info.max.X) - 1.2
+	local ry = (meta.ry or info.max.Z) - 1.2
 	local across = Vector2.new(-along.Y, along.X)
 	for _, flip in { false, true } do
 		local centre = if flip then mirrorP(p) else p
@@ -1196,25 +1213,149 @@ local function bedPair(ctx: Ctx, name: string, p: Vector2, along: Vector2, palet
 	return true
 end
 
-local function buildBeds(ctx: Ctx)
-	local palette = 0
-	-- corner beds where each east avenue meets the garden ring (its mirror takes the west one)
-	for k = 4, 6 do
-		local pts, width = avenueLine(k)
-		local dir = (pts[#pts] - pts[1]).Unit
-		local normal = Vector2.new(-dir.Y, dir.X)
-		local junction = pts[1] + dir * ((pts[1] - Vector2.zero).Magnitude - park.ringRadius)
-		local tangent = Vector2.new(junction.Y, -junction.X).Unit
-		for _, su in { 1, -1 } do
-			for _, sv in { 1, -1 } do
-				local p = junction + dir * su * (4 + 6.2) + normal * sv * (width / 2 + 6.2)
-				palette += 1
-				local name = if KitAssets.has("BedCornerFillet") then "BedCornerFillet" else "BedRound"
-				bedPair(ctx, name, p, tangent, palette)
+-- A corner bed (BedCornerFillet: its origin is the path corner, its two straight sides run along
+-- mesh +X and mesh -Z, the quarter it fills lies between them) in the grass corner at C whose
+-- two path edges leave C along u1 and u2. Planted in layers: low edging along the paths, taller
+-- planting toward the back arc. Placed with its mirror image (a quarter bed is symmetric about
+-- its diagonal, so the mirror image is the same mesh turned).
+local function cornerBed(ctx: Ctx, C: Vector2, u1: Vector2, u2: Vector2, palette: number): boolean
+	if cross(u1, u2) < 0 then
+		u1, u2 = u2, u1
+	end
+	local name = "BedCornerFillet"
+	local yaw = math.atan2(u1.Y, u1.X) -- mesh +X along u1; mesh -Z is then u1 turned left (u2)
+	local mu1, mu2 = mirrorD(u2), mirrorD(u1) -- the mirror image swaps handedness
+	local myaw = math.atan2(mu1.Y, mu1.X)
+	local mc = mirrorP(C)
+	local y = groundY(C)
+	local o: PutOptions = { y = y }
+	if not canPut(ctx, name, C, yaw, 1, o) or not canPut(ctx, name, mc, myaw, 1, o) then
+		ctx.rejected.cornerBed = (ctx.rejected.cornerBed or 0) + 1
+		return false
+	end
+	local centre = C + (u1 + u2) * 8
+	if not free(ctx, centre, 6) or not free(ctx, mirrorP(centre), 6) then
+		ctx.rejected.cornerBed = (ctx.rejected.cornerBed or 0) + 1
+		return false
+	end
+	local a = put(ctx, "Beds", name, C, yaw, 1, o :: any)
+	local b = put(ctx, "Beds", name, mc, myaw, 1, o :: any)
+	if a and b then
+		a:SetAttribute("MirrorPair", true)
+		b:SetAttribute("MirrorPair", true)
+	end
+	table.insert(ctx.taken, { p = centre, r = 7 })
+	table.insert(ctx.taken, { p = mirrorP(centre), r = 7 })
+	local soil = KitAssets.info(name).meta.soil or 0.6
+	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
+	for _, flip in { false, true } do
+		local c0 = if flip then mc else C
+		local e1 = if flip then mu1 else u1
+		local e2 = if flip then mu2 else u2
+		for s = 2, 13.5, PLANT_STEP do
+			for t = 2, 13.5, PLANT_STEP do
+				-- inside the back arc (r 15 less the border), outside the fillet paving (r 8 + verge)
+				local fromFillet = (Vector2.new(s, t) - Vector2.new(8, 8)).Magnitude
+				if s * s + t * t <= 13.5 * 13.5 and (s >= 8 or t >= 8 or fromFillet >= 9.3) then
+					local edge = math.min(s, t)
+					local band = if edge < 3.4 then 3 elseif edge < 6 then 2 else 1
+					local q = c0 + e1 * s + e2 * t
+					put(ctx, "Beds", kinds[band], q, (s * 5 + t * 3) % 6.28, if band == 3 then 0.9 else 1, {
+						y = y + soil,
+					})
+				end
 			end
 		end
 	end
-	-- beds along the east avenues, between the ring and the plaza and outside the ring
+	return true
+end
+
+-- An arc bed (BedFountainArc, BedAvenueArc: origin at the centre-line midpoint, the arc's centre
+-- straight ahead of the mesh front) at radius r on bearing b, its front toward the fountain.
+local function arcBed(
+	ctx: Ctx,
+	name: string,
+	bearing: number,
+	r: number,
+	palette: number,
+	sweepDeg: number,
+	width: number
+): boolean
+	local dir = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing)))
+	local p = dir * r
+	local front = -dir
+	local meta = KitAssets.info(name).meta
+	local half = width / 2
+	local y = groundY(p)
+	local a = putPair(ctx, "Beds", name, p, front, 1, { y = y, r = 1 })
+	if a then
+		table.insert(ctx.taken, { p = p, r = 5 })
+		table.insert(ctx.taken, { p = mirrorP(p), r = 5 })
+	end
+	if not a then
+		return false
+	end
+	local soil = meta.soil or 0.6
+	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
+	local sweep = math.rad(sweepDeg * 0.42) -- planted to just inside each end
+	for _, flip in { false, true } do
+		if flip and math.abs(p.X - AXIS) < 0.5 then
+			break
+		end
+		local b0 = if flip then math.rad(-bearing) else math.rad(bearing)
+		for k = -sweep, sweep, PLANT_STEP / r do
+			for d = -half + 1.1, half - 1.1, PLANT_STEP * 0.8 do
+				local ang = b0 + k
+				local q = Vector2.new(math.sin(ang), math.cos(ang)) * (r + d)
+				-- tallest on the centre line, low edging both sides (fountain beds are seen from both)
+				local off = math.abs(d) / math.max(half - 1, 0.5)
+				local band = if off < 0.34 then 1 elseif off < 0.67 then 2 else 3
+				put(ctx, "Beds", kinds[band], q, (k * 31 + d * 7) % 6.28, if band == 3 then 0.9 else 1, {
+					y = y + soil,
+				})
+			end
+		end
+	end
+	return true
+end
+
+local function buildBeds(ctx: Ctx)
+	local palette = 0
+	-- 1. fountain beds round the plaza, between the path mouths (on the axis once, the rest paired)
+	for _, bearing in { 0, 30, 60, 90 } do
+		palette += 1
+		if KitAssets.has("BedFountainArc") then
+			arcBed(ctx, "BedFountainArc", bearing, park.plazaRadius + 9, palette, 16.37, 8) -- kit_park4: ring r 49, 8 wide
+		end
+	end
+	-- 2. corner beds in the grass corners where each east avenue meets the garden ring (plaza
+	--    side) and the promenade, mirrored to the west avenues
+	for k = 4, 6 do
+		local pts, width = avenueLine(k)
+		local dir = (pts[#pts] - pts[1]).Unit -- promenade end toward the plaza
+		local normal = Vector2.new(-dir.Y, dir.X)
+		for _, edge in
+			{
+				{ r = park.ringRadius - 4, toward = 1 }, -- the ring's plaza-side edge; beds on the plaza side
+				{ r = park.promenade.inner, toward = 1 }, -- the promenade's park-side edge; beds on the park side
+			}
+		do
+			local J = pts[1] + dir * ((pts[1] - Vector2.zero).Magnitude - edge.r) -- on the centre line
+			local tangent = Vector2.new(J.Y, -J.X).Unit
+			for _, s in { 1, -1 } do
+				-- the avenue edge on side s meets the circle edge at C (local straight-line model)
+				local C = J + normal * s * (width / 2)
+				C = C.Unit * edge.r
+				local u1 = dir * edge.toward -- along the avenue edge, toward the plaza
+				local u2 = tangent * (if tangent:Dot(normal * s) >= 0 then 1 else -1) -- along the circle, away from the avenue
+				palette += 1
+				if KitAssets.has("BedCornerFillet") then
+					cornerBed(ctx, C, u1, u2, palette)
+				end
+			end
+		end
+	end
+	-- 3. straight beds along the east avenues
 	walkEast(30, 22, function(p, dir, normal, path, _n)
 		if not string.find((path :: any).kind, "Avenue") then
 			return
@@ -1222,25 +1363,36 @@ local function buildBeds(ctx: Ctx)
 		local width = (path :: any).width or 8
 		for _, s in { 1, -1 } do
 			local name = if KitAssets.has("BedAvenueStraight") then "BedAvenueStraight" else "BedOval"
-			local meta = KitAssets.info(name).meta or {}
-			local at = p + normal * s * (width / 2 + 1.5 + (meta.ry or 3))
+			local meta = KitAssets.info(name).meta
+			local at = p + normal * s * (width / 2 + 1.5 + (meta.ry or 3.5))
 			palette += 1
 			bedPair(ctx, name, at, dir, palette)
 		end
 	end)
-	-- arc beds round the fountain plaza, between the avenue mouths
-	local ringR = park.plazaRadius + 9
-	for k = 1, 3 do
-		local bearing = math.rad(-90 + 30 * k) -- between avenues (k - 1) + 3 and k + 3 on the east
-		local p = Vector2.new(math.sin(bearing), math.cos(bearing)) * ringR
-		local tangent = Vector2.new(math.cos(bearing), -math.sin(bearing))
-		if p.X > AXIS + 0.5 then
-			local name = if KitAssets.has("BedFountainArc") then "BedFountainArc" else "BedOval"
+	-- 4. curved avenue beds along the promenade's park-side edge, between the avenues
+	if KitAssets.has("BedAvenueArc") then
+		for _, bearing in { 30, 60 } do
 			palette += 1
-			bedPair(ctx, name, p, tangent, palette)
+			arcBed(ctx, "BedAvenueArc", bearing, park.promenade.inner - 1.5 - 3.6, palette, 5.79, 7) -- kit_park4: r 178, 7 wide
 		end
 	end
-	-- the north-axis bed in front of the gazebo is placed once (on the axis)
+	-- 5. round junction beds inside the garden ring, between the avenues
+	if KitAssets.has("BedJunctionRound") then
+		for _, bearing in { 0, 30, 60 } do
+			palette += 1
+			for _, radius in { 95, 85, 105, 75, 115 } do
+				local p = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing))) * radius
+				if lawnOkPair(p, 9, 2) then
+					local a =
+						putPair(ctx, "Beds", "BedJunctionRound", p, Vector2.new(0, 1), 1, { y = groundY(p), r = 10 })
+					if a then
+						plantBed(ctx, "BedJunctionRound", p, Vector2.new(1, 0), Vector2.new(0, -1), palette)
+						break
+					end
+				end
+			end
+		end
+	end
 end
 
 -- ---------------------------------------------------------------- lawns
@@ -1398,9 +1550,10 @@ function ParkDressing.build(parent: Instance, grid: TerrainWriter.Grid, seed: nu
 	buildSnackCorners(ctx)
 	task.wait()
 	buildHedges(ctx)
-	buildFurniture(ctx)
-	task.wait()
+	-- Task 4: the formal bed family first, then the furniture fills round it
 	buildBeds(ctx)
+	task.wait()
+	buildFurniture(ctx)
 	task.wait()
 	buildTrees(ctx)
 	buildLawns(ctx)

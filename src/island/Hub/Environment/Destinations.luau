@@ -752,7 +752,7 @@ local function buildGarage(root: Instance, report: Report): Model
 	local showroom = group("Showroom")
 	local slots = folder("ShowroomSlots", model)
 	slots:SetAttribute("Proposal", "data hook for Brian L, not a shared contract; see Destinations.ShowroomSlot")
-	local anchor = plain("SlotAnchor", Vector3.one, base, slots)
+	local anchor = plain("SlotAnchor", Vector3.one * 0.2, base, slots)
 	local degPerS = shell.meta["turntable_motion.deg_per_s"] or DEG_PER_S_DEFAULT
 	for i, style in SLOTS do
 		local centre = needPoint("GarageShell", "turntables." .. i .. ".centre")
@@ -816,7 +816,7 @@ local function buildGarage(root: Instance, report: Report): Model
 	end
 
 	-- the lights: PointLights at the recorded light points
-	local rig = plain("LightRig", Vector3.one, base, model)
+	local rig = plain("LightRig", Vector3.one * 0.2, base, model)
 	for key, spec in GARAGE_LIGHTS do
 		local at = shell.points["light_points." .. key]
 		if at then
@@ -1072,8 +1072,9 @@ local function buildStunt(root: Instance, report: Report): Model
 			for k = 1, 2 do
 				local c = gantryInfo.points["lights." .. light .. ".lens_centres." .. k]
 				if c then
-					local ball =
-						plain("LampStandIn" .. light .. "_" .. k, Vector3.one * 0.9, base * CFrame.new(c), lights)
+					-- 0.8 across, its front on the lens front (the envelope front is 0.1 beyond)
+					local ballAt = base * CFrame.new(c - Vector3.new(0, 0, 0.4))
+					local ball = plain("LampStandIn" .. light .. "_" .. k, Vector3.one * 0.8, ballAt, lights)
 					ball.Shape = Enum.PartType.Ball
 					ball:SetAttribute("Light", light)
 					ball:SetAttribute("LampStandIn", true)
@@ -1124,7 +1125,7 @@ local function buildStunt(root: Instance, report: Report): Model
 		local cl, ch = blenderBox(x1, x2, by1, by2, -0.2, baseTop)
 		collider("PillarBase" .. tag, base, cl, ch, STAND_STONE, colliders)
 		x1, x2 = math.min(s * sx1, s * sx2), math.max(s * sx1, s * sx2)
-		cl, ch = blenderBox(x1, x2, sy1, sy2, baseTop, shaftTop)
+		cl, ch = blenderBox(x1, x2, sy1, sy2, -0.2, shaftTop) -- from the ground, through the base
 		collider("PillarShaft" .. tag, base, cl, ch, NAVY, colliders)
 	end
 	local barrier = KitAssets.info("StuntEndBarrier").meta
@@ -1319,7 +1320,7 @@ local function buildBoard(root: Instance, id: string, kind: "cars" | "stunt", re
 	-- the front light: a soft SpotLight from the lamp toward the face
 	local lightAt = needPoint("LeaderboardFrame", "light.position")
 	local lightDir = needPoint("LeaderboardFrame", "light.direction")
-	local lamp = plain("LampRig", Vector3.one, base, model)
+	local lamp = plain("LampRig", Vector3.one * 0.2, base, model)
 	local a = Instance.new("Attachment")
 	a.Name = "FrontLight"
 	a.CFrame = CFrame.lookAt(lightAt, lightAt + lightDir)

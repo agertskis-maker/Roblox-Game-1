@@ -248,7 +248,8 @@ local function run(trove: Trove.Trove, root: Instance)
 				applySpin(s)
 			end
 		end
-		local lit = if calm then 0 else litCount(now)
+		-- reduced motion: all five lit and steady (the brief: "steady under reduced motion")
+		local lit = if calm then 5 else litCount(now)
 		if lit ~= lastLit then
 			lastLit = lit
 			for _, lamp in lamps do
