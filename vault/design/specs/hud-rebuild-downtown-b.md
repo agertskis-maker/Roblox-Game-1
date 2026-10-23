@@ -153,7 +153,7 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 | T-03 | No unreadable specks (fade after min size); occlusion policy; rarity text/symbol not colour-only (§9) | HW | captures | runtime-tested |
 | T-04 | Rare-or-better arrival reveal: brief side ribbon outside the road region; dedupe by identity; cooldown/queue (§9) | HW | dedupe video | runtime-tested (2 shown, 2 deduped, 4 dropped) |
 | T-05 | Hop ring: one target, dashed teal/white, grounded, scaled to footprint, no clipping; clean retarget; disabled state by structure/brightness (§9) | HW | captures | runtime-tested |
-| T-06 | Thin arc-preview telegraph from target data, labelled not ballistic; pointing pose optional only if cheap (§9) | HW | video | runtime-tested (arc visible; reads as a thin beam from behind) |
+| T-06 | Thin arc-preview telegraph from target data, labelled not ballistic; pointing pose optional only if cheap (§9) | HW | video | runtime-tested; after review: drawn from 30% of the curve so no bar from the camera; subtle |
 | T-07 | Reduced motion: stable ring/arc; all cues clean up on despawn/retarget/run end/reset (§9) | HW | video + debug counts | runtime-tested for retarget/despawn; RM ring code-checked |
 
 ### Keys capture (§10)
@@ -166,7 +166,7 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 | K-05 | Identity/dedupe/ordering: duplicates, delays, out-of-order cannot duplicate, replay or reverse (§10) | HR | scripted event test log | runtime-tested (state log: monotonic, 3 duplicates ignored) |
 | K-06 | Owned car: silver Joyride presentation, JOYRIDE BONUS only on a supplied confirmed event, +$50 synthetic (§10) | HR | capture | built; Joyride row seen in Results; ring not captured this pass |
 | K-07 | Motion/audio hierarchy: release 100–200 ms, burst, ribbon 1–2 s, tray settle; capped edge accent; warning wins; reduced motion calm path (§10) | HR | video RM on/off | runtime-tested (RM capture) |
-| K-08 | Acceptance: a new viewer can tell which car, how close, pending, secured, without losing the next target (§10) | RV | run reviewer | open |
+| K-08 | Acceptance: a new viewer can tell which car, how close, pending, secured, without losing the next target (§10) | RV | run reviewer | reviewed: blocker (cues named different cars) fixed and re-captured; Hop arc now subtle |
 
 ### Warn, eject, explain, recover (§11)
 | ID | Requirement | Owner | Acceptance evidence | Status |
@@ -203,8 +203,8 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 | D-10 | Deterministic seed; no immediate repeats; no identical L/R pairs; district palettes; seed + sequence shown (§14) | DC | review printout | runtime-tested (0 repeats; printout saved) |
 | D-11 | Bounded active window with clean reuse; second pass/reset for duplicates, memory, lighting (§14) | DC | counts + memory log | runtime-tested (created 371 / released 368 / reused 158; rebuild x3 identical) |
 | D-12 | Distance units: studs vs metres kept separate; provisional conversion labelled (§14) | DC/HR | fixture note | runtime-tested (provisional metres on screen) |
-| D-13 | Five districts with silhouettes, signature material/colour, thumbnail landmark and measured transitions: Main Street (REEL WHEELS theater, blade sign + marquee), City Hall (clock tower with base/roof, plaza, trees, lamps), Harbor Bridge (river crossing, parapets, waterfront glimpses, continuous deck), Midtown (taller midground, selective glass, grids, roof tanks, distant stadium), Skyline Park (setbacks, verges, fountain, skyline) (§15) | DK/DC | per-district frames | runtime-tested partly: districts read; clock tower, fountain and stadium not clearly visible from the chase |
-| D-14 | Landmark family with hierarchy: theater, car wash (calm brushes off-lane), service canopy, city hall/clock tower, harbor bridge, park fountain, donut bakery (sign structural), distant stadium, **delivery depot / roadside service workshop** (C2); approach/passing/rear views or a labelled gallery (§16) | DK | route frames + gallery | partly: theater, city hall, service canopy, car wash in route; fountain/depot/bakery/stadium gallery is Blender only |
+| D-13 | Five districts with silhouettes, signature material/colour, thumbnail landmark and measured transitions: Main Street (REEL WHEELS theater, blade sign + marquee), City Hall (clock tower with base/roof, plaza, trees, lamps), Harbor Bridge (river crossing, parapets, waterfront glimpses, continuous deck), Midtown (taller midground, selective glass, grids, roof tanks, distant stadium), Skyline Park (setbacks, verges, fountain, skyline) (§15) | DK/DC | per-district frames | runtime-tested: after the review fixes all five signatures show in Roblox (Harbor arch + water, Skyline Park fountain, stadium behind a frontage gap); the clock tower is still only a glimpse |
+| D-14 | Landmark family with hierarchy: theater, car wash (calm brushes off-lane), service canopy, city hall/clock tower, harbor bridge, park fountain, donut bakery (sign structural), distant stadium, **delivery depot / roadside service workshop** (C2); approach/passing/rear views or a labelled gallery (§16) | DK | route frames + gallery | runtime-tested in route: theater, city hall, delivery depot, harbor bridge, stadium, fountain; car wash, canopy and bakery appear with other seeds; approach/passing/rear gallery is Blender only |
 | D-15 | Bunting / WELCOME TO DOWNTOWN spans: sparse, supported, above clearance (§16) | DK/DC | frames | runtime-tested |
 | D-16 | Small fictional sign family (WHEEL GOOD PIZZA, BRAKE-FAST DINER, LUG NUTS HARDWARE + originals); no real logos (§16) | DK | sign sheet | runtime-tested |
 | D-17 | Street life off-road, bounded, reduced motion: pigeons, flags, cart steam, birds/blimp; subtle exhaust only (§16) | DC | video | runtime-tested (pigeons, flags, steam, blimp present) |
@@ -222,10 +222,10 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 | X-05 | Blender import manifest, stable names/pivots/materials, one batch import package; verify IDs and access (§17) | DK/L | `assets/downtown/kit-b/MANIFEST.md` | built; import NOT done (EditableMesh previews used) |
 | X-06 | Frame times with documented method: typical + stress, with HUD/traffic/names/capture active; parts, meshes, tris, textures, emitters, UI elements, memory trend; 30 fps provisional floor (§17) | L | perf table | runtime-tested on the desktop host (see evidence index) |
 | X-07 | Fixtures and recordings for the §18 list | L | review page | done (evidence index) |
-| X-08 | Fresh reviewers: HUD/reference, run, city, integration; findings with requirement/location/severity/fix; fixes rechecked (§18) | RV | review files | open |
+| X-08 | Fresh reviewers: HUD/reference, run, city, integration; findings with requirement/location/severity/fix; fixes rechecked (§18) | RV | review files | done: one fresh reviewer (REVIEW.md), material fixes re-captured; no second review needed |
 | X-09 | Update draft PR #2 after checks; check.ps1; commit task-owned changes; push; release lock; stop owned helpers (§18) | L | PR + git | open |
 | X-10 | Review page leading with HUD and city, with every §18 section incl. "Decisions I made for you", "Waiting for you", honest separation; final answer on Studio-tested vs code-read (§18) | L | `Car-Hop-Art/review/hud-rebuild/index.html` | open |
-| X-11 | Free-steering direction recorded for Brian R on the board (allowed note) (§1, §13) | L | board line | open |
+| X-11 | Free-steering direction recorded for Brian R on the board (allowed note) (§1, §13) | L | board line | done (main 70d835c) |
 
 ## Component boundaries (who writes what)
 
