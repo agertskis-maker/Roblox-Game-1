@@ -13,7 +13,7 @@ local HOME_AND_RUN = {
 	"route",
 	"run",
 	"ride",
-	"strip",
+	"routeLine",
 	"heat",
 	"tray",
 	"keys",

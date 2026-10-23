@@ -10,7 +10,7 @@
 --   RunLayout.protectedRect(profile) -> Rect in DEVICE px (relative to the device frame)
 --   RunLayout.protected(ctx)    -> Rect in design px (same region; landingBand is an alias)
 --   RunLayout.worldToCanvas(ctx, worldPos) -> (Vector2 design px, onScreen, depth)
---   RunLayout.stripRect / cashRect / trayRect / bannerRect / sideRect / heatRect / hopRect /
+--   RunLayout.routeRect (alias stripRect) / cashRect / trayRect / bannerRect / sideRect / heatRect / hopRect /
 --     keysRect / dashRect(ctx) -> Rect (placement, shared so siblings avoid each other without
 --     seeing each other; the solver reports any leftover conflict as a second return)
 --   RunLayout.upperY(ctx)       -> design y of the "Upper" message row (banner, milestones)
@@ -190,46 +190,109 @@ local function centred(cx: number, cy: number, size: Vector2, name: string): Rec
 end
 
 ----------------------------------------------------------------------------------------------
--- District strip (top centre). Geometry lives here so siblings can place themselves under it
--- without the strip being mounted.
+-- Route line (top centre; Round 2, R2-R1). A subway-style line with five stations and the record
+-- badge at its right end. Geometry lives here so siblings can place themselves under it without the
+-- line being mounted. Design px, block-local: callout row on top, the station tiles (current one
+-- larger), the track row (nodes + avatar marker + record markers) and the station names under it.
 
-RunLayout.Strip = table.freeze({
+RunLayout.Route = table.freeze({
 	Top = 8,
-	-- full: previous / current / next tiles + a faded stub that says "more beyond"
-	TileW = 112,
-	TileH = 64,
-	CurrentW = 128,
-	CurrentH = 74,
-	StubW = 36,
-	Gap = 6,
-	Head = 36,
-	HeadY = 76, -- head top, just under the tile row (it covered the current name at 60)
-	DistanceH = 26,
-	-- compact (phones): current + progress track + next
-	CompactCurrentW = 104,
-	CompactCurrentH = 62,
-	CompactTrackW = 60,
-	CompactNextW = 84,
-	CompactNextH = 52,
-	CompactHead = 32,
-	CompactGap = 8,
+	Stations = 5,
+	-- full (desktop, tablet)
+	Pitch = 82,
+	Icon = 50,
+	IconCurrent = 58,
+	TrackH = 8,
+	Marker = 30,
+	CalloutH = 28,
+	NameH = 36, -- two lines of the 16 px minimum
+	Badge = 40,
+	Width = 600,
+	-- compact (phones)
+	CPitch = 60,
+	CIcon = 34,
+	CIconCurrent = 40,
+	CTrackH = 6,
+	CMarker = 24,
+	CCalloutH = 22,
+	CNameH = 18, -- one short label
+	CBadge = 28,
+	CWidth = 430,
 })
 
-function RunLayout.stripSize(compact: boolean): Vector2
-	local S = RunLayout.Strip
-	if compact then
-		local w = S.CompactCurrentW + S.CompactGap + S.CompactTrackW + S.CompactGap + S.CompactNextW
-		return Vector2.new(w, S.CompactCurrentH + 4 + S.DistanceH)
-	end
-	local w = S.TileW + S.Gap + S.CurrentW + S.Gap + S.TileW + S.Gap + S.StubW
-	return Vector2.new(w, S.HeadY + S.Head + S.DistanceH)
+export type RouteGeometry = {
+	compact: boolean,
+	size: Vector2, -- the whole block
+	pitch: number, -- distance between station centres
+	icon: number, -- station tile side (upcoming / visited)
+	iconCurrent: number, -- station tile side while current
+	calloutY: number,
+	calloutH: number,
+	iconBottom: number, -- bottom edge of every station tile (the current one grows upward)
+	trackY: number, -- centre of the track
+	trackH: number,
+	marker: number, -- avatar marker diameter
+	nameY: number,
+	nameH: number,
+	badge: number, -- record badge side
+	x1: number, -- centre x of station 1 (start of the cycle)
+	xEnd: number, -- right end of the line: the cycle end (the record badge follows it)
+	badgeX: number, -- centre x of the record badge
+}
+
+function RunLayout.routeGeometry(compact: boolean): RouteGeometry
+	local R = RunLayout.Route
+	local pitch = if compact then R.CPitch else R.Pitch
+	local icon = if compact then R.CIcon else R.Icon
+	local iconCurrent = if compact then R.CIconCurrent else R.IconCurrent
+	local trackH = if compact then R.CTrackH else R.TrackH
+	local marker = if compact then R.CMarker else R.Marker
+	local calloutH = if compact then R.CCalloutH else R.CalloutH
+	local nameH = if compact then R.CNameH else R.NameH
+	local badge = if compact then R.CBadge else R.Badge
+	local width = if compact then R.CWidth else R.Width
+	local gap = if compact then 2 else 4
+	local iconBottom = calloutH + gap + iconCurrent
+	local trackY = iconBottom + gap + marker / 2
+	local nameY = trackY + marker / 2 + 1
+	local content = iconCurrent / 2 + R.Stations * pitch + (if compact then 6 else 8) + badge + 4
+	local x1 = (width - content) / 2 + iconCurrent / 2
+	local xEnd = x1 + R.Stations * pitch
+	return {
+		compact = compact,
+		size = Vector2.new(width, nameY + nameH),
+		pitch = pitch,
+		icon = icon,
+		iconCurrent = iconCurrent,
+		calloutY = 0,
+		calloutH = calloutH,
+		iconBottom = iconBottom,
+		trackY = trackY,
+		trackH = trackH,
+		marker = marker,
+		nameY = nameY,
+		nameH = nameH,
+		badge = badge,
+		x1 = x1,
+		xEnd = xEnd,
+		badgeX = xEnd + (if compact then 6 else 8) + badge / 2,
+	}
 end
 
-function RunLayout.stripRect(ctx: Ctx): Rect
+-- The route block. Centred; shifted right when a narrow screen would put its callout row over the
+-- run Cash line (top-left), never past the right edge.
+function RunLayout.routeRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
-	local size = RunLayout.stripSize(RunLayout.compact(ctx))
-	return RunLayout.rect(d.X / 2 - size.X / 2, RunLayout.Strip.Top, size.X, size.Y, "DistrictStrip")
+	local size = RunLayout.routeGeometry(RunLayout.compact(ctx)).size
+	local x = d.X / 2 - size.X / 2
+	local cash = RunLayout.cashRect(ctx)
+	local clear = cash.pos.X + cash.size.X + 8
+	if x < clear then
+		x = math.min(clear, d.X - size.X)
+	end
+	return RunLayout.rect(x, RunLayout.Route.Top, size.X, size.Y, "RouteLine")
 end
+RunLayout.stripRect = RunLayout.routeRect -- legacy name (gear, chip, banner and Keys placement read it)
 
 ----------------------------------------------------------------------------------------------
 -- Run-time Cash (Round 2, R2-C1): the compact Cash line, top-left of the safe area below the core UI
@@ -243,13 +306,16 @@ function RunLayout.cashRect(_ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Claim tray ("claimed this run"): left middle, below the compact Cash, above the thumbstick zone.
+-- Claim tray ("claimed this run"): a compact left region below the compact Cash and above the Stamina
+-- slot (which sits above the thumbstick zone). It is always laid out around the Stamina slot, shown or
+-- not, so the left column never jumps when the demo is switched on.
 
 RunLayout.Tray = table.freeze({
 	Thumb = 56,
 	ThumbCompact = 46,
 	Gap = 6,
 	Header = 30,
+	HeaderCompact = 22, -- phones: the count word only
 })
 
 export type TrayGeometry = {
@@ -257,7 +323,21 @@ export type TrayGeometry = {
 	columns: number,
 	rows: number,
 	thumb: number,
+	header: number,
 }
+
+-- Stamina meter slot (Round 2, R2-S1): left-middle, directly above the movement (thumbstick) zone; on
+-- desktop, which has no zone, in the lower left-middle. Full = bolt + number + a row of pips; compact
+-- (phones) = one row.
+RunLayout.StaminaFull = Vector2.new(204, 68)
+RunLayout.StaminaCompact = Vector2.new(172, 36)
+function RunLayout.staminaRect(ctx: Ctx): Rect
+	local d = RunLayout.design(ctx)
+	local size = if RunLayout.compact(ctx) then RunLayout.StaminaCompact else RunLayout.StaminaFull
+	local thumb = zone(ctx, "Thumbstick")
+	local y = if thumb then thumb.pos.Y - 6 - size.Y else d.Y * 0.62 - size.Y / 2
+	return RunLayout.rect(RunLayout.Margin, y, size.X, size.Y, "Stamina")
+end
 
 function RunLayout.trayGeometry(ctx: Ctx): TrayGeometry
 	local T = RunLayout.Tray
@@ -265,24 +345,26 @@ function RunLayout.trayGeometry(ctx: Ctx): TrayGeometry
 	local m = RunLayout.Margin
 	local compact = ctx.screen:profile().kind == "Phone"
 	local thumb = if compact then T.ThumbCompact else T.Thumb
+	local header = if compact then T.HeaderCompact else T.Header
 	local columns = 2
 	local rows = if compact then 1 else 2
 	local w = math.max(columns * thumb + (columns - 1) * T.Gap, 128)
-	local h = T.Header + rows * thumb + (rows - 1) * T.Gap
-	-- left middle, centred around 45% height, kept above the thumbstick zone
-	local cy = d.Y * 0.45
-	local top = cy - h / 2
-	local thumbstick = zone(ctx, "Thumbstick")
-	if thumbstick then
-		top = math.min(top, thumbstick.pos.Y - 6 - h)
-	end
 	local cash = RunLayout.cashRect(ctx)
-	top = math.max(top, cash.pos.Y + cash.size.Y + 8)
+	local floor = cash.pos.Y + cash.size.Y + 8
+	local ceil = RunLayout.staminaRect(ctx).pos.Y - 6
+	local h = header + rows * thumb + (rows - 1) * T.Gap
+	if rows > 1 and floor + h > ceil then
+		rows = 1 -- not enough height between Cash and the Stamina slot: one row of thumbnails
+		h = header + thumb
+	end
+	-- left middle, centred around 45% height, between the Cash and the Stamina slot
+	local top = math.clamp(d.Y * 0.45 - h / 2, floor, math.max(floor, ceil - h))
 	return {
 		rect = RunLayout.rect(m, top, w, h, "ClaimTray"),
 		columns = columns,
 		rows = rows,
 		thumb = thumb,
+		header = header,
 	}
 end
 
@@ -341,7 +423,7 @@ function RunLayout.sideRect(ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Top stack publishing (legacy: RideChip reads it). DistrictStrip publishes the strip block.
+-- Top stack publishing (legacy: RideChip reads it). RouteLine publishes the route block.
 
 export type Top = {
 	row: number,

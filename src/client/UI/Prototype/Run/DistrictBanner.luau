@@ -1,7 +1,7 @@
 --!strict
 -- District entry banner (Lane 3 preview, HUD rebuild worker HR; U-04). On an explicit store
 -- event { kind = "DistrictEnter", district = District.id, cycle = n } it shows one district
--- icon and the district name in a slim dark band below the district strip: 0.2 s in (a short
+-- icon and the district name in a slim dark band below the route line: 0.2 s in (a short
 -- drop + fade), about 1.6 s hold, 0.25 s out. Reduced motion: fade only. It never decides that a
 -- district was entered; it only presents the supplied event.
 --
@@ -10,7 +10,7 @@
 -- banner is deferred while it holds and dropped if it would be stale. It never stacks with:
 --   * a capture ribbon (it waits while a Capture-level holder has the "Side" slot; a ribbon that
 --     arrives while the banner shows calls banner:yield(), which hides it early),
---   * the tutorial banner (store.tutorial ~= nil: dropped; the strip still names the district),
+--   * the tutorial banner (store.tutorial ~= nil: dropped; the route line still names the district),
 --   * toasts (they should request "Upper" through the same arbiter; noted for the lead).
 -- Dedupe: one banner per (district, cycle); repeats and late duplicates are ignored, and an event
 -- for a district the run has already left (out of order) is dropped as stale. A newer
@@ -41,7 +41,7 @@ local OUT = 0.25
 local WAIT = 4 -- seconds a banner may wait for the slot before it is stale
 local DROP = 8 -- design px drop on entry (none in reduced motion)
 
-local DistrictStrip = require(script.Parent.DistrictStrip)
+local RouteMath = require(script.Parent.RouteMath)
 
 local DistrictBanner = {}
 DistrictBanner.__index = DistrictBanner
@@ -193,7 +193,7 @@ function DistrictBanner.show(self: DistrictBanner, district: string, cycle: numb
 		return
 	end
 	if ctx.store:get().tutorial ~= nil then
-		self._dropped += 1 -- never stacks with the tutorial banner; the strip still names it
+		self._dropped += 1 -- never stacks with the tutorial banner; the route line still names it
 		return
 	end
 	local name = districtName(ctx, district)
@@ -204,7 +204,7 @@ function DistrictBanner.show(self: DistrictBanner, district: string, cycle: numb
 	-- a late, out-of-order event for a district the run has already left is stale: drop it
 	local run = ctx.store:get().run
 	if run and run.districtPlan then
-		local loc = DistrictStrip.locate(run.districtPlan, run.distance)
+		local loc = RouteMath.locate(run.districtPlan, run.distance)
 		local here = loc and run.districtPlan.districts[loc.index]
 		if not here or here.id ~= district or (cycle ~= nil and loc ~= nil and loc.cycle ~= cycle) then
 			self._stale += 1

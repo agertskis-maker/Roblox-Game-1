@@ -55,10 +55,10 @@ live-read integration / untested.
 | R2-HM1 | Remove car-plus icon and owned count; Garage "12 / 24 CARS" pill with truthful fallbacks | 4 | runtime-tested (pill cases) |
 | R2-HM2 | Shop seamless rainbow, sparse glints, NEW only from a supplied flag, reduced motion, paused when hidden | 4 | runtime-tested (seam wrap, NEW flag, reduced motion, hidden); video pending |
 | R2-HM3 | Restyle all retained run overlays into the arcade family | 4 | partly: ribbon, warning chip, ride chip, tray review, panels done; cards (WP9) and banner (WP7) pending |
-| R2-S1 | Stamina demo: 10, −1 per accepted hop, none at 0, ride continues; meter, low/zero states; restore pickups off by default; HOP STREAK off by default | 6 | open |
-| R2-S2 | Gameplay conflict analysis from the real Heat rules | 2 | open |
-| R2-R1 | Subway route line: five stations per World, marker, callout, honest units | 7 | open |
-| R2-R2 | Record badge, record marker only inside the interval, NEW BEST once, cycle with LAP tag and monotonic distance | 7 | open |
+| R2-S1 | Stamina demo: 10, −1 per accepted hop, none at 0, ride continues; meter, low/zero states; restore pickups off by default; HOP STREAK off by default | 6 | runtime-tested (Studio Play, synthetic fixture): 10→0, rejected/no-target/cooldown spend nothing, no negative or over-max, ride continues at 0, reset, off = no UI, reduced motion (8 hops + pickup, no drain/refill/flight animation); HOP STREAK x2/x3 state not yet shown |
+| R2-S2 | Gameplay conflict analysis from the real Heat rules | 2 | done: hud-round2-heat-inventory.md §5 (zero Stamina = a countdown Hop cannot answer; HOP NOW! hidden at 0 as presentation only; options not chosen) |
+| R2-R1 | Subway route line: five stations per World, marker, callout, honest units | 7 | runtime-tested (Studio Play, synthetic fixture routes): three Worlds × five stations with original tiles, marker from explicit unequal boundaries (schematic equal visual stretches, stated), callout "distance • next district in X m", labels ≥ 16 px, no overlap with Cash or the protected rectangle on six frames; video: r2-route-cycle-desktop.mp4, r2-route-cycle-summit-phoneL.mp4 |
+| R2-R2 | Record badge, record marker only inside the interval, NEW BEST once, cycle with LAP tag and monotonic distance | 7 | runtime-tested (Studio Play, synthetic fixture): none / inside / ahead / behind / first-stretch / unverified record, NEW BEST once per World incl. oscillation and a second cycle, total distance monotonic, LAP 2 with sweep back (none in reduced motion), arrivals once per (cycle, district), reordered updates ignored; production loop and verified-record contract are held proposals |
 | R2-P1 | Hop: target arc, reticle, ring, rim; state precedence; figure icon; best-window with hysteresis; whoosh throttle | 8 | open |
 | R2-K1 | Capture escalation tiers, capped pulse, ALMOST, visual-only shudder, countdown only with trusted data, SECURING | 9 | open |
 | R2-V1 | SECURED reveal on confirmed identity only; protected-rectangle placement; compact on phones; tray hand-off | 9 | open |
@@ -92,6 +92,7 @@ Unchanged from [[hud-rebuild-downtown-b]]: `run.districtPlan`, `DistrictEnter`, 
 | hop `window` ("Best"/nil) and optional trajectory | best-timing cue; arc stays a direction cue without a trajectory | Brian R |
 | `collection{owned,total?}` | Garage pill | Brian L |
 | `shop.newItem` | NEW ribbon flag | Brian L |
+| `run.recordVerified`, `run.runId`, `districtPlan.world{id,name,colour}`, `District.short` | the record flag (false = no NEW BEST), the run identity for once-per-run effects, the World colour and phone labels for the route line | Brian L (record), Brian R (plan) |
 | `StarterGui.ScreenOrientation = LandscapeSensor` in `default.project.json` | one-line addition for the team (Adam chose playground projects only for this task) | team |
 
 ## Removed paths (portrait), WP3

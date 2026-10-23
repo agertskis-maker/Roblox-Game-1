@@ -19,6 +19,7 @@ local Prototype = Players.LocalPlayer
 	:WaitForChild("Prototype")
 local Fixtures = require(Prototype:WaitForChild("Fixtures"))
 local Motion = require(Prototype:WaitForChild("Motion"))
+local WorldRoutes = require(script.Parent:WaitForChild("WorldRoutes"))
 
 local Scenarios = {}
 Scenarios.__index = Scenarios
@@ -85,7 +86,7 @@ function Scenarios.new(api: any)
 			-- the cars README value; Lane 1 owns the real unit)
 			r.distance = math.max(before, self.cityStation() * 0.28)
 		else
-			r.distance += FIXTURE_SPEED_MPS * dt
+			r.distance += (self.speed or FIXTURE_SPEED_MPS) * dt
 		end
 		-- DistrictEnter on each explicit boundary crossing of the fixture plan (Lane 1 would
 		-- supply this event; the cycle index is local to the fixture)
@@ -136,16 +137,7 @@ end
 
 -- FIXTURE district plan (explicit, unequal boundaries in metres; proposals for Lane 1, not rules).
 -- Lengths come from the Downtown B fixture route at the provisional 1 stud = 0.28 m.
-Scenarios.DistrictPlan = table.freeze({
-	repeats = true,
-	districts = {
-		{ id = "MainStreet", name = "Main Street", length = 170 },
-		{ id = "CityHall", name = "City Hall", length = 150 },
-		{ id = "HarborBridge", name = "Harbor Bridge", length = 135 },
-		{ id = "Midtown", name = "Midtown", length = 190 },
-		{ id = "SkylinePark", name = "Skyline Park", length = 160 },
-	},
-})
+Scenarios.DistrictPlan = table.freeze(WorldRoutes.plan("Downtown"))
 
 function Scenarios.startRunState(self: any)
 	-- a new run gets fresh event ids (the store remembers recent ids for dedupe)
@@ -164,8 +156,13 @@ function Scenarios.startRunState(self: any)
 		hop = "Available",
 		hopCooldown01 = 0,
 		dash = nil,
+		stamina = if self.api.stamina then self.api.stamina:initial() else nil, -- off by default
 		best = 1100,
-		districtPlan = self.cityPlan or Scenarios.DistrictPlan,
+		-- Round 2 route line fixtures: no prior best unless a scenario or the debug panel supplies one
+		recordM = self.recordM,
+		recordVerified = self.recordVerified,
+		runId = "fixture-run-" .. tostring(self._runIndex),
+		districtPlan = self.cityPlan or self.worldPlan or Scenarios.DistrictPlan,
 		claims = {},
 		pendingClaim = nil,
 		warning = nil,

@@ -4,7 +4,7 @@
 -- rewards or purchases. Events carry explicit ids (store dedupe) and capture ids (component
 -- dedupe); several scenarios deliver duplicates, late and out-of-order events on purpose.
 --
--- Component keys used (guarded; a missing component is skipped): strip, banner, heat, tray,
+-- Component keys used (guarded; a missing component is skipped): routeLine, banner, heat, tray,
 -- keys, ribbon, runEnd, hop, dash, milestones, run, results.
 
 local Players = game:GetService("Players")
@@ -155,7 +155,9 @@ S["Run: district transition and cycle"] = function(host)
 	host.runPatch({ distance = 808 }) -- the plan repeats: Main Street again, LAP 2, no end cap
 	send(host, "DistrictEnter", { district = "MainStreet", cycle = 2 })
 	host.wait(3)
-	host.log("Strip debug: " .. tostring(comp(host, "strip") and comp(host, "strip"):getDebugState().cycle))
+	host.log(
+		"Route line debug: " .. tostring(comp(host, "routeLine") and comp(host, "routeLine"):getDebugState().cycle)
+	)
 end
 
 S["Run: Keys start/progress/75%/pending/confirmed"] = function(host)
@@ -448,6 +450,150 @@ S["Run: Cash pickups, run-end coincidence and zero (Round 2)"] = function(host)
 	toResults(host, "Overheated")
 	host.wait(3.5)
 	host.log("zero pickups: Results opened without any road-coins row (check the still)")
+end
+
+-- Round 2 (R2-S1): the Stamina DEMO (a proposal; off by default). A fixture adapter spends one per ACCEPTED
+-- hop; rejected attempts spend nothing; at zero the ride continues. All values are fixtures.
+local function logStamina(host: Host, tag: string)
+	local meter = comp(host, "stamina")
+	local d = if meter and meter.getDebugState then meter:getDebugState() else nil
+	local fx = host.api.staminaDebug and host.api.staminaDebug() or nil
+	local run = host.store:get().run
+	host.log(
+		string.format(
+			"%s: store value=%s | meter number=%q pipsLit=%s/%s mode=%s word=%q | counts spent=%s rejected=%s ignoredAtZero=%s clamped=%s | mode=%s heat=%s",
+			tag,
+			tostring(run and run.stamina and run.stamina.value),
+			tostring(d and d.number),
+			tostring(d and d.pipsLit),
+			tostring(d and d.pips),
+			tostring(d and d.mode),
+			tostring(d and d.word),
+			tostring(fx and fx.counts.spent),
+			tostring(fx and fx.counts.rejected),
+			tostring(fx and fx.counts.ignoredAtZero),
+			tostring(fx and fx.counts.clamped),
+			tostring(host.store:get().mode),
+			tostring(run and run.heat)
+		)
+	)
+end
+
+S["Run: Stamina 10 to 0 (Round 2 demo)"] = function(host)
+	host.api.setStamina(true, 10)
+	host.api.setStaminaRestore(false)
+	freshRun(host)
+	host.api.resetStamina()
+	host.wait(1.2)
+	logStamina(host, "start (expect 10)")
+	for i = 1, 10 do
+		-- an attempt with no target: nothing is spent
+		send(host, "HopRejected", { reason = "NoTarget" })
+		host.wait(0.15)
+		send(host, "HopAccepted", {})
+		host.wait(0.7)
+		logStamina(host, string.format("after accepted hop %d", i))
+	end
+	-- a hop cannot be accepted at zero; an extra event must neither go negative nor end the run
+	send(host, "HopAccepted", {})
+	host.wait(0.6)
+	logStamina(host, "extra accepted hop at 0 (expect still 0, run continues)")
+	host.runPatch({ distance = 400 })
+	host.wait(1.5)
+	logStamina(host, "later, still riding (no auto end)")
+	host.api.resetStamina()
+	host.wait(1.2)
+	logStamina(host, "reset (expect 10)")
+end
+
+S["Run: Stamina restore pickups and max above 10 (Round 2 demo)"] = function(host)
+	host.api.setStamina(true, 10)
+	host.api.setStaminaRestore(true)
+	freshRun(host)
+	host.api.resetStamina()
+	host.wait(0.8)
+	-- full: a pickup restores nothing and plays no overflow animation
+	send(host, "StaminaPickup", {})
+	host.wait(0.8)
+	logStamina(host, "pickup at full (expect 10, clamped=1)")
+	for _ = 1, 8 do
+		send(host, "HopAccepted", {})
+		host.wait(0.25)
+	end
+	logStamina(host, "after 8 hops (expect 2, LOW)")
+	-- a pickup with a world position: a bolt flies from the projected point to the meter
+	local bd = host.api.backdrop
+	local at = if bd and bd.target then (bd.target :: any):GetPivot().Position + Vector3.new(0, 4, 0) else nil
+	send(host, "StaminaPickup", { worldPosition = at })
+	host.wait(1.0)
+	logStamina(host, "pickup with a world position (expect 3)")
+	send(host, "StaminaPickup", {}) -- no world position: the local pop only
+	host.wait(0.8)
+	logStamina(host, "pickup without a position (expect 4)")
+	local meter = comp(host, "stamina")
+	local d = if meter and meter.getDebugState then meter:getDebugState() else nil
+	host.log(
+		"flights="
+			.. tostring(d and d.flights)
+			.. " refills="
+			.. tostring(d and d.refills)
+			.. " drains="
+			.. tostring(d and d.drains)
+	)
+	-- a configured max above 10: still 10 pips, exact number with the max
+	host.api.setStamina(true, 20)
+	host.api.resetStamina()
+	host.wait(0.8)
+	logStamina(host, "max 20 (expect 20 / 20, 10 pips each = 2 units)")
+	for _ = 1, 3 do
+		send(host, "HopAccepted", {})
+		host.wait(0.3)
+	end
+	host.wait(0.4)
+	logStamina(host, "max 20 after 3 hops (expect 17 / 20, 9 pips lit)")
+	-- back to the default demo size and off
+	host.api.setStamina(true, 10)
+	host.api.setStaminaRestore(false)
+end
+
+S["Run: Stamina with reduced motion (Round 2 demo)"] = function(host)
+	host.api.setStamina(true, 10)
+	host.api.setStaminaRestore(true)
+	freshRun(host)
+	host.api.resetStamina()
+	host.wait(0.6)
+	Motion.setOverride(true)
+	host.wait(0.8)
+	local meter = comp(host, "stamina")
+	local function snap(): any
+		return if meter and meter.getDebugState then meter:getDebugState() else {}
+	end
+	local before = snap()
+	for _ = 1, 8 do
+		send(host, "HopAccepted", {})
+		host.wait(0.2)
+	end
+	send(host, "StaminaPickup", {})
+	host.wait(0.4)
+	local after = snap()
+	host.log(
+		string.format(
+			"reduced motion: value %s -> %s, number=%q pipsLit=%s mode=%s | drain animations %s -> %s, refill animations %s -> %s, flights %s -> %s (all expected unchanged)",
+			tostring(before.value),
+			tostring(after.value),
+			tostring(after.number),
+			tostring(after.pipsLit),
+			tostring(after.mode),
+			tostring(before.drains),
+			tostring(after.drains),
+			tostring(before.refills),
+			tostring(after.refills),
+			tostring(before.flights),
+			tostring(after.flights)
+		)
+	)
+	Motion.setOverride(nil)
+	host.api.setStaminaRestore(false)
 end
 
 S["Run: Heat stages"] = function(host)

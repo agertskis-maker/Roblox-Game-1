@@ -417,7 +417,9 @@ function Specimen._buildComposed(self: Specimen, content: Frame)
 	self:_buildKeys(content, keysX, keysY)
 
 	-- CAR CARD (right edge)
-	local cardY = if narrow then 8 + TILE + 36 else math.max(8 + TILE + 12, H * 0.5 - CARD_H / 2)
+	local tileRows = math.ceil(#Icons2.Districts / 5)
+	local tilesH = tileRows * TILE + (tileRows - 1) * TILE_GAP
+	local cardY = if narrow then 8 + tilesH + 36 else math.max(8 + tilesH + 12, H * 0.5 - CARD_H / 2)
 	self:_buildCard(content, W - 14 - CARD_W, cardY)
 
 	-- DISTRICT TILES (top-centre, where the run's strip lives)
@@ -425,20 +427,20 @@ function Specimen._buildComposed(self: Specimen, content: Frame)
 		Name = "DistrictTiles",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromOffset(W / 2, 8),
-		Size = UDim2.fromOffset(5 * TILE + 4 * TILE_GAP, TILE),
+		Size = UDim2.fromOffset(5 * TILE + 4 * TILE_GAP, tilesH),
 		BackgroundTransparency = 1,
 		Parent = content,
 	})
 	for i, name in Icons2.Districts do
 		local h = holder(tiles, TILE, name)
-		h.Position = UDim2.fromOffset((i - 1) * (TILE + TILE_GAP), 0)
+		h.Position = UDim2.fromOffset(((i - 1) % 5) * (TILE + TILE_GAP), ((i - 1) // 5) * (TILE + TILE_GAP))
 		self:_icon(h, name)
 	end
 
 	-- BACKDROP NOTE (caption, top right; below the tiles on narrower screens)
 	local note = caption(content, self:_noteText(), "BackdropNote")
 	note.AnchorPoint = Vector2.new(1, 0)
-	note.Position = UDim2.fromOffset(W - 14, if W < 1000 then 8 + TILE + 8 else 8)
+	note.Position = UDim2.fromOffset(W - 14, if W < 1000 then 8 + tilesH + 8 else 8)
 	self._noteLabel = note
 end
 

@@ -41,13 +41,17 @@ export type CarRef = {
 -- A district inside one World run (fixture). Lengths are explicit boundary data in metres (the
 -- HUD unit); they are proposals for Lane 1, never equal spans invented by the HUD.
 export type District = {
-	id: string, -- "MainStreet" | "CityHall" | "HarborBridge" | "Midtown" | "SkylinePark"
+	id: string, -- a District_<id> icon name, e.g. "MainStreet", "CactusFlats", "PineVillage"
 	name: string,
+	short: string?, -- label for phones (about 7 characters); the first word of name when nil
 	length: number, -- metres
 }
+-- The World a route belongs to (Round 2, fixture): its colour paints the travelled part of the route line.
+export type WorldInfo = { id: string, name: string, colour: Color3 }
 export type DistrictPlan = {
 	districts: { District },
 	repeats: boolean, -- true: the cycle starts again after the last district (endless run)
+	world: WorldInfo?, -- nil = Downtown colours
 }
 
 -- A confirmed claim this run (the tray shows these; count = #claims).
@@ -82,9 +86,21 @@ export type Warning = {
 	reason: string, -- "TooHot" | ... (mapped to display text with a truthful fallback)
 }
 
+-- Stamina DEMO (R2-S1; proposal for Brian R / Brian L, off by default: nil = no meter). 10 per run, one spent per
+-- ACCEPTED hop, no Hop at 0 while the current ride continues. The UI only displays it; a fixture adapter
+-- (playground StaminaFixture) is the stand-in for the rule owner.
+export type StaminaState = {
+	value: number,
+	max: number,
+	lowAt: number?, -- at or below this the meter turns amber (default 3)
+	restore: boolean?, -- the restoring-pickup fixture is switched on
+}
+
 export type RunState = {
 	distance: number, -- metres (Lane 1 unit)
 	cashPickups: number?, -- FIXTURE: road-coin Cash picked up so far this run (Results source row); Brian L owns the real value
+	stamina: StaminaState?, -- Stamina demo; nil = off (default)
+	hopStreak: number?, -- HOP STREAK demo (presentation only, off by default): shown from 2 (x2, x3)
 	heat: number, -- 0..1
 	stage: "Calm" | "Warning" | "Critical" | "Meltdown",
 	ride: CarRef?,
@@ -93,7 +109,11 @@ export type RunState = {
 	hopCooldown01: number, -- 0 ready .. 1 just used
 	dash: number?, -- remaining 0..1 while a Foot Dash runs, nil otherwise
 	best: number,
-	districtPlan: DistrictPlan?, -- explicit boundaries (fixture); nil hides the district strip
+	-- Round 2 route line (FIXTURES; Brian L owns the record, Brian R the distance and district boundaries):
+	recordM: number?, -- the personal-best distance BEFORE this run, metres; nil = no prior best
+	recordVerified: boolean?, -- false = the record is not confirmed: no NEW BEST moment (nil counts as verified)
+	runId: string?, -- identity of this run (NEW BEST fires once per run)
+	districtPlan: DistrictPlan?, -- explicit boundaries (fixture); nil hides the route line
 	claims: { Claim }?, -- confirmed this run, in arrival order
 	pendingClaim: Claim?, -- shown as a distinct pending slot; never counted
 	warning: Warning?, -- nil when no advance warning exists
@@ -140,7 +160,8 @@ export type Event = {
 	kind: string, -- "CashGain" | "CashSpend" | "CashPickup" (road coin = Cash pickup; amount) | "Toast" | "LapPay" | "Milestone" | "KeysConfirmed"
 	-- | "AlreadyOwned" | "TutorialComplete" | "Unlock"
 	-- | "KeysStart" | "KeysCanceled" | "DistrictEnter" | "RareArrival" | "RunWarning"
-	-- | "Dismounted" | "RunEnded" | "ArrivedHome"
+	-- | "Dismounted" | "RunEnded" | "ArrivedHome" | "HeatBump" (amount = jolt strength)
+	-- | "HopAccepted" | "HopRejected" (reason) | "StaminaPickup" (worldPosition?)  -- Stamina demo fixtures
 	-- KeysStart / KeysConfirmed / KeysCanceled / AlreadyOwned carry `captureId` (the identity
 	-- of one capture); the event `id` stays unique per delivery for dedupe.
 	captureId: string?,

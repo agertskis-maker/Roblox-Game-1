@@ -44,3 +44,22 @@ Hit targets ≥ 48 design px (56 for primaries); text ≥ 16 design px (Heat's t
 - Hop button: **OutOfStamina > Cooldown > NoTarget > BestTiming > Ready** (an unavailable state never advertises best timing).
 - Run-time ordering: warning > pending capture > confirmed capture > run end > Results.
 - Reduced motion (`GuiService.ReducedMotionEnabled` + the preview-only override): steady states, short fades, no shake, bounce, flight or spin.
+
+## 5. Route line (top centre, R2-R1 / R2-R2)
+Replaces the district strip. Subway-style: a callout row (LAP n tag when the route has looped, "distance • next district in X m",
+a record label only when a record exists), five station tiles (original Icons2 art; the current one is larger with a white
+ring; visited wear a ring in the World colour; upcoming are dimmed), a track row (nodes under each tile, a grey line with the World
+colour travelled, the round avatar marker with a pointer, a small checkered marker where the record lies) and the names. The
+checkered BEST badge sits at the line’s right end; it is a record badge, not a station. Full size 600 x 161 design px; phones 430 x 109
+(short labels from `District.short`, same callout). Names are 16 design px on both.
+
+- **Honest space.** The line is schematic like a subway map (each district owns one equal visual stretch) while the marker moves from the
+  plan’s EXPLICIT unequal lengths. The unit is the plan’s metres (a fixture scale: 1 stud = 0.28 m in the Downtown chase; Lane 1 owns the real
+  conversion; nothing converts studs). The shown marker is smoothed and clamped to the current district’s stretch, so it never contradicts a banner.
+- **Record.** Distance record, not a finish. Inside the shown cycle: a second checkered marker at the mathematically correct place and the label
+  "BEST n m". Beyond it: "BEST n m ahead"; behind: "BEST n m behind" (phones "+n m" / "-n m"). No prior best: dimmed badge, no label, no NEW BEST.
+  NEW BEST fires once per run on the update that crosses the verified pre-run record, never saved from here, never replayed (oscillation, reorder, later cycles).
+- **Cycle.** A repeating plan starts a new cycle after the last district: total distance keeps counting, local progress resets with a short sweep back along
+  the line (none in reduced motion) and a "LAP n" tag. This is a **district-route cycle, not a Speedway income lap.** The tag word is a proposal.
+- **Arrival.** One short emphasis per (cycle, district) however often a boundary is crossed; the banner is deduped by district + cycle (DistrictBanner).
+- **Held:** the production World loop, verified-record flag, run id, plan colour and phone labels are fixtures until the team agrees the contract (ledger table).

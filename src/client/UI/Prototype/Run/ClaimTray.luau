@@ -662,9 +662,9 @@ function ClaimTray.layout(self: ClaimTray)
 	local r = g.rect
 	-- leave room for the SECURING… caption under the slots
 	RunLayout.place(self._holder, RunLayout.rect(r.pos.X, r.pos.Y, r.size.X, r.size.Y + 22))
-	local slotsX, slotsY = 0, T.Header
+	local slotsX, slotsY = 0, g.header
 	self._header.Position = UDim2.fromOffset(0, 0)
-	self._header.Size = UDim2.fromOffset(r.size.X, T.Header)
+	self._header.Size = UDim2.fromOffset(r.size.X, g.header)
 	self._word.TextSize = A.Text.Label
 	self._grid.Position = UDim2.fromOffset(slotsX, slotsY)
 	self._grid.Size = UDim2.fromOffset(g.columns * (g.thumb + T.Gap), g.rows * (g.thumb + T.Gap))

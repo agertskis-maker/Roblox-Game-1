@@ -505,6 +505,49 @@ painters.Flame = function(pen)
 	shine(pen, 0.34, 0.56, 0.05, 0.14, 20)
 end
 
+-- STAMINA (Round 2, R2-S1) --------------------------------------------------------------------
+
+-- Bolt: a large glossy yellow lightning bolt (two offset slanted slabs and a chunky joint).
+local BOLT_YELLOW = rgb(255, 214, 40)
+defaults.Bolt = BOLT_YELLOW
+tilts.Bolt = 0
+painters.Bolt = function(pen)
+	group(pen, {
+		rect(0.6, 0.27, 0.34, 0.5, 0.06, nil, 22),
+		rect(0.4, 0.73, 0.34, 0.5, 0.06, nil, 22),
+		rect(0.5, 0.5, 0.58, 0.2, 0.05, nil, -16),
+	})
+	shine(pen, 0.52, 0.2, 0.06, 0.2, 22)
+end
+
+-- BoltPip: the SIMPLE silhouette of the pip row (two slanted slabs, no joint, no highlight), so ten of
+-- them stay countable on a phone.
+defaults.BoltPip = BOLT_YELLOW
+tilts.BoltPip = 0
+painters.BoltPip = function(pen)
+	group(pen, {
+		rect(0.6, 0.3, 0.46, 0.56, 0.08, nil, 18),
+		rect(0.4, 0.7, 0.46, 0.56, 0.08, nil, 18),
+	})
+end
+
+-- BoltEmpty: the depleted bolt, grey with a dark crack through it (zero Stamina).
+local BOLT_GREY = rgb(168, 174, 188)
+defaults.BoltEmpty = BOLT_GREY
+tilts.BoltEmpty = 0
+painters.BoltEmpty = function(pen)
+	group(pen, {
+		rect(0.6, 0.27, 0.34, 0.5, 0.06, nil, 22),
+		rect(0.4, 0.73, 0.34, 0.5, 0.06, nil, 22),
+		rect(0.5, 0.5, 0.58, 0.2, 0.05, nil, -16),
+	})
+	flat(pen, {
+		bar(0.46, 0.34, 0.54, 0.5, 0.045, INK),
+		bar(0.54, 0.5, 0.44, 0.62, 0.045, INK),
+		bar(0.44, 0.62, 0.52, 0.76, 0.045, INK),
+	})
+end
+
 -- KEYS ---------------------------------------------------------------------------------------
 
 -- KeyLock: a gold padlock with a white key inserted (parts "Shackle", "Body", "Key").
@@ -888,6 +931,266 @@ painters.District_SkylinePark = function(pen)
 	end)
 end
 
+-- ROUND 2 WORLD TILES (R2-R1): five stations each for Dusty Highway and Summit Pass, in the same frame,
+-- outline, sky style and ground height as the Downtown tiles. Original scenes.
+
+local SAND = rgb(236, 184, 118)
+local SAND_DEEP = rgb(214, 148, 88)
+local ROCK_RED = rgb(196, 90, 58)
+local ROCK_DEEP = rgb(150, 62, 44)
+local CACTUS = rgb(78, 168, 92)
+local TURQ = rgb(60, 196, 190)
+local DINER_RED = rgb(206, 52, 62)
+local SNOW = rgb(244, 248, 253)
+local SNOW_SHADE = rgb(204, 222, 244)
+local PINE = rgb(44, 126, 86)
+local WOOD = rgb(154, 100, 58)
+local ICE = rgb(156, 218, 244)
+local ICE_DEEP = rgb(84, 162, 220)
+local MOUNTAIN = rgb(128, 156, 196)
+local ROOF_RED = rgb(176, 70, 56)
+local METAL = rgb(188, 190, 202)
+
+-- A triangle with a 90-degree apex standing on baseY: a rotated square drawn into a frame that ends at
+-- the base line, so nothing is left below it. `plain` skips the outline (distant mountains).
+local function triangle(pen: Pen, x: number, baseY: number, height: number, c: Color3?, plain: boolean?)
+	local clip = newFrame(pen, "Triangle")
+	clip.BackgroundTransparency = 1
+	clip.Size = UDim2.fromScale(1, baseY)
+	clip.ClipsDescendants = true
+	clip.ZIndex = pen.z
+	clip.Parent = pen.parent
+	local oldParent = pen.parent
+	pen.parent = clip
+	local side = height * math.sqrt(2)
+	local spec = rect(x, 1, side, side / baseY, 0, c, 45)
+	if plain then
+		flat(pen, { spec })
+	else
+		group(pen, { spec })
+	end
+	pen.parent = oldParent
+end
+
+-- A pine: three stacked tiers over a trunk.
+local function pine(pen: Pen, x: number, baseY: number, s: number)
+	flat(pen, { rect(x, baseY + 0.02 * s, 0.03 * s, 0.06 * s, 0, rgb(110, 72, 48)) })
+	triangle(pen, x, baseY, 0.16 * s, PINE)
+	triangle(pen, x, baseY - 0.06 * s, 0.14 * s, PINE)
+	triangle(pen, x, baseY - 0.12 * s, 0.12 * s, PINE)
+end
+
+-- A saguaro: stout body with two arms (pieces of one outlined group).
+local function saguaro(x: number, baseY: number, s: number): { Spec }
+	return {
+		rect(x, baseY - 0.21 * s, 0.1 * s, 0.42 * s, -1, CACTUS),
+		bar(x - 0.1 * s, baseY - 0.2 * s, x, baseY - 0.2 * s, 0.045 * s, CACTUS),
+		bar(x - 0.1 * s, baseY - 0.2 * s, x - 0.1 * s, baseY - 0.3 * s, 0.045 * s, CACTUS),
+		bar(x + 0.1 * s, baseY - 0.14 * s, x, baseY - 0.14 * s, 0.045 * s, CACTUS),
+		bar(x + 0.1 * s, baseY - 0.14 * s, x + 0.1 * s, baseY - 0.25 * s, 0.045 * s, CACTUS),
+	}
+end
+
+-- Dusty Highway 1: Cactus Flats (saguaros, far mesas and a windmill).
+defaults.District_CactusFlats = CACTUS
+painters.District_CactusFlats = function(pen)
+	tile(pen, "CactusFlats", rgb(112, 184, 238), rgb(255, 226, 180), SAND, 0.74, function()
+		flat(pen, {
+			rect(0.3, 0.7, 0.4, 0.1, 0, rgb(226, 150, 100)),
+			rect(0.74, 0.69, 0.3, 0.12, 0, rgb(236, 164, 110)),
+			rect(0.4, 0.9, 0.7, 0.03, 0, SAND_DEEP),
+		})
+		group(pen, { rect(0.82, 0.6, 0.05, 0.36, 0.01, rgb(206, 208, 220)) })
+		flat(pen, {
+			bar(0.82, 0.38, 0.91, 0.29, 0.035, WHITE),
+			bar(0.82, 0.38, 0.73, 0.29, 0.035, WHITE),
+			bar(0.82, 0.38, 0.91, 0.47, 0.035, WHITE),
+			bar(0.82, 0.38, 0.73, 0.47, 0.035, WHITE),
+			circle(0.82, 0.38, 0.06, rgb(120, 126, 142)),
+		})
+		group(pen, saguaro(0.3, 0.88, 1))
+		group(pen, saguaro(0.56, 0.84, 0.7))
+		shine(pen, 0.27, 0.58, 0.025, 0.12)
+	end)
+end
+
+-- Dusty Highway 2: Diner Strip (a cream roadside diner with a turquoise band, a round sign and a pump).
+defaults.District_DinerStrip = TURQ
+painters.District_DinerStrip = function(pen)
+	tile(pen, "DinerStrip", rgb(120, 190, 236), rgb(255, 230, 190), SAND, 0.76, function()
+		group(pen, { rect(0.36, 0.62, 0.56, 0.3, 0.02, CREAM) })
+		flat(pen, {
+			rect(0.36, 0.56, 0.56, 0.05, 0, TURQ),
+			rect(0.22, 0.67, 0.14, 0.1, 0.01, rgb(176, 226, 244)),
+			rect(0.42, 0.67, 0.14, 0.1, 0.01, rgb(176, 226, 244)),
+			rect(0.56, 0.69, 0.07, 0.14, 0.01, DINER_RED),
+		})
+		group(pen, { rect(0.36, 0.45, 0.62, 0.06, 0.02, DINER_RED) })
+		flat(pen, { rect(0.78, 0.56, 0.025, 0.4, 0, rgb(96, 70, 52)) })
+		group(pen, { circle(0.78, 0.3, 0.2, GOLD) })
+		flat(pen, { circle(0.78, 0.3, 0.1, DINER_RED) })
+		group(pen, { rect(0.92, 0.72, 0.08, 0.2, 0.02, DINER_RED) })
+		flat(pen, { rect(0.92, 0.67, 0.05, 0.05, 0.01, WHITE) })
+		shine(pen, 0.18, 0.58, 0.03, 0.1, 20)
+	end)
+end
+
+-- Dusty Highway 3: Red Rock Arches (a thick sandstone arch between mesas).
+defaults.District_RedRockArches = ROCK_RED
+painters.District_RedRockArches = function(pen)
+	tile(pen, "RedRockArches", rgb(104, 178, 232), rgb(255, 224, 176), SAND, 0.78, function()
+		group(pen, {
+			rect(0.12, 0.58, 0.24, 0.4, 0.03, ROCK_DEEP),
+			rect(0.9, 0.62, 0.2, 0.32, 0.03, ROCK_DEEP),
+		})
+		ring(pen, 0.5, 0.72, 0.8, 0.8, 0.15, ROCK_RED)
+		flat(pen, {
+			rect(0.5, 0.89, 1.2, 0.22, 0, SAND),
+			rect(0.5, 0.78, 0.5, 0.02, 0, SAND_DEEP),
+			rect(0.5, 0.42, 0.26, 0.02, 0, ROCK_DEEP),
+			rect(0.3, 0.62, 0.02, 0.12, 0, ROCK_DEEP),
+		})
+		shine(pen, 0.3, 0.4, 0.03, 0.12, 40)
+	end)
+end
+
+-- Dusty Highway 4: Canyon Bridge (layered cliffs, a deep gap and a braced span).
+defaults.District_CanyonBridge = ROCK_RED
+painters.District_CanyonBridge = function(pen)
+	tile(pen, "CanyonBridge", rgb(112, 182, 232), rgb(255, 226, 184), ROCK_DEEP, 0.7, function()
+		flat(pen, { rect(0.5, 0.64, 0.3, 0.1, 0, rgb(214, 130, 100)), rect(0.5, 0.86, 0.5, 0.36, 0, rgb(70, 48, 68)) })
+		group(pen, { rect(0.13, 0.64, 0.3, 0.64, 0.02), rect(0.88, 0.6, 0.28, 0.56, 0.02) })
+		flat(pen, {
+			rect(0.13, 0.5, 0.3, 0.025, 0, ROCK_DEEP),
+			rect(0.13, 0.66, 0.3, 0.025, 0, ROCK_DEEP),
+			rect(0.88, 0.52, 0.28, 0.025, 0, ROCK_DEEP),
+			rect(0.88, 0.68, 0.28, 0.025, 0, ROCK_DEEP),
+			bar(0.3, 0.43, 0.5, 0.62, 0.03, METAL),
+			bar(0.7, 0.43, 0.5, 0.62, 0.03, METAL),
+		})
+		group(pen, { rect(0.5, 0.4, 0.9, 0.055, 0.01, rgb(236, 232, 224)) })
+		flat(pen, { rect(0.5, 0.36, 0.9, 0.012, 0, rgb(178, 56, 50)) })
+		shine(pen, 0.14, 0.45, 0.025, 0.1, 30)
+	end)
+end
+
+-- Dusty Highway 5: Mirage Dunes (soft dunes, a weathered hut and a giant cactus).
+defaults.District_MirageDunes = SAND
+painters.District_MirageDunes = function(pen)
+	tile(pen, "MirageDunes", rgb(150, 206, 238), rgb(255, 236, 200), SAND, 0.72, function()
+		flat(pen, { circle(0.82, 0.2, 0.16, rgb(255, 244, 196)) })
+		group(pen, { circle(0.82, 0.95, 0.6, rgb(246, 200, 140)) })
+		group(pen, { rect(0.74, 0.66, 0.18, 0.13, 0.015, rgb(168, 112, 70)) })
+		flat(
+			pen,
+			{ rect(0.74, 0.595, 0.21, 0.03, 0, rgb(120, 78, 52)), rect(0.74, 0.69, 0.05, 0.08, 0, rgb(82, 54, 40)) }
+		)
+		group(pen, { circle(0.2, 0.98, 0.8, SAND) })
+		group(pen, saguaro(0.4, 0.9, 1.1))
+		shine(pen, 0.36, 0.62, 0.02, 0.1)
+	end)
+end
+
+-- Summit Pass 1: Pine Village (a chalet and pines under snowy peaks).
+defaults.District_PineVillage = WOOD
+painters.District_PineVillage = function(pen)
+	tile(pen, "PineVillage", rgb(70, 150, 230), rgb(206, 232, 255), SNOW, 0.74, function()
+		triangle(pen, 0.2, 0.74, 0.4, MOUNTAIN, true)
+		triangle(pen, 0.78, 0.74, 0.46, MOUNTAIN, true)
+		flat(pen, { rect(0.5, 0.82, 0.58, 0.03, -1, SNOW_SHADE) })
+		triangle(pen, 0.5, 0.56, 0.24, ROOF_RED)
+		group(pen, { rect(0.5, 0.67, 0.4, 0.22, 0.015, WOOD) })
+		flat(pen, {
+			rect(0.4, 0.66, 0.08, 0.1, 0.01, rgb(255, 232, 150)),
+			rect(0.6, 0.66, 0.08, 0.1, 0.01, rgb(255, 232, 150)),
+			rect(0.5, 0.7, 0.07, 0.14, 0.01, rgb(96, 62, 40)),
+		})
+		pine(pen, 0.12, 0.84, 1.2)
+		pine(pen, 0.88, 0.86, 1.1)
+		shine(pen, 0.33, 0.62, 0.03, 0.1, 20)
+	end)
+end
+
+-- Summit Pass 2: Ski Lift Ridge (a slope with a cable and a red chair between two towers).
+defaults.District_SkiLiftRidge = ICE_DEEP
+painters.District_SkiLiftRidge = function(pen)
+	tile(pen, "SkiLiftRidge", rgb(64, 146, 232), rgb(200, 230, 255), SNOW, 0.8, function()
+		triangle(pen, 0.7, 0.8, 0.6, MOUNTAIN, true)
+		flat(pen, { bar(0.62, 0.3, 0.32, 0.76, 0.09, SNOW) })
+		flat(pen, {
+			rect(0.26, 0.62, 0.035, 0.3, 0, rgb(96, 100, 116)),
+			rect(0.74, 0.4, 0.035, 0.3, 0, rgb(96, 100, 116)),
+			bar(0.26, 0.47, 0.74, 0.25, 0.014, INK),
+		})
+		flat(pen, { rect(0.5, 0.4, 0.012, 0.06, 0, INK) })
+		group(pen, { rect(0.5, 0.45, 0.13, 0.05, 0.02, DINER_RED) })
+		pine(pen, 0.12, 0.88, 1)
+		pine(pen, 0.9, 0.9, 0.9)
+		shine(pen, 0.34, 0.3, 0.025, 0.1, 30)
+	end)
+end
+
+-- Summit Pass 3: Frozen Lake (an ice sheet with two skaters between snowy banks).
+defaults.District_FrozenLake = ICE
+painters.District_FrozenLake = function(pen)
+	tile(pen, "FrozenLake", rgb(76, 156, 236), rgb(214, 238, 255), SNOW, 0.6, function()
+		triangle(pen, 0.22, 0.6, 0.34, MOUNTAIN, true)
+		triangle(pen, 0.8, 0.6, 0.3, MOUNTAIN, true)
+		group(pen, { rect(0.5, 0.8, 0.84, 0.32, -1, ICE) })
+		flat(pen, {
+			bar(0.26, 0.82, 0.44, 0.76, 0.012, ICE_DEEP),
+			bar(0.58, 0.9, 0.78, 0.84, 0.012, ICE_DEEP),
+		})
+		group(pen, { circle(0.38, 0.69, 0.07, rgb(238, 98, 70)), rect(0.38, 0.77, 0.07, 0.12, -1, rgb(238, 98, 70)) })
+		group(pen, { circle(0.66, 0.73, 0.07, rgb(70, 130, 240)), rect(0.66, 0.81, 0.07, 0.12, -1, rgb(70, 130, 240)) })
+		pine(pen, 0.1, 0.7, 0.9)
+		pine(pen, 0.92, 0.7, 0.9)
+		shine(pen, 0.5, 0.76, 0.1, 0.02)
+	end)
+end
+
+-- Summit Pass 4: Glacier Tunnel (a blue ice mass with a wide arched opening onto the road).
+defaults.District_GlacierTunnel = ICE_DEEP
+painters.District_GlacierTunnel = function(pen)
+	tile(pen, "GlacierTunnel", rgb(86, 160, 236), rgb(214, 238, 255), rgb(120, 126, 142), 0.78, function()
+		group(pen, {
+			rect(0.5, 0.5, 0.96, 0.56, 0.05, ICE),
+			circle(0.28, 0.26, 0.34, ICE),
+			circle(0.68, 0.22, 0.4, ICE),
+		})
+		flat(pen, {
+			circle(0.5, 0.58, 0.46, INK),
+			rect(0.5, 0.69, 0.46, 0.18, 0, INK),
+			circle(0.5, 0.58, 0.34, rgb(40, 52, 96)),
+			rect(0.5, 0.69, 0.34, 0.18, 0, rgb(40, 52, 96)),
+			rect(0.5, 0.89, 1.2, 0.22, 0, rgb(120, 126, 142)),
+			rect(0.5, 0.88, 0.04, 0.05, 0, rgb(250, 232, 120)),
+		})
+		shine(pen, 0.22, 0.4, 0.03, 0.12, 30)
+	end)
+end
+
+-- Summit Pass 5: Summit Lodge (a timber lodge, an observatory tower and a snowman).
+defaults.District_SummitLodge = WOOD
+painters.District_SummitLodge = function(pen)
+	tile(pen, "SummitLodge", rgb(60, 140, 232), rgb(206, 232, 255), SNOW, 0.76, function()
+		triangle(pen, 0.5, 0.76, 0.66, MOUNTAIN, true)
+		triangle(pen, 0.84, 0.46, 0.08, METAL)
+		group(pen, { rect(0.84, 0.59, 0.1, 0.26, 0.015, rgb(214, 218, 232)) })
+		flat(pen, { rect(0.84, 0.55, 0.025, 0.1, 0, INK) })
+		triangle(pen, 0.46, 0.52, 0.3, ROOF_RED)
+		group(pen, { rect(0.46, 0.65, 0.52, 0.26, 0.015, WOOD) })
+		flat(pen, {
+			rect(0.32, 0.66, 0.08, 0.1, 0.01, rgb(255, 232, 150)),
+			rect(0.46, 0.66, 0.08, 0.1, 0.01, rgb(255, 232, 150)),
+			rect(0.6, 0.66, 0.08, 0.1, 0.01, rgb(255, 232, 150)),
+		})
+		group(pen, { circle(0.1, 0.87, 0.16, SNOW), circle(0.1, 0.77, 0.11, SNOW) })
+		flat(pen, { circle(0.1, 0.75, 0.014, INK), rect(0.125, 0.77, 0.04, 0.012, 0, rgb(255, 140, 40)) })
+		shine(pen, 0.3, 0.58, 0.03, 0.1, 20)
+	end)
+end
+
 -- PUBLIC API ---------------------------------------------------------------------------------
 
 Icons2.Names = {
@@ -909,11 +1212,24 @@ Icons2.Names = {
 	"Track",
 	"Stamp",
 	"Warning",
+	"Bolt",
+	"BoltPip",
+	"BoltEmpty",
 	"District_MainStreet",
 	"District_CityHall",
 	"District_HarborBridge",
 	"District_Midtown",
 	"District_SkylinePark",
+	"District_CactusFlats",
+	"District_DinerStrip",
+	"District_RedRockArches",
+	"District_CanyonBridge",
+	"District_MirageDunes",
+	"District_PineVillage",
+	"District_SkiLiftRidge",
+	"District_FrozenLake",
+	"District_GlacierTunnel",
+	"District_SummitLodge",
 }
 
 Icons2.Districts = {
@@ -922,6 +1238,16 @@ Icons2.Districts = {
 	"District_HarborBridge",
 	"District_Midtown",
 	"District_SkylinePark",
+	"District_CactusFlats",
+	"District_DinerStrip",
+	"District_RedRockArches",
+	"District_CanyonBridge",
+	"District_MirageDunes",
+	"District_PineVillage",
+	"District_SkiLiftRidge",
+	"District_FrozenLake",
+	"District_GlacierTunnel",
+	"District_SummitLodge",
 }
 
 local function holderSide(holder: Frame): number

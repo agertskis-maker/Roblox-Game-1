@@ -35,6 +35,8 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
 local DebugPanel = require(script.Parent:WaitForChild("DebugPanel"))
 local Scenarios = require(script.Parent:WaitForChild("Scenarios"))
+local StaminaFixture = require(script.Parent:WaitForChild("StaminaFixture"))
+local WorldRoutes = require(script.Parent:WaitForChild("WorldRoutes"))
 
 local trove = Trove.new()
 
@@ -56,6 +58,8 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local screen = Screen.new(gui, "Desktop")
 local store = Store.new()
+-- Round 2 (R2-S1): the OFF-by-default Stamina proposal fixture (nothing runs until switched on)
+local staminaFixture = StaminaFixture.new(store)
 local priority = Priority.new()
 trove:Add(function()
 	priority:destroy()
@@ -116,9 +120,24 @@ local api: { [string]: any } = {}
 -- Harness log: preview-only button results (Retry, GO, Drive, prompts, Hop intent) are reported
 -- here and on the debug panel, never as player-facing toasts.
 api.lastAction = ""
+api.logBuffer = {} :: { string }
 function api.harness(text: string)
 	api.lastAction = text
+	table.insert(api.logBuffer, text)
+	if #api.logBuffer > 400 then
+		table.remove(api.logBuffer, 1)
+	end
 	print("[Lane3Hud] preview action: " .. text)
+end
+-- Debug-only: the last `n` harness lines (all when nil), optionally cleared afterwards.
+function api.getLog(n: number?, clear: boolean?): string
+	local count = #api.logBuffer
+	local from = if n then math.max(1, count - n + 1) else 1
+	local out = table.concat(api.logBuffer, "\n", from, count)
+	if clear then
+		table.clear(api.logBuffer)
+	end
+	return out
 end
 
 -- Preview captions ("PROXY", "Preview values", "placeholder times", "Pass concept (not approved)",
@@ -173,7 +192,7 @@ end
 
 -- Hide or show the run HUD (the Stunt Circuit mock has its own HUD)
 function api.setRunHudVisible(on: boolean)
-	for _, key in { "run", "ride", "strip", "heat", "tray", "keys", "hop", "dash" } do
+	for _, key in { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "dash" } do
 		local c = components[key]
 		if c and c.setVisible then
 			c:setVisible(on)
@@ -416,12 +435,13 @@ mount("ride", { "Run", "RideChip" }, "Run", {
 		api.open("settings")
 	end,
 })
-mount("strip", { "Run", "DistrictStrip" }, "Run")
+mount("routeLine", { "Run", "RouteLine" }, "Run")
 -- Round 2: the ORIGINAL ENGINE HEAT panel (RunHud.HeatGauge, unmodified) is the Heat; the round-1
 -- segmented bar stays mounted but hidden, a debug-only variant for before/after comparison.
 mount("heat", { "Run", "HeatPanel" }, "Run")
 mount("heatSegmented", { "Run", "HeatBar" }, "Run")
 mount("tray", { "Run", "ClaimTray" }, "Run")
+mount("stamina", { "Run", "StaminaMeter" }, "Run")
 mount("keys", { "Run", "KeysLock" }, "Run", {
 	anchor = backdrop.ride,
 	-- the run-time Cash and car count (StatsStack is re-anchored per device; design px)
@@ -594,7 +614,7 @@ end
 
 -- visibility by mode
 local HOME = { "stats", "menu", "tutorial", "route", "timers" }
-local RUN = { "run", "ride", "strip", "heat", "tray", "keys", "hop", "dash", "runEnd" }
+local RUN = { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "dash", "runEnd" }
 local function applyMode(mode: string)
 	for _, k in HOME do
 		local c = components[k]
@@ -654,6 +674,26 @@ end
 
 -- Debug-only: "Original" (default; the approved ENGINE HEAT panel) or "Segmented" (the round-1 bar), for
 -- before/after comparison. Round 2 uses Original everywhere.
+api.stamina = staminaFixture
+function api.setStamina(on: boolean, max: number?)
+	staminaFixture:setEnabled(on, max)
+end
+function api.setStaminaRestore(on: boolean)
+	staminaFixture:setRestore(on)
+end
+function api.resetStamina()
+	staminaFixture:reset()
+end
+function api.staminaDebug(): { [string]: any }
+	return staminaFixture:getDebugState()
+end
+-- Debug-only: delivers a store event from MCP (id and kind filled in).
+function api.emitEvent(kind: string, fields: { [string]: any }?)
+	local e = fields or {}
+	e.id = e.id or (kind .. "-" .. tostring(os.clock()))
+	e.kind = kind
+	store:emit(e)
+end
 -- Debug-only: merges fields into the current run state (a held state for review captures).
 function api.patchRun(patch: { [string]: any })
 	local run = store:get().run
@@ -664,6 +704,29 @@ function api.patchRun(patch: { [string]: any })
 		end
 		store:set("run", merged)
 	end
+end
+-- Round 2 route line fixtures (all default to the Downtown route, no prior best, the fixture speed):
+-- the World whose route the run shows (also switches the current run), the pre-run record (nil = none) with its
+-- verified flag, and the fixture speed in metres per second (0 holds the distance still for captures).
+function api.setWorld(id: string): string
+	local plan = WorldRoutes.plan(id)
+	scenarios.worldPlan = if id == "Downtown" then nil else plan
+	api.patchRun({ districtPlan = plan })
+	return plan.world.name
+end
+function api.setRecord(recordM: number?, verified: boolean?)
+	scenarios.recordM = recordM
+	scenarios.recordVerified = verified
+	local run = store:get().run
+	if run then
+		local merged = table.clone(run) :: any
+		merged.recordM = recordM
+		merged.recordVerified = verified
+		store:set("run", merged)
+	end
+end
+function api.setSpeed(metresPerSecond: number?)
+	scenarios.speed = metresPerSecond
 end
 api.heatVariant = "Original"
 function api.setHeatVariant(variant: string)
