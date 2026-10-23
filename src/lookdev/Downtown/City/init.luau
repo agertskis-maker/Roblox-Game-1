@@ -35,6 +35,7 @@ local RoadWidthStudy = require(script.RoadWidthStudy)
 local Sequencer = require(script.Sequencer)
 local StreetLife = require(script.StreetLife)
 local Traffic = require(script.Traffic)
+local WorldLife = require(script.WorldLife)
 local Worlds = require(script.Worlds)
 
 local City = {}
@@ -89,6 +90,8 @@ type Fields = {
 	chaseRig: Chase.Chase?,
 	traffic: Traffic.Traffic?,
 	life: StreetLife.StreetLife?,
+	worldLife: WorldLife.WorldLife?,
+	world: any,
 	built: boolean,
 	destroyed: boolean,
 }
@@ -172,6 +175,8 @@ function City.new(options: Options?): City
 		chaseRig = nil,
 		traffic = nil,
 		life = nil,
+		worldLife = nil,
+		world = worldDef,
 		built = false,
 		destroyed = false,
 	}
@@ -189,25 +194,43 @@ function CityClass.build(self: City, station: number?): Assembler.Stats
 		return self.assembler:getStation()
 	end
 	if self.options.streetLife ~= false and not self.life then
+		-- the Downtown set (pigeons, carts, a blimp) belongs to Downtown; a World gets its own ambient layer below
+		local isWorld = self.world ~= nil
+		local function focus(): { Vector3 }
+			local points = {}
+			local camera = Workspace.CurrentCamera
+			if camera then
+				table.insert(points, camera.CFrame.Position)
+			end
+			local rig = self.chaseRig
+			if rig then
+				table.insert(points, rig:carPosition())
+			end
+			return points
+		end
 		local life = StreetLife.new({
 			parent = root,
 			plan = self.plan,
 			getStation = getStation,
-			getFocus = function(): { Vector3 }
-				local points = {}
-				local camera = Workspace.CurrentCamera
-				if camera then
-					table.insert(points, camera.CFrame.Position)
-				end
-				local rig = self.chaseRig
-				if rig then
-					table.insert(points, rig:carPosition())
-				end
-				return points
-			end,
+			getFocus = focus,
+			pigeons = not isWorld,
+			carts = not isWorld,
+			birds = not isWorld,
+			blimp = not isWorld,
 		})
 		life:start()
 		self.life = life
+		if isWorld and not self.worldLife then
+			local wl = WorldLife.new({
+				parent = root,
+				plan = self.plan,
+				world = self.world,
+				getStation = getStation,
+				getFocus = focus,
+			})
+			wl:start()
+			self.worldLife = wl
+		end
 	end
 	if self.options.traffic ~= false and not self.traffic then
 		local traffic = Traffic.new({
@@ -290,6 +313,7 @@ function CityClass.stats(self: City): { [string]: any }
 		chase = if self.chaseRig then self.chaseRig:stats() else nil,
 		traffic = if self.traffic then self.traffic:stats() else nil,
 		streetLife = if self.life then self.life:stats() else nil,
+		worldLife = if self.worldLife then self.worldLife:stats() else nil,
 		checksPassed = self.plan.checks.passed,
 	}
 end
@@ -318,6 +342,10 @@ function CityClass.destroy(self: City)
 	if self.life then
 		self.life:destroy()
 		self.life = nil
+	end
+	if self.worldLife then
+		self.worldLife:destroy()
+		self.worldLife = nil
 	end
 	self.assembler:destroy()
 end
