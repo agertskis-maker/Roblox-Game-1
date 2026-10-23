@@ -64,3 +64,11 @@ All seven workers finished. Commits (local, not pushed): 2d1b401 (lead core + do
 4. Downtown place, edit mode: `City.run({seed=2207})`, 2,000-stud chase video, width study, stats, reset pass.
 5. Batched click for Adam: 3D Importer of downtown-kit-b2.fbx (only if Play-mode meshes are needed beyond EditableMesh previews).
 6. Reviewers (HUD/reference, run, city, integration) on captures; fixes; review page; log; board (free-steering note for Brian R); push; PR #2.
+
+## State at end of 2026-10-23
+- Studio phase done in the task's HUD playground (Play) and Downtown look-dev (edit) places; the
+  island Studio window was never touched. Independent review received (REVIEW.md) and its
+  material findings fixed and re-captured (ledger, "Independent review and fixes").
+- Commits after the review: 56a2624 (capture car, Keys/Hop, plates, inset, Results, city
+  signatures), c2bdef0 (arc, warning, HOP NOW!), 77ea659 (scan throttle).
+- Review page: `Car-Hop-Art/review/hud-rebuild/index.html`.
