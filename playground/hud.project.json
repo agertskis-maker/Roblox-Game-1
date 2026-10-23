@@ -1,0 +1,65 @@
+{
+  "name": "CarHop-HUD-Playground",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$path": "../Packages"
+      },
+      "Shared": {
+        "$path": "../src/shared"
+      },
+      "Lane3Playground": {
+        "$path": "hud/Lane3Playground.model.json"
+      },
+      "LookDev": {
+        "$path": "../src/lookdev"
+      },
+      "Lane3_DowntownKitB2": {
+        "$path": {
+          "optional": "../../Car-Hop-Art/downtown-kit-b2/meshes"
+        }
+      },
+      "Lane3_DowntownKitB2Data": {
+        "$className": "Folder",
+        "manifest": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-b2/manifest.json"
+          }
+        },
+        "swatches": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-b2/swatches.json"
+          }
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "../src/client"
+        },
+        "Playground": {
+          "$path": "hud/scripts"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FilteringEnabled": true
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "ShadowMap",
+        "ClockTime": 13.5,
+        "Brightness": 2
+      }
+    }
+  }
+}
