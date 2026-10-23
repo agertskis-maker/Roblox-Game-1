@@ -311,6 +311,25 @@ S["Run: instant failure (no warning)"] = function(host)
 	host.wait(3)
 end
 
+-- Round 2 (R2-H4): the canonical Heat input sequence. Identical steps and timing are replayed through the
+-- original ENGINE HEAT panel standalone (heat/baseline-original.json) and through the integrated adapter,
+-- so the two can be compared number for number. A fixture with the original thresholds, not a live run.
+S["Run: Heat sequence (HEAT_SEQ)"] = function(host)
+	freshRun(host)
+	host.runPatch({ heat = 0, stage = "Calm" }) -- t 0 (snap)
+	host.wait(1)
+	host.runPatch({ heat = 0.3, stage = "Calm" }) -- t 1
+	host.wait(2)
+	host.runPatch({ heat = 0.6, stage = "Warning" }) -- t 3
+	host.wait(2)
+	host.runPatch({ heat = 0.85, stage = "Critical" }) -- t 5
+	host.wait(2)
+	host.runPatch({ heat = 1, stage = "Meltdown" }) -- t 7
+	host.wait(4)
+	host.runPatch({ heat = 0, stage = "Calm" }) -- t 11: the Hop reset
+	host.wait(3)
+end
+
 S["Run: Heat stages"] = function(host)
 	freshRun(host)
 	for _, h in
