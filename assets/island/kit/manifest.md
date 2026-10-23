@@ -374,3 +374,114 @@ The falls loop (9120552550) and park birdsong (9113444360) are unchanged from th
 | SignpostPost | 70440998829645 |
 
 Checked after the import: creator peskaface, asset type Mesh, all load in Studio. The importer also created one Model asset (not used by the game; its id was not recorded). Privacy setting not changed.
+
+
+## Task 4 uploads (2026-10-22 to 23)
+
+### Palette
+- `Palette` 134121745235322: the kit palette with the Task 4 swatches appended (cells 101 to 126); the older cells are byte-identical to the previous upload (84613406678497).
+
+### Meshes: 97 imported in one batch (Claude Code driving the 3D Importer, `island-kit-task4/all/island-kit.obj`)
+Creator peskaface, asset type Mesh, Restricted (Asset Privacy not changed). Sources: `kit_park4.py`, `kit_gates.py`, `kit_garage.py`, `kit_stunt.py` (headless Blender, safe mode on); manifest from `write_manifest.js`. All 97 load in Play (2026-10-22: 4,094 MeshParts with meshes, no preview fallback).
+
+Known issue from an earlier upload: `GrassTuftWide` (85162093459834, Task 2) began failing with "Failed to load mesh asset" during Task 4. `KitAssets` falls back to its preview data in Edit, so it needs a re-upload or a check before production.
+
+| Mesh | Asset id |
+|---|---|
+| AirPump | 110204729376180 |
+| BedAvenueArc | 103579632050241 |
+| BedAvenueStraight | 135442988433072 |
+| BedCornerFillet | 118604528597435 |
+| BedFountainArc | 134390751624734 |
+| BedJunctionRound | 88027591948797 |
+| Bollard | 130288057862761 |
+| BridgeRiverApproach | 72542935568044 |
+| BridgeRiverAvenue | 80680695628375 |
+| CarLift | 119346173440460 |
+| CheckeredBand | 102866985026681 |
+| DrumRed | 138825731788822 |
+| DrumTeal | 124127388745386 |
+| ForecourtCurb | 93062744759345 |
+| GarageBench | 128621570342938 |
+| GarageFlagpole | 114307514216865 |
+| GarageGlazing | 74974275532912 |
+| GarageInterior | 129388325886092 |
+| GarageLights | 83123427499636 |
+| GarageShell | 121491509701515 |
+| GarageSign | 97116362523762 |
+| GarageStructure | 98702145130383 |
+| GateChainLink | 73207672300684 |
+| GateChainRun | 76766417787279 |
+| GateChainWrap | 130443776899054 |
+| GateDowntownColumns | 100622023476660 |
+| GateDowntownCrest | 136625187784489 |
+| GateDowntownCrown | 76948856455160 |
+| GateDowntownInlayHigh | 126374080453878 |
+| GateDowntownInlayLow | 121860079564829 |
+| GateDowntownInlayMid | 129558520019215 |
+| GateDowntownPlinth | 86735613167602 |
+| GateDustyColumns | 86245591782804 |
+| GateDustyCrest | 102095830213239 |
+| GateDustyCrown | 108965219161951 |
+| GateDustyInlayHigh | 92396752854278 |
+| GateDustyInlayLow | 88775367360936 |
+| GateDustyInlayMid | 83749599509288 |
+| GateDustyPlinth | 81607640523569 |
+| GateLockedPlaque | 85776840996865 |
+| GatePadlockBody | 114895657400713 |
+| GatePadlockShackle | 95042551202674 |
+| GateRequirementPlaque | 91408729218646 |
+| GateSummitColumns | 101537543480464 |
+| GateSummitCrest | 72855068822850 |
+| GateSummitCrown | 76667204899795 |
+| GateSummitInlayHigh | 135304094950228 |
+| GateSummitInlayLow | 107433432392469 |
+| GateSummitInlayMid | 115384570334359 |
+| GateSummitPlinth | 103260941940716 |
+| HazardStrip | 129733081613401 |
+| LeaderboardCapRail | 118478916447686 |
+| LeaderboardFrame | 91801326868428 |
+| LeaderboardLampLens | 135435933408871 |
+| LeaderboardTextFace | 127784702289834 |
+| LightPost | 122928044538401 |
+| MarqueeBulb | 125065021393580 |
+| OilCanDisplay | 102895488946455 |
+| Parasol | 129523374466942 |
+| ParasolTeal | 117941484620466 |
+| ParkBin | 136795891733710 |
+| ParkingArrow | 138960354307095 |
+| PicnicTable | 140641508048127 |
+| Planter | 110833334763085 |
+| PlotGateAccent | 108705556612994 |
+| PlotGateBeam | 106966488738990 |
+| PlotGateChecker | 77387230157770 |
+| PlotGateFenceStub | 78019452229411 |
+| PlotGateFlagpoles | 134605803320037 |
+| PlotGateHedgeStub | 131465059707764 |
+| PlotGateLamps | 71683574906675 |
+| PlotGatePillars | 105347357049574 |
+| PlotGateStartLine | 94199148538209 |
+| RarityRing | 107953177744195 |
+| RollUpDoor | 91711726836059 |
+| RoofVent | 110708731255555 |
+| StuntApron | 71107574763446 |
+| StuntCone | 118093047831211 |
+| StuntEndBarrier | 95306844036294 |
+| StuntFlag | 86517682558438 |
+| StuntGantry | 104817121227162 |
+| StuntGridMarkings | 93445278377528 |
+| StuntLoop | 75327562518478 |
+| StuntPodium | 81526632499772 |
+| StuntSignFaceBoard | 78604543460492 |
+| StuntSignFaceComingSoon | 73999005641583 |
+| StuntSignFaceLettering | 79167923727867 |
+| StuntStartLightHousing | 81815017911080 |
+| StuntStartLightLens | 118536850189116 |
+| StuntTireRow | 90528486626324 |
+| TireRack | 137956286102168 |
+| TireStack | 105539546634049 |
+| ToolCart | 116316038567016 |
+| ToolWall | 82901783754911 |
+| TurntableDisc | 138097925181855 |
+| WallLight | 124235524460081 |
+| WrenchTireSculpture | 129297331288501 |
