@@ -48,11 +48,19 @@ Ledger and plan: [[hud-rebuild-downtown-b]]. Branch `feature/lane3-hud-downtown-
 ## Lock log
 - 09:20 island lock present (07:40). Repo work only.
 - 09:39 still present; passes 2 h at 09:40 — per the lock rule, told Adam instead of touching it.
+- 10:06 still present. Workers hit the API session limit about 10:05; resumed 14:40.
+- 14:50 still present (7 h old; island Studio window open, its session probably stopped at the same limit). Asked Adam to release it or say "take the Studio lock"; not touched.
 
 ## Workers (launched 09:30–09:45)
 HA icons+specimen, HH home, HS screens/Results, HR run+Keys, HW world+fixtures, DK Blender kit (only Blender operator), DC city grammar (asked to run client-side in Play too). Lead-owned files committed in 2d1b401.
 
-## Next actions
-1. Integrate worker reports: mount lines in HudPlayground, Backdrop needs, lint.
-2. When the Studio lock is free: write own lock, rojo build both places, open the HUD place, specimen sheet first.
-3. Recheck the lock about every 10 minutes.
+## State at 14:50
+All seven workers finished. Commits (local, not pushed): 2d1b401 (lead core + docs), bc229f8 (HUD rebuild + city grammar), 5328426 (B2 kit recipes + manifest; HUD playground city backdrop). check.ps1 passes; both playground places build. Kit output: Car-Hop-Art/downtown-kit-b2 (140 meshes, 37,591 tris, FBX batch package, 5 palettes); renders in Car-Hop-Art/review/hud-rebuild/downtown/blender/.
+
+## Next actions (all need Studio)
+1. Lock: write own lock; `rojo build playground/hud.project.json -o Car-Hop-Art/CarHop-HUD-Playground.rbxl` and the downtown equivalent; open in a separate Studio window (never the island place).
+2. HUD place, Play: specimen sheet (`:Invoke("play","Specimen: composed")`) over the city backdrop (`useCity(true)`), compare with both references, fix kit tokens; check Arcade.STROKE_FOLLOWS_UISCALE.
+3. Record the §18 fixtures (worker scenario names), four profiles, reserved zones, perf with HUD + city + traffic.
+4. Downtown place, edit mode: `City.run({seed=2207})`, 2,000-stud chase video, width study, stats, reset pass.
+5. Batched click for Adam: 3D Importer of downtown-kit-b2.fbx (only if Play-mode meshes are needed beyond EditableMesh previews).
+6. Reviewers (HUD/reference, run, city, integration) on captures; fixes; review page; log; board (free-steering note for Brian R); push; PR #2.

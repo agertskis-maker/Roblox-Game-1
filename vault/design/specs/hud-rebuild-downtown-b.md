@@ -77,9 +77,9 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 | R-01 | Work in `Roblox-Game-1-hud` on the branch; inspect git and notes first; no island or teammate changes (§1) | L | git log; island worktree untouched | in progress |
 | R-02 | Ledger + plan recorded in the task documents (§1) | L | this file | built |
 | R-03 | Read both HUD images, the dino analysis and all 11 frames (01 04 08 15 19 27 29 30 56 57 60) (§2) | L | reference comparison doc | done (lead read all) |
-| R-04 | Reference comparison doc: visible / inferred / preserve / change; no game identification; no motion/metric claims from stills (§2) | L | `vault/design/research/hud-rebuild-reference-comparison.md` | open |
-| R-05 | Copy study material into the references convention without duplicate binaries; provenance (§2) | L | provenance index | open |
-| R-06 | Parallel bounded research: HUD translation, capture feedback, runner progress/failure, modular city; official docs for APIs and audio (§3) | RV | `vault/design/research/*.md` (5 notes) | in progress |
+| R-04 | Reference comparison doc: visible / inferred / preserve / change; no game identification; no motion/metric claims from stills (§2) | L | `vault/design/research/hud-rebuild-reference-comparison.md` | done |
+| R-05 | Copy study material into the references convention without duplicate binaries; provenance (§2) | L | provenance index | done |
+| R-06 | Parallel bounded research: HUD translation, capture feedback, runner progress/failure, modular city; official docs for APIs and audio (§3) | RV | `vault/design/research/*.md` (5 notes) | done |
 | R-07 | Delegated build with explicit owned files; lead owns tokens, integration, ledger, manifest, review page (§3) | L | "Component boundaries" below | built |
 | R-08 | Respect the Studio lock; recheck about every 10 min; never seize; one Studio and one Blender operator; Blender safe mode; 4 GB floor (§3) | L | lock log in checkpoint; memory log | in progress |
 | R-09 | Compact checkpoint (§3) | L | [[hud-rebuild-checkpoint]] | built |
@@ -89,137 +89,137 @@ DK Downtown kit (Blender operator) · DC Downtown city grammar (Studio) · RV re
 |---|---|---|---|---|
 | V-01 | One specimen sheet in Studio over real world backdrops: Shop/Garage/Missions/Settings, earned badge, car count, Cash, earning line, Heat, one Keys state, car card; compared against both images before propagation (§4) | L | specimen capture + comparison notes | open |
 | V-02 | Heavy rounded typography, strong dark outlines, open counters; italic numbers/timers via a verified font (no rotated rows) (§4) | HA | specimen; font record | open — Nunito Black Italic verified installed (Roblox font families, Black Italic 900); Fredoka One stays for labels |
-| V-03 | Consistent text/stroke/icon/spacing tokens; major outlines 3–4 px at 1080p; lighter outlines for subordinate text; no blobs, clipping, grey shadows (§4) | L | `Prototype/Arcade.luau` tokens; zoomed captures | open |
-| V-04 | Buttons: strong fill, controlled gradient, narrow gloss, shallow depth; faint original motor pattern on large buttons only (§4) | HA | specimen zoom | open |
-| V-05 | Near-black/navy outlines; Cash green, cars cyan, Keys gold, Hop teal/white, Heat yellow→orange→red; teal reserved for targeting except the requested teal GO HOME (§4) | L | token table | open |
-| V-06 | Rarity and variants separate fields; rarity vocabulary as live preview (Uncommon proposed) (§4) | L | fixture + cards | open |
-| V-07 | Red Settings and earned red badges kept; danger distinct by icon/reason/location/transience; Shop badge only for actual free fixture claims (§4) | HH | captures | open |
+| V-03 | Consistent text/stroke/icon/spacing tokens; major outlines 3–4 px at 1080p; lighter outlines for subordinate text; no blobs, clipping, grey shadows (§4) | L | `Prototype/Arcade.luau` tokens; zoomed captures | built, build-checked; Studio pending |
+| V-04 | Buttons: strong fill, controlled gradient, narrow gloss, shallow depth; faint original motor pattern on large buttons only (§4) | HA | specimen zoom | built, build-checked; Studio pending |
+| V-05 | Near-black/navy outlines; Cash green, cars cyan, Keys gold, Hop teal/white, Heat yellow→orange→red; teal reserved for targeting except the requested teal GO HOME (§4) | L | token table | built, build-checked; Studio pending |
+| V-06 | Rarity and variants separate fields; rarity vocabulary as live preview (Uncommon proposed) (§4) | L | fixture + cards | built, build-checked; Studio pending |
+| V-07 | Red Settings and earned red badges kept; danger distinct by icon/reason/location/transience; Shop badge only for actual free fixture claims (§4) | HH | captures | built, build-checked; Studio pending |
 | V-08 | Components judged on ratio, label weight, icon balance, spacing, silhouette, reference proximity, bright scenery (§4) | RV | HUD reviewer report | open |
 
 ### Home HUD (§5)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| H-01 | Compact red labelled "Settings" rectangle above the stack, centred on it; no Gear (§5) | HH | captures 4 sizes | open |
-| H-02 | Shop: wide rainbow button, original gift/cart icon left, large label; readable bands; slow drift only, stopped in reduced motion; no purchase bait (§5) | HH/HA | capture + video | open |
-| H-03 | Garage: cyan→blue, car-book/garage icon, earned-unseen badge top right that survives press scaling (§5) | HH/HA | press-state capture | open |
-| H-04 | Missions: orange, clipboard icon, earned-claim badge; equal widths, aligned icon centres, deliberate gaps; ~2:1–2.4:1 starting ratio (§5) | HH | measurements | open |
-| H-05 | Toggle row: only a real local setting (Music) with obvious state and label; close the gap if absent (§5) | HH | video toggling | open |
-| H-06 | Bottom-left stats, no panels: cyan car icon + count; inert "+" as part of the collection symbol, never a buy affordance (§5) | HH/HA | capture | open |
-| H-07 | Cash: original cash stack, large green amount, dark outline, no panel; icon anchor fixed as digits grow (§5) | HH | extreme-balance captures | open |
-| H-08 | Approved big-gain celebration preserved: baseline recording + regression comparison; anchor relocated only; reduced-motion accessibility fix only, recorded (§5, C4) | HH | baseline vs new video | open |
-| H-09 | Earning line: smaller white slightly italic "Speedway: +$120 / lap", PREVIEW, units/wording Lane 2's (§5) | HH | capture | open |
-| H-10 | Number format: commas + K/M/B/T with consistent rounding and promotion (no "1000K", no flicker, no shifting icon, no truncated suffix); full value via tap/focus/hover (§5) | HH | boundary test table | open |
-| H-11 | Timer stack: optional proposal, off by default, italic outlined timer + original event icon, no real clock, never shown to ordinary players (§5) | HH | proposal capture (captioned) | open |
-| H-12 | No right-side square buttons, no Daily/Goals, no hotbar (§5) | HH | captures | open |
-| H-13 | Tutorial restyled (yellow banner/tab, outlined); objective > progress > hint hierarchy; toasts max 2, queue limit, coalescing, reserved space (§5) | HH | video | open |
-| H-14 | Settings panel: real local-preview volume/reduced-motion, clear close/back; no new schemas (§5) | HH | video | open |
-| H-15 | Garage, portal picker, Welcome Back, Shop mocks restyled into the new family (restyle only) (§5) | HS | captures | open |
+| H-01 | Compact red labelled "Settings" rectangle above the stack, centred on it; no Gear (§5) | HH | captures 4 sizes | built, build-checked; Studio pending |
+| H-02 | Shop: wide rainbow button, original gift/cart icon left, large label; readable bands; slow drift only, stopped in reduced motion; no purchase bait (§5) | HH/HA | capture + video | built, build-checked; Studio pending |
+| H-03 | Garage: cyan→blue, car-book/garage icon, earned-unseen badge top right that survives press scaling (§5) | HH/HA | press-state capture | built, build-checked; Studio pending |
+| H-04 | Missions: orange, clipboard icon, earned-claim badge; equal widths, aligned icon centres, deliberate gaps; ~2:1–2.4:1 starting ratio (§5) | HH | measurements | built, build-checked; Studio pending |
+| H-05 | Toggle row: only a real local setting (Music) with obvious state and label; close the gap if absent (§5) | HH | video toggling | built, build-checked; Studio pending |
+| H-06 | Bottom-left stats, no panels: cyan car icon + count; inert "+" as part of the collection symbol, never a buy affordance (§5) | HH/HA | capture | built, build-checked; Studio pending |
+| H-07 | Cash: original cash stack, large green amount, dark outline, no panel; icon anchor fixed as digits grow (§5) | HH | extreme-balance captures | built, build-checked; Studio pending |
+| H-08 | Approved big-gain celebration preserved: baseline recording + regression comparison; anchor relocated only; reduced-motion accessibility fix only, recorded (§5, C4) | HH | baseline vs new video | built, build-checked; Studio pending |
+| H-09 | Earning line: smaller white slightly italic "Speedway: +$120 / lap", PREVIEW, units/wording Lane 2's (§5) | HH | capture | built, build-checked; Studio pending |
+| H-10 | Number format: commas + K/M/B/T with consistent rounding and promotion (no "1000K", no flicker, no shifting icon, no truncated suffix); full value via tap/focus/hover (§5) | HH | boundary test table | built, build-checked; Studio pending |
+| H-11 | Timer stack: optional proposal, off by default, italic outlined timer + original event icon, no real clock, never shown to ordinary players (§5) | HH | proposal capture (captioned) | built, build-checked; Studio pending |
+| H-12 | No right-side square buttons, no Daily/Goals, no hotbar (§5) | HH | captures | built, build-checked; Studio pending |
+| H-13 | Tutorial restyled (yellow banner/tab, outlined); objective > progress > hint hierarchy; toasts max 2, queue limit, coalescing, reserved space (§5) | HH | video | built, build-checked; Studio pending |
+| H-14 | Settings panel: real local-preview volume/reduced-motion, clear close/back; no new schemas (§5) | HH | video | built, build-checked; Studio pending |
+| H-15 | Garage, portal picker, Welcome Back, Shop mocks restyled into the new family (restyle only) (§5) | HS | captures | built, build-checked; Studio pending |
 
 ### World presentation modules (§6)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| W-01 | Parameterised destination label: glossy colour/white lettering, dark outline, controlled depth; max range, scaling bounds, occlusion policy; samples GARAGE, STUNT CIRCUIT and the three World names on test fixtures (§6) | HW | captures near/far/occluded | open |
-| W-02 | Ground interaction marker: coloured centre + crisp white ring, grounded, no flicker, sized to the interaction area; inactive quiet; distinct from the dashed teal Hop ring (§6) | HW | captures | open |
-| W-03 | Base fixtures: Lineup rarity/name label, Lap Pay label, Paddock upgrade board (current/next tier, preview price), padlock/progress plaque, first-session START/ground guidance, return-to-plot arrival sparkle — visual only (§6) | HW | captures + sparkle video | open |
+| W-01 | Parameterised destination label: glossy colour/white lettering, dark outline, controlled depth; max range, scaling bounds, occlusion policy; samples GARAGE, STUNT CIRCUIT and the three World names on test fixtures (§6) | HW | captures near/far/occluded | built, build-checked; Studio pending |
+| W-02 | Ground interaction marker: coloured centre + crisp white ring, grounded, no flicker, sized to the interaction area; inactive quiet; distinct from the dashed teal Hop ring (§6) | HW | captures | built, build-checked; Studio pending |
+| W-03 | Base fixtures: Lineup rarity/name label, Lap Pay label, Paddock upgrade board (current/next tier, preview price), padlock/progress plaque, first-session START/ground guidance, return-to-plot arrival sparkle — visual only (§6) | HW | captures + sparkle video | built, build-checked; Studio pending |
 | W-04 | Local note for future island adoption; no island change, no message (§6) | L | "Island adoption note" below | open |
 
 ### Responsive layout (§7)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
 | L-01 | Test 1920×1080, ~844×390, 390×844, a tablet; record viewport/inset settings; analyse the playable viewport (§7) | L | matrix with settings | open |
-| L-02 | Responsive constraints, not one global scale; ~44–48 px provisional hitboxes; primaries larger; live approved sizes (§7) | L | hitbox measurements | open |
-| L-03 | Safe areas without double-counted insets; controls or a labelled reserved-zone overlay; phone currency above/beside the thumbstick; compact run menu (§7) | L | overlay captures | open |
-| L-04 | Heat bottom centre, compact, outside thumb zones, room above for rider and Keys; Hop bottom right; purpose-built portrait (§7) | HR | captures | open |
-| L-05 | Protected road-ahead region from the preview camera; banners/cards/toasts kept out (§7) | L | region overlay capture | open |
-| L-06 | Priority system: safety > capture > district > rewards > ambient (§7) | L | `Prototype/Priority.luau` + coincidence video | open |
+| L-02 | Responsive constraints, not one global scale; ~44–48 px provisional hitboxes; primaries larger; live approved sizes (§7) | L | hitbox measurements | built, build-checked; Studio pending |
+| L-03 | Safe areas without double-counted insets; controls or a labelled reserved-zone overlay; phone currency above/beside the thumbstick; compact run menu (§7) | L | overlay captures | built, build-checked; Studio pending |
+| L-04 | Heat bottom centre, compact, outside thumb zones, room above for rider and Keys; Hop bottom right; purpose-built portrait (§7) | HR | captures | built, build-checked; Studio pending |
+| L-05 | Protected road-ahead region from the preview camera; banners/cards/toasts kept out (§7) | L | region overlay capture | built, build-checked; Studio pending |
+| L-06 | Priority system: safety > capture > district > rewards > ambient (§7) | L | `Prototype/Priority.luau` + coincidence video | built, build-checked; Studio pending |
 
 ### Run HUD (§8)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| U-01 | Top-centre district strip: original illustrated tiles from real district landmarks, names, current highlight, avatar head + distance; visited/current/upcoming without locks/rewards; stable layout (§8) | HR/HA | captures + video | open |
-| U-02 | Phone: compact current + adjacent/next tile; fallback avatar icon while the head loads (§8) | HR | phone captures | open |
-| U-03 | Endless: repeating cycle or rolling window from explicit boundary data; cycle index local to the fixture; proposals to Lane 1 (§8) | HR | cycle video | open |
-| U-04 | District entry banner below the strip; one icon/name; never stacks with tutorial/toasts; deferred by critical warnings (§8) | HR | coincidence video | open |
-| U-05 | Bottom-centre Heat: dark frame, segmented fill, flame icon, stage marks, ramp; one brief stage emphasis; no invented thresholds shown as rules (§8) | HR | video | open |
-| U-06 | Cash/count compact during driving; left-middle "claimed this run" tray with count, bounded thumbnails, overflow count; pending slot never increases the count (§8) | HR | many-claims capture | open |
-| U-07 | Hop button: original car-jump symbol, input labels (Space / touch / gamepad), ready/disabled/cooldown not by colour alone; preview intent only (§8) | HR | captures | open |
-| U-08 | Foot Dash / milestones kept and aligned with the hierarchy (§8) | HR | video | open |
+| U-01 | Top-centre district strip: original illustrated tiles from real district landmarks, names, current highlight, avatar head + distance; visited/current/upcoming without locks/rewards; stable layout (§8) | HR/HA | captures + video | built, build-checked; Studio pending |
+| U-02 | Phone: compact current + adjacent/next tile; fallback avatar icon while the head loads (§8) | HR | phone captures | built, build-checked; Studio pending |
+| U-03 | Endless: repeating cycle or rolling window from explicit boundary data; cycle index local to the fixture; proposals to Lane 1 (§8) | HR | cycle video | built, build-checked; Studio pending |
+| U-04 | District entry banner below the strip; one icon/name; never stacks with tutorial/toasts; deferred by critical warnings (§8) | HR | coincidence video | built, build-checked; Studio pending |
+| U-05 | Bottom-centre Heat: dark frame, segmented fill, flame icon, stage marks, ramp; one brief stage emphasis; no invented thresholds shown as rules (§8) | HR | video | built, build-checked; Studio pending |
+| U-06 | Cash/count compact during driving; left-middle "claimed this run" tray with count, bounded thumbnails, overflow count; pending slot never increases the count (§8) | HR | many-claims capture | built, build-checked; Studio pending |
+| U-07 | Hop button: original car-jump symbol, input labels (Space / touch / gamepad), ready/disabled/cooldown not by colour alone; preview intent only (§8) | HR | captures | built, build-checked; Studio pending |
+| U-08 | Foot Dash / milestones kept and aligned with the hierarchy (§8) | HR | video | built, build-checked; Studio pending |
 
 ### Traffic information and Hop target (§9)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| T-01 | Nameplates: rarity, name, NEW! only when authoritative unowned, variant when relevant; unknown never NEW! (§9) | HW | fixture captures | open |
-| T-02 | Priority (ridden, selected, nearby notable), count cap, screen-space overlap suppression, hysteresis/fades (§9) | HW | crowding video | open |
-| T-03 | No unreadable specks (fade after min size); occlusion policy; rarity text/symbol not colour-only (§9) | HW | captures | open |
-| T-04 | Rare-or-better arrival reveal: brief side ribbon outside the road region; dedupe by identity; cooldown/queue (§9) | HW | dedupe video | open |
-| T-05 | Hop ring: one target, dashed teal/white, grounded, scaled to footprint, no clipping; clean retarget; disabled state by structure/brightness (§9) | HW | captures | open |
-| T-06 | Thin arc-preview telegraph from target data, labelled not ballistic; pointing pose optional only if cheap (§9) | HW | video | open |
-| T-07 | Reduced motion: stable ring/arc; all cues clean up on despawn/retarget/run end/reset (§9) | HW | video + debug counts | open |
+| T-01 | Nameplates: rarity, name, NEW! only when authoritative unowned, variant when relevant; unknown never NEW! (§9) | HW | fixture captures | built, build-checked; Studio pending |
+| T-02 | Priority (ridden, selected, nearby notable), count cap, screen-space overlap suppression, hysteresis/fades (§9) | HW | crowding video | built, build-checked; Studio pending |
+| T-03 | No unreadable specks (fade after min size); occlusion policy; rarity text/symbol not colour-only (§9) | HW | captures | built, build-checked; Studio pending |
+| T-04 | Rare-or-better arrival reveal: brief side ribbon outside the road region; dedupe by identity; cooldown/queue (§9) | HW | dedupe video | built, build-checked; Studio pending |
+| T-05 | Hop ring: one target, dashed teal/white, grounded, scaled to footprint, no clipping; clean retarget; disabled state by structure/brightness (§9) | HW | captures | built, build-checked; Studio pending |
+| T-06 | Thin arc-preview telegraph from target data, labelled not ballistic; pointing pose optional only if cheap (§9) | HW | video | built, build-checked; Studio pending |
+| T-07 | Reduced motion: stable ring/arc; all cues clean up on despawn/retarget/run end/reset (§9) | HW | video + debug counts | built, build-checked; Studio pending |
 
 ### Keys capture (§10)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| K-01 | Full redesign; rider-relative placement kept; stable tracking, size limits, safe clamp, offscreen/despawn handling, no jitter (§10) | HR | video | open |
-| K-02 | Bold gold segmented ring (8–12 proposal), dark boundary, restrained inner shadow, original key-in-lock centre, percentage secondary (§10) | HR/HA | zoom capture | open |
-| K-03 | Rarity colour on the car outline/accent/final reveal only; gold = capture; teal = Hop (§10) | HR/HW | captures with Rare car | open |
-| K-04 | States: idle; start (rarity outline, sparse particles, CAPTURING plate, HOLD ON); progress (segments, key turns, glow, rising sound; ALMOST once near 75%); pending (SECURING…, no ownership claim); confirmed (lock opens, burst, YOU GOT THE KEYS! + identity + Keep going!, compact side ribbon while driving); tray arrival (+1 once, stamp; delayed confirmation into Results); canceled (fracture, truthful reason, no loss) (§10) | HR/HW | state video | open |
-| K-05 | Identity/dedupe/ordering: duplicates, delays, out-of-order cannot duplicate, replay or reverse (§10) | HR | scripted event test log | open |
-| K-06 | Owned car: silver Joyride presentation, JOYRIDE BONUS only on a supplied confirmed event, +$50 synthetic (§10) | HR | capture | open |
-| K-07 | Motion/audio hierarchy: release 100–200 ms, burst, ribbon 1–2 s, tray settle; capped edge accent; warning wins; reduced motion calm path (§10) | HR | video RM on/off | open |
+| K-01 | Full redesign; rider-relative placement kept; stable tracking, size limits, safe clamp, offscreen/despawn handling, no jitter (§10) | HR | video | built, build-checked; Studio pending |
+| K-02 | Bold gold segmented ring (8–12 proposal), dark boundary, restrained inner shadow, original key-in-lock centre, percentage secondary (§10) | HR/HA | zoom capture | built, build-checked; Studio pending |
+| K-03 | Rarity colour on the car outline/accent/final reveal only; gold = capture; teal = Hop (§10) | HR/HW | captures with Rare car | built, build-checked; Studio pending |
+| K-04 | States: idle; start (rarity outline, sparse particles, CAPTURING plate, HOLD ON); progress (segments, key turns, glow, rising sound; ALMOST once near 75%); pending (SECURING…, no ownership claim); confirmed (lock opens, burst, YOU GOT THE KEYS! + identity + Keep going!, compact side ribbon while driving); tray arrival (+1 once, stamp; delayed confirmation into Results); canceled (fracture, truthful reason, no loss) (§10) | HR/HW | state video | built, build-checked; Studio pending |
+| K-05 | Identity/dedupe/ordering: duplicates, delays, out-of-order cannot duplicate, replay or reverse (§10) | HR | scripted event test log | built, build-checked; Studio pending |
+| K-06 | Owned car: silver Joyride presentation, JOYRIDE BONUS only on a supplied confirmed event, +$50 synthetic (§10) | HR | capture | built, build-checked; Studio pending |
+| K-07 | Motion/audio hierarchy: release 100–200 ms, burst, ribbon 1–2 s, tray settle; capped edge accent; warning wins; reduced motion calm path (§10) | HR | video RM on/off | built, build-checked; Studio pending |
 | K-08 | Acceptance: a new viewer can tell which car, how close, pending, secured, without losing the next target (§10) | RV | run reviewer | open |
 
 ### Warn, eject, explain, recover (§11)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| E-01 | Driven by explicit events (warning reason, dismount, run-end reason, Results); never inferred from tint or Heat; instant failures explained immediately; prior-warning dependency recorded for Lane 1 (§11) | HR | scenario log | open |
-| E-02 | One controlled red car emphasis, ! symbol, TOO HOT reason; no strobe/loud repeats; material restored (§11) | HW | video | open |
-| E-03 | Safe fixture proxy cartoon tumble; no real physics/camera change; labelled placeholder; child-friendly (§11) | HW | video | open |
-| E-04 | OVERHEATED! heading + "Heat full" line, then Results; reason mapping with truthful fallback; claimed cars stay (§11) | HR | video | open |
-| E-05 | No stacking of fanfare/warning/banner/Results; capture at run end preserved in Results (§11) | L/HR | coincidence video | open |
-| E-06 | Results: fixed footer RETRY (orange) / GO HOME (teal); scroll region; correct card bounds; Revolution 6 and longer names readable; no-claim/one/many; no double transitions (§11) | HS | captures + video | open |
-| E-07 | Return-to-home fixture: restrained arrival sparkle around a stand-in plot gate (§11) | HW | video | open |
+| E-01 | Driven by explicit events (warning reason, dismount, run-end reason, Results); never inferred from tint or Heat; instant failures explained immediately; prior-warning dependency recorded for Lane 1 (§11) | HR | scenario log | built, build-checked; Studio pending |
+| E-02 | One controlled red car emphasis, ! symbol, TOO HOT reason; no strobe/loud repeats; material restored (§11) | HW | video | built, build-checked; Studio pending |
+| E-03 | Safe fixture proxy cartoon tumble; no real physics/camera change; labelled placeholder; child-friendly (§11) | HW | video | built, build-checked; Studio pending |
+| E-04 | OVERHEATED! heading + "Heat full" line, then Results; reason mapping with truthful fallback; claimed cars stay (§11) | HR | video | built, build-checked; Studio pending |
+| E-05 | No stacking of fanfare/warning/banner/Results; capture at run end preserved in Results (§11) | L/HR | coincidence video | built, build-checked; Studio pending |
+| E-06 | Results: fixed footer RETRY (orange) / GO HOME (teal); scroll region; correct card bounds; Revolution 6 and longer names readable; no-claim/one/many; no double transitions (§11) | HS | captures + video | built, build-checked; Studio pending |
+| E-07 | Return-to-home fixture: restrained arrival sparkle around a stand-in plot gate (§11) | HW | video | built, build-checked; Studio pending |
 
 ### Sound (§12)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| S-01 | Candidates from permitted Roblox licensed-partner sources, each verified (source, access, usage); no fabricated IDs (§12) | RV/L | `vault/design/research/sound-candidates.md` | in progress |
-| S-02 | Categories: pop, cash ding, (big gain preserved), capture rise, confirmation fanfare, toast/tutorial chime, warning blip, cartoon bonk, Results ticks; consistent loudness (§12) | L | listening table | open |
-| S-03 | UI SoundGroup routing + volume setting; voice caps; tick throttling; clamped capture pitch stopped on cancel/destroy (§12) | L | Sounds.luau + debug counts | open |
+| S-01 | Candidates from permitted Roblox licensed-partner sources, each verified (source, access, usage); no fabricated IDs (§12) | RV/L | `vault/design/research/sound-candidates.md` | done (16 ids verified via Roblox APIs) |
+| S-02 | Categories: pop, cash ding, (big gain preserved), capture rise, confirmation fanfare, toast/tutorial chime, warning blip, cartoon bonk, Results ticks; consistent loudness (§12) | L | listening table | built, build-checked; Studio pending |
+| S-03 | UI SoundGroup routing + volume setting; voice caps; tick throttling; clamped capture pitch stopped on cancel/destroy (§12) | L | Sounds.luau + debug counts | built, build-checked; Studio pending |
 | S-04 | Listening table; inserted in the private preview; listening vs verified properties stated (§12) | L | review page | open |
-| S-05 | Original icon/thumbnail art with source files; uploads only under existing permission (peskaface, logged), else batched approval (§12) | HA | asset manifest | open |
+| S-05 | Original icon/thumbnail art with source files; uploads only under existing permission (peskaface, logged), else batched approval (§12) | HA | asset manifest | built, build-checked; Studio pending |
 
 ### Downtown B (§13–§16)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
 | D-01 | Preserve B's look; no studs, crude boxes, photoreal noise; no drift to A or C (§13) | DK | renders vs overnight B | open |
-| D-02 | Reusable art, recipes, modules, documented sockets; private deterministic assembly/chase harness excluded from production (§13) | DK/DC | files + harness | open |
-| D-03 | Fix the theater's chase silhouette; remove hazard-like orange striped awnings; cut needless triangles (§13) | DK | before/after chase frames + counts | open |
-| D-04 | Road study: 4 lanes × 16–18 studs + shoulders; real car dimensions; side-by-side widths; chosen reversible value (§13) | DC | width comparison frames | open |
-| D-05 | Clear shoulders + scenery setback; visual clearance only; A/D and thumbstick untouched (§13) | DC | frames | open |
-| D-06 | Camera labelled (FOV/height/offset/speed) and alternatives; no shipped camera change (§13) | DC | camera table | open |
-| D-07 | Modules: units, pivots, named start/end sockets, road-edge alignment, curvature, setback, bounds, detail levels (§14) | L/DK/DC | kit contract below + manifest | open |
-| D-08 | ≥2,000-stud route of reused segments: straights, gentle curves, intersections, district transitions; seams, markings, sidewalks, horizon correct; compatible orientation families (§14) | DC | 2,000-stud chase video | open |
-| D-09 | Variation: frontage widths, rooflines, palettes, storefront/door/window/cornice, roof equipment, signs, courtyards/pocket parks/corners, landmark rhythm (§14) | DK/DC | sequence printout + frames | open |
-| D-10 | Deterministic seed; no immediate repeats; no identical L/R pairs; district palettes; seed + sequence shown (§14) | DC | review printout | open |
-| D-11 | Bounded active window with clean reuse; second pass/reset for duplicates, memory, lighting (§14) | DC | counts + memory log | open |
-| D-12 | Distance units: studs vs metres kept separate; provisional conversion labelled (§14) | DC/HR | fixture note | open |
-| D-13 | Five districts with silhouettes, signature material/colour, thumbnail landmark and measured transitions: Main Street (REEL WHEELS theater, blade sign + marquee), City Hall (clock tower with base/roof, plaza, trees, lamps), Harbor Bridge (river crossing, parapets, waterfront glimpses, continuous deck), Midtown (taller midground, selective glass, grids, roof tanks, distant stadium), Skyline Park (setbacks, verges, fountain, skyline) (§15) | DK/DC | per-district frames | open |
-| D-14 | Landmark family with hierarchy: theater, car wash (calm brushes off-lane), service canopy, city hall/clock tower, harbor bridge, park fountain, donut bakery (sign structural), distant stadium, **delivery depot / roadside service workshop** (C2); approach/passing/rear views or a labelled gallery (§16) | DK | route frames + gallery | open |
-| D-15 | Bunting / WELCOME TO DOWNTOWN spans: sparse, supported, above clearance (§16) | DK/DC | frames | open |
-| D-16 | Small fictional sign family (WHEEL GOOD PIZZA, BRAKE-FAST DINER, LUG NUTS HARDWARE + originals); no real logos (§16) | DK | sign sheet | open |
-| D-17 | Street life off-road, bounded, reduced motion: pigeons, flags, cart steam, birds/blimp; subtle exhaust only (§16) | DC | video | open |
-| D-18 | Construction language reserved for hazards; readable cones; crane outside clearance (§16) | DK | frames | open |
-| D-19 | Potholes recessed with rim/depth at chase angle; oil dark sheen with controlled iridescent edge; scenery only (§16) | DK | chase frames | open |
-| D-20 | Frontage/midground/skyline separated by scale/contrast/haze; no haze hiding pop-in; bright day; no shiny brick or random scatter (§16) | DK/DC | frames | open |
+| D-02 | Reusable art, recipes, modules, documented sockets; private deterministic assembly/chase harness excluded from production (§13) | DK/DC | files + harness | built, build-checked; Studio pending |
+| D-03 | Fix the theater's chase silhouette; remove hazard-like orange striped awnings; cut needless triangles (§13) | DK | before/after chase frames + counts | built + rendered (Blender only); Studio pending |
+| D-04 | Road study: 4 lanes × 16–18 studs + shoulders; real car dimensions; side-by-side widths; chosen reversible value (§13) | DC | width comparison frames | built, build-checked; Studio pending |
+| D-05 | Clear shoulders + scenery setback; visual clearance only; A/D and thumbstick untouched (§13) | DC | frames | built, build-checked; Studio pending |
+| D-06 | Camera labelled (FOV/height/offset/speed) and alternatives; no shipped camera change (§13) | DC | camera table | built, build-checked; Studio pending |
+| D-07 | Modules: units, pivots, named start/end sockets, road-edge alignment, curvature, setback, bounds, detail levels (§14) | L/DK/DC | kit contract below + manifest | built (kit contract + 140 mesh JSONs with sockets) |
+| D-08 | ≥2,000-stud route of reused segments: straights, gentle curves, intersections, district transitions; seams, markings, sidewalks, horizon correct; compatible orientation families (§14) | DC | 2,000-stud chase video | built, build-checked; Studio pending |
+| D-09 | Variation: frontage widths, rooflines, palettes, storefront/door/window/cornice, roof equipment, signs, courtyards/pocket parks/corners, landmark rhythm (§14) | DK/DC | sequence printout + frames | built + rendered (Blender only); Studio pending |
+| D-10 | Deterministic seed; no immediate repeats; no identical L/R pairs; district palettes; seed + sequence shown (§14) | DC | review printout | built, build-checked; Studio pending |
+| D-11 | Bounded active window with clean reuse; second pass/reset for duplicates, memory, lighting (§14) | DC | counts + memory log | built, build-checked; Studio pending |
+| D-12 | Distance units: studs vs metres kept separate; provisional conversion labelled (§14) | DC/HR | fixture note | built, build-checked; Studio pending |
+| D-13 | Five districts with silhouettes, signature material/colour, thumbnail landmark and measured transitions: Main Street (REEL WHEELS theater, blade sign + marquee), City Hall (clock tower with base/roof, plaza, trees, lamps), Harbor Bridge (river crossing, parapets, waterfront glimpses, continuous deck), Midtown (taller midground, selective glass, grids, roof tanks, distant stadium), Skyline Park (setbacks, verges, fountain, skyline) (§15) | DK/DC | per-district frames | built + rendered (Blender only); Studio pending |
+| D-14 | Landmark family with hierarchy: theater, car wash (calm brushes off-lane), service canopy, city hall/clock tower, harbor bridge, park fountain, donut bakery (sign structural), distant stadium, **delivery depot / roadside service workshop** (C2); approach/passing/rear views or a labelled gallery (§16) | DK | route frames + gallery | built + rendered (Blender only); Studio pending |
+| D-15 | Bunting / WELCOME TO DOWNTOWN spans: sparse, supported, above clearance (§16) | DK/DC | frames | built + rendered (Blender only); Studio pending |
+| D-16 | Small fictional sign family (WHEEL GOOD PIZZA, BRAKE-FAST DINER, LUG NUTS HARDWARE + originals); no real logos (§16) | DK | sign sheet | built + rendered (Blender only); Studio pending |
+| D-17 | Street life off-road, bounded, reduced motion: pigeons, flags, cart steam, birds/blimp; subtle exhaust only (§16) | DC | video | built, build-checked; Studio pending |
+| D-18 | Construction language reserved for hazards; readable cones; crane outside clearance (§16) | DK | frames | built + rendered (Blender only); Studio pending |
+| D-19 | Potholes recessed with rim/depth at chase angle; oil dark sheen with controlled iridescent edge; scenery only (§16) | DK | chase frames | built + rendered (Blender only); Studio pending |
+| D-20 | Frontage/midground/skyline separated by scale/contrast/haze; no haze hiding pop-in; bright day; no shiny brick or random scatter (§16) | DK/DC | frames | built + rendered (Blender only); Studio pending |
 
 ### Engineering, performance, verification, handoff (§17–§18)
 | ID | Requirement | Owner | Acceptance evidence | Status |
 |---|---|---|---|---|
-| X-01 | Strict Luau, typed APIs, Trove/Signal/Promise conventions, Rojo source of truth, one style system with scoped new tokens (§17) | all | check.ps1 | open |
-| X-02 | Preview adapters drive everything; hooks documented in the held ledger only; no remotes/data/saves/purchases/events (§17) | L | "Held interfaces" below | open |
+| X-01 | Strict Luau, typed APIs, Trove/Signal/Promise conventions, Rojo source of truth, one style system with scoped new tokens (§17) | all | check.ps1 | build-checked (check.ps1 passes) |
+| X-02 | Preview adapters drive everything; hooks documented in the held ledger only; no remotes/data/saves/purchases/events (§17) | L | "Held interfaces" below | built, build-checked; Studio pending |
 | X-03 | Bootstrap needs the dedicated playground marker + Studio; never production or island (§17) | L | leak check | built (inherited marker gate) |
-| X-04 | Bounded pools/queues, capped particles/nameplates, shared scheduling, cleanup, hidden shine paused, cheap labels over ViewportFrames (§17) | all | debug counts | open |
-| X-05 | Blender import manifest, stable names/pivots/materials, one batch import package; verify IDs and access (§17) | DK/L | `assets/downtown/kit-b/MANIFEST.md` | open |
+| X-04 | Bounded pools/queues, capped particles/nameplates, shared scheduling, cleanup, hidden shine paused, cheap labels over ViewportFrames (§17) | all | debug counts | built, build-checked; Studio pending |
+| X-05 | Blender import manifest, stable names/pivots/materials, one batch import package; verify IDs and access (§17) | DK/L | `assets/downtown/kit-b/MANIFEST.md` | built (MANIFEST.md + batch FBX); import not done |
 | X-06 | Frame times with documented method: typical + stress, with HUD/traffic/names/capture active; parts, meshes, tris, textures, emitters, UI elements, memory trend; 30 fps provisional floor (§17) | L | perf table | open |
 | X-07 | Fixtures and recordings for the §18 list | L | review page | open |
 | X-08 | Fresh reviewers: HUD/reference, run, city, integration; findings with requirement/location/severity/fix; fixes rechecked (§18) | RV | review files | open |
