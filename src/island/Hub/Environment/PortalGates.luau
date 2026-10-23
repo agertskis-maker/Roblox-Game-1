@@ -416,12 +416,19 @@ function PortalGates.build(
 	local chained = columns.points.chain_cross ~= nil
 	model:SetAttribute("Chained", chained)
 	if chained then
-		-- the suggested placement beside a column (Columns meta requirement_plaque_suggested),
-		-- on the gate's mesh-local -x side: world east with the half turn (Summit Pass: the inner
-		-- side; Dusty Highway: the outer side). The plaque's top is under 3, below the corridor
-		-- limit and the lower-falls sight ray (about 4.6 here), so either side works (reversible)
+		-- the suggested placement beside a column (Columns meta requirement_plaque_suggested), on
+		-- the gate's outer side, away from Downtown, so the two locked gates mirror (movement review
+		-- m13: the mesh-local -x side is world east with the half turn, the inner side for Summit
+		-- Pass, so a gate west of the axis takes the mirror image). The plaque's top is under 3,
+		-- below the corridor limit and the lower-falls sight ray (about 4.6 here)
 		local at = columns.points["requirement_plaque_suggested.position"] or Vector3.new(-14, 0, 6.5)
 		local yaw = math.rad(columns.meta["requirement_plaque_suggested.yaw_deg"] or 25)
+		local east = origin:VectorToWorldSpace(Vector3.new(-1, 0, 0)).X > 0
+		local outerIsEast = origin.Position.X > (Layout.Data.park.axisX or 0)
+		if east ~= outerIsEast then
+			at = Vector3.new(-at.X, at.Y, at.Z)
+			yaw = -yaw
+		end
 		local frame = origin * CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 		local p = frame.Position
 		local ground = groundAt(p.X, p.Z)

@@ -282,8 +282,14 @@ function lockBoxes(q, P, chains) {
 	const ringY = (kitEntry("GateLockedPlaque").points["hang_rings.1"] || [0, 2.42, 0])[1];
 	out.push(kitBox(q.id + "LockedPlaque", "GateLockedPlaque", CF.mul(bodyCF, CF.at([0, eyeY - 0.5 - ringY, 0]))));
 	// PortalGates PlaqueBase: the suggested spot beside a column, yawed, on the ground
-	const at = pt("requirement_plaque_suggested.position") || [-14, 0, 6.5];
-	const yaw = ((cols.meta["requirement_plaque_suggested.yaw_deg"] ?? 25) * Math.PI) / 180;
+	// (on the gate's outer side: a gate west of the axis takes the mirror image, as PortalGates does)
+	let at = pt("requirement_plaque_suggested.position") || [-14, 0, 6.5];
+	let yaw = ((cols.meta["requirement_plaque_suggested.yaw_deg"] ?? 25) * Math.PI) / 180;
+	const east = CF.vec(gate, [-1, 0, 0])[0] > 0;
+	if (east !== q.x > T4.axisX) {
+		at = [-at[0], at[1], at[2]];
+		yaw = -yaw;
+	}
 	const frame = CF.mul(CF.mul(gate, CF.at(at)), CF.angY(yaw));
 	const base = CF.mul(CF.at([frame.p[0], T4.lock.ground, frame.p[2]]), CF.rot(frame));
 	out.push(kitBox(q.id + "RequirementPlaque", "GateRequirementPlaque", base));
@@ -537,11 +543,16 @@ function check(over = {}, lock = {}) {
 		...Object.entries(o.walks).map(([id, pts]) => ({ id, s: strip(pts, 10 + 2) })),
 		...H.portals.map((q) => ({ id: "Approach" + q.id, s: strip([mul(q.front, P.plazaR / len(q.front)), q.front], 14 + 4) })),
 		...H.portals.map((q) => ({ id: "Portal" + q.id, s: [rect(q.x - P.portal.outer / 2 - 4, q.x + P.portal.outer / 2 + 4, q.front.y - P.portal.depth - 4, q.front.y + 4)] })),
+		// the wing approaches and the Task 4 spurs, 1 stud each side (movement review M3: the board
+		// stood 1.2 inside the Garage approach and this list did not test it); a building does not
+		// clash with its own approach or spur
+		...[o.garage, o.stunt].map((b) => ({ id: b.id + "Approach", owner: b.id, s: strip([b.door, mul(b.door, P.plazaR / len(b.door))], 12 + 2) })),
+		...Object.entries(o.spurs).map(([id, pts]) => ({ id, owner: { SpurSnackCornerEast: "SnackCornerEast", SpurSnackCornerWest: "SnackCornerWest", SpurGazebo: "Gazebo" }[id], s: strip(pts, L.SPUR_W + 2) })),
 	];
 	const objects = [o.garage, o.stunt, ...o.boards, o.gazebo, o.food, o.foodWest];
 	const clear = [];
 	for (const b of objects) {
-		const hits = strips.filter((x) => x.s.some((q) => overlaps(b.poly, q))).map((x) => x.id);
+		const hits = strips.filter((x) => x.owner !== b.id && x.s.some((q) => overlaps(b.poly, q))).map((x) => x.id);
 		const lake = b.poly.some((p) => lakeValue(p) < 1.05);
 		const plaza = b.poly.some((p) => len(p) < P.plazaR + T4.clear.plaza);
 		const prom = b.poly.some((p) => len(p) > H.prom.inner - 2);

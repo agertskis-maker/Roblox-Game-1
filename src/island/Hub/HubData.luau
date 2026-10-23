@@ -1056,16 +1056,16 @@ return {
 		boards = {
 			{
 				id = "LeaderboardGarage",
-				centre = Vector2.new(110.42, -45.151),
-				facing = Vector2.new(-0.926, 0.378),
+				centre = Vector2.new(106.921, -47.812),
+				facing = Vector2.new(-0.913, 0.408),
 				width = 18,
 				depth = 4,
 				height = 15,
 			},
 			{
 				id = "LeaderboardStunt",
-				centre = Vector2.new(-110.42, -45.151),
-				facing = Vector2.new(0.926, 0.378),
+				centre = Vector2.new(-106.921, -47.812),
+				facing = Vector2.new(0.913, 0.408),
 				width = 18,
 				depth = 4,
 				height = 15,

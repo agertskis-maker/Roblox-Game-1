@@ -905,9 +905,12 @@ local function lawnOkPair(p: Vector2, r: number, pathMin: number): boolean
 end
 
 -- Signposts (Task 4, brief §13): each arrow follows the first walkable leg of the route from the
--- post, not the straight-line bearing. One post per avenue just inside the garden ring, for the
--- walkers coming from that avenue's plot: for each destination the post takes that plot's route
--- (HubData routes), finds where the route passes the post, and points along the route from there.
+-- post, not the straight-line bearing. One post per avenue at its promenade end, the decision
+-- point for the walkers leaving that avenue's plot (down the avenue, or along the promenade): for
+-- each destination the post takes that plot's route (HubData routes), finds where the route passes
+-- the post, and points along the route from there. Every post carries all three boards (movement
+-- review M2: a 14-stud "route passes the post" limit dropped the Garage board on posts 5 and 6 and
+-- the Stunts board on posts 1 and 2, whose routes leave along the promenade).
 local SIGN_DESTINATIONS = {
 	{ board = "Portals", route = "Downtown" },
 	{ board = "Garage", route = "Garage" },
@@ -958,12 +961,13 @@ local function legDirection(pts: { Vector2 }, at: Vector2, near: number, ahead: 
 	return if d.Magnitude > 0.5 then d.Unit else nil
 end
 
+local SIGN_NEAR = 40 -- the post stands at the junction; a promenade route passes within about 25
 local function signBoards(ctx: Ctx, post: BasePart, at: Vector2, plot: number)
 	local y = groundY(at)
 	local n = 0
 	for _, dest in SIGN_DESTINATIONS do
 		local pts = routeFor(plot, dest.route)
-		local dir = pts and legDirection(pts, at, 14, 10)
+		local dir = pts and legDirection(pts, at, SIGN_NEAR, 10)
 		if dir then
 			n += 1
 			-- board +X along dir: plan (x, y) is world (x, -z)
@@ -991,6 +995,7 @@ local function signBoards(ctx: Ctx, post: BasePart, at: Vector2, plot: number)
 		end
 	end
 	post:SetAttribute("Boards", n)
+	post:SetAttribute("BoardsWanted", #SIGN_DESTINATIONS)
 	post:SetAttribute("ForPlot", plot)
 end
 
@@ -1013,10 +1018,19 @@ local function buildSignposts(ctx: Ctx)
 		-- near the promenade end of the avenue, where the viewing corridor is still narrow enough
 		-- for a post beside the path to stand outside it (nearer the ring a 7-tall post would hide
 		-- the portals, and the river bank and the ring path take the rest)
-		for _, offset in { 6, 9, 12, 15, 18, 22, 26 } do
+		-- (the two centre avenues' corridors cover the path sides near the promenade, so the search
+		-- also steps further out from the path and on down the avenue; movement review M2)
+		local spots = {}
+		for _, offset in { 6, 9, 12, 15, 18, 22, 26, 30, 34, 38 } do
+			for _, out in { 2.5, 4.5, 6.5 } do
+				table.insert(spots, { offset, out })
+			end
+		end
+		for _, spot in spots do
+			local offset, out = spot[1], spot[2]
 			local placed = false
 			for _, s in { 1, -1 } do
-				local at = a + dir * offset + normal * s * (width / 2 + 2.5)
+				local at = a + dir * offset + normal * s * (width / 2 + out)
 				local q = mirrorP(at)
 				if
 					lawnOk(at, 1.5, 1.2)
@@ -1085,6 +1099,20 @@ local function buildFurniture(ctx: Ctx)
 	buildSignposts(ctx)
 end
 
+-- Lakeside fence: the segment mesh's length is the pitch; each run ends in a white post.
+local FENCE_PITCH = 8
+local FENCE_WHITE = Color3.fromRGB(246, 242, 236)
+local function fencePost(ctx: Ctx, p: Vector2)
+	local y = groundY(p)
+	local f = folder(ctx, "Fences")
+	-- the cap's top at 2.9, under the 3-stud viewing-corridor limit (the fence itself is 2.8)
+	local post =
+		plainPart("FenceEndPost", Vector3.new(0.5, 2.95, 0.5), CFrame.new(p.X, y + 1.275, -p.Y), FENCE_WHITE, f)
+	post:SetAttribute("FenceEnd", true)
+	plainPart("FenceEndCap", Vector3.new(0.7, 0.15, 0.7), CFrame.new(p.X, y + 2.825, -p.Y), FENCE_WHITE, f)
+	ctx.counts.FenceEndPost = (ctx.counts.FenceEndPost or 0) + 1
+end
+
 local function buildHedges(ctx: Ctx)
 	-- low clipped hedges round the plaza, with openings where the paths arrive (an even count so
 	-- the ring is mirror-symmetric about the axis)
@@ -1121,8 +1149,8 @@ local function buildHedges(ctx: Ctx)
 	end)
 	-- Task 4: no car topiary. It was the "turtle on a brown pad" standing in the lake; the shore
 	-- rule (onLand) now keeps every footprint on dry land, and Task4Checks asserts it.
-	-- white fences on the lake side of the lakeside and forecourt walks, ending in a post before
-	-- each bridge and building
+	-- white fences on the lake side of the lakeside walks, ending in a post before each bridge and
+	-- building
 	for _, path in park.paths do
 		local pts = (path :: any).points
 		local kind = (path :: any).kind
@@ -1134,12 +1162,28 @@ local function buildHedges(ctx: Ctx)
 				local dir = (b - a) / math.max(seg, 1e-6)
 				local normal = Vector2.new(-dir.Y, dir.X)
 				local side = if normal.Y < 0 then 1 else -1 -- toward the lake (plan south)
-				for t = 4, seg - 4, 9 do
+				-- segments end to end (pitch = the mesh length; movement review M8: a 9-stud pitch left
+				-- 1-stud gaps), and a post at both ends of every unbroken run
+				local runStart: Vector2? = nil
+				local runEnd: Vector2? = nil
+				local function closeRun()
+					if runStart and runEnd then
+						fencePost(ctx, runStart)
+						fencePost(ctx, runEnd)
+					end
+					runStart, runEnd = nil, nil
+				end
+				for t = 4, seg - 4, FENCE_PITCH do
 					local at = a + dir * t + normal * side * (width / 2 + 0.8)
-					if bridgeClear(at) > 4 and buildingClear(at) > 4 and onLand(at, 1) then -- room to stand at a board
-						put(ctx, "Fences", "FenceSegment", at, yawAlong(dir), 1, { solid = true })
+					local ok = bridgeClear(at) > 4 and buildingClear(at) > 4 and onLand(at, 1) -- room to stand at a board
+					if ok and put(ctx, "Fences", "FenceSegment", at, yawAlong(dir), 1, { solid = true }) then
+						runStart = runStart or (at - dir * FENCE_PITCH / 2)
+						runEnd = at + dir * FENCE_PITCH / 2
+					else
+						closeRun()
 					end
 				end
+				closeRun()
 			end
 		end
 	end

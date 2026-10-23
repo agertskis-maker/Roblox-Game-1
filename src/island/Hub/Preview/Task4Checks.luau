@@ -542,6 +542,70 @@ function Task4Checks.treesOnBuildings(): { any }
 	return fails
 end
 
+-- Every fence segment end meets the next segment's end (within 0.3) or an end post (within 0.4):
+-- no gaps and no bare ends in a run (movement review M8).
+function Task4Checks.fences(): ({ any }, number)
+	local fails = {}
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	local folder = env and env:FindFirstChild("Fences", true)
+	if not folder then
+		return fails, 0
+	end
+	local ends: { { p: Vector2, part: BasePart } } = {}
+	local posts: { Vector2 } = {}
+	for _, d in folder:GetChildren() do
+		if d:IsA("BasePart") and d.Name == "FenceSegment" then
+			local half = (KitManifest :: any).FenceSegment.meta.length / 2
+			for _, x in { -half, half } do
+				table.insert(ends, { p = plan(d.CFrame:PointToWorldSpace(Vector3.new(x, 0, 0))), part = d })
+			end
+		elseif d:IsA("BasePart") and d:GetAttribute("FenceEnd") then
+			table.insert(posts, plan(d.Position))
+		end
+	end
+	for i, e in ends do
+		local met = false
+		for j, o in ends do
+			if j ~= i and o.part ~= e.part and (o.p - e.p).Magnitude <= 0.3 then
+				met = true
+				break
+			end
+		end
+		if not met then
+			for _, q in posts do
+				if (q - e.p).Magnitude <= 0.4 then
+					met = true
+					break
+				end
+			end
+		end
+		if not met then
+			table.insert(
+				fails,
+				{ check = "fence", object = e.part:GetFullName(), at = string.format("(%.1f, %.1f)", e.p.X, -e.p.Y) }
+			)
+		end
+	end
+	return fails, #ends // 2
+end
+
+-- Every signpost carries a board for each destination (movement review M2).
+function Task4Checks.signposts(): ({ any }, number)
+	local fails = {}
+	local posts = 0
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	for _, d in (env and env:GetDescendants() or {}) do
+		if d:IsA("BasePart") and d.Name == "SignpostPost" then
+			posts += 1
+			local n, want = d:GetAttribute("Boards"), d:GetAttribute("BoardsWanted")
+			if type(want) == "number" and (type(n) ~= "number" or n < want) then
+				table.insert(fails, { check = "signpost", object = d:GetFullName(), at = fmt(d.Position), boards = n })
+			end
+		end
+	end
+	return fails, posts
+end
+
 function Task4Checks.snapshot(): { [string]: number }
 	local out = {}
 	for _, r in roots() do
@@ -588,10 +652,16 @@ function Task4Checks.run(): { [string]: any }
 	add(g)
 	local m, mirrored = Task4Checks.mirror()
 	add(m)
+	local sp, posts = Task4Checks.signposts()
+	add(sp)
+	local fe, segments = Task4Checks.fences()
+	add(fe)
 	return {
 		failures = failures,
 		summary = {
 			failures = #failures,
+			signposts = posts,
+			fenceSegments = segments,
 			shoreChecked = shoreChecked, -- pieces the shore and beach checks tested
 			bridgeSupportsExempt = bridgeSupports, -- abutments, piles and pile caps (in the water)
 			groundingChecked = grounded,

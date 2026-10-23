@@ -62,7 +62,7 @@ function baseParams(over) {
 				// display about 18 x 14 (research note). Placed beside the approach path, 0.59 of the way from
 				// the plaza to the door, 14 off on the lake side (exact-ray sweep: beside the Garage it hid
 				// half of Plot 6's waterfall); along / side are kept for the forecourt alternative
-				board: { w: 18, d: 4, h: 15, along: 10, mode: "approach", k: 0.59, off: -14 },
+				board: { w: 18, d: 4, h: 15, along: 10, mode: "approach", k: 0.57, off: -17.5 }, // movement review M3: -14 stood 1.2 inside the approach; board-sweep.js clears k 0.54 to 0.59, off -16.25 to -19
 				snack: { bearing: 34, r: 192, w: 30, d: 28, h: 10 }, // 60 hid Plot 2's lower falls (47 %), 30 hid 1 % of Plot 3's
 				gazebo: { r: 196, w: 16, d: 16, h: 12 },
 			},
