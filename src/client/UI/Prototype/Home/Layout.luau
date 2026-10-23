@@ -24,9 +24,9 @@
 --     px, and a column of Settings + three buttons at the 48 px touch minimum needs at least
 --     4 x 52 + gaps = 226, so the phone uses a two-row compact block instead: [Settings][Music]
 --     over [Shop][Garage][Missions] (Compact width, equal). Stats sit BESIDE the thumbstick zone.
---   PhonePortrait 390x844 (1.0): purpose-built: the banner owns the top band, the same compact
---     block (buttons narrowed to fit three across) sits under it, and the stats sit ABOVE the
---     thumbstick zone on the left. Toasts are right-aligned, right of the thumbstick zone.
+--   PhoneSmall 740x360 and the notch variants (PhoneLandscapeLeft / Right): the PhoneLandscape rules.
+--   Round 2: landscape only (no portrait profile); the stats are Cash + the earning line (the owned-car
+--     count moved into the Garage button), and during a run Cash alone sits top-left (see StatsStack).
 -- The centre of the screen (avatar, road) stays open on every profile.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,6 +34,7 @@ local TextService = game:GetService("TextService")
 
 local CashIcon = require(script.Parent.Parent.Parent.CurrencyCounter.CashIcon)
 local CurrencyCounter = require(script.Parent.Parent.Parent.CurrencyCounter)
+local Arcade = require(script.Parent.Parent.Arcade)
 local OutlinedText = require(script.Parent.Parent.Parent.OutlinedText)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Screen = require(script.Parent.Parent.Screen)
@@ -57,8 +58,6 @@ Layout.ToastGap = 6
 -- TOKEN CANDIDATE: the Music toggle row width (kit track 92 + gap 10 + "Music" label at 22 px).
 Layout.MusicWidth = 174
 Layout.MusicHeight = Tokens.Touch.Minimum
--- TOKEN CANDIDATE: car-count row height (the Value role 40 + outline room, or the car icon).
-Layout.CarRowHeight = math.max(S.IconCars, A.Text.Value + 6)
 -- TOKEN CANDIDATE: timer proposal row (Timer text + 44 px event icon).
 Layout.TimerHeight = 48
 Layout.TimerWidth = 300
@@ -77,7 +76,7 @@ export type CashMetrics = {
 export type ItemPos = { x: number, y: number }
 
 export type MenuLayout = {
-	kind: "Column" | "TabletColumn" | "PhoneBlock" | "PortraitGrid",
+	kind: "Column" | "TabletColumn" | "PhoneBlock",
 	x: number,
 	y: number,
 	width: number,
@@ -93,8 +92,7 @@ export type StatsLayout = {
 	bottom: number,
 	width: number, -- typical visible width (for overlap checks), not the reserved width
 	height: number,
-	placement: "BottomLeft" | "Above" | "Beside" | "AboveJump",
-	scale: number?, -- block scale on this profile (portrait 0.85); nil = 1
+	placement: "BottomLeft" | "Beside",
 }
 
 export type BannerLayout = { cx: number, y: number, width: number, maxBodyHeight: number, textSize: number }
@@ -149,11 +147,24 @@ function Layout.cashMetrics(): CashMetrics
 	return m
 end
 
--- Height of the bottom-left stats block: car row, Cash row, earning line (the earning line
--- shares the Cash counter's gain-label slot and ducks while that label shows).
+-- Height of the bottom-left stats block: the Cash row and the earning line (the earning line
+-- shares the Cash counter's gain-label slot and ducks while that label shows). Round 2: the car row
+-- (cyan icon, inert "+", owned count) is gone; the count lives on the Garage button.
 function Layout.statsHeight(): number
 	local m = Layout.cashMetrics()
-	return Layout.CarRowHeight + S.RowGap + m.rowHeight + 2 + Layout.EarningHeight
+	return m.rowHeight + 2 + Layout.EarningHeight
+end
+
+-- Run-time Cash: compact, top-left of the safe area (design px, below the core UI inset).
+Layout.RunCashPos = Vector2.new(12, 12)
+function Layout.runCashScale(): number
+	return A.Text.ValueRun / A.Text.Value
+end
+-- The visible compact Cash block (icon + a typical value), for overlap checks.
+function Layout.runCashSize(): Vector2
+	local m = Layout.cashMetrics()
+	local k = Layout.runCashScale()
+	return Vector2.new((m.valueX + 150) * k, m.rowHeight * k)
 end
 
 -- A typical visible width of the stats block (icon + "$999.9K"-sized number), used only for
@@ -194,15 +205,6 @@ local function firstOverlap(r: Rect, list: { Rect }): Rect?
 	return nil
 end
 
-local function named(list: { Rect }, name: string): Rect?
-	for _, z in list do
-		if z.name == name then
-			return z
-		end
-	end
-	return nil
-end
-
 -- Centre a block of `maxWidth` in [left, right], as close to `preferred` as possible.
 local function fit(left: number, right: number, maxWidth: number, preferred: number): (number, number)
 	local width = math.max(200, math.min(maxWidth, right - left))
@@ -223,8 +225,9 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 		local y = smallRoot + gap
 		items.Shop = { x = 0, y = y }
 		items.Garage = { x = 0, y = y + rh + gap }
-		items.Missions = { x = 0, y = y + 2 * (rh + gap) }
-		items.Music = { x = 0, y = y + 3 * (rh + gap) + 2 }
+		-- the Garage button is taller by Arcade.PillExtra (its collection pill sits under the label)
+		items.Missions = { x = 0, y = y + 2 * (rh + gap) + Arcade.PillExtra }
+		items.Music = { x = 0, y = y + 3 * (rh + gap) + 2 + Arcade.PillExtra }
 		return {
 			kind = "Column",
 			x = margin,
@@ -244,7 +247,7 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 		local y = smallRoot + gap
 		items.Shop = { x = 0, y = y }
 		items.Garage = { x = 0, y = y + rh + gap }
-		items.Missions = { x = 0, y = y + 2 * (rh + gap) }
+		items.Missions = { x = 0, y = y + 2 * (rh + gap) + Arcade.PillExtra }
 		return {
 			kind = "TabletColumn",
 			x = margin,
@@ -252,31 +255,6 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 			width = math.max(w, items.Music.x + Layout.MusicWidth),
 			height = items.Missions.y + rh,
 			size = "Compact",
-			buttonW = w,
-			buttonH = h,
-			items = items,
-		}
-	end
-	-- phone portrait (lead 2026-10-23: three across wrapped "Garage" and "Missions" mid-word in
-	-- Studio): [Settings][Music] over [Shop][Garage] over [Missions], two columns
-	if name == "PhonePortrait" then
-		local pgap = 6
-		local w = math.min(math.floor((safeW - 2 * margin - pgap) / 2), B.WideW)
-		local h = B.CompactH
-		local rh = Layout.rootHeight(h)
-		items.Settings = { x = 0, y = 0 }
-		items.Music = { x = B.SmallW + pgap + 4, y = (smallRoot - Layout.MusicHeight) / 2 }
-		local y = smallRoot + pgap
-		items.Shop = { x = 0, y = y }
-		items.Garage = { x = w + pgap, y = y }
-		items.Missions = { x = 0, y = y + rh + pgap }
-		return {
-			kind = "PortraitGrid",
-			x = margin,
-			y = 0,
-			width = math.max(2 * w + pgap, items.Music.x + Layout.MusicWidth),
-			height = items.Missions.y + rh,
-			size = "Custom",
 			buttonW = w,
 			buttonH = h,
 			items = items,
@@ -299,7 +277,7 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 		x = margin,
 		y = 0,
 		width = math.max(3 * w + 2 * phoneGap, items.Music.x + Layout.MusicWidth),
-		height = y + rh,
+		height = y + rh + Arcade.PillExtra, -- Garage is the tallest of the row
 		size = "Custom",
 		buttonW = w,
 		buttonH = h,
@@ -312,50 +290,32 @@ function Layout.forProfile(profile: Screen.Profile, scale: number): HomeLayout
 	local i = profile.insets
 	local safeW = (profile.size.X - i.left - i.right) / scale
 	local safeH = (profile.size.Y - i.top - i.bottom) / scale
-	local phone = name == "PhoneLandscape" or name == "PhonePortrait"
-	local portrait = safeH > safeW
+	local phone = profile.kind == "Phone"
 	local margin = if phone then 8 else S.MarginLeft
 	local reserved = Layout.reservedRects(profile, scale)
 	local m = Layout.cashMetrics()
 
-	-- 1. Stats: bottom-left; above (portrait) or beside (landscape) a reserved zone it would hit.
+	-- 1. Stats: bottom-left; beside a reserved zone it would hit.
 	local statsH = Layout.statsHeight()
 	local statsW = Layout.statsTypicalWidth()
 	local sx = margin
 	local bottom = safeH - (if phone then 8 else S.MarginBottom)
-	local placement: "BottomLeft" | "Above" | "Beside" | "AboveJump" = "BottomLeft"
+	local placement: "BottomLeft" | "Beside" = "BottomLeft"
 	local hit = firstOverlap({ name = "stats", x = sx, y = bottom - statsH, w = statsW, h = statsH }, reserved)
-	local statsScale: number? = nil
 	if hit then
-		if portrait then
-			bottom = hit.y - 6
-			placement = "Above"
-		else
-			sx = hit.x + hit.w + 8
-			placement = "Beside"
-		end
+		sx = hit.x + hit.w + 8
+		placement = "Beside"
 	end
-	-- portrait (lead 2026-10-23): above the thumbstick the stats met the menu in Studio; instead
-	-- bottom right, above the Jump zone, at 0.85 so they stay clear of the thumbstick column
-	local jump = named(reserved, "Jump")
-	if portrait and jump then
-		statsScale = 0.85
-		local w = statsW * statsScale
-		sx = safeW - margin - w
-		bottom = jump.y - 6
-		placement = "AboveJump"
-	end
-	local stats: StatsLayout =
-		{ x = sx, bottom = bottom, width = statsW, height = statsH, placement = placement, scale = statsScale }
-	local statsTop = bottom - statsH * (statsScale or 1)
+	local stats: StatsLayout = { x = sx, bottom = bottom, width = statsW, height = statsH, placement = placement }
+	local statsTop = bottom - statsH
 
-	-- 2. Banner block height (the banner itself is placed after the menu, except in portrait).
+	-- 2. Banner block height (the banner itself is placed after the menu).
 	local blockH = Layout.BannerTabOverlap + Layout.BannerMaxBody + Layout.HintGap + Layout.HintHeight
 	local bannerY = if phone then 4 else 8
 
 	-- 3. Menu.
 	local menu = menuShape(name, safeW, margin)
-	local top = if portrait then blockH + 4 else (if phone then 4 else 8)
+	local top = if phone then 4 else 8
 	local desired = safeH * 0.47 - menu.height / 2
 	local limit = math.huge
 	if stats.x < menu.x + menu.width then
@@ -370,55 +330,31 @@ function Layout.forProfile(profile: Screen.Profile, scale: number): HomeLayout
 	local menuRight = menu.x + menu.width
 
 	-- 4. Banner.
-	local banner: BannerLayout
-	if portrait then
-		banner = {
-			cx = safeW / 2,
-			y = 0,
-			width = safeW - 2 * margin,
-			maxBodyHeight = Layout.BannerMaxBody,
-			textSize = Tokens.TextSize.Value,
-		}
-	else
-		local left = margin
-		if menu.y < bannerY + blockH then
-			left = menuRight + 12
-		end
-		local width, cx = fit(left, safeW - 16, if phone then 340 else 460, safeW / 2)
-		banner = {
-			cx = cx,
-			y = bannerY,
-			width = width,
-			maxBodyHeight = Layout.BannerMaxBody,
-			textSize = Tokens.TextSize.Value,
-		}
+	local bannerLeft = margin
+	if menu.y < bannerY + blockH then
+		bannerLeft = menuRight + 12
 	end
+	local bannerW, bannerCx = fit(bannerLeft, safeW - 16, if phone then 340 else 460, safeW / 2)
+	local banner: BannerLayout = {
+		cx = bannerCx,
+		y = bannerY,
+		width = bannerW,
+		maxBodyHeight = Layout.BannerMaxBody,
+		textSize = Tokens.TextSize.Value,
+	}
 
 	-- 5. Toasts.
 	local toastH = 2 * Layout.ToastHeight + Layout.ToastGap
-	local toasts: ToastLayout
-	if portrait then
-		local thumb = named(reserved, "Thumbstick")
-		local thumbRight = if thumb then thumb.x + thumb.w else 0
-		local y = if thumb then thumb.y + 6 else bottom + 6
-		toasts = {
-			x = safeW - margin,
-			y = y,
-			width = math.min(220, safeW - margin - thumbRight - 8),
-			anchorX = 1,
-		}
-	else
-		local ty = banner.y + blockH + 6
-		local left = margin
-		if ty < menu.y + menu.height and ty + toastH > menu.y then
-			left = math.max(left, menuRight + 12)
-		end
-		if ty < bottom and ty + toastH > statsTop then
-			left = math.max(left, stats.x + statsW + 12)
-		end
-		local width, cx = fit(left, safeW - 16, 360, banner.cx)
-		toasts = { x = cx, y = ty, width = width, anchorX = 0.5 }
+	local ty = banner.y + blockH + 6
+	local toastLeft = margin
+	if ty < menu.y + menu.height and ty + toastH > menu.y then
+		toastLeft = math.max(toastLeft, menuRight + 12)
 	end
+	if ty < bottom and ty + toastH > statsTop then
+		toastLeft = math.max(toastLeft, stats.x + statsW + 12)
+	end
+	local toastW, toastCx = fit(toastLeft, safeW - 16, 360, banner.cx)
+	local toasts: ToastLayout = { x = toastCx, y = ty, width = toastW, anchorX = 0.5 }
 
 	-- 6. Timer proposal: bottom-right, above a reserved zone it would hit.
 	local tBottom = safeH - (if phone then 8 else S.MarginBottom)
@@ -436,7 +372,7 @@ function Layout.forProfile(profile: Screen.Profile, scale: number): HomeLayout
 	local timers: TimerLayout =
 		{ right = tRight, bottom = tBottom, width = Layout.TimerWidth, height = Layout.TimerHeight }
 
-	local cashY = statsTop + Layout.CarRowHeight + S.RowGap
+	local cashY = statsTop
 	return {
 		profile = name,
 		scale = scale,

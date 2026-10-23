@@ -36,6 +36,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Arcade = require(script.Parent.Parent.Arcade)
 local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
+local Format = require(game:GetService("ReplicatedStorage").Shared.UI.Format)
+local TextService = game:GetService("TextService")
 local MusicSetting = require(script.Parent.MusicSetting)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -121,6 +123,28 @@ local DEFS: { Def } = {
 local LeftMenu = {}
 LeftMenu.__index = LeftMenu
 
+-- The Garage collection pill text: "12 / 24 CARS" when the total is supplied and fits, "12 / 24", then
+-- "12", never an invented total. Counts use the Cash grouping rules without a $ (commas). Measured with
+-- TextService at the pill's 16 design px so it never clips or shrinks below the 16 minimum.
+function LeftMenu.garagePillText(garage: { owned: number, total: number? }, maxWidth: number): string
+	local owned = Format.group(math.max(0, math.floor(garage.owned)))
+	local candidates: { string } = {}
+	if garage.total ~= nil then
+		local total = Format.group(math.max(0, math.floor(garage.total :: number)))
+		table.insert(candidates, owned .. " / " .. total .. " CARS")
+		table.insert(candidates, owned .. " / " .. total)
+	end
+	table.insert(candidates, owned .. " CARS")
+	table.insert(candidates, owned)
+	for _, text in candidates do
+		local w = TextService:GetTextSize(text, 16, Enum.Font.FredokaOne, Vector2.new(4096, 64)).X
+		if w <= maxWidth then
+			return text
+		end
+	end
+	return candidates[#candidates]
+end
+
 function LeftMenu.new(ctx: Types.Ctx, options: Options?): LeftMenu
 	local self = setmetatable({}, LeftMenu) :: any
 	self._trove = Trove.new()
@@ -149,6 +173,9 @@ function LeftMenu.new(ctx: Types.Ctx, options: Options?): LeftMenu
 		self:_refresh()
 	end))
 	self._trove:Add(ctx.store:subscribe("missionsClaimable", function()
+		self:_refresh()
+	end))
+	self._trove:Add(ctx.store:subscribe("shop", function()
 		self:_refresh()
 	end))
 	self._trove:Add(ctx.store:subscribe("settings", function()
@@ -207,7 +234,13 @@ function LeftMenu._build(self: any, menu: Layout.MenuLayout)
 			fill = def.fill,
 			size = if small then "Small" else menu.size,
 			width = if small then nil else menu.buttonW,
-			height = if small then nil else menu.buttonH,
+			height = if small
+				then nil
+				else (if def.name == "Garage" then menu.buttonH + Arcade.PillExtra else menu.buttonH),
+			pill = if def.name == "Garage"
+				then LeftMenu.garagePillText(self._ctx.store:get().garage, menu.buttonW - 16 - 12)
+				else nil,
+			ribbon = nil,
 			icon = iconName,
 			pattern = def.pattern and not small,
 			drift = def.drift,
@@ -266,6 +299,8 @@ function LeftMenu._refresh(self: any)
 	local garage = self._buttons.Garage
 	if garage then
 		garage.setBadge(state.garage.unseen)
+		-- the collection pill is separate from the earned-unseen badge (completion vs unread)
+		garage.setPill(LeftMenu.garagePillText(state.garage, garage.size.X - 16 - 12))
 	end
 	local missions = self._buttons.Missions
 	if missions then
@@ -275,6 +310,8 @@ function LeftMenu._refresh(self: any)
 	if shop then
 		local n: number? = self._shopFree
 		shop.setBadge(if n and n > 0 then n else nil)
+		-- NEW only from a supplied item-change flag, never a timer or a guess
+		shop.setRibbon(if state.shop ~= nil and state.shop.newItem then "NEW" else nil)
 	end
 end
 
@@ -382,6 +419,7 @@ function LeftMenu.getDebugState(self: any): { [string]: any }
 			badgeDeviceSize = bsize,
 			pressScale = if press then press.Scale else 1,
 			reserved = ctx.screen:overlapsReserved(pos, size),
+			kit = b.debug(), -- Round 2: drift phase and counters, pill text and fit, ribbon
 		}
 	end
 	local toggle: Arcade.Toggle? = self._toggle

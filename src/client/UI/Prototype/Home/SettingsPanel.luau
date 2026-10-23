@@ -25,8 +25,7 @@
 -- the selection to the opener (the Home Settings button) when it is still on screen, otherwise
 -- clears it. Gamepad selection is kept inside the card (SelectionGroup with Stop behaviours).
 --
--- Layout: centred card; wide rows on Desktop, Tablet and PhoneLandscape; stacked rows on
--- PhonePortrait. Hit targets are 48 px or larger.
+-- Layout: centred card with wide rows on every (landscape) profile. Hit targets are 48 px or larger.
 --
 -- API: SettingsPanel.new(ctx, { onClosed: (() -> ())? }?) -> SettingsPanel
 --   :open(opener: GuiObject?)  :close()  :isOpen() -> boolean
@@ -387,10 +386,9 @@ function SettingsPanel._row(
 	order: number,
 	icons: { string },
 	text: string,
-	stacked: boolean,
 	cardInner: number
 ): (Frame, TextLabel, number)
-	local rowH = if stacked then 34 + 6 + 48 else 60
+	local rowH = 60
 	local row = make("Frame", {
 		Name = "Row" .. order,
 		BackgroundTransparency = 1,
@@ -427,28 +425,21 @@ function SettingsPanel._row(
 		z = 43,
 	})
 	local labelColumn = 210
-	if stacked then
-		value.AnchorPoint = Vector2.new(1, 0)
-		value.Position = UDim2.new(1, 0, 0, 6)
-		value.Size = UDim2.fromOffset(170, 24)
-		value.TextXAlignment = Enum.TextXAlignment.Right
-	else
-		value.Position = UDim2.fromOffset(38, 34)
-		value.Size = UDim2.fromOffset(labelColumn - 40, 22)
-		value.TextXAlignment = Enum.TextXAlignment.Left
-	end
+	value.Position = UDim2.fromOffset(38, 34)
+	value.Size = UDim2.fromOffset(labelColumn - 40, 22)
+	value.TextXAlignment = Enum.TextXAlignment.Left
 	local control = make("Frame", {
 		Name = "Control",
 		BackgroundTransparency = 1,
-		Position = if stacked then UDim2.fromOffset(0, 40) else UDim2.fromOffset(labelColumn, 6),
-		Size = UDim2.fromOffset(if stacked then cardInner else cardInner - labelColumn, 48),
+		Position = UDim2.fromOffset(labelColumn, 6),
+		Size = UDim2.fromOffset(cardInner - labelColumn, 48),
 		ZIndex = 43,
 		Parent = row,
 	})
 	return control, value, rowH
 end
 
-function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
+function SettingsPanel._build(self: any, cardWidth: number)
 	local ctx: Types.Ctx = self._ctx
 	local selected = GuiService.SelectedObject
 	local hadSelection = selected ~= nil and selected:IsDescendantOf(self.root)
@@ -530,7 +521,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 		ZIndex = 42,
 		Parent = card,
 	})
-	local gap = if stacked then 14 else 10
+	local gap = 10
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -540,7 +531,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 	local total = 0
 	local settings = ctx.store:get().settings
 
-	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", stacked, inner)
+	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", inner)
 	self._musicValue = musicValue
 	local music = self:_makeSlider(musicControl, "Music", musicControl.Size.X.Offset, settings.music, function(v)
 		MusicSetting.setLevel(ctx.store, v)
@@ -548,7 +539,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 	self._sliders.music = music
 	total += h1 + gap
 
-	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", stacked, inner)
+	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", inner)
 	self._sfxValue = sfxValue
 	local sfx = self:_makeSlider(sfxControl, "Sfx", sfxControl.Size.X.Offset, settings.sfx, function(v)
 		MusicSetting.setSfx(ctx.store, v)
@@ -556,7 +547,7 @@ function SettingsPanel._build(self: any, stacked: boolean, cardWidth: number)
 	self._sliders.sfx = sfx
 	total += h2 + gap
 
-	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", stacked, inner)
+	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", inner)
 	self._motionValue = motionValue
 	local choices = { { "Roblox", "Use Roblox setting" }, { "On", "On" }, { "Off", "Off" } }
 	local x = 0
@@ -648,12 +639,11 @@ function SettingsPanel.layout(self: any)
 	local L = Layout.forProfile(ctx.screen:profile(), scale)
 	-- the root is the safe area in design px, so after HudScale it fills the layer exactly
 	self.root.Size = UDim2.fromOffset(L.safeW, L.safeH)
-	local stacked = L.profile == "PhonePortrait"
-	local width = if stacked then L.safeW - 16 else math.min(620, L.safeW - 24)
-	local kind = string.format("%s:%d", if stacked then "Stacked" else "Wide", width)
+	local width = math.min(620, L.safeW - 24)
+	local kind = string.format("Wide:%d", width)
 	if kind ~= self._kind then
 		self._kind = kind
-		self:_build(stacked, width)
+		self:_build(width)
 		if self._fade then
 			self._fade:set(if self._open then 0 else 1)
 		end

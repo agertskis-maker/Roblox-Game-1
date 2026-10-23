@@ -10,7 +10,7 @@
 --   RunLayout.protectedRect(profile) -> Rect in DEVICE px (relative to the device frame)
 --   RunLayout.protected(ctx)    -> Rect in design px (same region; landingBand is an alias)
 --   RunLayout.worldToCanvas(ctx, worldPos) -> (Vector2 design px, onScreen, depth)
---   RunLayout.stripRect / coinsRect / trayRect / bannerRect / sideRect / heatRect / hopRect /
+--   RunLayout.stripRect / cashRect / trayRect / bannerRect / sideRect / heatRect / hopRect /
 --     keysRect / dashRect(ctx) -> Rect (placement, shared so siblings avoid each other without
 --     seeing each other; the solver reports any leftover conflict as a second return)
 --   RunLayout.upperY(ctx)       -> design y of the "Upper" message row (banner, milestones)
@@ -20,7 +20,7 @@
 -- the middle of the screen, so no run component may sit in it. Fractions of the safe area:
 --   Desktop / Tablet   x 30%..70%, y 40%..85%   (the overnight band)
 --   PhoneLandscape     x 28%..72%, y 42%..84%   (the strip and banner fit above it)
---   PhonePortrait      x 10%..90%, y 40%..76%   (the car fills more of the narrow width)
+--   PhoneSmall / PhoneLandscapeLeft / PhoneLandscapeRight   the PhoneLandscape fractions
 -- Diagnostics (RunLayer:setDiagnostics) draw it as "PROTECTED ROAD AHEAD".
 
 local GuiService = game:GetService("GuiService")
@@ -28,6 +28,7 @@ local Workspace = game:GetService("Workspace")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local HomeLayout = require(script.Parent.Parent.Home.Layout)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Screen = require(script.Parent.Parent.Screen)
 local Signal = require(ReplicatedStorage.Packages.Signal)
@@ -53,7 +54,9 @@ RunLayout.Protected = table.freeze({
 	Desktop = table.freeze({ x0 = 0.30, x1 = 0.70, y0 = 0.40, y1 = 0.85 }),
 	Tablet = table.freeze({ x0 = 0.30, x1 = 0.70, y0 = 0.40, y1 = 0.85 }),
 	PhoneLandscape = table.freeze({ x0 = 0.28, x1 = 0.72, y0 = 0.42, y1 = 0.84 }),
-	PhonePortrait = table.freeze({ x0 = 0.10, x1 = 0.90, y0 = 0.40, y1 = 0.76 }),
+	PhoneSmall = table.freeze({ x0 = 0.28, x1 = 0.72, y0 = 0.42, y1 = 0.84 }),
+	PhoneLandscapeLeft = table.freeze({ x0 = 0.28, x1 = 0.72, y0 = 0.42, y1 = 0.84 }),
+	PhoneLandscapeRight = table.freeze({ x0 = 0.28, x1 = 0.72, y0 = 0.42, y1 = 0.84 }),
 })
 
 function RunLayout.rect(x: number, y: number, w: number, h: number, name: string?): Rect
@@ -77,14 +80,8 @@ function RunLayout.design(ctx: Ctx): Vector2
 	return Vector2.new((p.size.X - i.left - i.right) / s, (p.size.Y - i.top - i.bottom) / s)
 end
 
-function RunLayout.portrait(ctx: Ctx): boolean
-	local d = RunLayout.design(ctx)
-	return d.Y > d.X
-end
-
 function RunLayout.compact(ctx: Ctx): boolean
-	local name = ctx.screen:profile().name
-	return name == "PhoneLandscape" or name == "PhonePortrait"
+	return ctx.screen:profile().kind == "Phone"
 end
 
 -- Design px (canvas) -> device px (what Screen.overlapsReserved takes).
@@ -235,22 +232,18 @@ function RunLayout.stripRect(ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Compact coins readout (top left; under the strip on the left in portrait)
+-- Run-time Cash (Round 2, R2-C1): the compact Cash line, top-left of the safe area below the core UI
+-- inset. There is no separate coin counter: road coins are Cash pickups. Position and size come from
+-- Home/Layout so StatsStack and every run component agree on the same rectangle.
 
-RunLayout.CoinsSize = Vector2.new(110, 32)
-function RunLayout.coinsRect(ctx: Ctx): Rect
-	local m = RunLayout.Margin
-	local size = RunLayout.CoinsSize
-	local strip = RunLayout.stripRect(ctx)
-	local r = RunLayout.rect(m, m, size.X, size.Y, "Coins")
-	if RunLayout.overlaps(r, strip) then
-		r = RunLayout.rect(m, strip.pos.Y + strip.size.Y + 4, size.X, size.Y, "Coins")
-	end
-	return r
+function RunLayout.cashRect(_ctx: Ctx): Rect
+	local pos = HomeLayout.RunCashPos
+	local size = HomeLayout.runCashSize()
+	return RunLayout.rect(pos.X, pos.Y, size.X, size.Y, "Cash")
 end
 
 ----------------------------------------------------------------------------------------------
--- Claim tray ("claimed this run"): left middle; a horizontal row under the strip in portrait.
+-- Claim tray ("claimed this run"): left middle, below the compact Cash, above the thumbstick zone.
 
 RunLayout.Tray = table.freeze({
 	Thumb = 56,
@@ -264,29 +257,13 @@ export type TrayGeometry = {
 	columns: number,
 	rows: number,
 	thumb: number,
-	horizontal: boolean, -- header left of the slots (portrait row)
 }
 
 function RunLayout.trayGeometry(ctx: Ctx): TrayGeometry
 	local T = RunLayout.Tray
 	local d = RunLayout.design(ctx)
 	local m = RunLayout.Margin
-	local p = ctx.screen:profile().name
-	if p == "PhonePortrait" then
-		local thumb = T.ThumbCompact
-		local strip = RunLayout.stripRect(ctx)
-		local coins = RunLayout.coinsRect(ctx)
-		local y = math.max(strip.pos.Y + strip.size.Y, coins.pos.Y + coins.size.Y) + 6
-		local w = 96 + 3 * (thumb + T.Gap)
-		return {
-			rect = RunLayout.rect(m, y, math.min(w, d.X - 2 * m), thumb + 6, "ClaimTray"),
-			columns = 3,
-			rows = 1,
-			thumb = thumb,
-			horizontal = true,
-		}
-	end
-	local compact = p == "PhoneLandscape"
+	local compact = ctx.screen:profile().kind == "Phone"
 	local thumb = if compact then T.ThumbCompact else T.Thumb
 	local columns = 2
 	local rows = if compact then 1 else 2
@@ -299,14 +276,13 @@ function RunLayout.trayGeometry(ctx: Ctx): TrayGeometry
 	if thumbstick then
 		top = math.min(top, thumbstick.pos.Y - 6 - h)
 	end
-	local coins = RunLayout.coinsRect(ctx)
-	top = math.max(top, coins.pos.Y + coins.size.Y + 8)
+	local cash = RunLayout.cashRect(ctx)
+	top = math.max(top, cash.pos.Y + cash.size.Y + 8)
 	return {
 		rect = RunLayout.rect(m, top, w, h, "ClaimTray"),
 		columns = columns,
 		rows = rows,
 		thumb = thumb,
-		horizontal = false,
 	}
 end
 
@@ -315,8 +291,8 @@ function RunLayout.trayRect(ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Upper message row (district banner, milestones): under the strip (and the portrait tray),
--- and under a run-time tutorial banner if one is shown.
+-- Upper message row (district banner, milestones): under the strip, and under a run-time tutorial
+-- banner if one is shown.
 
 RunLayout.BannerH = 44
 RunLayout.BannerHCompact = 36
@@ -324,10 +300,6 @@ RunLayout.BannerHCompact = 36
 function RunLayout.upperY(ctx: Ctx): number
 	local strip = RunLayout.stripRect(ctx)
 	local y = strip.pos.Y + strip.size.Y + 4
-	if ctx.screen:profile().name == "PhonePortrait" then
-		local tray = RunLayout.trayRect(ctx)
-		y = math.max(y, tray.pos.Y + tray.size.Y + 6)
-	end
 	-- Assumption: a run-time tutorial banner (Home worker's component) sits directly under the
 	-- top of the safe area; the banner never stacks with it (DistrictBanner defers instead).
 	return y
@@ -343,34 +315,27 @@ function RunLayout.bannerRect(ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Side slot (capture ribbon): the left column outside the protected region; in portrait the
--- band between the banner row and the protected region.
+-- Side slot (capture ribbon): the left column outside the protected region.
 
 function RunLayout.sideRect(ctx: Ctx): Rect
-	local d = RunLayout.design(ctx)
 	local m = RunLayout.Margin
 	local prot = RunLayout.protected(ctx)
-	if ctx.screen:profile().name == "PhonePortrait" then
-		local banner = RunLayout.bannerRect(ctx)
-		local top = banner.pos.Y + banner.size.Y + 6
-		local h = math.max(prot.pos.Y - 6 - top, 64)
-		return RunLayout.rect(m, top, d.X - 2 * m, h, "Side")
-	end
-	local pname = ctx.screen:profile().name
+	local profile = ctx.screen:profile()
+	local phone = profile.kind == "Phone"
 	-- phone landscape: at least 300 wide so YOU GOT THE KEYS! never truncates (it then reaches
 	-- a little into the sky band of the protected region, not the road)
-	local w = math.min(math.max(prot.pos.X - 2 * m, if pname == "PhoneLandscape" then 300 else 0), 360)
+	local w = math.min(math.max(prot.pos.X - 2 * m, if phone then 300 else 0), 360)
 	local h = if RunLayout.compact(ctx) then 78 else 96
 	local banner = RunLayout.bannerRect(ctx)
 	local top = banner.pos.Y + 2
 	-- below the run-time top-row stats (phone landscape, tablet: HudPlayground setRunAnchor)
-	if pname == "PhoneLandscape" or pname == "Tablet" then
+	if phone or profile.kind == "Tablet" then
 		top = math.max(top, 80)
 	end
 	-- keep clear of the claim tray below it
 	local tray = RunLayout.trayRect(ctx)
 	if top + h > tray.pos.Y - 6 then
-		top = math.max(RunLayout.coinsRect(ctx).pos.Y + RunLayout.CoinsSize.Y + 4, tray.pos.Y - 6 - h)
+		top = math.max(RunLayout.cashRect(ctx).pos.Y + RunLayout.cashRect(ctx).size.Y + 4, tray.pos.Y - 6 - h)
 	end
 	return RunLayout.rect(m, top, w, h, "Side")
 end
@@ -381,7 +346,7 @@ end
 export type Top = {
 	row: number,
 	distance: Rect, -- the strip block (its head + distance live inside it)
-	coins: Rect,
+	cash: Rect,
 	stackBottom: number,
 	leftBottom: number,
 }
@@ -411,7 +376,7 @@ function RunLayout.top(screen: any): Top
 	return {
 		row = 1,
 		distance = RunLayout.rect(0, 8, 0, 122),
-		coins = RunLayout.rect(12, 12, 110, 32),
+		cash = RunLayout.rect(12, 12, 150, 32),
 		stackBottom = 130,
 		leftBottom = 44,
 	}
@@ -427,7 +392,7 @@ function RunLayout.gearRect(ctx: Ctx): Rect
 	local w = PreviewTokens.Arcade.Button.SmallW
 	local g = RunLayout.Gear
 	local r = RunLayout.rect(d.X - RunLayout.Margin - w, RunLayout.Margin, w, g + 4, "Options")
-	-- narrow screens (portrait): below the district strip when they would touch
+	-- narrow screens: below the district strip when they would touch
 	local strip = RunLayout.stripRect(ctx)
 	if RunLayout.overlaps(r, strip) then
 		r = RunLayout.rect(r.pos.X, strip.pos.Y + strip.size.Y + 6, w, g + 4, "Options")
@@ -450,12 +415,12 @@ function RunLayout.chipRect(ctx: Ctx): Rect
 	return r
 end
 
--- Everything at the top of the screen (coins, strip, options, ride chip).
+-- Everything at the top of the screen (Cash, strip, options, ride chip).
 function RunLayout.topBlock(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
 	local strip = RunLayout.stripRect(ctx)
-	local coins = RunLayout.coinsRect(ctx)
-	local bottom = math.max(strip.pos.Y + strip.size.Y, coins.pos.Y + coins.size.Y)
+	local cash = RunLayout.cashRect(ctx)
+	local bottom = math.max(strip.pos.Y + strip.size.Y, cash.pos.Y + cash.size.Y)
 	return RunLayout.rect(0, 0, d.X, bottom + 4, "TopStack")
 end
 
@@ -486,42 +451,51 @@ RunLayout.hintRect = function(ctx: Ctx): Rect
 	return (RunLayout.hopRect(ctx))
 end
 
--- Heat bar (bottom centre, compact): centred if clear; else shifted clear of the thumbstick
--- zone; else one row up (above the Hop / Jump row). Never in a zone, the protected region or
--- over Hop. Size: see HeatBar (full 330 x 58, compact 196 x 50 including the stage words).
-RunLayout.HeatFull = Vector2.new(330, 58)
-RunLayout.HeatCompact = Vector2.new(196, 50)
+-- Heat (bottom centre; Round 2): the ORIGINAL ENGINE HEAT panel (RunHud.HeatGauge, 320 x 92 design px),
+-- scaled to fit. Placement keeps it bottom-centre when it can: centred if clear; else shifted clear of
+-- the thumbstick zone; else centred in the gap between the thumbstick zone and Hop; each tried at the
+-- scales in HeatScales (1.0, then 0.92, then 0.89: the stage label stays at least 16.0 design px, the approved minimum). If even the
+-- smallest scale does not fit clear of the (conservative, assumed) thumbstick zone, it is placed against
+-- Hop with its left edge allowed to reach up to HeatSoftOverlap px into that zone and the rect reports the
+-- conflict "ThumbstickSoft" (phone sizes only; recorded in the ledger). It never overlaps Hop.
+RunLayout.HeatFull = Vector2.new(320, 92) -- HeatGauge.Size (kept in step by HeatPanel's debug check)
+RunLayout.HeatScales = table.freeze({ 1, 0.92, 0.89 })
+RunLayout.HeatSoftOverlap = 60
+RunLayout.HeatCompact = Vector2.new(320 * 0.89, 92 * 0.89)
+RunLayout.HeatBottomGap = 8
 function RunLayout.heatRect(ctx: Ctx): (Rect, string?)
 	local d = RunLayout.design(ctx)
-	local size = if RunLayout.compact(ctx) then RunLayout.HeatCompact else RunLayout.HeatFull
-	local bottomGap = if RunLayout.compact(ctx) then 6 else RunLayout.Margin
-	local y = d.Y - bottomGap - size.Y
 	local hop = RunLayout.hopRect(ctx)
-	local candidates = { RunLayout.rect(d.X / 2 - size.X / 2, y, size.X, size.Y, "Heat") }
 	local thumb = zone(ctx, "Thumbstick")
 	local leftLimit = if thumb then thumb.pos.X + thumb.size.X + 6 else RunLayout.Margin
-	table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), y, size.X, size.Y, "Heat"))
-	-- still on the bottom row: centred in the gap between the thumbstick zone and Hop, full size
-	-- then compact (tablet: the thumbstick zone is wide)
 	local gapL, gapR = leftLimit, hop.pos.X - 6
-	for _, sz in { size, RunLayout.HeatCompact } do
-		if gapR - gapL >= sz.X then
-			local cy = d.Y - bottomGap - sz.Y
-			table.insert(candidates, RunLayout.rect((gapL + gapR) / 2 - sz.X / 2, cy, sz.X, sz.Y, "Heat"))
+	local candidates: { Rect } = {}
+	for _, k in RunLayout.HeatScales do
+		local size = RunLayout.HeatFull * k
+		local y = d.Y - RunLayout.HeatBottomGap - size.Y
+		table.insert(candidates, RunLayout.rect(d.X / 2 - size.X / 2, y, size.X, size.Y, "Heat"))
+		table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), y, size.X, size.Y, "Heat"))
+		if gapR - gapL >= size.X then
+			table.insert(candidates, RunLayout.rect((gapL + gapR) / 2 - size.X / 2, y, size.X, size.Y, "Heat"))
 		end
 	end
-	local upY = hop.pos.Y - 8 - size.Y
-	table.insert(candidates, RunLayout.rect(d.X / 2 - size.X / 2, upY, size.X, size.Y, "Heat"))
-	table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), upY, size.X, size.Y, "Heat"))
-	table.insert(
-		candidates,
-		RunLayout.rect(math.max(leftLimit, d.X - RunLayout.Margin - size.X), upY, size.X, size.Y, "Heat")
-	)
-	-- Heat is bottom centre by Adam's decision, below the rider: it avoids Hop and the reserved
-	-- zones, not the protected region (on phones that region reaches the bottom edge, which pushed
-	-- Heat to the side in Studio)
-	return RunLayout.solve(ctx, candidates, { hop })
+	local found, conflict = RunLayout.solve(ctx, candidates, { hop })
+	if conflict == nil then
+		return found, nil
+	end
+	-- soft fallback (phone sizes): the smallest scale, right-aligned against Hop, reaching at most
+	-- HeatSoftOverlap into the thumbstick zone
+	local k = RunLayout.HeatScales[#RunLayout.HeatScales]
+	local size = RunLayout.HeatFull * k
+	local y = d.Y - RunLayout.HeatBottomGap - size.Y
+	local x = math.max(gapR - size.X, leftLimit - RunLayout.HeatSoftOverlap)
+	local r = RunLayout.rect(x, y, size.X, size.Y, "Heat")
+	if RunLayout.overlaps(r, hop) then
+		return r, "Hop"
+	end
+	return r, "ThumbstickSoft"
 end
+
 RunLayout.heatPanelRect = function(ctx: Ctx): Rect
 	return (RunLayout.heatRect(ctx))
 end

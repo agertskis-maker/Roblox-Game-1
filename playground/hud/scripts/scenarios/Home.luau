@@ -103,7 +103,7 @@ return {
 		if screen and screen.showReserved then
 			screen:showReserved(true)
 		end
-		for _, name in { "Desktop", "PhoneLandscape", "PhonePortrait", "Tablet" } do
+		for _, name in host.api.profiles do
 			host.api.setProfile(name)
 			host.wait(0.5)
 			logDebug(host, "menu", { "kind", "reservedOverlap" })
@@ -222,13 +222,6 @@ return {
 			host.log(string.format("%s -> expected %s, shown %s", Format.group(value), Format.cash(value), shown))
 			host.wait(1.2)
 		end
-		-- car count with the same rules (no "$")
-		for _, owned in { 3, 999, 9999, 10000, 999999, 1000000 } do
-			host.store:set("garage", { owned = owned, total = 12, unseen = 0 })
-			host.wait(0.8)
-			logDebug(host, "stats", { "carCount" })
-		end
-		host.store:set("garage", { owned = 3, total = 12, unseen = 1 })
 		setCash(host, 9450)
 		host.wait(1)
 	end,
@@ -346,6 +339,115 @@ return {
 		host.wait(3)
 		ensureHome(host)
 		host.wait(1)
+	end,
+
+	-- Round 2 (R2-HM1): the Garage collection pill under the label, separate from the earned-unseen badge.
+	-- Cases: known total, empty collection, unknown total, large counts. FIXTURE values.
+	["Home: Garage pill cases (Round 2)"] = function(host: any)
+		ensureHome(host)
+		local cases = {
+			{ 12, 24, 1 },
+			{ 0, 24, 0 },
+			{ 12, nil, 2 },
+			{ 1200, 2400, 0 },
+			{ 99999, 100000, 3 },
+			{ 0, nil, 0 },
+			{ 12, 24, 1 },
+		}
+		for _, c in cases do
+			host.store:set("garage", { owned = c[1], total = c[2], unseen = c[3] })
+			host.wait(0.9)
+			local menu = comp(host, "menu")
+			local d = if menu and menu.getDebugState then menu:getDebugState() else nil
+			local g = d and d.items and d.items.Garage
+			host.log(
+				string.format(
+					"garage owned=%s total=%s unseen=%s -> pill=%q fits=%s labelSize=%s labelFits=%s badge=%s",
+					tostring(c[1]),
+					tostring(c[2]),
+					tostring(c[3]),
+					tostring(g and g.kit.pill),
+					tostring(g and g.kit.pillFits),
+					tostring(g and g.labelSize),
+					tostring(g and g.labelFits),
+					tostring(g and g.badgeText)
+				)
+			)
+		end
+	end,
+
+	-- Round 2 (R2-HM2): Shop seamless rainbow (phase sampled across the wrap), NEW only from the flag,
+	-- reduced motion freeze, and no work while Home is hidden.
+	["Home: Shop rainbow, NEW flag, reduced motion, hidden (Round 2)"] = function(host: any)
+		ensureHome(host)
+		Motion.setOverride(nil)
+		host.store:set("shop", { newItem = false })
+		local function shop(): any
+			local menu = comp(host, "menu")
+			local d = if menu and menu.getDebugState then menu:getDebugState() else nil
+			return d and d.items and d.items.Shop and d.items.Shop.kit
+		end
+		-- 1. drift across more than one 9 s cycle: the phase must advance steadily and wrap with no jump
+		local last = -1
+		for i = 1, 24 do
+			host.wait(0.5)
+			local k = shop()
+			if k then
+				host.log(
+					string.format(
+						"t=%.1f phase=%.3f fieldX=%.3f updates=%d",
+						i * 0.5,
+						k.driftPhase,
+						k.fieldX or 0,
+						k.driftUpdates
+					)
+				)
+				if k.driftPhase < last then
+					host.log(
+						"  -- wrapped here (phase "
+							.. string.format("%.3f", last)
+							.. " -> "
+							.. string.format("%.3f", k.driftPhase)
+							.. ")"
+					)
+				end
+				last = k.driftPhase
+			end
+		end
+		-- 2. NEW only from the flag
+		host.store:set("shop", { newItem = true })
+		host.wait(0.4)
+		host.log("flag on: ribbonVisible=" .. tostring(shop() and shop().ribbonVisible))
+		host.store:set("shop", { newItem = false })
+		host.wait(0.4)
+		host.log("flag off: ribbonVisible=" .. tostring(shop() and shop().ribbonVisible))
+		-- 3. reduced motion freezes the colour field at its resting phase
+		Motion.setOverride(true)
+		host.wait(0.8)
+		local k = shop()
+		host.log(string.format("reduced: phase=%.3f fieldX=%.3f", k and k.driftPhase or -1, k and k.fieldX or -1))
+		local u1 = k and k.driftUpdates or 0
+		host.wait(1.5)
+		k = shop()
+		host.log(
+			string.format("reduced 1.5 s later: updates %d -> %d (no change expected)", u1, k and k.driftUpdates or -1)
+		)
+		Motion.setOverride(nil)
+		-- 4. a hidden Home does no animation work
+		host.wait(0.6)
+		local before = shop() and shop().driftUpdates or 0
+		host.enterRun()
+		host.wait(3)
+		host.api.goHome()
+		local menu = comp(host, "menu")
+		host.log("(hidden 3 s in Run; updates before=" .. before .. ") menu visible again=" .. tostring(menu ~= nil))
+		host.wait(0.5)
+		local after = shop() and shop().driftUpdates or 0
+		host.log(
+			"updates after returning Home (+0.5 s): "
+				.. after
+				.. " (the hidden 3 s added none; only about 30 expected for the 0.5 s)"
+		)
 	end,
 
 	["Home: timer proposal (captioned)"] = function(host: any)

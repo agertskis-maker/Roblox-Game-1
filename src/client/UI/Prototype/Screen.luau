@@ -9,7 +9,7 @@
 --   screen.root   -- Frame in device pixels (components place themselves inside screen.safe)
 --   screen.safe   -- the safe area (insets applied once, here; components never add insets)
 --   screen:uiScale()            -- the approved short-side rule for this device (Tokens.uiScaleFor)
---   screen:setProfile("PhonePortrait")   -- fires screen.Changed(profile)
+--   screen:setProfile("PhoneLandscape")  -- fires screen.Changed(profile); landscape frames only (Round 2)
 --   screen:toDevice(absolute)   -- a real-viewport pixel position or size -> device pixels
 --   screen:showReserved(on)     -- diagnostics: draw the reserved thumbstick and jump zones
 
@@ -28,6 +28,7 @@ export type Zone = { name: string, position: Vector2, size: Vector2 }
 export type Profile = {
 	name: string,
 	label: string,
+	kind: "Desktop" | "Tablet" | "Phone", -- layout class (every phone frame is landscape)
 	size: Vector2,
 	insets: Insets,
 	touch: boolean,
@@ -36,7 +37,9 @@ export type Profile = {
 
 -- Assumed insets (documented assumptions, not measurements): the Roblox top bar row (about 58
 -- device px on desktop and tablet, 44 on phones) plus the device's own notch / home-indicator
--- areas. Touch zones follow Roblox's default TouchGui layout (thumbstick in the lower left,
+-- areas. Round 2: landscape only (StarterGui.ScreenOrientation = LandscapeSensor); the portrait frame
+-- is removed. PhoneLandscapeLeft / Right model a notch on one side (left or right inset 47, the other
+-- 21 for the home indicator); PhoneSmall is the smallest practical viewport (740 x 360). Touch zones follow Roblox's default TouchGui layout (thumbstick in the lower left,
 -- jump in the lower right), approximated.
 local function phoneZones(size: Vector2): { Zone }
 	local short = math.min(size.X, size.Y)
@@ -57,6 +60,7 @@ end
 Screen.Profiles = {
 	Desktop = {
 		name = "Desktop",
+		kind = "Desktop",
 		label = "Desktop 1920 x 1080",
 		size = Vector2.new(1920, 1080),
 		insets = { top = 58, bottom = 0, left = 0, right = 0 },
@@ -65,22 +69,43 @@ Screen.Profiles = {
 	},
 	PhoneLandscape = {
 		name = "PhoneLandscape",
+		kind = "Phone",
 		label = "Phone landscape 844 x 390",
 		size = Vector2.new(844, 390),
 		insets = { top = 44, bottom = 21, left = 47, right = 47 },
 		touch = true,
 		zones = phoneZones(Vector2.new(844, 390)),
 	},
-	PhonePortrait = {
-		name = "PhonePortrait",
-		label = "Phone portrait 390 x 844",
-		size = Vector2.new(390, 844),
-		insets = { top = 91, bottom = 34, left = 0, right = 0 },
+	PhoneSmall = {
+		name = "PhoneSmall",
+		kind = "Phone",
+		label = "Phone small landscape 740 x 360",
+		size = Vector2.new(740, 360),
+		insets = { top = 40, bottom = 20, left = 44, right = 44 },
 		touch = true,
-		zones = phoneZones(Vector2.new(390, 844)),
+		zones = phoneZones(Vector2.new(740, 360)),
+	},
+	PhoneLandscapeLeft = {
+		name = "PhoneLandscapeLeft",
+		kind = "Phone",
+		label = "Phone landscape, notch left 844 x 390",
+		size = Vector2.new(844, 390),
+		insets = { top = 44, bottom = 21, left = 47, right = 21 },
+		touch = true,
+		zones = phoneZones(Vector2.new(844, 390)),
+	},
+	PhoneLandscapeRight = {
+		name = "PhoneLandscapeRight",
+		kind = "Phone",
+		label = "Phone landscape, notch right 844 x 390",
+		size = Vector2.new(844, 390),
+		insets = { top = 44, bottom = 21, left = 21, right = 47 },
+		touch = true,
+		zones = phoneZones(Vector2.new(844, 390)),
 	},
 	Tablet = {
 		name = "Tablet",
+		kind = "Tablet",
 		label = "Tablet 1180 x 820",
 		size = Vector2.new(1180, 820),
 		insets = { top = 58, bottom = 20, left = 0, right = 0 },
@@ -89,7 +114,7 @@ Screen.Profiles = {
 	},
 } :: { [string]: Profile }
 
-Screen.Order = { "Desktop", "PhoneLandscape", "PhonePortrait", "Tablet" }
+Screen.Order = { "Desktop", "Tablet", "PhoneLandscape", "PhoneSmall", "PhoneLandscapeLeft", "PhoneLandscapeRight" }
 
 function Screen.new(parent: Instance, profileName: string?)
 	local self = setmetatable({}, Screen)

@@ -1,82 +1,39 @@
 --!strict
--- Run view base layer for the rebuilt HUD (Lane 3 preview, HUD rebuild worker HR, 2026-10-22).
--- The overnight top Distance + coins look and the run Heat panel are gone from the prototype run
--- view: distance now lives under the avatar head in DistrictStrip, Heat is HeatBar (bottom
--- centre), Cash and the car count belong bottom left (Home worker's stats, shown compact while
--- driving by the lead's mode wiring). The approved production RunHud is untouched.
+-- Run view base layer for the rebuilt HUD (Lane 3 preview; Round 2, 2026-10-23).
+-- The overnight top Distance + coins look is gone: distance lives in the route line, Heat is the original
+-- ENGINE HEAT panel (bottom centre), and Cash is the compact top-left Cash (Home/StatsStack in run mode).
+-- Round 2 also removed the separate COINS readout: Cash is the single currency, and road coins are Cash
+-- pickups shown as a +$N cue on Cash. The approved production RunHud is untouched.
 --
 -- What is left here:
---   * a compact COINS readout (run coins, a fixture value): coin icon + italic number, no card,
---     top left (under the strip on the left in phone portrait). Kept because run.coins exists and
---     Results reports it; options.coins = false hides it.
 --   * diagnostics: the PROTECTED ROAD-AHEAD region (RunLayout.protectedRect) drawn as an outline
 --     with its label, for review captures only.
 --
---   local run = RunLayer.new(ctx, { coins = true? })
+--   local run = RunLayer.new(ctx)
 --   run:setDiagnostics(on)
 --   run:layout(), run:setVisible(on), run:destroy(), run:getDebugState()
---   run:setHeatVariant(...) / run:jolt(...)   -- accepted and ignored (overnight API; the
---                                                proposal variant was retired with the rebuild)
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+--   run:setHeatVariant(...) / run:jolt(...)   -- accepted and ignored (overnight API)
 
 local Arcade = require(script.Parent.Parent.Arcade)
-local Format = require(ReplicatedStorage.Shared.UI.Format)
 local RunKit = require(script.Parent.RunKit)
 local RunLayout = require(script.Parent.RunLayout)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local make = Arcade.make
 
-export type Options = { coins: boolean? }
-
 local RunLayer = {}
 RunLayer.__index = RunLayer
 
-function RunLayer.new(ctx: RunLayout.Ctx, options: Options?)
+function RunLayer.new(ctx: RunLayout.Ctx)
 	local self = setmetatable({}, RunLayer)
 	self._ctx = ctx
 	self._trove = Trove.new()
 	self._visible = true
 	self._diagnostics = false
-	self._showCoins = not (options and options.coins == false)
-	self._coinsText = ""
 
 	local root = self._trove:Add(RunLayout.canvas(ctx, "RunLayer"))
 	self.root = root
-
-	local coins = make("Frame", {
-		Name = "Coins",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(RunLayout.CoinsSize.X, RunLayout.CoinsSize.Y),
-		ZIndex = 2,
-		Parent = root,
-	})
-	RunKit.nonInteractive(coins)
-	local icon = make("Frame", {
-		Name = "Icon",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundTransparency = 1,
-		ZIndex = 3,
-		Parent = coins,
-	})
-	Arcade.icon(icon, "Coin")
-	local value = Arcade.text(coins, {
-		text = "0",
-		role = "ValueRun",
-		name = "Value",
-		italic = true,
-		face = "Keys",
-		xAlign = Enum.TextXAlignment.Left,
-		z = 4,
-	})
-	value.AnchorPoint = Vector2.new(0, 0.5)
-	value.Position = UDim2.new(0, 34, 0.5, 0)
-	value.Size = UDim2.new(1, -34, 1, 4)
-	self._coins = coins
-	self._coinValue = value
 
 	-- diagnostics: the protected road-ahead region
 	local band = make("Frame", {
@@ -94,37 +51,18 @@ function RunLayer.new(ctx: RunLayout.Ctx, options: Options?)
 	label.Size = UDim2.new(1, 0, 0, 22)
 	self._band = band
 
-	self._trove:Add(ctx.store:subscribe("run", function()
-		self:_apply()
-	end))
-	self._trove:Connect(ctx.store.ModeChanged, function()
-		self:_apply()
-	end)
 	self:layout()
 	return self
 end
 
 export type RunLayer = typeof(RunLayer.new((nil :: any) :: RunLayout.Ctx))
 
-function RunLayer._apply(self: RunLayer)
-	local run = self._ctx.store:get().run
-	local coins = if run then run.coins else 0
-	local text = Format.group(math.max(0, math.floor(coins)))
-	if text ~= self._coinsText then
-		self._coinsText = text
-		self._coinValue.Text = text
-	end
-	self._coins.Visible = self._showCoins and run ~= nil and self._ctx.store:get().mode == "Run"
-end
-
 function RunLayer.layout(self: RunLayer)
 	local ctx = self._ctx
 	RunLayout.fit(ctx, self.root)
-	RunLayout.place(self._coins, RunLayout.coinsRect(ctx))
 	local prot = RunLayout.protected(ctx)
 	RunLayout.place(self._band, prot)
 	self._band.Visible = self._diagnostics
-	self:_apply()
 end
 
 function RunLayer.setDiagnostics(self: RunLayer, on: boolean)
@@ -149,9 +87,7 @@ function RunLayer.getDebugState(self: RunLayer): { [string]: any }
 		profile = profile.name,
 		uiScale = ctx.screen:uiScale(),
 		design = RunLayout.design(ctx),
-		coinsText = self._coinsText,
-		coinsShown = self._coins.Visible,
-		coinsBox = RunLayout.describe(RunLayout.coinsRect(ctx)),
+		cashBox = RunLayout.describe(RunLayout.cashRect(ctx)),
 		protectedDesign = RunLayout.describe(RunLayout.protected(ctx)),
 		protectedDevice = RunLayout.describe(RunLayout.protectedRect(profile)),
 		diagnostics = self._diagnostics,

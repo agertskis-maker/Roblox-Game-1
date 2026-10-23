@@ -50,9 +50,7 @@ A new `Prototype/Run/HeatPanel.luau` adapter that instantiates `HeatGauge` **unm
 segmented `HeatBar` stays in the repo, unmounted, behind a debug-only variant switch (default Original). No server
 code is required, no sessions or DataStores are touched.
 
-**Fit.** The panel is 320 × 92 (+10 px effect margin). On phone landscape (844 × 390) the free gap between the
-thumbstick zone (x ≈ 344) and Hop (x ≈ 639) is 295 px, so it needs about `UIScale 0.92` with stage growth capped to
-1.0 (label ≈ 16.6 px, title tab ≈ 14.7 px, which is not primary text). Tablet (gap ≈ 412 px) and desktop fit at 1.0.
+**Fit (measured in Studio).** The panel is 320 × 92 (+10 px effect margin). Scale steps 1.0 → 0.92 → 0.89 (label ≥ 16.0 design px). Desktop fits at 1.0; phone landscape 844 × 390 fits clear of the thumbstick zone and Hop at 0.92 (label 16.6 px, no stage growth). Tablet (design scale 1.5) and PhoneSmall 740 × 360 are as tight as a phone: they use 0.89 with the panel against Hop and up to 60 px into the assumed (conservative) thumbstick zone, reported as `ThumbstickSoft`. The title tab text is about 14.2–14.7 px (not primary text).
 
 ## 4. Baseline of the original (Studio Play, synthetic fixture)
 `HEAT_SEQ`: snap(0) → t1 set(0.30, Calm) → t3 set(0.60, Warning) → t5 set(0.85, Critical) → t7 set(1.00, Meltdown)
@@ -106,3 +104,10 @@ would otherwise have ended, and what happened next.
 - If Adam meant only the bar and not the thermometer, the wrapper can hide the thermometer; the full panel is the default.
 - A palette-level restyle toward the arcade family is possible through the `palette` argument without editing
   `HeatGauge`; the default keeps the approved cream panel until Adam asks.
+
+## 7. Integration result (Stage 2, WP5; Studio Play)
+`Prototype/Run/HeatPanel.luau` mounts the unmodified `HeatGauge`. Replaying `HEAT_SEQ` through it reproduces the baseline:
+identical stages, labels, steady values and alarm rates; eased values agree within sampling jitter
+(`Car-Hop-Art/review/hud-round2/heat/integration-equivalence.md`, `before-after-sheet.jpg`). `HeatGauge`, `RunHud`,
+`AlarmClock` and `Tokens` are byte-identical to `main` (git diff is empty for them). Label is: fixture using the original
+thresholds, not a live Lane 1 run.

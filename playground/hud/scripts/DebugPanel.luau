@@ -86,7 +86,7 @@ function DebugPanel.new(gui: ScreenGui, api: any)
 	self._status = status
 
 	header(frame, "Device", nextOrder())
-	for _, name in { "Desktop", "PhoneLandscape", "PhonePortrait", "Tablet" } do
+	for _, name in api.profiles do
 		button(frame, name, nextOrder(), function()
 			api.setProfile(name)
 		end)

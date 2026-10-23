@@ -84,7 +84,7 @@ export type Warning = {
 
 export type RunState = {
 	distance: number, -- metres (Lane 1 unit)
-	coins: number,
+	cashPickups: number?, -- FIXTURE: road-coin Cash picked up so far this run (Results source row); Brian L owns the real value
 	heat: number, -- 0..1
 	stage: "Calm" | "Warning" | "Critical" | "Meltdown",
 	ride: CarRef?,
@@ -101,7 +101,11 @@ export type RunState = {
 
 export type Results = {
 	distance: number,
-	coins: number,
+	-- Round 2: Cash is the single currency. Road coins are Cash pickups, shown as a SOURCE row. The amount
+	-- is part of `earnings` when `totalIncludesPickups` is true (the default fixture), so the row is never
+	-- added to the total a second time. nil or 0 hides the row (FIXTURE; Brian L owns the real breakdown).
+	roadCoins: number?,
+	totalIncludesPickups: boolean?,
 	best: number,
 	newBest: boolean,
 	claimed: { CarRef },
@@ -116,7 +120,11 @@ export type State = {
 	cash: number,
 	exactCash: number, -- the supplied value, for the exact-value detail
 	earningPerLap: number?, -- FIXTURE (Brian L owns the real rate and its units)
-	garage: { owned: number, total: number, unseen: number },
+	-- Garage pill "owned / total CARS": total nil = unknown (the pill shows the owned count alone).
+	-- FIXTURE values; Brian L owns the real collection definition.
+	garage: { owned: number, total: number?, unseen: number },
+	-- Shop NEW ribbon: only from a supplied item-change flag, never a timer.
+	shop: { newItem: boolean }?,
 	missionsClaimable: number,
 	tutorial: Tutorial?,
 	-- local preview settings; musicOn is the Home toggle row (a real local setting, not saved)
@@ -129,7 +137,7 @@ export type State = {
 
 export type Event = {
 	id: string,
-	kind: string, -- "CashGain" | "CashSpend" | "Toast" | "LapPay" | "Milestone" | "KeysConfirmed"
+	kind: string, -- "CashGain" | "CashSpend" | "CashPickup" (road coin = Cash pickup; amount) | "Toast" | "LapPay" | "Milestone" | "KeysConfirmed"
 	-- | "AlreadyOwned" | "TutorialComplete" | "Unlock"
 	-- | "KeysStart" | "KeysCanceled" | "DistrictEnter" | "RareArrival" | "RunWarning"
 	-- | "Dismounted" | "RunEnded" | "ArrivedHome"
@@ -160,7 +168,8 @@ function Store.baseline(): State
 		cash = 9450,
 		exactCash = 9450,
 		earningPerLap = 120,
-		garage = { owned = 3, total = 12, unseen = 1 },
+		garage = { owned = 12, total = 24, unseen = 1 },
+		shop = { newItem = false },
 		missionsClaimable = 1,
 		tutorial = nil,
 		settings = { music = 0.5, sfx = 0.6, musicOn = true },

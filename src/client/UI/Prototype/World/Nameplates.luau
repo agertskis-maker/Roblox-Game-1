@@ -61,7 +61,8 @@ local MAX_DISTANCE = 95
 local OVERLAP = 0.3
 local LIFT = 1.2 -- studs above the roof
 local POOL_EXTRA = 3 -- plates allowed to finish fading out beyond the cap
-local CAP_BY_PROFILE: { [string]: number } = { Desktop = 6, Tablet = 5, PhoneLandscape = 4, PhonePortrait = 4 }
+local CAP_BY_PROFILE: { [string]: number } =
+	{ Desktop = 6, Tablet = 5, PhoneLandscape = 4, PhoneSmall = 4, PhoneLandscapeLeft = 4, PhoneLandscapeRight = 4 }
 
 export type PlateState = "CAPTURING"
 

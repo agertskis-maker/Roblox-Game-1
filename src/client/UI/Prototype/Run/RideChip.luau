@@ -2,7 +2,7 @@
 -- Current ride chip + options button for the run view (Lane 3 preview, worker H3).
 -- Top right: a small navy options (gear) button, and beneath it a compact chip naming the car
 -- being ridden: a mini rarity bar (colour plus 1..5 pips, so rarity reads without colour), the
--- car name and a family icon. On narrow portrait (Distance on its own row) the chip moves under
+-- car name and a family icon. On narrow screens the chip moves under
 -- Cash on the left (RunLayout.chipRect). Display only: it shows store.run.ride as supplied.
 --
 -- The options button only calls the callback it is given. It never says "pause" and implies no
@@ -182,7 +182,7 @@ function RideChip._apply(self: RideChip)
 	-- space; the CAPTURING plate and the ring name the car)
 	local k = run and run.keys
 	local capturing = k ~= nil and (k.status == "Holding" or k.status == "Pending")
-	local phoneL = self._ctx.screen:profile().name == "PhoneLandscape"
+	local phoneL = self._ctx.screen:profile().kind == "Phone"
 	self._chip.Visible = car ~= nil and not (phoneL and capturing)
 	if not car then
 		return

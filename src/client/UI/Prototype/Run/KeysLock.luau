@@ -45,7 +45,7 @@
 -- (options.anchor or setAnchor), mapped into the canvas (RunLayout.worldToCanvas). The ring sits
 -- beside the rider at the overnight KeysRing's approved relative location: just right of the
 -- protected road-ahead region at the rider's height (left of it if the right is blocked; above
--- it in phone portrait). It never enters the protected region, the top block, Heat or Hop.
+-- it on a narrow phone). It never enters the protected region, the top block, Heat or Hop.
 -- Stable tracking: a 1.5 px deadband plus a critically damped follow (omega 14), so tiny camera
 -- moves never jitter it. Consistent screen size: Keys.RingSize design px clamped to 64..24% of
 -- the short canvas side. Kept inside the safe area. Off screen or behind the camera: pinned to
@@ -100,7 +100,7 @@ KeysLock.__index = KeysLock
 KeysLock.Rank = RANK
 
 -- avoid: extra design-px rects the ring keeps clear of (the host knows where the run-time Cash and
--- car count sit; seen in Studio: the ring over them on phone portrait)
+-- Cash sits; seen in Studio: the ring over the run-time stats)
 export type Options = { anchor: Instance?, avoid: (() -> { RunLayout.Rect })? }
 
 type Capture = {
@@ -208,7 +208,7 @@ export type KeysLock = typeof(KeysLock.new((nil :: any) :: RunLayout.Ctx))
 local function ringSize(ctx: RunLayout.Ctx): number
 	local d = RunLayout.design(ctx)
 	-- phone landscape is short: a smaller cap keeps the ring between the ride chip and Hop
-	local cap = if ctx.screen:profile().name == "PhoneLandscape" then 0.19 else 0.24
+	local cap = if ctx.screen:profile().kind == "Phone" then 0.19 else 0.24
 	return math.floor(math.clamp(K.RingSize, 64, math.max(64, math.min(d.X, d.Y) * cap)))
 end
 
@@ -891,17 +891,17 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 	local halfW = v.width / 2
 	local up = v.ringCentreY
 	local down = v.height - v.ringCentreY
-	-- the top row piece by piece (strip, coins, Settings) rather than the full-width top band, so
+	-- the top row piece by piece (strip, Cash, Settings) rather than the full-width top band, so
 	-- the ring can use the right column under Settings on short screens
 	local avoid = {
 		prot,
 		RunLayout.stripRect(ctx),
-		RunLayout.coinsRect(ctx),
+		RunLayout.cashRect(ctx),
 		RunLayout.gearRect(ctx),
 		(RunLayout.heatRect(ctx)),
 		(RunLayout.hopRect(ctx)),
 	}
-	if ctx.screen:profile().name ~= "PhoneLandscape" then
+	if ctx.screen:profile().kind ~= "Phone" then
 		table.insert(avoid, RunLayout.chipRect(ctx)) -- the chip only steps aside on phone landscape
 	end
 	local extra = self._extraAvoid
@@ -951,9 +951,7 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 	-- short screens: the gap between the ride chip and Hop, right of the road
 	do
 		-- phone landscape: the ride chip hides during a capture, so the gap starts under the gear
-		local chip = if ctx.screen:profile().name == "PhoneLandscape"
-			then RunLayout.gearRect(ctx)
-			else RunLayout.chipRect(ctx)
+		local chip = if ctx.screen:profile().kind == "Phone" then RunLayout.gearRect(ctx) else RunLayout.chipRect(ctx)
 		local hop = RunLayout.hopRect(ctx)
 		local gapTop = chip.pos.Y + chip.size.Y + 4
 		local gapBottom = hop.pos.Y - 4

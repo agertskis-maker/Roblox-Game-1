@@ -1,6 +1,6 @@
 --!strict
 -- PLAYGROUND ONLY (Lane 3 HUD rebuild preview, worker HS). Screens and cards scenarios, driven by
--- synthetic fixtures through the preview store. Nothing here is a game rule: distances, coins,
+-- synthetic fixtures through the preview store. Nothing here is a game rule: distances, road coins (Cash pickups),
 -- Cash, claims, the +$50 Joyride Bonus and every capture id are fixtures.
 --
 -- host = { store, api, wait(seconds), emit(kind, fields) -> boolean, runPatch(patch), car(id),
@@ -113,7 +113,8 @@ return {
 	["Results: no claims"] = function(host: any)
 		present(host, {
 			distance = 85,
-			coins = 0,
+			roadCoins = 0,
+			totalIncludesPickups = true,
 			best = 1100,
 			newBest = false,
 			claimed = {},
@@ -127,7 +128,8 @@ return {
 	["Results: one claim"] = function(host: any)
 		present(host, {
 			distance = 1240,
-			coins = 86,
+			roadCoins = 35,
+			totalIncludesPickups = true,
 			best = 1100,
 			newBest = true,
 			claimed = claimedCars(host, { "rev6" }),
@@ -148,7 +150,8 @@ return {
 		table.insert(cars, Fixtures.LongName)
 		present(host, {
 			distance = 4820,
-			coins = 412,
+			roadCoins = 120,
+			totalIncludesPickups = true,
 			best = 4100,
 			newBest = true,
 			claimed = cars,
@@ -202,7 +205,8 @@ return {
 		host.wait(0.5)
 		local res = {
 			distance = 980,
-			coins = 41,
+			roadCoins = 20,
+			totalIncludesPickups = true,
 			best = 1100,
 			newBest = false,
 			claimed = {}, -- neither confirmation was in the run's claims when it ended
@@ -240,7 +244,8 @@ return {
 	["Results: repeated taps"] = function(host: any)
 		present(host, {
 			distance = 1240,
-			coins = 86,
+			roadCoins = 35,
+			totalIncludesPickups = true,
 			best = 1100,
 			newBest = true,
 			claimed = claimedCars(host, { "rev6" }),
@@ -291,7 +296,8 @@ return {
 		host.wait(0.4)
 		local res = {
 			distance = 1530,
-			coins = 97,
+			roadCoins = 40,
+			totalIncludesPickups = true,
 			best = 1100,
 			newBest = true,
 			claimed = claimedCars(host, { "rangy" }),

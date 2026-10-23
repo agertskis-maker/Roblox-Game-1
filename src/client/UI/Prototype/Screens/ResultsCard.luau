@@ -23,7 +23,7 @@
 --
 -- Reason heading: results.endReason through ResultsCard.Reasons ("Overheated" -> OVERHEATED! /
 -- "Heat full"); anything else (or nil) -> RUN OVER with no cause line (never an invented cause).
--- Rows: Distance, Coins, Best (NEW BEST! stamp and "was ..." on their own line, so nothing
+-- Rows: Distance, Best (NEW BEST! stamp and "was ..." on their own line, so nothing
 -- overlaps), Joyride Bonus only when results.joyride > 0, Milestones only when > 0, then the
 -- Cash tally (the existing count-up timing: 0.4-0.8 s by size), then the claimed cars as
 -- kit car cards in a wrapping grid (none: a friendly line; one; many). Claimed cars are always
@@ -287,7 +287,14 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	end
 
 	local distanceRow = statRow(1, "Distance", "Flag", "Distance", "White")
-	local coinsRow = statRow(2, "Coins", "Coin", "Coins", "Keys")
+	-- Round 2: Cash is the single currency; road coins are a SOURCE row, never a second counter
+	local roadRow = statRow(2, "RoadCoins", "CashStack", "Road coins", "Cash")
+	local roadNote = Style.text(roadRow.frame, "included in Cash earned", "Small", { name = "IncludedNote", z = 8 })
+	roadNote.AnchorPoint = Vector2.new(0, 0)
+	roadNote.Position = UDim2.fromOffset(50, ROW_H - 4)
+	roadNote.Size = UDim2.new(1, -60, 0, 18)
+	roadNote.TextXAlignment = Enum.TextXAlignment.Left
+	roadNote.Visible = false
 	local bestRow = statRow(3, "Best", "Medal", "Best", "White")
 	local joyrideRow = statRow(4, "Joyride", "Key", "Joyride Bonus", "Cash")
 	local milestonesRow = statRow(5, "Milestones", "Flag", "Milestones", "White")
@@ -610,7 +617,13 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local function fillContent(r: Store.Results)
 		applyReason(r)
 		distanceRow.value.Text = Format.distance(r.distance)
-		coinsRow.value.Text = Format.group(r.coins)
+		local road = r.roadCoins
+		local hasRoad = type(road) == "number" and road > 0
+		roadRow.value.Text = if hasRoad then "+" .. Format.cash(road :: number) else ""
+		-- shown as a source only: the amount is already inside the cash total unless the supplier says
+		-- otherwise (totalIncludesPickups == false), in which case no "included" note is claimed
+		roadNote.Visible = hasRoad and r.totalIncludesPickups ~= false
+		roadRow.frame.Size = UDim2.new(1, 0, 0, if roadNote.Visible then ROW_H + 18 else ROW_H)
 		local newBestValue = if r.newBest then math.max(r.best, r.distance) else r.best
 		bestRow.value.Text = Format.distance(newBestValue)
 		local showPrevious = r.newBest and r.distance > r.best
@@ -626,7 +639,9 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		earnings = math.max(0, math.floor(r.earnings))
 		table.clear(reveal)
 		table.insert(reveal, distanceRow.frame)
-		table.insert(reveal, coinsRow.frame)
+		if hasRoad then
+			table.insert(reveal, roadRow.frame)
+		end
 		table.insert(reveal, bestRow.frame)
 		if hasJoy then
 			table.insert(reveal, joyrideRow.frame)
@@ -638,6 +653,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		table.insert(reveal, claimsFrame)
 		joyrideRow.frame.Visible = hasJoy
 		milestonesRow.frame.Visible = hasMil
+		roadRow.frame.Visible = hasRoad
 		buildCards()
 	end
 

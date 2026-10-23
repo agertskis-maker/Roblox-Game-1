@@ -11,7 +11,7 @@
 --
 -- Control from the Studio command bar or MCP (client side): the BindableFunction
 -- PlayerGui.Lane3HudPlayground.Lane3HudControl, e.g. :Invoke("play", "Toasts"),
--- :Invoke("setProfile", "PhonePortrait"), :Invoke("debug") (JSON of every component state).
+-- :Invoke("setProfile", "PhoneLandscape"), :Invoke("debug") (JSON of every component state).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -182,6 +182,7 @@ function api.setRunHudVisible(on: boolean)
 end
 api.store = store
 api.screen = screen
+api.profiles = Screen.Order -- the landscape frames (Round 2: no portrait)
 api.backdrop = backdrop
 api.components = components
 api.failures = failures
@@ -339,7 +340,8 @@ function api.resultsFromRun(reason: string?)
 	local best = if run then run.best else 0
 	local res = {
 		distance = distance,
-		coins = if run then run.coins else 0,
+		roadCoins = if run then run.cashPickups else 0,
+		totalIncludesPickups = true,
 		best = math.max(best, distance),
 		newBest = distance > best,
 		claimed = claimed,
@@ -415,7 +417,10 @@ mount("ride", { "Run", "RideChip" }, "Run", {
 	end,
 })
 mount("strip", { "Run", "DistrictStrip" }, "Run")
-mount("heat", { "Run", "HeatBar" }, "Run")
+-- Round 2: the ORIGINAL ENGINE HEAT panel (RunHud.HeatGauge, unmodified) is the Heat; the round-1
+-- segmented bar stays mounted but hidden, a debug-only variant for before/after comparison.
+mount("heat", { "Run", "HeatPanel" }, "Run")
+mount("heatSegmented", { "Run", "HeatBar" }, "Run")
 mount("tray", { "Run", "ClaimTray" }, "Run")
 mount("keys", { "Run", "KeysLock" }, "Run", {
 	anchor = backdrop.ride,
@@ -512,7 +517,7 @@ do
 		end)
 	end
 	-- plates never sit under the run HUD (reviewer, 2026-10-23: plates under the top band on
-	-- phones): the strip, coins, Settings, ride chip, Heat, Hop, tray, an entry banner and the stats
+	-- phones): the strip, Cash, Settings, ride chip, Heat, Hop, tray, an entry banner and the stats
 	if plates and plates.setBlockers then
 		local lctx = { store = store, screen = screen }
 		plates:setBlockers(function()
@@ -525,7 +530,7 @@ do
 				table.insert(out, { pos = pos - PAD, size = size + PAD * 2 })
 			end
 			add(RunLayout.stripRect(lctx :: any))
-			add(RunLayout.coinsRect(lctx :: any))
+			add(RunLayout.cashRect(lctx :: any))
 			add(RunLayout.gearRect(lctx :: any))
 			add(RunLayout.chipRect(lctx :: any))
 			add((RunLayout.heatRect(lctx :: any)))
@@ -600,29 +605,18 @@ local function applyMode(mode: string)
 	for _, k in RUN do
 		local c = components[k]
 		if c and c.setVisible then
-			c:setVisible(mode == "Run")
+			c:setVisible(mode == "Run" and not (k == "heat" and api.heatVariant == "Segmented"))
 		end
+	end
+	local segmented = components.heatSegmented
+	if segmented and segmented.setVisible then
+		segmented:setVisible(mode == "Run" and api.heatVariant == "Segmented")
 	end
 	local stats = components.stats
 	if stats and stats.setVisible then
 		stats:setVisible(mode ~= "Results")
 		if stats.setCompact then
 			stats:setCompact(mode == "Run")
-		end
-		if stats.setRunAnchor then
-			-- phone landscape and tablet runs: the top row right of the coins (design px, block
-			-- bottom-left); bottom-left there is the thumbstick, the rider and the Heat bar
-			local p = screen:profile().name
-			local topRow = p == "PhoneLandscape" or p == "Tablet"
-			-- portrait runs: the left column above the thumbstick (Home puts them above the Jump zone,
-			-- where Hop sits during a run)
-			local anchor: Vector2? = nil
-			if mode == "Run" and topRow then
-				anchor = Vector2.new(128, 74)
-			elseif mode == "Run" and p == "PhonePortrait" then
-				anchor = Vector2.new(8, 367)
-			end
-			stats:setRunAnchor(anchor, if mode == "Run" and p == "PhoneLandscape" then 0.52 else nil)
 		end
 	end
 	backdrop.setRunCamera(mode == "Run")
@@ -655,6 +649,14 @@ end
 trove:Connect(store.ModeChanged, applyMode)
 -- re-applies the mode's visibility (a closing overlay can restore Home pieces it had hidden)
 function api.applyMode()
+	applyMode(store:get().mode)
+end
+
+-- Debug-only: "Original" (default; the approved ENGINE HEAT panel) or "Segmented" (the round-1 bar), for
+-- before/after comparison. Round 2 uses Original everywhere.
+api.heatVariant = "Original"
+function api.setHeatVariant(variant: string)
+	api.heatVariant = if variant == "Segmented" then "Segmented" else "Original"
 	applyMode(store:get().mode)
 end
 

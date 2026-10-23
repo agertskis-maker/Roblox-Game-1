@@ -1,6 +1,6 @@
 --!strict
--- "Claimed this run" tray (Lane 3 preview, HUD rebuild worker HR; U-06). Left middle (a compact
--- row under the strip in phone portrait): a clear count ("2 CLAIMED", italic number), bounded
+-- "Claimed this run" tray (Lane 3 preview, HUD rebuild worker HR; U-06). Left middle, below the
+-- compact Cash: a clear count ("2 CLAIMED", italic number), bounded
 -- cheap thumbnails (rarity-coloured tiles with the car icon and name; NO ViewportFrames), and an
 -- overflow "+N" chip that opens a scrollable review of every car claimed this run.
 --
@@ -662,16 +662,9 @@ function ClaimTray.layout(self: ClaimTray)
 	-- leave room for the SECURING… caption under the slots
 	RunLayout.place(self._holder, RunLayout.rect(r.pos.X, r.pos.Y, r.size.X, r.size.Y + 22))
 	local slotsX, slotsY = 0, T.Header
-	if g.horizontal then
-		self._header.Position = UDim2.fromOffset(0, 4)
-		self._header.Size = UDim2.fromOffset(92, g.thumb)
-		slotsX, slotsY = 96, 0
-		self._word.TextSize = 16
-	else
-		self._header.Position = UDim2.fromOffset(0, 0)
-		self._header.Size = UDim2.fromOffset(r.size.X, T.Header)
-		self._word.TextSize = A.Text.Label
-	end
+	self._header.Position = UDim2.fromOffset(0, 0)
+	self._header.Size = UDim2.fromOffset(r.size.X, T.Header)
+	self._word.TextSize = A.Text.Label
 	self._grid.Position = UDim2.fromOffset(slotsX, slotsY)
 	self._grid.Size = UDim2.fromOffset(g.columns * (g.thumb + T.Gap), g.rows * (g.thumb + T.Gap))
 	if rebuild then
@@ -695,10 +688,7 @@ function ClaimTray.layout(self: ClaimTray)
 	local w = math.clamp(prot.pos.X - r.pos.X - r.size.X - 16, 200, 300)
 	local h = math.min(240, d.Y - r.pos.Y - 12)
 	local x = r.pos.X + r.size.X + 8
-	if g.horizontal then
-		x = r.pos.X
-	end
-	local y = if g.horizontal then r.pos.Y + r.size.Y + 26 else r.pos.Y
+	local y = r.pos.Y
 	self._review.Position = UDim2.fromOffset(x, y)
 	self._review.Size = UDim2.fromOffset(math.min(w, d.X - x - 12), h)
 	self:_render()

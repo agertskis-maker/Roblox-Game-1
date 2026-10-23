@@ -101,7 +101,8 @@ local function toResults(host: Host, reason: string?)
 	local run = store:get().run
 	local res = {
 		distance = if run then run.distance else 0,
-		coins = if run then run.coins else 0,
+		roadCoins = if run then run.cashPickups else 0,
+		totalIncludesPickups = true,
 		best = if run then run.best else 0,
 		newBest = false,
 		claimed = claimed,
@@ -330,6 +331,125 @@ S["Run: Heat sequence (HEAT_SEQ)"] = function(host)
 	host.wait(3)
 end
 
+-- Round 2 (R2-C1, R2-C2): road coins are CASH pickups, not a second currency. Each pickup is a "CashPickup"
+-- event (amount is a FIXTURE; Brian L owns pickup values) plus the balance the adapter supplies; the UI never
+-- grants Cash. The counter takes the approved gain path (chip, coalescing, count-up that lands on the supplied
+-- balance); Results shows the total as a SOURCE row that is already inside the cash total.
+local function setCash(host: Host, value: number)
+	host.store:set("exactCash", value)
+	host.store:set("cash", value)
+end
+
+-- One pickup: bumps run.cashPickups (the Results source), the supplied balance, and delivers the event.
+local function pickup(host: Host, amount: number, id: string?, withBalance: boolean?): boolean
+	local run = host.store:get().run
+	host.runPatch({ cashPickups = ((run and run.cashPickups) or 0) + amount })
+	if withBalance ~= false then
+		setCash(host, host.store:get().cash + amount)
+	end
+	return send(host, "CashPickup", { id = id, amount = amount })
+end
+
+local function logCash(host: Host, tag: string)
+	local stats = comp(host, "stats")
+	local d = if stats and stats.getDebugState then stats:getDebugState() else nil
+	local cash = d and d.cash
+	local run = host.store:get().run
+	host.log(
+		string.format(
+			"%s: store cash=%d | counter target=%s applied=%s chipsActive=%s text=%s | run.cashPickups=%s | placement=%s",
+			tag,
+			host.store:get().cash,
+			tostring(cash and cash.target),
+			tostring(cash and cash.applied),
+			tostring(cash and cash.chipsActive),
+			tostring(cash and cash.counter and cash.counter.text),
+			tostring(run and run.cashPickups),
+			tostring(d and d.placement)
+		)
+	)
+end
+
+S["Run: Cash pickups (Round 2)"] = function(host)
+	freshRun(host)
+	setCash(host, 9450)
+	host.wait(1)
+	logCash(host, "start")
+	-- 1. one pickup
+	pickup(host, 5)
+	host.wait(1.2)
+	logCash(host, "one +$5")
+	-- 2. a cluster: 12 pickups in about half a second coalesce into one chip and one count-up
+	for _ = 1, 12 do
+		pickup(host, 5)
+		host.wait(0.04)
+	end
+	host.wait(1.4)
+	logCash(host, "cluster 12 x +$5 (expect +$60)")
+	-- 3. an exact duplicate event id delivers once (the store dedupes events; the adapter counts once)
+	local dupId = "pickup-dup-" .. nonce()
+	local first = pickup(host, 5, dupId)
+	local again = host.emit("CashPickup", { id = dupId, amount = 5 })
+	host.log(
+		string.format(
+			"duplicate id: first delivered=%s, repeat delivered=%s (expect true, false)",
+			tostring(first),
+			tostring(again)
+		)
+	)
+	host.wait(1.2)
+	logCash(host, "after duplicate (balance counted once by the adapter)")
+	-- 4. a pickup during a big count-up
+	setCash(host, host.store:get().cash + 2000)
+	send(host, "CashGain", { amount = 2000 })
+	host.wait(0.12)
+	pickup(host, 5)
+	pickup(host, 5)
+	host.wait(1.6)
+	logCash(host, "pickups during a +$2,000 count-up")
+	-- 5. delayed reward state: the event arrives first, the supplied balance 0.9 s later
+	pickup(host, 5, nil, false)
+	host.wait(0.9)
+	logCash(host, "event without a balance yet (counter must not move)")
+	setCash(host, host.store:get().cash + 5)
+	host.wait(1.2)
+	logCash(host, "balance supplied (counter lands on it)")
+end
+
+S["Run: Cash pickups, run-end coincidence and zero (Round 2)"] = function(host)
+	freshRun(host)
+	setCash(host, 9450)
+	host.wait(0.6)
+	-- pickups landing as the run ends: Results lists the source and does not add it twice
+	for _ = 1, 7 do
+		pickup(host, 5)
+		host.wait(0.05)
+	end
+	send(host, "Dismounted", { reason = "Overheated" })
+	pickup(host, 5) -- a last pickup in the same instant as the end
+	send(host, "RunEnded", { reason = "Overheated" })
+	host.wait(0.4)
+	toResults(host, "Overheated")
+	host.wait(4)
+	local run = host.store:get().run
+	host.log(
+		"results shown: run.cashPickups="
+			.. tostring(run and run.cashPickups)
+			.. " (expect 40); row text in Results debug below"
+	)
+	local results = comp(host, "results")
+	if results and results.getDebugState then
+		local d = results:getDebugState()
+		host.log("results debug: " .. game:GetService("HttpService"):JSONEncode(d.rows or d))
+	end
+	-- zero pickups: no source row
+	host.wait(1)
+	freshRun(host)
+	toResults(host, "Overheated")
+	host.wait(3.5)
+	host.log("zero pickups: Results opened without any road-coins row (check the still)")
+end
+
 S["Run: Heat stages"] = function(host)
 	freshRun(host)
 	for _, h in
@@ -445,7 +565,7 @@ S["Run: four layouts"] = function(host)
 	if run and run.setDiagnostics then
 		run:setDiagnostics(true)
 	end
-	for i, profile in { "Desktop", "PhoneLandscape", "PhonePortrait", "Tablet" } do
+	for i, profile in host.api.profiles do
 		host.api.setProfile(profile)
 		-- each layout on its own pass of the repeating plan (805 m per pass), so City Hall is the
 		-- current district and its banner is new (dedupe is per district and cycle)

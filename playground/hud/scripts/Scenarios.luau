@@ -156,7 +156,7 @@ function Scenarios.startRunState(self: any)
 	end
 	self.store:set("run", {
 		distance = 0,
-		coins = 0,
+		cashPickups = 0,
 		heat = 0.08,
 		stage = "Calm",
 		ride = car("rev6"), -- the backdrop rides a Revolution 6 (Backdrop.luau)
@@ -515,7 +515,8 @@ local function results(self: any, key: string)
 	end
 	local res = {
 		distance = f.distance,
-		coins = f.coins,
+		roadCoins = f.roadCoins,
+		totalIncludesPickups = f.totalIncludesPickups,
 		best = f.best,
 		newBest = f.newBest,
 		claimed = claimed,

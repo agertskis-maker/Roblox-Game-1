@@ -20,8 +20,7 @@
 -- A new step crossfades (and slides 12 px in, not in reduced motion). nil fades it out. Nothing
 -- here is interactive: input passes through, no modal, no full-screen layer.
 --
--- Placement (Home/Layout): top centre, clear of the left menu; full width at the top on
--- PhonePortrait. The body grows to fit wrapped text.
+-- Placement (Home/Layout): top centre, clear of the left menu. The body grows to fit wrapped text.
 --
 -- API: TutorialBanner.new(ctx, { onDoneShown: ((step: number) -> ())? }?) -> TutorialBanner
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()

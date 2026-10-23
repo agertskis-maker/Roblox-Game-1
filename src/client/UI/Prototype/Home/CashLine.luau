@@ -61,7 +61,7 @@
 --     shares the slot under the number and fades out while the counter's own gain label shows.
 --
 -- Store wiring: subscribes to "cash" (the counter's value), "exactCash" (tooltip), and
--- "earningPerLap"; listens to store.Event kinds "CashGain" (amount, worldPosition?) and
+-- "earningPerLap"; listens to store.Event kinds "CashGain" and "CashPickup" (amount, worldPosition?) and
 -- "CashSpend" (amount). A cash change is applied on the next defer, so an event emitted right
 -- after the set (or right before it) is paired with it. Store.reset snaps the counter (it
 -- fires Changed("mode") first, which only reset does).
@@ -512,7 +512,15 @@ function CashLine.new(ctx: Types.Ctx, options: Options?): CashLine
 		self:_setEarning(value)
 	end))
 	trove:Connect(ctx.store.Event, function(event: Store.Event)
-		if event.kind == "CashGain" and type(event.amount) == "number" and event.amount > 0 then
+		-- Round 2: a road coin is a Cash pickup. "CashPickup" takes the SAME path as "CashGain" (the chip,
+		-- the coalescing window, the count-up that lands on the supplied balance); only this routing line
+		-- was added, so the approved gain timings and policy are unchanged. Small pickups never reach the
+		-- big-gain celebration policy.
+		if
+			(event.kind == "CashGain" or event.kind == "CashPickup")
+			and type(event.amount) == "number"
+			and event.amount > 0
+		then
 			self:gain(event.amount, event.worldPosition)
 		elseif event.kind == "CashSpend" and type(event.amount) == "number" and event.amount > 0 then
 			self:spend(event.amount)

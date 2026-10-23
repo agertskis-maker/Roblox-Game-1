@@ -38,7 +38,14 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local A = PreviewTokens.Arcade
 local B = A.Button
 
+-- Round 2 button additions
+local PILL_H = 22
+local GLINT_MAX = 2 -- sparse: at most two glints at once
+local GLINT_SECONDS = 0.55
+
 local Arcade = {}
+
+Arcade.PillExtra = 26 -- px added below the label region of a button that carries a pill (Round 2)
 
 -- Set to true if Studio shows that UIScale already scales UIStroke thickness (then the kit
 -- leaves thickness in design px). Checked on the specimen sheet; recorded in the UI spec.
@@ -393,7 +400,11 @@ export type ButtonSpec = {
 	height: number?,
 	icon: string?, -- Icons2 / Icons name; left of the label, overhanging the edge a little
 	pattern: boolean?, -- the faint motor pattern (large buttons only)
-	drift: boolean?, -- slow sideways colour drift (Rainbow); stopped in reduced motion
+	drift: boolean?, -- Rainbow only: a slow, SEAMLESS sideways colour cycle (a periodic colour field moves one
+	-- period per RainbowDriftSeconds; no snap at the wrap), sparse glints, a soft glow; frozen at the
+	-- resting state in reduced motion and paused while hidden
+	pill: string?, -- a small collection pill under the label (Garage "12 / 24 CARS"); reserves PILL_EXTRA px
+	ribbon: string?, -- a small gold corner tag (Shop NEW), only from a supplied flag
 	badge: (number | string)?,
 	sound: Sounds.Hook?,
 	onActivate: (() -> ())?,
@@ -412,6 +423,9 @@ export type Button = {
 	setEnabled: (boolean) -> (),
 	setLabel: (string) -> (),
 	setBadge: (number | string | nil) -> (),
+	setPill: (string?) -> (),
+	setRibbon: (string?) -> (),
+	debug: () -> { [string]: any }, -- drift phase and update counts, glints, pill and ribbon state
 	size: Vector2, -- body size in design px
 	destroy: () -> (),
 }
@@ -427,6 +441,30 @@ local function dims(spec: ButtonSpec): Vector2
 	return Vector2.new(spec.width or B.WideW, spec.height or B.WideH)
 end
 
+-- A ColorSequence that repeats `base` `periods` times with the SAME colour at every period boundary
+-- (base's last colour is replaced by its first), so a field of `periods` widths can slide by exactly one
+-- period with no seam. Boundary keypoints are emitted once (ColorSequence times must increase).
+function Arcade.loopSequence(base: ColorSequence, periods: number): ColorSequence
+	local kps = base.Keypoints
+	local colours: { Color3 } = {}
+	for i = 1, #kps - 1 do
+		table.insert(colours, kps[i].Value)
+	end
+	table.insert(colours, kps[1].Value) -- wrap: the period ends where it began
+	local steps = #colours - 1
+	local out: { ColorSequenceKeypoint } = {}
+	for p = 0, periods - 1 do
+		for i = 1, #colours do
+			if p > 0 and i == 1 then
+				continue -- this boundary was emitted as the previous period's last point
+			end
+			local t = (p + (i - 1) / steps) / periods
+			table.insert(out, ColorSequenceKeypoint.new(math.clamp(t, 0, 1), colours[i]))
+		end
+	end
+	return ColorSequence.new(out)
+end
+
 function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 	local trove = Trove.new()
 	local size = dims(spec)
@@ -434,6 +472,10 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 	local small = spec.size == "Small"
 	-- hit box: at least the approved 48 design px tall, even when the visual body is smaller
 	local hitH = math.max(h, Tokens.Touch.Minimum)
+	-- a button with a pill reserves PillExtra px below its icon / label region; the region keeps the
+	-- size every other button of this size has, so the icon and the label stay full size
+	local reserve = if spec.pill ~= nil then Arcade.PillExtra else 0
+	local topH = h - reserve
 	local root = trove:Add(make("Frame", {
 		Name = spec.name,
 		Size = UDim2.fromOffset(w, hitH + B.DepthOffset),
@@ -484,6 +526,72 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 		Rotation = if spec.fill == "Rainbow" then 0 else 90,
 		Parent = face,
 	})
+	-- Round 2 (R2-HM2): the moving colour field. A CanvasGroup (it respects the face's corner radius) holds a
+	-- field two widths wide whose gradient is two identical periods; sliding it left by exactly one width per
+	-- cycle is seamless, because the visible window shows the same colours at phase 0 and at phase 1. The
+	-- colour field moves, the control, its label and its icon do not.
+	local bands: Frame? = nil
+	local glints: { Frame } = {}
+	if spec.drift and spec.fill == "Rainbow" then
+		local fieldGroup = make("CanvasGroup", {
+			Name = "RainbowField",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ZIndex = face.ZIndex,
+			Parent = face,
+		})
+		Arcade.corner(fieldGroup)
+		bands = make("Frame", {
+			Name = "Bands",
+			Size = UDim2.fromScale(2, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			ZIndex = face.ZIndex,
+			Parent = fieldGroup,
+		})
+		make("UIGradient", {
+			Color = Arcade.loopSequence(PreviewTokens.Arcade.Fill.Rainbow, 2),
+			Rotation = 0,
+			Parent = bands,
+		})
+		-- a restrained warm glow behind the lip (static; never pulses)
+		local glow = make("Frame", {
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, 0, 0.5, B.DepthOffset),
+			Size = UDim2.fromOffset(w + 16, h + 16),
+			BackgroundColor3 = Color3.fromRGB(255, 176, 64),
+			BackgroundTransparency = 0.86,
+			ZIndex = 2,
+			Parent = body,
+		})
+		Arcade.corner(glow, B.Radius + 8)
+		-- sparse glints: small four-point sparkles (two crossed bars), at most GLINT_MAX at once
+		for i = 1, GLINT_MAX do
+			local g = make("Frame", {
+				Name = "Glint" .. i,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.fromOffset(12, 12),
+				BackgroundTransparency = 1,
+				Visible = false,
+				ZIndex = face.ZIndex + 8,
+				Parent = face,
+			})
+			for _, bar in { Vector2.new(12, 3), Vector2.new(3, 12) } do
+				make("Frame", {
+					Name = "Bar",
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale(0.5, 0.5),
+					Size = UDim2.fromOffset(bar.X, bar.Y),
+					BackgroundColor3 = Color3.new(1, 1, 1),
+					BorderSizePixel = 0,
+					ZIndex = face.ZIndex + 8,
+					Parent = g,
+				})
+			end
+			table.insert(glints, g)
+		end
+	end
 	-- rainbow: a soft top-to-bottom shade over the sideways bands so labels keep contrast
 	if spec.fill == "Rainbow" then
 		local shade = make("Frame", {
@@ -514,11 +622,11 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 	local iconHolder: Frame? = nil
 	local labelLeft = 8
 	if spec.icon then
-		local iconSize = math.floor(h * B.IconScale)
+		local iconSize = math.floor(topH * B.IconScale)
 		local holder = make("Frame", {
 			Name = "Icon",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 6 - B.IconOverhang, 0.5, -1),
+			Position = UDim2.fromOffset(6 - B.IconOverhang, topH / 2 - 1),
 			Size = UDim2.fromOffset(iconSize, iconSize),
 			BackgroundTransparency = 1,
 			ZIndex = face.ZIndex + 4,
@@ -536,8 +644,8 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 		z = face.ZIndex + 5,
 	})
 	label.AnchorPoint = Vector2.new(0, 0.5)
-	label.Position = UDim2.new(0, labelLeft, 0.5, 0)
-	label.Size = UDim2.new(1, -labelLeft - 4, 1, 0)
+	label.Position = UDim2.fromOffset(labelLeft, topH / 2)
+	label.Size = UDim2.new(1, -labelLeft - 4, 0, topH)
 	-- long labels shrink to fit rather than clip (never below the 16 minimum)
 	local maxSize = label.TextSize
 	make("UITextSizeConstraint", { MaxTextSize = maxSize, MinTextSize = Tokens.TextSize.Minimum, Parent = label })
@@ -560,6 +668,51 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 	local badge = Arcade.badge(root, spec.badge)
 	-- align the badge with the visual body's top-right corner (inside the fixed root)
 	badge.frame.Position = UDim2.new(1, -2, 0, (hitH - h) / 2 + 2)
+
+	-- Round 2 (R2-HM1): the collection pill, a dark rounded strip under the label region (never over the
+	-- icon: the icon and label keep the full topH region above it). Text is the supplied string; nil hides it.
+	local pillFrame: Frame? = nil
+	local pillText: TextLabel? = nil
+	if spec.pill ~= nil then
+		local f = make("Frame", {
+			Name = "Pill",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -4),
+			Size = UDim2.fromOffset(w - 16, PILL_H),
+			BackgroundColor3 = A.Ink,
+			BackgroundTransparency = 0.18,
+			ZIndex = face.ZIndex + 5,
+			Parent = face,
+		})
+		Arcade.corner(f, PILL_H / 2)
+		local t = Arcade.text(f, { text = spec.pill, role = "Small", name = "Text", z = face.ZIndex + 6 })
+		t.Size = UDim2.fromScale(1, 1)
+		t.AnchorPoint = Vector2.new(0.5, 0.5)
+		t.Position = UDim2.fromScale(0.5, 0.5)
+		pillFrame, pillText = f, t
+	end
+	-- the corner tag (Shop NEW): gold, small, only while a ribbon text is supplied
+	local ribbonFrame = make("Frame", {
+		Name = "Ribbon",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromOffset(2, (hitH - h) / 2 - 4),
+		Size = UDim2.fromOffset(46, 22),
+		Rotation = -8,
+		BackgroundColor3 = PreviewTokens.Color.KeysDeep,
+		Visible = false,
+		ZIndex = face.ZIndex + 9,
+		Parent = body,
+	})
+	Arcade.corner(ribbonFrame, 4)
+	Arcade.outline(ribbonFrame, "Minor")
+	local ribbonText = Arcade.text(ribbonFrame, { text = "NEW", role = "Small", name = "Text", z = face.ZIndex + 10 })
+	ribbonText.Size = UDim2.fromScale(1, 1)
+	ribbonText.AnchorPoint = Vector2.new(0.5, 0.5)
+	ribbonText.Position = UDim2.fromScale(0.5, 0.5)
+	if spec.ribbon ~= nil then
+		ribbonText.Text = spec.ribbon
+		ribbonFrame.Visible = true
+	end
 
 	-- press feedback on the body only (root and badge stay put)
 	local press = make("UIScale", { Name = "Press", Parent = body })
@@ -606,9 +759,15 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 		ring.Visible = false
 	end)
 
-	-- rainbow drift: shifts the gradient offset slowly; paused when hidden or reduced motion
-	if spec.drift and spec.fill == "Rainbow" then
-		local t = 0
+	-- rainbow drift (Round 2): the periodic colour field slides one period per RainbowDriftSeconds (seamless),
+	-- sparse glints twinkle; paused while hidden; frozen at the resting state (phase 0, no glints) in reduced
+	-- motion. Counters let a test prove that a hidden button does no work.
+	local driftPhase = 0
+	local driftUpdates = 0
+	local glintShows = 0
+	if bands then
+		local field = bands :: Frame
+		local rng = Random.new(7919)
 		-- shown only when the root and every GuiObject/ScreenGui above it is visible
 		local function onScreen(): boolean
 			local node: Instance? = root
@@ -624,21 +783,71 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 		end
 		local check = 0
 		local shown = true
+		local nextGlint = rng:NextNumber(2.5, 5)
+		local glintAge: { number } = {}
+		for i = 1, #glints do
+			glintAge[i] = math.huge
+		end
+		local function hideGlints()
+			for i, g in glints do
+				g.Visible = false
+				glintAge[i] = math.huge
+			end
+		end
 		trove:Connect(RunService.Heartbeat, function(dt)
 			check -= dt
 			if check <= 0 then
 				check = 0.25
 				shown = onScreen()
 			end
-			if Motion.reduced() or not shown then
-				if grad.Offset ~= Vector2.zero and Motion.reduced() then
-					grad.Offset = Vector2.zero
+			if Motion.reduced() then
+				if driftPhase ~= 0 then
+					driftPhase = 0
+					field.Position = UDim2.fromScale(0, 0)
+					hideGlints()
 				end
 				return
 			end
-			t = (t + dt / A.Motion.RainbowDriftSeconds) % 1
-			-- a gentle back-and-forth (never a flash): offset within ±0.12
-			grad.Offset = Vector2.new(math.sin(t * math.pi * 2) * 0.12, 0)
+			if not shown then
+				return -- hidden Home UI does no animation work
+			end
+			driftUpdates += 1
+			driftPhase = (driftPhase + dt / A.Motion.RainbowDriftSeconds) % 1
+			field.Position = UDim2.fromScale(-driftPhase, 0)
+			nextGlint -= dt
+			if nextGlint <= 0 then
+				for i = 1, #glints do
+					if glintAge[i] == math.huge then
+						glintAge[i] = 0
+						glintShows += 1
+						glints[i].Position = UDim2.fromScale(rng:NextNumber(0.28, 0.92), rng:NextNumber(0.2, 0.8))
+						break
+					end
+				end
+				nextGlint = rng:NextNumber(2.5, 5)
+			end
+			for i, g in glints do
+				local age = glintAge[i]
+				if age ~= math.huge then
+					age += dt
+					glintAge[i] = age
+					local a = age / GLINT_SECONDS
+					if a >= 1 then
+						g.Visible = false
+						glintAge[i] = math.huge
+					else
+						g.Visible = true
+						local pulse = math.sin(a * math.pi)
+						local s = 0.4 + 0.6 * pulse
+						g.Size = UDim2.fromOffset(12 * s, 12 * s)
+						for _, bar in g:GetChildren() do
+							if bar:IsA("Frame") then
+								bar.BackgroundTransparency = 1 - pulse
+							end
+						end
+					end
+				end
+			end
 		end)
 	end
 
@@ -672,6 +881,31 @@ function Arcade.button(parent: Instance, spec: ButtonSpec): Button
 			label.Text = text
 		end,
 		setBadge = badge.set,
+		setPill = function(text: string?)
+			if pillFrame and pillText then
+				pillFrame.Visible = text ~= nil
+				pillText.Text = text or ""
+			end
+		end,
+		setRibbon = function(text: string?)
+			ribbonFrame.Visible = text ~= nil
+			if text then
+				ribbonText.Text = text
+			end
+		end,
+		debug = function(): { [string]: any }
+			return {
+				driftPhase = driftPhase,
+				driftUpdates = driftUpdates,
+				glintShows = glintShows,
+				fieldX = if bands then (bands :: Frame).Position.X.Scale else nil,
+				pill = if pillText then pillText.Text else nil,
+				pillVisible = if pillFrame then pillFrame.Visible else nil,
+				pillFits = if pillText then pillText.TextFits else nil,
+				ribbonVisible = ribbonFrame.Visible,
+				reduced = Motion.reduced(),
+			}
+		end,
 		size = size,
 		destroy = function()
 			trove:Destroy()

@@ -470,13 +470,13 @@ function DistrictStrip.layout(self: DistrictStrip)
 	end
 	local rect = RunLayout.stripRect(ctx)
 	self._built.strip.Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y)
-	local coins = RunLayout.coinsRect(ctx)
+	local cash = RunLayout.cashRect(ctx)
 	RunLayout.publishTop(ctx.screen, {
 		row = 1,
 		distance = rect,
-		coins = coins,
+		cash = cash,
 		stackBottom = rect.pos.Y + rect.size.Y,
-		leftBottom = coins.pos.Y + coins.size.Y,
+		leftBottom = cash.pos.Y + cash.size.Y,
 	})
 	self:_apply()
 end
