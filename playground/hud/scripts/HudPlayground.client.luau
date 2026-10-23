@@ -29,6 +29,7 @@ local Screen = require(Prototype:WaitForChild("Screen"))
 local Store = require(Prototype:WaitForChild("Store"))
 local Fixtures = require(Prototype:WaitForChild("Fixtures"))
 local Motion = require(Prototype:WaitForChild("Motion"))
+local Music = require(Prototype:WaitForChild("Music"))
 local Priority = require(Prototype:WaitForChild("Priority"))
 local RunLayout = require(Prototype:WaitForChild("Run"):WaitForChild("RunLayout"))
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -676,6 +677,11 @@ local function applyMode(mode: string)
 		end
 	end
 	backdrop.setRunCamera(mode == "Run")
+	if mode == "Run" then
+		Music.setWorld(api.musicWorld)
+	elseif mode == "Home" then
+		Music.stop()
+	end
 	if mode == "Home" then
 		-- stand on the playground lot facing the dummy Garage, kiosk and portal
 		local character = player.Character
@@ -741,7 +747,44 @@ end
 -- Round 2 route line fixtures (all default to the Downtown route, no prior best, the fixture speed):
 -- the World whose route the run shows (also switches the current run), the pre-run record (nil = none) with its
 -- verified flag, and the fixture speed in metres per second (0 holds the distance still for captures).
+-- Round 2 run music (OFF by default; licensed tracks are metadata-screened only, never claimed listened).
+api.musicWorld = "Downtown"
+function api.musicEnable(on: boolean)
+	Music.enable(on)
+	if on and store:get().mode == "Run" then
+		Music.setWorld(api.musicWorld)
+	end
+end
+function api.musicCandidate(key: string, index: number)
+	Music.useCandidate(key, index)
+end
+function api.musicTension(progress: number, phase: string?)
+	Music.tension(progress, phase or "Holding")
+end
+function api.musicResolve()
+	Music.resolve()
+end
+function api.musicCancel()
+	Music.cancel()
+end
+function api.musicDuck(id: string, seconds: number?)
+	Music.duck(id, seconds or 1.2)
+end
+function api.musicStop()
+	Music.stop()
+end
+function api.musicReset()
+	Music.reset()
+end
+function api.musicState(): string
+	return game:GetService("HttpService"):JSONEncode(Music.state())
+end
+
 function api.setWorld(id: string): string
+	api.musicWorld = id
+	if store:get().mode == "Run" then
+		Music.setWorld(id)
+	end
 	local plan = WorldRoutes.plan(id)
 	scenarios.worldPlan = if id == "Downtown" then nil else plan
 	api.patchRun({ districtPlan = plan })

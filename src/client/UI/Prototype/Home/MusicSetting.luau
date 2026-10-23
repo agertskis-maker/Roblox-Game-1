@@ -12,6 +12,7 @@
 --   MusicSetting.setSfx(store, level)    -- the Settings panel effects slider (0..1)
 --   MusicSetting.isOn(store) -> boolean
 
+local Music = require(script.Parent.Parent.Music)
 local Sounds = require(script.Parent.Parent.Sounds)
 local Store = require(script.Parent.Parent.Store)
 
@@ -36,6 +37,7 @@ function MusicSetting.apply(store: Store.StoreObject)
 	if g then
 		g.Volume = if s.musicOn ~= false then math.clamp(s.music, 0, 1) else 0
 	end
+	Music.setMuted(s.musicOn == false) -- Music Off stops the run music and keeps it off (Round 2)
 	local ok, sfx = pcall(Sounds.group)
 	if ok and sfx then
 		sfx.Volume = math.clamp(s.sfx, 0, 1)

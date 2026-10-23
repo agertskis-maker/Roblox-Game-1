@@ -81,6 +81,7 @@ local RunService = game:GetService("RunService")
 
 local Arcade = require(script.Parent.Parent.Arcade)
 local Motion = require(script.Parent.Parent.Motion)
+local Music = require(script.Parent.Parent.Music)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunBus = require(script.Parent.RunBus)
 local RunKit = require(script.Parent.RunKit)
@@ -210,6 +211,7 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 			self:_hide(true)
 			self._cap = nil
 			self:_stopRise()
+			Music.cancel()
 		end
 	end)
 	self._trove:Add(Motion.onReducedChanged(function()
@@ -222,6 +224,7 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 	end))
 	self._trove:Add(function()
 		self._token += 1
+		Music.cancel()
 		self:_stopRise()
 		self:_stopFollow()
 		self:_stopPendingLoop()
@@ -634,6 +637,7 @@ function KeysLock._progress(self: KeysLock, p: number)
 	if progress > 0 then
 		self._rising = true
 		Sounds.rise("KeysRise", progress)
+		Music.tension(progress, "Holding") -- the run music's tension layer follows the supplied progress (Round 2)
 	end
 	if not c.almost and progress >= K.AlmostAt then
 		c.almost = true -- exactly once per capture
@@ -761,6 +765,7 @@ function KeysLock._pending(self: KeysLock)
 	c.progress = 1
 	c.lit = K.Segments
 	self._countdownShown = false
+	Music.tension(1, "Securing") -- holds at its peak until the confirmation (or a cancel) arrives
 	self:_stopRise()
 	self:_stopDrive()
 	self:_logLine(c.id .. ": Progress -> Pending")
@@ -788,6 +793,11 @@ function KeysLock._end(self: KeysLock, phase: string, reason: string?)
 	local from = c.phase
 	c.phase = phase
 	self:_setFinal(c.id, phase)
+	if phase == "Confirmed" then
+		Music.resolve()
+	else
+		Music.cancel()
+	end
 	self:_stopRise()
 	self:_stopPendingLoop()
 	self:_stopDrive()
@@ -898,6 +908,7 @@ function KeysLock._onEvent(self: KeysLock, event: Store.Event)
 		-- the run is over: get out of the way of OVERHEATED / Results; a late confirmation is
 		-- still honoured (the ribbon records it for Results)
 		self:_stopRise()
+		Music.cancel()
 		self:_hide(false)
 		return
 	end
@@ -1284,6 +1295,7 @@ function KeysLock.setVisible(self: KeysLock, on: boolean)
 	self.root.Visible = on
 	if not on then
 		self:_stopRise()
+		Music.cancel()
 	end
 end
 

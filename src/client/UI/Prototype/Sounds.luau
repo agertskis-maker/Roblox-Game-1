@@ -123,6 +123,11 @@ local ROUTES: { [string]: { category: string, minInterval: number, volumeScale: 
 	ResultsCount = { category = "Tick", minInterval = 0.3 },
 }
 
+-- Round 2: the one duck source for the run music. Only the stings that matter duck it (seconds); ticks and Results counts
+-- never do. Music registers its handler (Music.luau), so Sounds does not depend on Music.
+local DUCK: { [string]: number } = { KeysCapture = 1.6, NewBest = 1.2, Milestone = 0.8 }
+local duckHandler: ((string, number) -> ())? = nil
+
 local chosen: { [string]: number } = {}
 local ids: { [string]: Config } = {}
 local counts: { [string]: number } = {}
@@ -168,6 +173,10 @@ end
 
 function Sounds.group(): SoundGroup
 	return ensureGroup()
+end
+
+function Sounds.setDuckHandler(fn: ((string, number) -> ())?)
+	duckHandler = fn
 end
 
 local function applyRoutes()
@@ -245,6 +254,10 @@ function Sounds.play(hook: Hook, volume: number?)
 		return
 	end
 	lastPlayed[hook] = now
+	local duckFor = DUCK[hook]
+	if duckFor and duckHandler then
+		duckHandler(hook, duckFor)
+	end
 	local s = makeSound(cfg, volume)
 	track(s, hook)
 	s.Ended:Once(function()
