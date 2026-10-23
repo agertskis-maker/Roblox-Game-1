@@ -13,6 +13,9 @@
 --                               -- named B2_<family>_<variant> (default Catalog.defaultFolders())
 --     kitData = folder,         -- manifest / swatches (optional)
 --     lighting = true,          -- apply the B daylight once (same values as Builder's study)
+--     world = def,              -- a Worlds/<id> definition (Dusty Highway, Summit Pass): its light, ground, mass and
+--                               -- hazard meshes and the floor under a bridge landmark (nil = Downtown)
+--     extraKits = { folder },   -- more mesh folders searched after `kit` (a World's own kit)
 --     labels = nil,             -- proxy labels (default: on in edit mode, off in Play)
 --   })
 -- then :prepare() (yields: makes one template MeshPart per kit mesh the plan uses, through
@@ -85,10 +88,20 @@ local HAZARD_MESHES: { [string]: string } = {
 	oil = "B2_Haz_Oil",
 }
 
-local function massMesh(m: Sequencer.MassPlan): string
-	local list = if m.band == "skyline" then SKY_MESHES else (MID_MESHES[m.district] or MID_MESHES.MainStreet)
+-- (world = a Worlds definition or nil for Downtown) deterministic per station, as before
+local function massMesh(world: any?, m: Sequencer.MassPlan): string
+	local list: { string }
+	if world then
+		list = if m.band == "skyline" then world.skyMeshes else (world.midMeshes[m.district] or world.skyMeshes)
+	else
+		list = if m.band == "skyline" then SKY_MESHES else (MID_MESHES[m.district] or MID_MESHES.MainStreet)
+	end
 	local k = math.floor(m.station / 11 + 0.5) + (if m.side > 0 then 3 else 0)
 	return list[k % #list + 1]
+end
+
+local function hazardMeshesOf(world: any?): { [string]: string }
+	return if world then world.hazardMeshes else HAZARD_MESHES
 end
 local HALF_TURN = CFrame.Angles(0, math.pi, 0)
 local FACING_YAW: { [string]: number } = { ["-Z"] = 0, ["+X"] = 90, ["-X"] = -90, ["+Z"] = 180 }
@@ -112,6 +125,8 @@ export type Options = {
 	labels: boolean?,
 	useKit: boolean?,
 	ground: boolean?,
+	world: any?, -- Worlds.WorldDef (typed any: Worlds requires Catalog, not this module)
+	extraKits: { Instance }?,
 }
 
 export type Stats = {
@@ -200,6 +215,9 @@ type Fields = {
 	pool: { [string]: { Instance } },
 	templates: { [string]: Template },
 	kit: Instance?,
+	extraKits: { Instance },
+	world: any?,
+	groundColour: Color3,
 	kitData: Instance?,
 	textureId: string,
 	swatches: { Color3 }?,
@@ -271,8 +289,9 @@ local function stashParent(): Instance
 	return ServerStorage
 end
 
-function Assembler.applyLighting(): string
-	for prop, value in LIGHT do
+function Assembler.applyLighting(preset: any?): string
+	local props: { [string]: any } = if preset then preset.props else LIGHT
+	for prop, value in props do
 		local key = ORIGINAL .. prop
 		if Lighting:GetAttribute(key) == nil then
 			Lighting:SetAttribute(key, (Lighting :: any)[prop])
@@ -294,24 +313,38 @@ function Assembler.applyLighting(): string
 			child:Destroy()
 		end
 	end
+	local sky = if preset then preset.atmosphere else nil
 	local atmosphere = Instance.new("Atmosphere")
 	atmosphere.Name = "Lane3LookDev_Atmosphere"
-	atmosphere.Density = 0.3
-	atmosphere.Offset = 0.12
-	atmosphere.Color = Color3.fromRGB(205, 224, 238)
-	atmosphere.Decay = Color3.fromRGB(120, 150, 180)
+	atmosphere.Density = if sky then sky.density else 0.3
+	atmosphere.Offset = if sky then sky.offset else 0.12
+	atmosphere.Color = if sky then sky.colour else Color3.fromRGB(205, 224, 238)
+	atmosphere.Decay = if sky then sky.decay else Color3.fromRGB(120, 150, 180)
 	atmosphere.Glare = 0
-	atmosphere.Haze = 1.4
+	atmosphere.Haze = if sky then sky.haze else 1.4
 	atmosphere:SetAttribute(OURS, true)
 	atmosphere.Parent = Lighting
+	local look = if preset then preset.grade else nil
 	local grade = Instance.new("ColorCorrectionEffect")
 	grade.Name = "Lane3LookDev_ColorCorrection"
-	grade.Brightness = 0.02
-	grade.Contrast = 0.06
-	grade.Saturation = 0.08
-	grade.TintColor = Color3.fromRGB(255, 252, 246)
+	grade.Brightness = if look then look.brightness else 0.02
+	grade.Contrast = if look then look.contrast else 0.06
+	grade.Saturation = if look then look.saturation else 0.08
+	grade.TintColor = if look then look.tint else Color3.fromRGB(255, 252, 246)
 	grade:SetAttribute(OURS, true)
 	grade.Parent = Lighting
+	if preset and sky and look then
+		return string.format(
+			"World daylight: ClockTime %.1f, Brightness %.1f, Atmosphere d%.2f/o%.2f/h%.1f, ColorCorrection c%.2f/s%.2f",
+			props.ClockTime,
+			props.Brightness,
+			sky.density,
+			sky.offset,
+			sky.haze,
+			look.contrast,
+			look.saturation
+		)
+	end
 	return "B daylight: ClockTime 13.5, Brightness 2.2, Atmosphere d0.3/o0.12/h1.4, ColorCorrection c0.06/s0.08"
 end
 
@@ -436,6 +469,7 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 	root:SetAttribute("Note", "Lane 3 Downtown B city preview (deterministic plan). Not game content.")
 	root:SetAttribute("Seed", plan.seed)
 	root:SetAttribute("RouteLength", plan.length)
+	root:SetAttribute("World", if opts.world then opts.world.id else "Downtown")
 	local folders: { [string]: Folder } = {}
 	for _, n in { "Road", "Lots", "Landmarks", "Signs", "Props", "Spans", "Hazards", "Masses", "Ground" } do
 		local f = Instance.new("Folder")
@@ -464,6 +498,9 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 		pool = {},
 		templates = {},
 		kit = kit,
+		extraKits = opts.extraKits or {},
+		world = opts.world,
+		groundColour = if opts.world then opts.world.ground else GROUND_COLOUR,
 		kitData = kitData,
 		textureId = textureId,
 		swatches = swatches,
@@ -509,7 +546,7 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 	}
 	local obj = setmetatable(self, Assembler)
 	if opts.lighting ~= false then
-		self.lightingNote = Assembler.applyLighting()
+		self.lightingNote = Assembler.applyLighting(if opts.world then opts.world.lighting else nil)
 	end
 	-- plan items by segment
 	for i = 1, #plan.segments do
@@ -572,9 +609,9 @@ function Assembler.prepare(self: Assembler)
 		want(p.module)
 	end
 	for _, m in self.plan.masses do
-		want(massMesh(m))
+		want(massMesh(self.world, m))
 	end
-	for _, name in HAZARD_MESHES do
+	for _, name in hazardMeshesOf(self.world) do
 		want(name)
 	end
 	table.sort(names)
@@ -587,6 +624,14 @@ function Assembler.prepare(self: Assembler)
 	for index, name in names do
 		if not self.templates[name] then
 			local data, reason = loadMesh(self.kit, name)
+			if not data then
+				for _, extra in self.extraKits do
+					data, reason = loadMesh(extra, name)
+					if data then
+						break
+					end
+				end
+			end
 			local template: Template = {
 				part = nil,
 				triangles = 0,
@@ -792,7 +837,7 @@ end
 -- A planned mass as a scaled kit mesh (edit: a sized MeshPart; play: merged into the segment),
 -- or the old plain block when the kit mesh is missing.
 local function massSpec(self: Assembler, m: Sequencer.MassPlan, label: string, allowMerge: boolean): Spec
-	local name = massMesh(m)
+	local name = massMesh(self.world, m)
 	local t = template(self, name)
 	if t then
 		local ext = t.hi - t.lo
@@ -1025,21 +1070,25 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 		)
 		if lm.placement == "bridge" then
 			-- harbour water under the deck (reviewer, 2026-10-23: no water at Harbor Bridge); a plain
-			-- part just above the ground tiles, so it costs no EditableMesh
+			-- part just above the ground tiles, so it costs no EditableMesh. A World names its own floor (a dry
+			-- canyon wash, an ice crevasse): still a flat strip, not a depth.
+			local under = if self.world then self.world.under else nil
+			local underName = if under then under.name else "HarborWater"
+			local underColour = if under then under.colour else WATER_COLOUR
 			local length = lm.to - lm.from + 24
 			table.insert(
 				specs,
 				{
-					key = string.format("water:%d", math.floor(length + 0.5)),
+					key = string.format("water:%s:%d", underName, math.floor(length + 0.5)),
 					kind = "Landmarks",
 					tris = 0,
 					mesh = false,
 					make = function()
-						local p = Proxies.block("HarborWater")
+						local p = Proxies.block(underName)
 						p.Size = Vector3.new(WATER_ACROSS, 0.1, length)
-						p.Color = WATER_COLOUR
+						p.Color = underColour
 						p.Material = Enum.Material.SmoothPlastic
-						p.Reflectance = 0.15
+						p.Reflectance = if under then 0 else 0.15
 						p.CastShadow = false
 						return p
 					end,
@@ -1082,7 +1131,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 
 	-- hazard previews
 	for _, h in b.hazards do
-		local kitName = HAZARD_MESHES[h.kind]
+		local kitName = hazardMeshesOf(self.world)[h.kind]
 		local function proxy(): Instance
 			return Proxies.hazard(h.kind, h.length, g.laneWidth, labels)
 		end
@@ -1287,7 +1336,7 @@ local function updateGround(self: Assembler, points: { Vector3 })
 				make = function()
 					local p = Proxies.block("GroundTile")
 					p.Size = Vector3.new(2048, 1, 2048)
-					p.Color = GROUND_COLOUR
+					p.Color = self.groundColour
 					p.CastShadow = false
 					return p
 				end,

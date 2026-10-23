@@ -35,6 +35,7 @@ local RoadWidthStudy = require(script.RoadWidthStudy)
 local Sequencer = require(script.Sequencer)
 local StreetLife = require(script.StreetLife)
 local Traffic = require(script.Traffic)
+local Worlds = require(script.Worlds)
 
 local City = {}
 local CityClass = {}
@@ -45,6 +46,7 @@ City.Catalog = Catalog
 City.Assembler = Assembler
 City.Chase = Chase
 City.RoadWidthStudy = RoadWidthStudy
+City.Worlds = Worlds
 
 export type Options = {
 	seed: number?, -- default 2207
@@ -55,6 +57,8 @@ export type Options = {
 	name: string?, -- city folder name (default Lane3_DowntownCity)
 	kit: Instance?,
 	kitData: Instance?,
+	world: string?, -- "Downtown" (default) | "DustyHighway" | "SummitPass" (Round 2: data feeding the same planner)
+	extraKits: { Instance }?, -- the World's own mesh folders, searched after `kit`
 	textureId: string?,
 	paletteColumn: string?,
 	meshIds: { [string]: string }?,
@@ -115,21 +119,31 @@ end
 function City.new(options: Options?): City
 	local opts = options or {}
 	gate(opts, false)
-	local catalog = Catalog.load({ kit = opts.kit, kitData = opts.kitData })
-	local plan = Sequencer.plan(opts.seed or Sequencer.DEFAULT_SEED, {
-		length = opts.length,
-		laneWidth = opts.laneWidth,
-		completeDistrict = opts.completeDistrict,
-		catalog = catalog,
-	})
+	local worldId = opts.world or "Downtown"
+	local worldDef = Worlds.get(worldId)
+	assert(worldDef ~= nil or worldId == "Downtown", "unknown World: " .. tostring(worldId))
+	local catalog = if worldDef
+		then Catalog.forWorld(worldDef, { kit = opts.kit, kitData = opts.kitData, extraKits = opts.extraKits })
+		else Catalog.load({ kit = opts.kit, kitData = opts.kitData })
+	local plan = Sequencer.plan(
+		opts.seed or Sequencer.DEFAULT_SEED,
+		Worlds.sequencerOptions(worldId, {
+			length = opts.length,
+			laneWidth = opts.laneWidth,
+			completeDistrict = opts.completeDistrict,
+			catalog = catalog,
+		})
+	)
 	local parent = opts.parent or Workspace
 	local assembler = Assembler.new(plan, {
 		parent = parent,
 		name = opts.name,
 		kit = opts.kit,
 		kitData = opts.kitData,
+		world = worldDef,
+		extraKits = opts.extraKits,
 		textureId = opts.textureId,
-		paletteColumn = opts.paletteColumn,
+		paletteColumn = opts.paletteColumn or (if worldDef then worldDef.paletteColumn else nil),
 		meshIds = opts.meshIds,
 		behind = opts.behind,
 		ahead = opts.ahead,

@@ -699,6 +699,46 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			usedSignature[spanIndex] = true
 		end
 	end
+	-- Round 2 (Worlds): a district may list more landmarks it must show once per span (the diner's old pump garage);
+	-- a missing one goes to the free frontage nearest the span centre, as the signature does above. Downtown lists none.
+	for _, span in spans do
+		local district = catalog.districtById[span.id]
+		for _, wanted in district.required or {} do
+			local def = catalog.landmarkById[wanted]
+			if not def or def.placement ~= "frontage" then
+				continue
+			end
+			local have = false
+			for _, lm in landmarks do
+				if lm.id == wanted and lm.station >= span.startS and lm.station < span.endS then
+					have = true
+					break
+				end
+			end
+			if have then
+				continue
+			end
+			local centre = (span.startS + span.endS) / 2
+			local reach = (span.endS - span.startS) / 2
+			local placed: LandmarkPlan? = nil
+			for off = 0, reach, 12 do
+				for _, c in { centre + off, centre - off } do
+					for _, side in { 1, -1 } do
+						local from, to = footprint(c, side, def.width)
+						if not placed and from >= span.startS and to <= span.endS and landmarkFree(from, to, side) then
+							placed = makeIn(span, def, c, side, from, to)
+						end
+					end
+				end
+				if placed then
+					break
+				end
+			end
+			if placed then
+				table.insert(landmarks, placed)
+			end
+		end
+	end
 	table.sort(landmarks, function(a, b)
 		return a.station < b.station
 	end)
@@ -1203,12 +1243,12 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	end
 	for _, span in spans do
 		local district = catalog.districtById[span.id]
-		if span.id == "MainStreet" then
+		if district.welcome then
 			local st = span.startS + (if span.startS == 0 then 60 else 48)
 			if spanOk(st) then
 				table.insert(spanPlans, {
 					kind = "welcome",
-					text = "WELCOME TO DOWNTOWN",
+					text = district.welcome,
 					station = st,
 					cframe = frame(st),
 					width = spanWidth,
@@ -1275,7 +1315,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		end
 	end
 	for _, span in spans do
-		if span.id ~= "HarborBridge" then
+		if (catalog.districtById[span.id] :: Catalog.District).cart ~= false then
 			local candidates = {}
 			for _, lot in lots do
 				if
@@ -1486,7 +1526,9 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				colour = pal.wall:Lerp(HAZE, if band == "midground" then 0.2 else 0.55),
 				district = seg.district,
 				segment = seg.index,
-				roofTank = band == "midground" and seg.district == "Midtown" and rng:NextNumber() < 0.6,
+				roofTank = band == "midground"
+					and (catalog.districtById[seg.district] :: Catalog.District).roofTanks == true
+					and rng:NextNumber() < 0.6,
 			})
 		end
 	end

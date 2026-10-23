@@ -60,6 +60,11 @@ export type District = {
 	skyHeight: { number }, -- skyline block height range
 	signs: boolean, -- shop signs in this district
 	bunting: boolean,
+	-- Round 2 (Worlds): per-district rules that used to be hard-coded for Downtown. All optional.
+	welcome: string?, -- a gateway span with this text at the start of the district (Downtown: Main Street)
+	roofTanks: boolean?, -- water tanks on some midground masses
+	cart: boolean?, -- a street cart in the district (nil = yes; false = none, e.g. a desert or a bridge)
+	required: { string }?, -- more landmark ids (besides the signature) that every span of this district must show once
 }
 
 export type LotModule = {
@@ -148,6 +153,7 @@ local function districts(): { District }
 			skyHeight = { 90, 170 },
 			signs = true,
 			bunting = true,
+			welcome = "WELCOME TO DOWNTOWN",
 		},
 		{
 			id = "CityHall",
@@ -200,6 +206,7 @@ local function districts(): { District }
 			skyHeight = { 90, 160 },
 			signs = true,
 			bunting = false,
+			cart = false, -- the bridge: no cart on the deck
 		},
 		{
 			id = "Midtown",
@@ -226,6 +233,7 @@ local function districts(): { District }
 			skyHeight = { 160, 260 },
 			signs = true,
 			bunting = false,
+			roofTanks = true,
 		},
 		{
 			id = "SkylinePark",
@@ -774,7 +782,109 @@ local function mergeLandmark(cat: Catalog, name: string, meta: { [string]: any }
 	end
 end
 
-export type LoadOptions = { kit: Instance?, kitData: Instance? }
+export type LoadOptions = { kit: Instance?, kitData: Instance?, extraKits: { Instance }? }
+
+-- A World catalogue (Round 2): built entirely from a Worlds/<id> definition (districts, lot modules, landmarks,
+-- props, signs). Kit meshes named in it are matched by EXACT name; a mesh that exists supplies the bounds, the facing
+-- and the sockets, a missing one is a labelled proxy (the planner never needs a mesh to plan). Deterministic.
+function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
+	local lots: { LotModule } = {}
+	for _, l in def.lots do
+		local copy = table.clone(l)
+		copy.districts = table.clone(l.districts)
+		copy.sockets = {}
+		copy.facing = "-Z"
+		copy.fromKit = false
+		table.insert(lots, copy)
+	end
+	local landmarks: { Landmark } = {}
+	for _, lm in def.landmarks do
+		local copy = table.clone(lm)
+		copy.districts = table.clone(lm.districts)
+		table.insert(landmarks, copy)
+	end
+	local ds: { District } = {}
+	for _, d in def.districts do
+		local copy = table.clone(d)
+		copy.landmarks = table.clone(d.landmarks)
+		copy.furniture = table.clone(d.furniture)
+		table.insert(ds, copy)
+	end
+	local cat: Catalog = {
+		source = def.name .. " (world data)",
+		districts = ds,
+		districtById = {},
+		lots = lots,
+		lotByName = {},
+		landmarks = landmarks,
+		landmarkById = {},
+		props = table.clone(def.props),
+		signs = table.clone(def.signs),
+		kitNames = {},
+		kitCount = 0,
+		manifestCount = 0,
+		notes = {},
+	}
+	index(cat)
+	-- the World's own mesh folders (road pieces still come from the shared kit, so `kit` is searched too)
+	local defaultKit = Catalog.defaultFolders()
+	local kits: { Instance } = {}
+	local primary = (options and options.kit) or defaultKit
+	if primary then
+		table.insert(kits, primary)
+	end
+	if options and options.extraKits then
+		for _, extra in options.extraKits do
+			table.insert(kits, extra)
+		end
+	end
+	for _, kit in kits do
+		for _, child in kit:GetChildren() do
+			if child:IsA("ModuleScript") or child:IsA("StringValue") then
+				cat.kitNames[child.Name] = true
+			end
+		end
+	end
+	local function metaOf(name: string): ({ [string]: any }?, any)
+		for _, kit in kits do
+			local file = kit:FindFirstChild(name)
+			if file then
+				local value = Catalog.readData(file)
+				if type(value) == "table" and type(value.meta) == "table" then
+					return value.meta, value.bounds
+				end
+			end
+		end
+		return nil, nil
+	end
+	for _, l in cat.lots do
+		local meta, bounds = metaOf(l.name)
+		if meta then
+			l.fromKit = true
+			cat.kitCount += 1
+			l.facing = if type(meta.facing) == "string" then meta.facing else "-Z"
+			l.sockets = sockets(meta.sockets)
+			if type(bounds) == "table" and type(bounds[1]) == "table" and type(bounds[2]) == "table" then
+				l.height = (tonumber(bounds[2][2]) or 0) - (tonumber(bounds[1][2]) or 0)
+			end
+			l.depth = math.min(tonumber(meta.depth) or l.depth, 24)
+		end
+	end
+	for _, lm in cat.landmarks do
+		local meta = metaOf(lm.name)
+		if meta then
+			lm.fromKit = true
+			cat.kitCount += 1
+			lm.width = tonumber(meta.width) or lm.width
+			lm.depth = tonumber(meta.depth) or lm.depth
+			lm.height = tonumber(meta.height) or lm.height
+		end
+	end
+	if cat.kitCount > 0 then
+		cat.source = string.format("%s + kit (%d world meshes found)", def.name, cat.kitCount)
+	end
+	return cat
+end
 
 -- builtIn() plus whatever B2 kit exists. Deterministic for a given kit.
 function Catalog.load(options: LoadOptions?): Catalog

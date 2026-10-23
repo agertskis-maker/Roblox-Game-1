@@ -594,6 +594,74 @@ function Proxies.prop(kind: string): Model
 		box(m, "Post", Vector3.new(0.4, 8, 0.4), CFrame.new(-4.3, 4, 2), STEEL)
 		box(m, "Post", Vector3.new(0.4, 8, 0.4), CFrame.new(4.3, 4, 2), STEEL)
 		box(m, "Bench", Vector3.new(6, 0.5, 1.4), CFrame.new(0, 1.6, 1.3), Color3.fromRGB(150, 104, 70))
+	elseif kind == "cactus" then
+		-- Dusty Highway / World 2: a saguaro with two arms (labelled proxy until DH_Prop_Cactus exists)
+		local green = Color3.fromRGB(78, 148, 92)
+		Parts.block(
+			m,
+			"Trunk",
+			Vector3.new(11, 3, 3),
+			CFrame.new(0, 5.5, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			green,
+			Enum.PartType.Cylinder
+		)
+		for _, side in { -1, 1 } do
+			box(m, "ArmOut", Vector3.new(2.6, 1.5, 1.5), CFrame.new(side * 2.2, 4.6 + (side + 1) * 0.5, 0), green)
+			box(m, "ArmUp", Vector3.new(1.5, 4, 1.5), CFrame.new(side * 3.2, 6.4 + (side + 1) * 0.5, 0), green)
+		end
+	elseif kind == "rock" then
+		local stone = Color3.fromRGB(158, 132, 112)
+		box(m, "Boulder", Vector3.new(4.4, 2.8, 3.6), CFrame.new(0, 1.4, 0) * CFrame.Angles(0, 0.4, 0), stone)
+		box(
+			m,
+			"Chip",
+			Vector3.new(2.4, 1.8, 2.4),
+			CFrame.new(1.8, 0.9, 1) * CFrame.Angles(0, -0.5, 0),
+			stone:Lerp(Color3.new(1, 1, 1), 0.12)
+		)
+	elseif kind == "barrel" then
+		Parts.block(
+			m,
+			"Barrel",
+			Vector3.new(3.2, 2.4, 2.4),
+			CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			Color3.fromRGB(128, 92, 62),
+			Enum.PartType.Cylinder
+		)
+		Parts.block(
+			m,
+			"Band",
+			Vector3.new(0.4, 2.6, 2.6),
+			CFrame.new(0, 1.6, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			STEEL,
+			Enum.PartType.Cylinder
+		)
+	elseif kind == "fencePost" then
+		local wood = Color3.fromRGB(140, 100, 70)
+		box(m, "Post", Vector3.new(0.5, 3.2, 0.5), CFrame.new(0, 1.6, 0), wood)
+		box(m, "Rail", Vector3.new(6, 0.3, 0.25), CFrame.new(3, 2.5, 0), wood)
+		box(m, "Rail2", Vector3.new(6, 0.3, 0.25), CFrame.new(3, 1.5, 0), wood)
+	elseif kind == "pine" then
+		-- Summit Pass / World 3: a stacked pine with snow caps (labelled proxy until SP_Prop_Pine exists)
+		local needles = Color3.fromRGB(46, 104, 78)
+		box(m, "Trunk", Vector3.new(0.9, 3, 0.9), CFrame.new(0, 1.5, 0), Color3.fromRGB(104, 72, 52))
+		for i, size in { 5.4, 4.2, 3 } do
+			local y = 3.4 + (i - 1) * 2.1
+			box(m, "Tier", Vector3.new(size, 2.2, size), CFrame.new(0, y, 0), needles)
+			box(
+				m,
+				"Snow",
+				Vector3.new(size + 0.2, 0.35, size + 0.2),
+				CFrame.new(0, y + 1.1, 0),
+				Color3.fromRGB(240, 246, 252)
+			)
+		end
+	elseif kind == "snowman" then
+		local snow = Color3.fromRGB(244, 248, 252)
+		Parts.block(m, "Base", Vector3.new(3.6, 3.6, 3.6), CFrame.new(0, 1.8, 0), snow, Enum.PartType.Ball)
+		Parts.block(m, "Middle", Vector3.new(2.7, 2.7, 2.7), CFrame.new(0, 4.5, 0), snow, Enum.PartType.Ball)
+		Parts.block(m, "Head", Vector3.new(1.9, 1.9, 1.9), CFrame.new(0, 6.3, 0), snow, Enum.PartType.Ball)
+		box(m, "Nose", Vector3.new(0.3, 0.3, 1), CFrame.new(0, 6.3, -1.1), Color3.fromRGB(232, 128, 40))
 	else
 		box(m, "Unknown", Vector3.new(2, 2, 2), CFrame.new(0, 1, 0), STEEL)
 	end
