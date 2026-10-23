@@ -555,10 +555,15 @@ local function applyMode(mode: string)
 			-- bottom-left); bottom-left there is the thumbstick, the rider and the Heat bar
 			local p = screen:profile().name
 			local topRow = p == "PhoneLandscape" or p == "Tablet"
-			stats:setRunAnchor(
-				if mode == "Run" and topRow then Vector2.new(128, 74) else nil,
-				if mode == "Run" and p == "PhoneLandscape" then 0.52 else nil
-			)
+			-- portrait runs: the left column above the thumbstick (Home puts them above the Jump zone,
+			-- where Hop sits during a run)
+			local anchor: Vector2? = nil
+			if mode == "Run" and topRow then
+				anchor = Vector2.new(128, 74)
+			elseif mode == "Run" and p == "PhonePortrait" then
+				anchor = Vector2.new(8, 367)
+			end
+			stats:setRunAnchor(anchor, if mode == "Run" and p == "PhoneLandscape" then 0.52 else nil)
 		end
 	end
 	backdrop.setRunCamera(mode == "Run")

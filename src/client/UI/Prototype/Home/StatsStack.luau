@@ -347,6 +347,10 @@ function StatsStack.layout(self: any)
 		self.root.Position = UDim2.fromOffset(L.stats.x * scale, L.stats.bottom * scale) -- layer px
 	end
 	self._placement = L.stats.placement
+	if not self._compact then
+		-- the profile's block scale (portrait 0.85, Home/Layout); runs use setCompact/setRunAnchor
+		self._compactScale.Scale = L.stats.scale or 1
+	end
 	if self._cash then
 		self._cash:layout()
 	end

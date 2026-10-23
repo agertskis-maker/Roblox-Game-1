@@ -93,7 +93,8 @@ export type StatsLayout = {
 	bottom: number,
 	width: number, -- typical visible width (for overlap checks), not the reserved width
 	height: number,
-	placement: "BottomLeft" | "Above" | "Beside",
+	placement: "BottomLeft" | "Above" | "Beside" | "AboveJump",
+	scale: number?, -- block scale on this profile (portrait 0.85); nil = 1
 }
 
 export type BannerLayout = { cx: number, y: number, width: number, maxBodyHeight: number, textSize: number }
@@ -322,8 +323,9 @@ function Layout.forProfile(profile: Screen.Profile, scale: number): HomeLayout
 	local statsW = Layout.statsTypicalWidth()
 	local sx = margin
 	local bottom = safeH - (if phone then 8 else S.MarginBottom)
-	local placement: "BottomLeft" | "Above" | "Beside" = "BottomLeft"
+	local placement: "BottomLeft" | "Above" | "Beside" | "AboveJump" = "BottomLeft"
 	local hit = firstOverlap({ name = "stats", x = sx, y = bottom - statsH, w = statsW, h = statsH }, reserved)
+	local statsScale: number? = nil
 	if hit then
 		if portrait then
 			bottom = hit.y - 6
@@ -333,8 +335,19 @@ function Layout.forProfile(profile: Screen.Profile, scale: number): HomeLayout
 			placement = "Beside"
 		end
 	end
-	local stats: StatsLayout = { x = sx, bottom = bottom, width = statsW, height = statsH, placement = placement }
-	local statsTop = bottom - statsH
+	-- portrait (lead 2026-10-23): above the thumbstick the stats met the menu in Studio; instead
+	-- bottom right, above the Jump zone, at 0.85 so they stay clear of the thumbstick column
+	local jump = named(reserved, "Jump")
+	if portrait and jump then
+		statsScale = 0.85
+		local w = statsW * statsScale
+		sx = safeW - margin - w
+		bottom = jump.y - 6
+		placement = "AboveJump"
+	end
+	local stats: StatsLayout =
+		{ x = sx, bottom = bottom, width = statsW, height = statsH, placement = placement, scale = statsScale }
+	local statsTop = bottom - statsH * (statsScale or 1)
 
 	-- 2. Banner block height (the banner itself is placed after the menu, except in portrait).
 	local blockH = Layout.BannerTabOverlap + Layout.BannerMaxBody + Layout.HintGap + Layout.HintHeight
