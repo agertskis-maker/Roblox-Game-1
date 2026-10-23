@@ -3,7 +3,8 @@
 #   set PYTHONDONTWRITEBYTECODE=1
 #   "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup \
 #       --python assets/downtown/kit/kit_b2_build.py -- --out C:\Users\agert\Documents\Car-Hop-Art\downtown-kit-b2 \
-#       [--only road,lots,landmarks,street] [--no-fbx]
+#       [--only road,lots,landmarks,street,blvd] [--no-fbx]
+#   blvd = the Round 2 boulevard group (4-6 storey frontage, taller middle distance, richer skyline)
 # Writes, under --out:
 #   palette-B2-<District>.png   one 256 x 256 swatch layout, five district colourings
 #   swatches.json               index, name, fixed flag, a colour per district (+ "B" = Main Street)
@@ -32,7 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kit_b2_palette as P2  # noqa: E402
 import kit_b2lib  # noqa: E402
 
-GROUPS = ["road", "lots", "landmarks", "street"]
+GROUPS = ["road", "lots", "landmarks", "street", "blvd"]
 SPACING = 260.0
 PER_ROW = 16
 
@@ -113,6 +114,10 @@ def main():
         import kit_b2_street
 
         kit_b2_street.build_all(emit)
+    if "blvd" in only:
+        import kit_b2_blvd
+
+        kit_b2_blvd.build_all(emit)
 
     # keep entries of groups not rebuilt this run
     path = os.path.join(out, "manifest.json")
@@ -132,7 +137,9 @@ def main():
         json.dump({"kit": "Downtown B2 (direction B, production start)", "palette_layout": "kit_b2_palette.py", "palettes": [f"palette-B2-{P2.FILE_TAG[d]}.png" for d in P2.DISTRICTS], "totals": totals, "meshes": merged}, fh, indent=1)
     write_catalogue(os.path.join(out, "catalogue.md"), merged)
 
-    if manifest:
+    # a partial run (--only) must not overwrite the one-batch import package with a subset of the kit: it is
+    # written only by a full build (or when --packages is passed explicitly)
+    if manifest and (set(only) == set(GROUPS) or "--packages" in sys.argv):
         export_packages(out, want_fbx)
     total = sum(m["triangles"] for m in manifest)
     print(f"built {len(manifest)} meshes, {total} triangles in total")

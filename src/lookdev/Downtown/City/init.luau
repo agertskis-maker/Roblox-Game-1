@@ -5,7 +5,7 @@
 --
 -- Command bar (Studio edit mode, Downtown look-dev place):
 --   local City = require(game.ReplicatedStorage.LookDev.Downtown.City)
---   City.run({ seed = 2207, length = 2400 })  -- plan + build + print + start the chase
+--   City.run({ seed = 2207, length = 3000 })  -- plan + build + print + start the chase
 --   City.build({ seed = 2207 })               -- plan + build (camera at s 0, no chase)
 --   City.plan({ seed = 2207 })                -- plan only, prints the sequence and checks
 --   City.chase({ camera = "HIGH", speed = 70 })   City.stop()  City.pause()  City.resume()
@@ -50,7 +50,7 @@ City.Worlds = Worlds
 
 export type Options = {
 	seed: number?, -- default 2207
-	length: number?, -- minimum route length, studs (default 2400)
+	length: number?, -- minimum route length, studs (default 3000)
 	laneWidth: number?, -- default 17 (PREVIEW)
 	completeDistrict: boolean?, -- default true
 	parent: Instance?, -- default Workspace

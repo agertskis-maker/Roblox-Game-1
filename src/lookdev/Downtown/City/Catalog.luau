@@ -65,6 +65,7 @@ export type District = {
 	roofTanks: boolean?, -- water tanks on some midground masses
 	cart: boolean?, -- a street cart in the district (nil = yes; false = none, e.g. a desert or a bridge)
 	required: { string }?, -- more landmark ids (besides the signature) that every span of this district must show once
+	treeEvery: number?, -- every Nth street-furniture slot on each side is a tree (a deliberate rhythm; nil = the bag decides)
 }
 
 export type LotModule = {
@@ -132,14 +133,14 @@ local function districts(): { District }
 			id = "MainStreet",
 			name = "Main Street",
 			order = 1,
-			target = 528,
+			target = 560,
 			palettes = {
 				palette("MS-brick", rgb(176, 86, 66), CREAM, rgb(40, 150, 150), rgb(92, 70, 64)),
 				palette("MS-cream", rgb(236, 222, 194), rgb(122, 76, 56), rgb(214, 160, 52), rgb(110, 92, 80)),
 				palette("MS-mustard", rgb(214, 170, 86), CREAM, NAVY, rgb(96, 84, 76)),
 				palette("MS-teal", rgb(96, 152, 146), CREAM, rgb(200, 88, 82), rgb(80, 92, 96)),
 			},
-			heights = { low = 6, mid = 4, tall = 0 },
+			heights = { low = 2, mid = 4, tall = 6 },
 			finishes = { "brick", "cream" },
 			intersections = 1,
 			curves = 1,
@@ -149,8 +150,9 @@ local function districts(): { District }
 			furniture = { "planter", "bench", "bin", "hydrant", "bikeRack", "planter" },
 			treatmentEvery = { 7, 10 },
 			parkBias = 0.5,
-			midHeight = { 36, 60 },
-			skyHeight = { 90, 170 },
+			midHeight = { 70, 110 },
+			skyHeight = { 150, 240 },
+			treeEvery = 2,
 			signs = true,
 			bunting = true,
 			welcome = "WELCOME TO DOWNTOWN",
@@ -159,14 +161,14 @@ local function districts(): { District }
 			id = "CityHall",
 			name = "City Hall",
 			order = 2,
-			target = 576,
+			target = 600,
 			palettes = {
 				palette("CH-stone", rgb(214, 206, 188), rgb(150, 140, 124), rgb(46, 96, 140), rgb(120, 116, 110)),
 				palette("CH-sand", rgb(224, 198, 152), CREAM, rgb(46, 110, 92), rgb(122, 108, 92)),
 				palette("CH-slate", rgb(156, 166, 180), CREAM, rgb(170, 60, 64), rgb(92, 98, 110)),
 				palette("CH-redbrick", rgb(160, 96, 80), rgb(226, 214, 192), rgb(46, 96, 140), rgb(96, 76, 70)),
 			},
-			heights = { low = 3, mid = 7, tall = 0 },
+			heights = { low = 1, mid = 5, tall = 4 },
 			finishes = { "stone", "terracotta" },
 			intersections = 1,
 			curves = 1,
@@ -176,8 +178,9 @@ local function districts(): { District }
 			furniture = { "tree", "tree", "bench", "bin", "tree", "planter" },
 			treatmentEvery = { 5, 8 },
 			parkBias = 0.4,
-			midHeight = { 40, 64 },
-			skyHeight = { 100, 180 },
+			midHeight = { 72, 112 },
+			skyHeight = { 160, 250 },
+			treeEvery = 2,
 			signs = true,
 			bunting = true,
 		},
@@ -202,8 +205,8 @@ local function districts(): { District }
 			furniture = { "bench", "bin", "planter", "bench" },
 			treatmentEvery = { 6, 9 },
 			parkBias = 0.6,
-			midHeight = { 30, 50 },
-			skyHeight = { 90, 160 },
+			midHeight = { 36, 60 },
+			skyHeight = { 110, 180 },
 			signs = true,
 			bunting = false,
 			cart = false, -- the bridge: no cart on the deck
@@ -219,7 +222,7 @@ local function districts(): { District }
 				palette("MT-terracotta", rgb(196, 122, 92), CREAM, rgb(46, 96, 160), rgb(104, 88, 80)),
 				palette("MT-charcoal", rgb(96, 102, 116), rgb(226, 232, 238), rgb(230, 186, 70), rgb(70, 74, 84)),
 			},
-			heights = { low = 1, mid = 4, tall = 5 },
+			heights = { low = 1, mid = 4, tall = 4 },
 			finishes = { "glass", "stone", "terracotta" },
 			intersections = 2,
 			curves = 1,
@@ -229,8 +232,9 @@ local function districts(): { District }
 			furniture = { "planter", "bin", "hydrant", "bikeRack", "bench" },
 			treatmentEvery = { 8, 12 },
 			parkBias = 0.3,
-			midHeight = { 70, 130 },
-			skyHeight = { 160, 260 },
+			midHeight = { 90, 150 },
+			skyHeight = { 200, 320 },
+			treeEvery = 3,
 			signs = true,
 			bunting = false,
 			roofTanks = true,
@@ -246,7 +250,7 @@ local function districts(): { District }
 				palette("SP-sky", rgb(134, 182, 214), CREAM, rgb(220, 120, 100), rgb(88, 104, 120)),
 				palette("SP-coral", rgb(226, 132, 112), CREAM, rgb(70, 140, 200), rgb(110, 90, 86)),
 			},
-			heights = { low = 4, mid = 4, tall = 2 },
+			heights = { low = 3, mid = 4, tall = 3 },
 			finishes = { "cream", "terracotta" },
 			intersections = 1,
 			curves = 2,
@@ -256,8 +260,9 @@ local function districts(): { District }
 			furniture = { "tree", "tree", "bench", "tree", "bin" },
 			treatmentEvery = { 4, 6 },
 			parkBias = 0.75,
-			midHeight = { 50, 110 },
-			skyHeight = { 150, 240 },
+			midHeight = { 40, 110 },
+			skyHeight = { 170, 270 },
+			treeEvery = 2,
 			signs = true,
 			bunting = true,
 		},
@@ -525,7 +530,17 @@ local function districtsOf(raw: any, finish: string): { string }
 		local list = {}
 		for _, v in raw do
 			if type(v) == "string" then
-				table.insert(list, v)
+				-- a list may mix the kit's district codes (MS, CH, ...) with district ids
+				local code = KIT_DISTRICTS[v]
+				if code then
+					for _, id in code do
+						if not table.find(list, id) then
+							table.insert(list, id)
+						end
+					end
+				elseif not table.find(list, v) then
+					table.insert(list, v)
+				end
 			end
 		end
 		if #list > 0 then
@@ -722,6 +737,12 @@ local function mergeLot(cat: Catalog, name: string, meta: { [string]: any }?, bo
 	local hc = m.heightClass or m.height_class
 	if hc == "low" or hc == "mid" or hc == "tall" then
 		lot.heightClass = hc
+	end
+	-- Round 2 boulevard scale: a shop-fronted lot's class follows its storeys (up to 3 low, 4 mid, 5 and more tall),
+	-- so a district bag can ask for "mostly four to six storeys, the occasional two or three" without stretching any lot
+	local storeys = tonumber(m.storeys)
+	if m.module == "shop" and storeys then
+		lot.heightClass = if storeys <= 3 then "low" elseif storeys == 4 then "mid" else "tall"
 	end
 	lot.districts = districtsOf(m.district or m.districts, f)
 	lot.lod = if type(m.lod) == "string" then m.lod else "near"

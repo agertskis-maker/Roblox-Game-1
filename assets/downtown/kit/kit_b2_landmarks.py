@@ -195,18 +195,22 @@ def theater(name):
     roof_y = H - 1.0
     b.face([V(-hw, roof_y, 0.8), V(hw, roof_y, 0.8), V(hw, roof_y, D), V(-hw, roof_y, D)], "roof", V(0, 1, 0))
     body(b, W, 0, H, D)
-    # the blade: 36 tall (y 19 to 55), out to d 10, faces +X/-X (down the road both ways)
-    blade = [(-1.6, 19.0), (-8.6, 19.0), (-10.0, 20.4), (-10.0, 53.6), (-8.6, 55.0), (-1.6, 55.0)]
+    # the blade: Round 2 makes it 69 tall (y 19 to BLADE_TOP) so it still clears the roofline of the new
+    # 4-6 storey neighbours (up to about 84), out to d 10, faces +X/-X (down the road both ways)
+    BLADE_TOP = 88.0
+    blade = [(-1.6, 19.0), (-8.6, 19.0), (-10.0, 20.4), (-10.0, BLADE_TOP - 1.4), (-8.6, BLADE_TOP), (-1.6, BLADE_TOP)]
     side_plate(b, 0.0, blade, 1.4, "marquee", "marquee_trim")
+    face_top = BLADE_TOP - 1.6
+    face_mid = (20.6 + face_top) / 2
     for sx in (-1, 1):
         xf = sx * 0.73
-        b.face([V(xf, 20.6, -2.6), V(xf, 20.6, -9.0), V(xf, 53.4, -9.0), V(xf, 53.4, -2.6)], "sign_face", V(sx, 0, 0))
-        faces.append({"name": "blade_" + ("right" if sx > 0 else "left"), "centre": [xf + sx * 0.02, 37.0, -5.8], "size": [6.2, 32.4], "normal": "Right" if sx > 0 else "Left", "text": "vertical"})
-    bulb_row(b, [V(0, 21.0 + 32.0 * k / 11, -10.25) for k in range(12)], 0.5)
-    for yb in (21.0, 37.0, 53.0):
+        b.face([V(xf, 20.6, -2.6), V(xf, 20.6, -9.0), V(xf, face_top, -9.0), V(xf, face_top, -2.6)], "sign_face", V(sx, 0, 0))
+        faces.append({"name": "blade_" + ("right" if sx > 0 else "left"), "centre": [xf + sx * 0.02, face_mid, -5.8], "size": [6.2, round(face_top - 20.6 - 0.8, 2)], "normal": "Right" if sx > 0 else "Left", "text": "vertical"})
+    bulb_row(b, [V(0, 21.0 + (BLADE_TOP - 22.0) * k / 21, -10.25) for k in range(22)], 0.5)
+    for yb in (21.0, 43.0, 65.0, BLADE_TOP - 3.0):
         box(b, V(0, yb, -1.4), (0.5, 0.5, 1.0), {"side": "reel_dark"})
-    box(b, V(0, 56.0, -5.8), (0.6, 2.2, 0.6), {"side": "reel_dark"})
-    wheel_disc(b, -5.8, 61.6, 4.6)
+    box(b, V(0, BLADE_TOP + 1.0, -5.8), (0.6, 2.2, 0.6), {"side": "reel_dark"})
+    wheel_disc(b, -5.8, BLADE_TOP + 6.6, 5.6)
     fr = finish(b, W)
     faces = [dict(f, centre=[round(f["centre"][0] + W / 2, 3), f["centre"][1], f["centre"][2]]) for f in faces]
     extra = {"roof_a": sock((-10.0, roof_y, 12.0), frame=fr), "roof_b": sock((10.0, roof_y, 9.0), frame=fr)}
@@ -214,7 +218,7 @@ def theater(name):
         "landmark",
         W,
         D,
-        66.2,
+        100.2,
         3,
         "landmark",
         "MS",
@@ -225,7 +229,7 @@ def theater(name):
         landmark="REEL WHEELS (movie theater)",
         default_text={"marquee_front": "NOW SHOWING", "marquee_left": "NOW SHOWING", "marquee_right": "NOW SHOWING", "blade_left": "REEL WHEELS", "blade_right": "REEL WHEELS"},
         replaces=["B_Theater", "B_TheaterBlade"],
-        read={"silhouette": "blade + reel-wheel crown to y 66, stepped crown to y %.1f, fly tower to 52" % crown_top, "approach_text": "blade faces +X/-X; marquee angled faces at about 35 degrees"},
+        read={"silhouette": "blade + reel-wheel crown to y 100 (Round 2: above 6-storey neighbours), stepped crown to y %.1f, fly tower to 52" % crown_top, "approach_text": "blade faces +X/-X; marquee angled faces at about 35 degrees"},
     )
 
 

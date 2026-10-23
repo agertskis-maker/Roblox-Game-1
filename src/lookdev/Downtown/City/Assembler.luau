@@ -64,11 +64,39 @@ local WATER_Y = -0.25 -- centre; the ground tiles top out at -0.3
 -- kit meshes for the midground and skyline masses (were plain blocks: "no crude boxes", §13),
 -- picked deterministically per district and scaled to each planned mass
 local MID_MESHES: { [string]: { string } } = {
-	MainStreet = { "B2_Mid_Block36_1", "B2_Mid_Block36_2", "B2_Mid_Block36_3" },
-	CityHall = { "B2_Mid_CivicDome", "B2_Mid_Block36_2", "B2_Mid_Block36_3" },
+	-- Round 2: taller, layered middle distance (blocks with wedding-cake and tank tops, a long slab); the pick below
+	-- takes the entry nearest the planned height so no block is stretched far
+	MainStreet = {
+		"B2_Mid_Block36_1",
+		"B2_Mid_Block36_2",
+		"B2_Mid_Block36_3",
+		"B2_Mid_Block36_4",
+		"B2_Mid_Block36_5",
+		"B2_Mid_Block48_1",
+	},
+	CityHall = {
+		"B2_Mid_CivicDome",
+		"B2_Mid_Block36_2",
+		"B2_Mid_Block36_3",
+		"B2_Mid_Block36_4",
+		"B2_Mid_Block48_1",
+	},
 	HarborBridge = { "B2_Mid_Warehouse48", "B2_Mid_Block36_1" },
-	Midtown = { "B2_Mid_Glass40", "B2_Mid_Tower40_4", "B2_Mid_Block36_3" },
-	SkylinePark = { "B2_Mid_TreeClump", "B2_Mid_Block36_1" },
+	Midtown = {
+		"B2_Mid_Glass40",
+		"B2_Mid_Tower40_4",
+		"B2_Mid_Block36_3",
+		"B2_Mid_Block40_6",
+		"B2_Mid_Block36_5",
+		"B2_Mid_Block48_1",
+	},
+	SkylinePark = {
+		"B2_Mid_TreeClump",
+		"B2_Mid_Block36_1",
+		"B2_Mid_Block36_4",
+		"B2_Mid_Block36_5",
+		"B2_Mid_Block36_3",
+	},
 }
 local SKY_MESHES: { string } = {
 	"B2_Sky_Slab_1",
@@ -81,6 +109,19 @@ local SKY_MESHES: { string } = {
 	"B2_Sky_Tower_2",
 	"B2_Sky_Tower_3",
 	"B2_Sky_Spire",
+	-- Round 2 skyline: stepped wedding-cake towers, crowns, roof water tanks and plant rooms, broadcast needles
+	"B2_Sky_Wedding_1",
+	"B2_Sky_Wedding_2",
+	"B2_Sky_Wedding_3",
+	"B2_Sky_Crown_1",
+	"B2_Sky_Crown_2",
+	"B2_Sky_Crown_3",
+	"B2_Sky_Tank_1",
+	"B2_Sky_Tank_2",
+	"B2_Sky_Tank_3",
+	"B2_Sky_Needle_1",
+	"B2_Sky_Needle_2",
+	"B2_Sky_Needle_3",
 }
 -- kit meshes for the scenery hazards (construction keeps its barrier-and-cone proxy group)
 local HAZARD_MESHES: { [string]: string } = {
@@ -89,15 +130,15 @@ local HAZARD_MESHES: { [string]: string } = {
 }
 
 -- (world = a Worlds definition or nil for Downtown) deterministic per station, as before
-local function massMesh(world: any?, m: Sequencer.MassPlan): string
-	local list: { string }
+local function massList(world: any?, m: Sequencer.MassPlan): { string }
 	if world then
-		list = if m.band == "skyline" then world.skyMeshes else (world.midMeshes[m.district] or world.skyMeshes)
-	else
-		list = if m.band == "skyline" then SKY_MESHES else (MID_MESHES[m.district] or MID_MESHES.MainStreet)
+		return if m.band == "skyline" then world.skyMeshes else (world.midMeshes[m.district] or world.skyMeshes)
 	end
-	local k = math.floor(m.station / 11 + 0.5) + (if m.side > 0 then 3 else 0)
-	return list[k % #list + 1]
+	return if m.band == "skyline" then SKY_MESHES else (MID_MESHES[m.district] or MID_MESHES.MainStreet)
+end
+
+local function massIndex(m: Sequencer.MassPlan): number
+	return math.floor(m.station / 11 + 0.5) + (if m.side > 0 then 3 else 0)
 end
 
 local function hazardMeshesOf(world: any?): { [string]: string }
@@ -609,7 +650,9 @@ function Assembler.prepare(self: Assembler)
 		want(p.module)
 	end
 	for _, m in self.plan.masses do
-		want(massMesh(self.world, m))
+		for _, name in massList(self.world, m) do
+			want(name) -- the whole list: a midground mass picks the entry nearest its height (see chooseMass)
+		end
 	end
 	for _, name in hazardMeshesOf(self.world) do
 		want(name)
@@ -836,8 +879,36 @@ end
 
 -- A planned mass as a scaled kit mesh (edit: a sized MeshPart; play: merged into the segment),
 -- or the old plain block when the kit mesh is missing.
+-- A midground mass takes, in the deterministic rotation order, the first list entry whose authored height is within
+-- 25% of the planned height (else the nearest), so the taller middle distance is chosen rather than stretched. Skyline
+-- shapes are unit meshes scaled on purpose, so they keep the plain rotation.
+local function chooseMass(self: Assembler, m: Sequencer.MassPlan): string
+	local list = massList(self.world, m)
+	local k = massIndex(m)
+	local first = list[k % #list + 1]
+	if m.band == "skyline" then
+		return first
+	end
+	local best, bestRatio = first, math.huge
+	for i = 0, #list - 1 do
+		local name = list[(k + i) % #list + 1]
+		local t = self.templates[name]
+		if t and (t.part or t.data) then
+			local h = math.max(t.hi.Y - t.lo.Y, 0.1)
+			local ratio = math.max(m.size.Y / h, h / m.size.Y)
+			if ratio <= 1.25 then
+				return name
+			end
+			if ratio < bestRatio then
+				best, bestRatio = name, ratio
+			end
+		end
+	end
+	return best
+end
+
 local function massSpec(self: Assembler, m: Sequencer.MassPlan, label: string, allowMerge: boolean): Spec
-	local name = massMesh(self.world, m)
+	local name = chooseMass(self, m)
 	local t = template(self, name)
 	if t then
 		local ext = t.hi - t.lo

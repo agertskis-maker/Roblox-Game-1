@@ -22,7 +22,7 @@
           "Kit": "B2",
           "KitFolder": "ReplicatedStorage.Lane3_DowntownKitB2 (optional: Car-Hop-Art/downtown-kit-b2/meshes; ReplicatedStorage so a Play client can read it too)",
           "KitData": "ReplicatedStorage.Lane3_DowntownKitB2Data (optional manifest.json, swatches.json)",
-          "Entry": "require(game.ReplicatedStorage.LookDev.Downtown.City).run({ seed = 2207, length = 2400 })",
+          "Entry": "require(game.ReplicatedStorage.LookDev.Downtown.City).run({ seed = 2207, length = 3000 })",
           "Note": "Lane 3 Downtown B city preview marker. Playground only; default.project.json never maps it."
         }
       },

@@ -37,7 +37,7 @@ Sequencer.SKYLINE_VIEW_GAP = 144
 -- how far behind the frontage line a skyline landmark starts (was 300: the stadium sat 565 studs
 -- out, never in a forward camera view)
 Sequencer.SKYLINE_SETBACK = 90
-Sequencer.DEFAULT_LENGTH = 2400
+Sequencer.DEFAULT_LENGTH = 3000 -- Round 2: the evidence route is at least 3,000 studs, like the other Worlds
 Sequencer.LANE_WIDTH = 17 -- PREVIEW (reversible; see RoadWidthStudy)
 Sequencer.LANES = 4
 Sequencer.SHOULDER = 4
@@ -50,7 +50,7 @@ Sequencer.STUDS_TO_METRES = 0.28 -- PROVISIONAL (cars README); studs are not met
 local HAZE = Color3.fromRGB(205, 224, 238)
 
 export type Options = {
-	length: number?, -- minimum route length in studs (default 2400)
+	length: number?, -- minimum route length in studs (default 3000)
 	completeDistrict: boolean?, -- end at the first district boundary >= length (default true)
 	laneWidth: number?,
 	lanes: number?,
@@ -1392,7 +1392,17 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	local props: { PropPlan } = {}
 	local furnitureBags: { [string]: Bag } = {}
 	local lastFurniture = { [-1] = "", [1] = "" }
+	local furnitureSlot = { [-1] = 0, [1] = 1 } -- the right side starts one slot on, so trees alternate sides
 	local busStop: { [number]: boolean } = {}
+	-- a hazard needs a clear approach: no tree or bus shelter in the 40 studs before it or just past it
+	local function nearHazard(station: number): boolean
+		for _, h in hazards do
+			if station > h.station - 40 and station < h.station + h.length + 8 then
+				return true
+			end
+		end
+		return false
+	end
 	local function clearOf(station: number, side: number): boolean
 		for _, sp in spanPlans do
 			if math.abs(sp.station - station) < 6 then
@@ -1444,12 +1454,14 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				then
 					local spanIndex = spanAt(fs)
 					local district = catalog.districtById[spans[spanIndex].id]
+					local blocked = nearHazard(fs)
 					local kind: string
 					if
 						not busStop[spanIndex]
 						and seg.kind == "Straight"
 						and side > 0
 						and fs > spans[spanIndex].startS + 120
+						and not blocked
 					then
 						kind = "busStop"
 						busStop[spanIndex] = true
@@ -1462,6 +1474,13 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 						kind = draw(bag, rng, function(x)
 							return x ~= lastFurniture[side]
 						end) or "bin"
+						furnitureSlot[side] += 1
+						if district.treeEvery and furnitureSlot[side] % district.treeEvery == 0 then
+							kind = "tree"
+						end
+						if blocked and (kind == "tree" or kind == "busStop") then
+							kind = "bin"
+						end
 					end
 					lastFurniture[side] = kind
 					local inset = if kind == "busStop" then 5 elseif kind == "tree" then 2.6 else 2.2

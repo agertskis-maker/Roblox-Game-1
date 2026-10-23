@@ -43,9 +43,9 @@ NORMALS = {"Front": (0, 0, -1), "Back": (0, 0, 1), "Left": (-1, 0, 0), "Right": 
 
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    a = {"samples": 16, "only": None}
+    a = {"samples": 16, "only": None, "set": "new"}
     for i, k in enumerate(argv):
-        if k in ("--kit", "--old", "--out"):
+        if k in ("--kit", "--old", "--out", "--set"):
             a[k[2:]] = argv[i + 1]
         elif k == "--samples":
             a["samples"] = int(argv[i + 1])
@@ -169,7 +169,7 @@ def ground(sc, s0, s1, x0=-2500, x1=2500):
 
 # ---------------------------------------------------------------- the review street
 DISTRICT_RANGES = [("MS", -192, 768), ("CH", 768, 1344), ("HB", 1344, 1920), ("MT", 1920, 2496), ("SP", 2496, 3168)]
-LOTS = {
+LOTS_OLD = {
     "MS": ["B2_Lot_Shop24Low_a", "B2_Lot_Shop24Mid_b", "B2_Lot_Shop24Low_c", "B2_Lot_Shop36Mid_a", "B2_Lot_Shop24Mid_a", "B2_Lot_Shop24Low_b", "B2_Lot_Shop48Low_a", "B2_Lot_Shop24Mid_c", "B2_Lot_Shop24Low_d", "B2_Lot_Shop36Mid_b", "B2_Lot_Pocket24", "B2_Lot_Shop48Low_c"],
     "CH": ["B2_Lot_Civic36Mid_a", "B2_Lot_Shop24Mid_b", "B2_Lot_Civic48Mid_b", "B2_Lot_Shop24Low_a"],
     "HB": ["B2_Lot_Warehouse48Low_a", "B2_Lot_Warehouse36Mid_b", "B2_Lot_Shop24Low_c"],
@@ -177,13 +177,33 @@ LOTS = {
     "MT": ["B2_Lot_Tall36Grid_a", "B2_Lot_Tall24Brick_b", "B2_Lot_Shop24Mid_a", "B2_Lot_Tall24Brick_b", "B2_Lot_Tall36Glass_a", "B2_Lot_Shop24Low_b"],
     "SP": ["B2_Lot_Townhouse24_a", "B2_Lot_Townhouse24_b", "B2_Lot_Pocket24", "B2_Lot_Townhouse24_a"],
 }
-MIDS = {
+MIDS_OLD = {
     "MS": ["B2_Mid_Block36_1", "B2_Mid_Block36_2", "B2_Mid_Block36_3"],
     "CH": ["B2_Mid_CivicDome", "B2_Mid_Block36_1", "B2_Mid_Block36_2"],
     "HB": ["B2_Mid_Warehouse48", "B2_Harbor_Shed24", "B2_Mid_Block36_1"],
     "MT": ["B2_Mid_Glass40", "B2_Mid_Tower40_4", "B2_Mid_Block36_3"],
     "SP": ["B2_Mid_TreeClump", "B2_Mid_TreeClump", "B2_Mid_Block36_1"],
 }
+SKY_OLD = ["B2_Sky_Stepped_1", "B2_Sky_Stepped_2", "B2_Sky_Slab_1", "B2_Sky_Slab_2", "B2_Sky_Tower_2", "B2_Sky_Spire", "B2_Sky_Stepped_3"]
+# Round 2 boulevard set (kit_b2_blvd.py): four-to-six storey frontage with the occasional two-to-three storey lot,
+# a taller layered middle distance and a richer skyline. "--set old" reproduces the Round 1 arrangement.
+LOTS_NEW = {
+    "MS": ["B2_Lot_Shop24Blvd4_a", "B2_Lot_Shop36Blvd5_b", "B2_Lot_Shop24Low_a", "B2_Lot_Shop48Blvd4_a", "B2_Lot_Shop24Step6_a", "B2_Lot_Shop36Blvd4_b", "B2_Lot_Shop24Mid_b", "B2_Lot_Shop36Step5_c", "B2_Lot_Shop24Blvd5_a", "B2_Lot_Pocket24", "B2_Lot_Shop48Blvd5_b", "B2_Lot_Shop24Blvd4_c", "B2_Lot_Shop36Blvd6_a", "B2_Lot_Shop24Blvd4_b", "B2_Lot_Shop48Step6_c"],
+    "CH": ["B2_Lot_Civic36Mid_a", "B2_Lot_Shop24Blvd4_b", "B2_Lot_Civic48Mid_b", "B2_Lot_Shop36Blvd5_d", "B2_Lot_Shop24Blvd5_b"],
+    "HB": ["B2_Lot_Warehouse48Low_a", "B2_Lot_Warehouse36Mid_b", "B2_Lot_Shop24Low_c"],
+    "MT": ["B2_Lot_Tall36Grid_a", "B2_Lot_Shop24Blvd5_a", "B2_Lot_Tall24Brick_b", "B2_Lot_Shop36Step6_b", "B2_Lot_Tall36Glass_a", "B2_Lot_Shop48Blvd6_d", "B2_Lot_Shop24Blvd4_d"],
+    "SP": ["B2_Lot_Townhouse24_a", "B2_Lot_Shop24Blvd4_a", "B2_Lot_Townhouse24_b", "B2_Lot_Pocket24", "B2_Lot_Shop36Blvd4_c", "B2_Lot_Townhouse24_a"],
+}
+MIDS_NEW = {
+    "MS": ["B2_Mid_Block36_1", "B2_Mid_Block36_4", "B2_Mid_Block36_2", "B2_Mid_Block48_1", "B2_Mid_Block36_5", "B2_Mid_Block36_3"],
+    "CH": ["B2_Mid_CivicDome", "B2_Mid_Block36_4", "B2_Mid_Block48_1", "B2_Mid_Block36_2"],
+    "HB": ["B2_Mid_Warehouse48", "B2_Harbor_Shed24", "B2_Mid_Block36_1"],
+    "MT": ["B2_Mid_Glass40", "B2_Mid_Tower40_4", "B2_Mid_Block40_6", "B2_Mid_Block36_5", "B2_Mid_Block48_1"],
+    "SP": ["B2_Mid_TreeClump", "B2_Mid_Block36_1", "B2_Mid_Block36_4", "B2_Mid_TreeClump"],
+}
+SKY_NEW = SKY_OLD + ["B2_Sky_Wedding_1", "B2_Sky_Wedding_2", "B2_Sky_Wedding_3", "B2_Sky_Crown_1", "B2_Sky_Crown_2", "B2_Sky_Tank_1", "B2_Sky_Tank_2", "B2_Sky_Needle_1", "B2_Sky_Needle_3"]
+LOTS, MIDS, SKY, SKY_H = LOTS_NEW, MIDS_NEW, SKY_NEW, (120.0, 300.0)
+
 SIGNS = [("B2_Sign_WheelGoodPizza", "fascia_1"), ("B2_Sign_BrakeFastDiner", "blade_1"), ("B2_Sign_LugNutsHardware", "fascia_1"), ("B2_Sign_HubcapBooks", "fascia_1"), ("B2_Sign_HonkRollMusic", "blade_1"), ("B2_Sign_ParkBarkPets", "fascia_1")]
 
 
@@ -374,9 +394,9 @@ def build_street(sc):
             s += rng.uniform(46, 66)
         s = -300.0
         while s < 3600:
-            nm = rng.choice(["B2_Sky_Stepped_1", "B2_Sky_Stepped_2", "B2_Sky_Slab_1", "B2_Sky_Slab_2", "B2_Sky_Tower_2", "B2_Sky_Spire", "B2_Sky_Stepped_3"])
+            nm = rng.choice(SKY)
             off = FO + rng.uniform(320, 820)
-            sc.place(nm, (side * off, 0, -s), 0.0, scale=[rng.uniform(40, 90), rng.uniform(70, 190), rng.uniform(40, 80)])
+            sc.place(nm, (side * off, 0, -s), 0.0, scale=[rng.uniform(40, 90), rng.uniform(*SKY_H), rng.uniform(40, 80)])
             s += rng.uniform(55, 90)
     return lm, hz
 
@@ -390,7 +410,7 @@ def reverse(s, lane=LANE2):
     return (lane, CAR_Y + 6.0, -(s + 12.0)), (lane, 1.5, -(s - 20.0))
 
 
-def shoot(cam, car, path, eye, tgt, note, res, samples, car_s=None, ortho=None):
+def shoot(cam, car, path, eye, tgt, note, res, samples, car_s=None, ortho=None, car_x=LANE2):
     cd = cam.data
     if ortho:
         cd.type = "ORTHO"
@@ -403,7 +423,7 @@ def shoot(cam, car, path, eye, tgt, note, res, samples, car_s=None, ortho=None):
     for o in car:
         o.hide_render = car_s is None
     if car_s is not None:
-        car[0].location = R1.B((LANE2, CAR_Y, -car_s))
+        car[0].location = R1.B((car_x, CAR_Y, -car_s))
     R1.setup_render("eevee", samples, res, note)
     R1.aim(cam, eye, tgt)
     bpy.context.scene.render.filepath = path
@@ -413,6 +433,10 @@ def shoot(cam, car, path, eye, tgt, note, res, samples, car_s=None, ortho=None):
 
 def main():
     a = parse_args()
+    global LOTS, MIDS, SKY, SKY_H
+    if a["set"] == "old":
+        LOTS, MIDS, SKY, SKY_H = LOTS_OLD, MIDS_OLD, SKY_OLD, (70.0, 190.0)
+    suffix = "" if a["set"] == "new" and not a.get("tag") else "-" + (a.get("tag") or a["set"])
     only = a["only"] or ["gallery", "theater", "hazards", "districts", "awnings", "signs"]
     out = a["out"]
     os.makedirs(out, exist_ok=True)
@@ -474,7 +498,7 @@ def main():
                 o.hide_render = state == "before"
             for d in (120.0, 60.0):
                 s = 578.0 - d
-                nm = f"B2-theater-{state}-{int(d)}ahead"
+                nm = f"B2-theater-{state}-{int(d)}ahead{suffix}"
                 desc = "overnight B_Theater + B_TheaterBlade" if state == "before" else "B2_LM_Theater"
                 shoot(cam, car, os.path.join(out, nm + ".png"), *chase(s), f"{tag} | theater {state}: {desc} | chase, landmark {int(d)} ahead", G, S, s)
         sc.show("theater_old", False)
@@ -494,11 +518,85 @@ def main():
         sc.show("haz_new", True)
     if "districts" in only:
         for d, s, label in (("MS", 470.0, "Main Street"), ("CH", 950.0, "City Hall"), ("HB", 1340.0, "Harbor Bridge"), ("MT", 2080.0, "Midtown"), ("SP", 2690.0, "Skyline Park")):
-            shoot(cam, car, os.path.join(out, f"B2-district-{d}.png"), *chase(s), f"{tag} | district sample: {label} (palette-B2-{P2.FILE_TAG[d]}) | chase s {int(s)}", (1280, 720), S + 8, s)
+            shoot(cam, car, os.path.join(out, f"B2-district-{d}{suffix}.png"), *chase(s), f"{tag} | district sample: {label} (palette-B2-{P2.FILE_TAG[d]}) | chase s {int(s)}", (1280, 720), S + 8, s)
+    if "median" in only:
+        median_sample(sc, cam, car, out, S, tag)
     if "awnings" in only:
         awning_sheet(sc, cam, car, out, S, tag)
     if "signs" in only:
         sign_sheet(sc, cam, car, out, S, tag)
+
+
+def slab(sc, name, x0, x1, s0, s1, swatch, y=0.0):
+    """A flat quad in the review scene (x lateral, s along the route) coloured by one palette swatch."""
+    g = P2.GRID
+    sw = P2.SW[swatch]
+    me = bpy.data.meshes.new(name)
+    pts = [R1.B((x0, y, -s0)), R1.B((x1, y, -s0)), R1.B((x1, y, -s1)), R1.B((x0, y, -s1))]
+    me.from_pydata([tuple(p) for p in pts], [], [(0, 1, 2, 3)])
+    uvl = me.uv_layers.new(name="UVMap")
+    for li in range(4):
+        uvl.data[li].uv = ((sw % g + 0.5) / g, 1 - (sw // g + 0.5) / g)
+    me.materials.append(sc.mats["MS"])
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
+def median_sample(sc, cam, car, out, S, tag):
+    """ALTERNATE BOULEVARD SAMPLE (a visual layout PROPOSAL, not part of any chase): two carriageways of two
+    17-wide lanes with a 14-wide planted median between them. It exists only because the brief asked for a planted
+    median between directions; the live road contract has four lanes in ONE direction, so the main chase keeps its
+    unobstructed corridor and gains urban scale from tree-lined verges instead. Built far from the review street."""
+    X0 = 6000.0
+    S0, S1 = 0.0, 480.0
+    half_med, lane, sidewalk = 7.0, 17.0, 10.0
+    x_in, x_out = half_med + 1.0, half_med + 1.0 + 2 * lane
+    # carriageways, shoulders to the kerbs, the planted median and its kerbs, the sidewalks
+    for side in (-1, 1):
+        a, b = sorted((X0 + side * x_in, X0 + side * x_out))
+        slab(sc, "Carriageway", a, b, S0, S1, "asphalt", 0.0)
+        c = X0 + side * (x_in + lane)
+        slab(sc, "LaneLine", c - 0.25, c + 0.25, S0, S1, "line_white", 0.02)
+        e0, e1 = sorted((X0 + side * x_out, X0 + side * (x_out + sidewalk)))
+        slab(sc, "Sidewalk", e0, e1, S0, S1, "sidewalk_a", 0.35)
+        k0, k1 = sorted((X0 + side * half_med, X0 + side * (half_med + 0.8)))
+        slab(sc, "MedianKerb", k0, k1, S0, S1, "curb_top", 0.4)
+    slab(sc, "MedianPlanting", X0 - half_med, X0 + half_med, S0, S1, "grass", 0.38)
+    slab(sc, "GroundLeft", X0 - 600, X0 - (x_out + sidewalk), S0 - 80, S1 + 80, "ground_lot", -0.05)
+    slab(sc, "GroundRight", X0 + x_out + sidewalk, X0 + 600, S0 - 80, S1 + 80, "ground_lot", -0.05)
+    # trees on the median every 24, a lamp every 48; lamps and trees on the sidewalks
+    for k in range(0, int(S1 // 24)):
+        s = 12.0 + 24.0 * k
+        sc.place("B2_Street_Tree", (X0 + (2.5 if k % 2 else -2.5), 0.38, -s), rng_deg(k), scale=1.5)
+        if k % 2 == 0:
+            sc.place("B2_Street_LampFormal", (X0, 0.38, -(s + 12.0)), 0.0)
+        for side in (-1, 1):
+            if (k + (side > 0)) % 3 == 0:
+                sc.place("B2_Street_Tree", (X0 + side * (x_out + 3.4), 0.35, -(s + 6.0)), rng_deg(k + 7))
+    # frontage on both sides: the same four-to-six storey lots as the main boulevard
+    names = ["B2_Lot_Shop24Blvd4_a", "B2_Lot_Shop36Blvd5_b", "B2_Lot_Shop48Blvd4_a", "B2_Lot_Shop24Step6_a", "B2_Lot_Shop36Blvd4_b", "B2_Lot_Shop24Blvd5_a", "B2_Lot_Shop36Step5_c", "B2_Lot_Shop24Blvd4_c"]
+    fx = x_out + sidewalk
+    for side in (1, -1):
+        s, k = 0.0, (0 if side > 0 else 3)
+        while s < S1 - 30:
+            name = names[k % len(names)]
+            k += 1
+            wl = sc.mesh(name)[1]["meta"]["width"]
+            if side > 0:
+                sc.place(name, (X0 + fx, 0.0, -s), 90.0, "MS", text=None)
+            else:
+                sc.place(name, (X0 - fx, 0.0, -(s + wl)), -90.0, "MS", text=None)
+            s += wl
+    note = tag + " | PROPOSAL, NOT IN ANY CHASE: planted-median boulevard sample, needs a Lane 1 road contract"
+    car_x = X0 + x_in + lane * 1.5
+    shoot(cam, car, os.path.join(out, "B2-median-sample-chase.png"), (car_x, CAR_Y + 6.0, -(60.0 - 12.0)), (car_x, 1.5, -(60.0 + 20.0)), note + " | chase on the right carriageway", (1280, 720), S + 8, 60.0, car_x=car_x)
+    shoot(cam, car, os.path.join(out, "B2-median-sample-high.png"), (X0 + 6.0, 62.0, 30.0), (X0, 4.0, -230.0), note + " | high view down the median", (1280, 720), S + 8, None)
+    shoot(cam, car, os.path.join(out, "B2-median-sample-median.png"), (X0 + 3.0, 5.6, -45.0), (X0 - 1.0, 7.0, -190.0), note + " | standing in the median", (1280, 720), S + 8, None)
+
+
+def rng_deg(k):
+    return (k * 137.5) % 360.0
 
 
 def chip(sc, name, rgb, x0, y0, x1, y1, z):

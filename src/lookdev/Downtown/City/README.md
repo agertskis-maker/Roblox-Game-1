@@ -27,7 +27,7 @@ camera and streaming; every number here is a PREVIEW value for him to accept or 
 
 ```lua
 local City = require(game.ReplicatedStorage.LookDev.Downtown.City)
-City.run({ seed = 2207, length = 2400 })  -- plan, build, print the sequence, start the chase
+City.run({ seed = 2207, length = 3000 })  -- plan, build, print the sequence, start the chase
 City.build({ seed = 2207 })               -- plan and build, camera at s 0
 City.plan({ seed = 9 })                   -- plan only: prints the sequence and the checks
 City.chase({ camera = "HIGH" })  City.stop()  City.pause()  City.resume()
