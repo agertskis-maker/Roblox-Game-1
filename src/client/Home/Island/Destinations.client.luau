@@ -6,7 +6,7 @@
 --     and holds them there while it is on;
 --   start lights: a slow preview countdown on the five Stunt Circuit lights (lights 1 to 5 come
 --     on red one per second, all five hold 1 s, all off, 3 s pause, repeat). It only previews the
---     look: no race starts. Reduced motion holds all five unlit and steady (lens meta);
+--     look: no race starts. Reduced motion holds all five lit and steady (the brief: steady under reduced motion);
 --   "Open Garage": pressing the prompt shows "Not connected yet" in its ObjectText for 3 s, to
 --     the pressing player only. Nothing is sent to the server and nothing is saved;
 --   Play stand-ins: while a destination's meshes are session-only previews (Source "preview"),

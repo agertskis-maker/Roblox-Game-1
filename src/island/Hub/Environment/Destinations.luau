@@ -1031,7 +1031,7 @@ local function buildStunt(root: Instance, report: Report): Model
 	model:SetAttribute("Spec", "brief section 10; concepts/stunt/README.md Production")
 	model:SetAttribute(
 		"LightSequence",
-		"preview only: lights 1 to 5 come on red one per second, hold 1 s, all off, 3 s pause; reduced motion: all unlit and steady"
+		"preview only: lights 1 to 5 come on red one per second, hold 1 s, all off, 3 s pause; reduced motion: all five lit and steady"
 	)
 	local gantryInfo = KitAssets.info("StuntGantry")
 	local gantryY = gantryInfo.meta["gantry.centre_y"] or -17

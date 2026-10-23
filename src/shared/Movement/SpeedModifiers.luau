@@ -1,4 +1,5 @@
 --!strict
+-- PROPOSAL, not an agreed interface (Lane 1 owns movement; Brian R has not reviewed it).
 -- Walk speed modifiers (client side). A minimal layer, written by Lane 3 for the island walking
 -- boost, that Lane 1 (Brian R) is expected to take over or replace when the real movement system
 -- exists. Spec and takeover path: vault/design/specs/walk-boost.md.
@@ -64,6 +65,10 @@ local function drop(humanoid: Humanoid)
 	table.clear(e.connections)
 end
 
+-- the highest WalkSpeed a speed-up may produce (the default 16 x 1.5); a base already above it is
+-- left as it is
+SpeedModifiers.BoostCap = 24
+
 local function apply(humanoid: Humanoid, e: Entry)
 	local m = SpeedModifiers.combine(e.sources)
 	if next(e.sources) == nil then
@@ -76,7 +81,9 @@ local function apply(humanoid: Humanoid, e: Entry)
 		end
 		return
 	end
-	local target = e.base * m
+	-- capped (architecture review M3): a boost never lifts another system's faster speed further,
+	-- so a 20 or 24 sprint is not turned into 30 or 36; it only brings a slower base up to the cap
+	local target = if m > 1 then math.max(e.base, math.min(e.base * m, SpeedModifiers.BoostCap)) else e.base * m
 	if m == 1 then
 		target = e.base -- exact, no float drift
 	end

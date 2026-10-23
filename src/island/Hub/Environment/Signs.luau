@@ -134,7 +134,7 @@ local GOLD = Color3.fromRGB(255, 200, 61) -- Color.Coin #FFC83D
 local PREVIEW_MAGENTA = Color3.fromRGB(194, 24, 122) -- spec proposal #C2187A
 -- "Income Tier" is an economy concept and propose-first (spec §4, decision 6). The spec keeps the
 -- words as a PREVIEW placeholder for now; set false to drop them if Adam decides so.
-local SHOW_INCOME_TIER = true
+local SHOW_INCOME_TIER = false -- "Income Tier" is economy wording: propose-first (architecture review M5)
 
 -- A horizontal chip in the info row: an optional rounded background with a border, and its text.
 local function chip(

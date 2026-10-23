@@ -47,7 +47,7 @@ Workspace
 | `PlotNN` | Model | `PlotIndex` (number 1 to `PlotCount`), `BearingDeg` (number) | `NN` is two digits. Index and name never change with owner or colour |
 | `Markers` | Part | none | Anchored, Transparency 1, CanCollide, CanQuery and CanTouch false, Size 1 x 1 x 1, CFrame = the plot frame (below) |
 | `GateSpawn` | Attachment | none | WorldCFrame on the walking surface at the gate; LookVector toward the plaza centre |
-| `NameplateAnchor` | Attachment | none | centre of the nameplate face on the gate arch; LookVector out of the face toward the plaza |
+| `NameplateAnchor` | Attachment | none | centre of the nameplate face on the gate arch; LookVector out of the face toward the plaza. **Stale since Island Rework Task 4 (2026-10-22, not yet agreed):** the new plot gate's name face is at plot-frame (0, r0 - 1.28) and 12.0 high, while the anchor is still built at (0, r0 - 0.8), 11.45 high. Lane 3 moves it once Brian L confirms whether Lane 2 uses it (board) |
 | `Speedway` | Attachment | `PathLength`, `TrackWidth`, `MinTurnRadius`, `PathSampleCount` (numbers), `Direction` (string, `"CounterClockwise"` seen from above) | on the track surface at the start line; LookVector = travel direction |
 | `PathNNN` | Attachment | `PathIndex` (number), `Distance` (number, studs from the start line) | `Path001` is the start line; travel order; closed loop (the last sample returns to `Path001`); LookVector = travel direction |
 | `BayNN` | Attachment | `BayIndex` (number 1 to 15), `Row` (string `"A"` or `"B"`), `Initial` (boolean, true only for Bay01 to Bay03) | bay centre on the Paddock surface; LookVector = a parked car's forward, away from the aisle (cars back in, show-room style) |

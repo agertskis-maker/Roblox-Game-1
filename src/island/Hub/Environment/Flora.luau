@@ -565,6 +565,28 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 	-- out of the portal view and the falls. Task 4: the portal view is the viewing corridors
 	-- themselves (a canopy-wide margin), not a fixed |x| < 80 (the wider portal row put a birch in
 	-- front of Dusty Highway for Plot 6).
+	-- the hub buildings (Garage, Stunt entrance, snack corners, gazebo) with the wings' 14-stud
+	-- forecourts, and the leaderboards, plus a canopy margin
+	local function nearBuilding(p: Vector2, r: number): boolean
+		local park = Layout.Data.park
+		local function boxGap(c: Vector2, f: Vector2, w: number, d: number): number
+			local side = Vector2.new(-f.Y, f.X)
+			local q = p - c
+			return math.max(math.abs(q:Dot(side)) - w / 2, math.abs(q:Dot(f)) - d / 2)
+		end
+		for _, b in park.buildings do
+			local fore = if b.id == "Garage" or b.id == "StuntGate" then 14 else 0
+			if boxGap(b.centre + b.facing * fore / 2, b.facing, b.width, b.depth + fore) < r then
+				return true
+			end
+		end
+		for _, b in park.boards do
+			if boxGap(b.centre, b.facing or Vector2.new(0, 1), b.width, b.depth) < r then
+				return true
+			end
+		end
+		return false
+	end
 	local function inPortalView(p: Vector2, r: number): boolean
 		for _, tri in Layout.Data.park.corridors do
 			local a, b, c = tri[1], tri[2], tri[3]
@@ -591,7 +613,13 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 		local e = rng:NextNumber(1.3, 1.55)
 		local p = lake.centre + Vector2.new(math.cos(a) * lake.rx * e, math.sin(a) * lake.ry * e)
 		local nearFalls = (p - Cascade.Pool.centre).Magnitude < 55
-		if math.abs(p.X) > 80 and not nearFalls and not inPortalView(p, 6) and plantable(grid, p, 0.45) then
+		if
+			math.abs(p.X) > 80
+			and not nearFalls
+			and not inPortalView(p, 6)
+			and not nearBuilding(p, 8)
+			and plantable(grid, p, 0.45)
+		then
 			local zone = TerrainWriter.zoneAt(grid, p)
 			local fam = if zone == "rocky" then "Birch" elseif rng:NextNumber() < 0.65 then "Willow" else "Birch"
 			if plant(pl, lakeside, treeVariant(rng, fam), p, rng:NextNumber(1.0, 1.3), rng:NextNumber(0, 6.28)) then

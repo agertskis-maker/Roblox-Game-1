@@ -104,7 +104,18 @@ function Task4Checks.shore(): { any }
 	if not dressing then
 		return { { check = "shore", problem = "no ParkDressing folder" } }
 	end
-	for _, d in dressing:GetDescendants() do
+	-- the park dressing, the Garage / Stunt / leaderboard destinations and the portal gates
+	-- (architecture review M6: the first version tested the dressing only)
+	local pieces: { Instance } = {}
+	for _, name in { "ParkDressing", "Destinations", "Portals" } do
+		local folder = env and env:FindFirstChild(name)
+		if folder then
+			for _, d in folder:GetDescendants() do
+				table.insert(pieces, d)
+			end
+		end
+	end
+	for _, d in pieces do
 		if d:IsA("BasePart") and not wetAllowed(d) and d.Transparency < 1 then
 			-- a tree may lean over the water: only its trunk base must stand on land
 			local tree = d:FindFirstAncestor("Trees") ~= nil
@@ -256,6 +267,43 @@ function Task4Checks.mirror(): ({ any }, number)
 	return fails, count
 end
 
+-- No tree trunk inside a hub building, a wing forecourt (14 in front) or a leaderboard (Task 4:
+-- a lakeside willow stood in the Garage forecourt).
+function Task4Checks.treesOnBuildings(): { any }
+	local fails = {}
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	if not env then
+		return fails
+	end
+	local boxes = {}
+	for _, b in park.buildings do
+		local fore = if b.id == "Garage" or b.id == "StuntGate" then 14 else 0
+		table.insert(
+			boxes,
+			{ id = b.id, c = b.centre + b.facing * fore / 2, f = b.facing, w = b.width, d = b.depth + fore }
+		)
+	end
+	for _, b in park.boards do
+		table.insert(boxes, { id = b.id, c = b.centre, f = b.facing or Vector2.new(0, 1), w = b.width, d = b.depth })
+	end
+	for _, d in env:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Trunk" then
+			local p = plan(d.Position)
+			for _, b in boxes do
+				local side = Vector2.new(-b.f.Y, b.f.X)
+				local q = p - b.c
+				if math.abs(q:Dot(side)) < b.w / 2 and math.abs(q:Dot(b.f)) < b.d / 2 then
+					table.insert(
+						fails,
+						{ check = "treeOnBuilding", object = d:GetFullName(), at = fmt(d.Position), building = b.id }
+					)
+				end
+			end
+		end
+	end
+	return fails
+end
+
 function Task4Checks.snapshot(): { [string]: number }
 	local out = {}
 	for _, r in roots() do
@@ -296,6 +344,7 @@ function Task4Checks.run(): { [string]: any }
 	end
 	add(Task4Checks.shore())
 	add(Task4Checks.turtle())
+	add(Task4Checks.treesOnBuildings())
 	local g, grounded = Task4Checks.grounding()
 	add(g)
 	local m, mirrored = Task4Checks.mirror()

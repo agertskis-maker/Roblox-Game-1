@@ -1124,7 +1124,7 @@ local function buildHedges(ctx: Ctx)
 				local side = if normal.Y < 0 then 1 else -1 -- toward the lake (plan south)
 				for t = 4, seg - 4, 9 do
 					local at = a + dir * t + normal * side * (width / 2 + 0.8)
-					if bridgeClear(at) > 4 and buildingClear(at) > 1 and onLand(at, 1) then
+					if bridgeClear(at) > 4 and buildingClear(at) > 4 and onLand(at, 1) then -- room to stand at a board
 						put(ctx, "Fences", "FenceSegment", at, yawAlong(dir), 1, { solid = true })
 					end
 				end
@@ -1153,6 +1153,14 @@ local BED_FLOWERS = { -- back, middle, front; all under 3 (beds sit in viewing c
 local PLANT_STEP = 4.2 -- 2.6 gave about 870 clumps and 530k triangles island-wide (Task 4 Studio count)
 local PLANT_SCALE = 1.35 -- larger clumps at the wider step keep the beds reading full
 
+-- A flower's scale in a bed: PLANT_SCALE (0.9 of it for the front edging), capped so the flower's
+-- top stays under the 3-stud viewing-corridor limit above the bed's soil.
+local function flowerScale(kind: string, band: number, soil: number): number
+	local want = if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE
+	local h = KitAssets.info(kind).max.Y
+	return math.min(want, (2.85 - soil) / math.max(h, 0.1))
+end
+
 local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, pathSide: Vector2, palette: number)
 	local meta = KitAssets.info(name).meta or {}
 	local y = groundY(p)
@@ -1180,7 +1188,7 @@ local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, path
 						kinds[band],
 						q,
 						(u * 7 + v * 3) % 6.28,
-						if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
+						flowerScale(kinds[band], band, meta.soil or 0.6),
 						{
 							y = y + (meta.soil or 0.6),
 						}
@@ -1269,17 +1277,9 @@ local function cornerBed(ctx: Ctx, C: Vector2, u1: Vector2, u2: Vector2, palette
 					local edge = math.min(s, t)
 					local band = if edge < 3.4 then 3 elseif edge < 6 then 2 else 1
 					local q = c0 + e1 * s + e2 * t
-					put(
-						ctx,
-						"Beds",
-						kinds[band],
-						q,
-						(s * 5 + t * 3) % 6.28,
-						if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
-						{
-							y = y + soil,
-						}
-					)
+					put(ctx, "Beds", kinds[band], q, (s * 5 + t * 3) % 6.28, flowerScale(kinds[band], band, soil), {
+						y = y + soil,
+					})
 				end
 			end
 		end
@@ -1327,17 +1327,9 @@ local function arcBed(
 				-- tallest on the centre line, low edging both sides (fountain beds are seen from both)
 				local off = math.abs(d) / math.max(half - 1, 0.5)
 				local band = if off < 0.34 then 1 elseif off < 0.67 then 2 else 3
-				put(
-					ctx,
-					"Beds",
-					kinds[band],
-					q,
-					(k * 31 + d * 7) % 6.28,
-					if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
-					{
-						y = y + soil,
-					}
-				)
+				put(ctx, "Beds", kinds[band], q, (k * 31 + d * 7) % 6.28, flowerScale(kinds[band], band, soil), {
+					y = y + soil,
+				})
 			end
 		end
 	end

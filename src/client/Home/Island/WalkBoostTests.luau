@@ -282,7 +282,7 @@ local function modifierTests(check: Checker)
 	h.WalkSpeed = 20
 	flush()
 	check("someone else's 20 becomes the base", S.base(h) == 20, S.base(h))
-	check("boost applies to the new base: 30", h.WalkSpeed == 30, h.WalkSpeed)
+	check("boost on a faster base 20 stops at the cap 24", h.WalkSpeed == 24, h.WalkSpeed)
 	S.clear(h, "A")
 	check("clear: their 20 stays, not our old 16", h.WalkSpeed == 20, h.WalkSpeed)
 	h.WalkSpeed = 16
@@ -474,7 +474,7 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 	hum.WalkSpeed = 20
 	flush()
 	c.update(5.9)
-	check("someone else's base 20, boosted: 30", hum.WalkSpeed == 30, hum.WalkSpeed)
+	check("someone else's base 20, boosted: capped at 24", hum.WalkSpeed == 24, hum.WalkSpeed)
 	table.clear(strips)
 	c.update(7)
 	check("their base 20 comes back, not 16", hum.WalkSpeed == 20, hum.WalkSpeed)
