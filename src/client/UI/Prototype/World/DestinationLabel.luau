@@ -217,6 +217,9 @@ function DestinationLabel._update(self: DestinationLabel)
 		local chars = math.max(#self._text, 1)
 		local width = px * (0.62 * chars + 0.6)
 		board.Size = UDim2.fromOffset(math.ceil(width), px * 2)
+		-- the letters follow the projected size (TextSize was never set: it stayed at the default 8)
+		self._front.TextSize = px
+		self._depth.TextSize = px
 		local t = math.max(1, math.floor(px * OUTLINE + 0.5))
 		self._stroke.Thickness = t
 		self._depthStroke.Thickness = t
