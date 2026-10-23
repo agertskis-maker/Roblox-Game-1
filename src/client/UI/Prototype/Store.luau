@@ -78,6 +78,10 @@ export type KeysState = {
 	-- a KeysConfirmed event; Lost / Canceled: ended without a claim (reason optional)
 	status: "Holding" | "Pending" | "Confirmed" | "Lost" | "Canceled",
 	reason: string?, -- truthful short reason for Canceled, e.g. "You hopped off"
+	-- Round 2 (FIXTURES; Brian R owns the capture timing): the remaining capture duration in seconds, shown ONLY when
+	-- timingTrusted is true (the source guarantees the number and its meaning). Never derived from progress.
+	remainingSeconds: number?,
+	timingTrusted: boolean?,
 }
 
 -- An advance warning, only when the owning lane really supplies one.
@@ -151,7 +155,8 @@ export type State = {
 	missionsClaimable: number,
 	tutorial: Tutorial?,
 	-- local preview settings; musicOn is the Home toggle row (a real local setting, not saved)
-	settings: { music: number, sfx: number, musicOn: boolean? },
+	-- haptics: Round 2, best-effort and OFF by default (nil = off); never claimed tested on hardware
+	settings: { music: number, sfx: number, musicOn: boolean?, haptics: boolean? },
 	-- off-by-default proposals shown only in captioned review captures
 	proposals: { timers: boolean }?,
 	run: RunState?,
@@ -173,6 +178,7 @@ export type Event = {
 	cycle: number?, -- DistrictEnter: fixture-local cycle index (1 = first pass)
 	instanceId: string?, -- RareArrival: traffic car instance identity
 	amount: number?,
+	lapPay: number?, -- KeysConfirmed: the supplied Lap Pay of the claimed car, dollars (nil = none supplied)
 	text: string?,
 	tone: string?, -- toasts: "Success" | "Info" | "Unlock"
 	car: CarRef?,

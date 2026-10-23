@@ -107,6 +107,7 @@ local ROUTES: { [string]: { category: string, minInterval: number, volumeScale: 
 	CashGain = { category = "Cash", minInterval = 0.12 },
 	LapPay = { category = "Cash", minInterval = 0.25, volumeScale = 0.7 },
 	KeysRise = { category = "Rise", minInterval = 0 },
+	KeysTick = { category = "Tick", minInterval = 0.09, volumeScale = 0.8 }, -- subtle progress clicks from 50% (Round 2)
 	KeysCapture = { category = "Fanfare", minInterval = 1.5 },
 	NewBest = { category = "Fanfare", minInterval = 2, volumeScale = 0.85 },
 	Toast = { category = "Chime", minInterval = 0.4 },

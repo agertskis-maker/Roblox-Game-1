@@ -589,6 +589,97 @@ painters.HopFigure = function(pen)
 	})
 end
 
+-- FAMILY ICONS (Round 2, cards): the eight vehicle families as side silhouettes that share one weight (a body, a
+-- cabin, two or three wheels, the same outline), so a row of them reads as a set. Original shapes, no real models.
+local function wheel(pen: Pen, x: number, y: number, d: number)
+	flat(pen, { circle(x, y, d, INK), circle(x, y, d * 0.4, WHITE) })
+end
+
+local function familyBody(pen: Pen, specs: { Spec })
+	group(pen, specs)
+end
+
+defaults.Family_Compact = WHITE
+painters.Family_Compact = function(pen)
+	familyBody(pen, { rect(0.5, 0.6, 0.72, 0.26, 0.08), rect(0.5, 0.4, 0.4, 0.22, 0.08) })
+	flat(pen, { rect(0.5, 0.4, 0.3, 0.1, 0.03, GLASS) })
+	wheel(pen, 0.28, 0.76, 0.2)
+	wheel(pen, 0.72, 0.76, 0.2)
+end
+
+defaults.Family_Sedan = WHITE
+painters.Family_Sedan = function(pen)
+	familyBody(pen, { rect(0.5, 0.62, 0.88, 0.22, 0.07), rect(0.48, 0.44, 0.46, 0.2, 0.08) })
+	flat(pen, { rect(0.48, 0.44, 0.36, 0.1, 0.03, GLASS) })
+	wheel(pen, 0.22, 0.76, 0.2)
+	wheel(pen, 0.78, 0.76, 0.2)
+end
+
+defaults.Family_Pickup = WHITE
+painters.Family_Pickup = function(pen)
+	familyBody(
+		pen,
+		{ rect(0.5, 0.62, 0.9, 0.22, 0.05), rect(0.32, 0.43, 0.3, 0.2, 0.06), rect(0.76, 0.54, 0.34, 0.08, 0.02) }
+	)
+	flat(pen, { rect(0.32, 0.43, 0.2, 0.1, 0.03, GLASS) })
+	wheel(pen, 0.24, 0.77, 0.2)
+	wheel(pen, 0.74, 0.77, 0.2)
+end
+
+defaults.Family_Van = WHITE
+painters.Family_Van = function(pen)
+	familyBody(pen, { rect(0.5, 0.52, 0.84, 0.44, 0.08) })
+	flat(pen, { rect(0.74, 0.44, 0.2, 0.16, 0.03, GLASS), rect(0.4, 0.62, 0.3, 0.04, 0.01, INK) })
+	wheel(pen, 0.26, 0.76, 0.2)
+	wheel(pen, 0.74, 0.76, 0.2)
+end
+
+defaults.Family_Motorcycle = WHITE
+painters.Family_Motorcycle = function(pen)
+	flat(pen, {
+		circle(0.22, 0.7, 0.32, INK),
+		circle(0.78, 0.7, 0.32, INK),
+		circle(0.22, 0.7, 0.2, WHITE),
+		circle(0.78, 0.7, 0.2, WHITE),
+	})
+	group(pen, {
+		bar(0.22, 0.7, 0.5, 0.5, 0.07),
+		bar(0.5, 0.5, 0.78, 0.7, 0.07),
+		rect(0.46, 0.4, 0.26, 0.09, 0.04),
+		bar(0.68, 0.48, 0.8, 0.32, 0.06),
+	})
+end
+
+defaults.Family_Truck = WHITE
+painters.Family_Truck = function(pen)
+	familyBody(pen, { rect(0.62, 0.48, 0.68, 0.46, 0.04), rect(0.2, 0.58, 0.28, 0.34, 0.06) })
+	flat(pen, { rect(0.2, 0.52, 0.16, 0.12, 0.03, GLASS), rect(0.62, 0.48, 0.5, 0.02, 0, INK) })
+	wheel(pen, 0.2, 0.78, 0.2)
+	wheel(pen, 0.54, 0.78, 0.2)
+	wheel(pen, 0.8, 0.78, 0.2)
+end
+
+defaults.Family_Sports = WHITE
+painters.Family_Sports = function(pen)
+	familyBody(
+		pen,
+		{ rect(0.5, 0.64, 0.92, 0.16, 0.06), rect(0.44, 0.5, 0.34, 0.14, 0.07), bar(0.86, 0.5, 0.94, 0.5, 0.05) }
+	)
+	flat(pen, { rect(0.44, 0.5, 0.24, 0.07, 0.03, GLASS) })
+	wheel(pen, 0.24, 0.76, 0.2)
+	wheel(pen, 0.76, 0.76, 0.2)
+end
+
+defaults.Family_Special = WHITE
+painters.Family_Special = function(pen)
+	familyBody(pen, { rect(0.5, 0.68, 0.84, 0.2, 0.07), rect(0.48, 0.52, 0.4, 0.16, 0.07) })
+	wheel(pen, 0.25, 0.8, 0.18)
+	wheel(pen, 0.75, 0.8, 0.18)
+	within(pen, 0.5, 0.2, 0.34, 0, "Star", function()
+		painters.Star(pen)
+	end)
+end
+
 -- CarJump (Hop): a white car leaping up-right off a dotted arc.
 defaults.CarJump = WHITE
 painters.CarJump = function(pen)
@@ -1230,6 +1321,14 @@ Icons2.Names = {
 	"Padlock",
 	"CarJump",
 	"HopFigure",
+	"Family_Compact",
+	"Family_Sedan",
+	"Family_Pickup",
+	"Family_Van",
+	"Family_Motorcycle",
+	"Family_Truck",
+	"Family_Sports",
+	"Family_Special",
 	"Trophy",
 	"Star",
 	"Music",

@@ -27,6 +27,7 @@ local player = Players.LocalPlayer
 local Prototype = script.Parent.Parent:WaitForChild("Client"):WaitForChild("UI"):WaitForChild("Prototype")
 local Screen = require(Prototype:WaitForChild("Screen"))
 local Store = require(Prototype:WaitForChild("Store"))
+local Fixtures = require(Prototype:WaitForChild("Fixtures"))
 local Motion = require(Prototype:WaitForChild("Motion"))
 local Priority = require(Prototype:WaitForChild("Priority"))
 local RunLayout = require(Prototype:WaitForChild("Run"):WaitForChild("RunLayout"))
@@ -192,7 +193,7 @@ end
 
 -- Hide or show the run HUD (the Stunt Circuit mock has its own HUD)
 function api.setRunHudVisible(on: boolean)
-	for _, key in { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "hopCue", "dash" } do
+	for _, key in { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "hopCue", "dash", "reveal" } do
 		local c = components[key]
 		if c and c.setVisible then
 			c:setVisible(on)
@@ -428,6 +429,13 @@ mount("stunt", { "Screens", "StuntMock" }, "Run", {})
 -- Specimen sheet (harness overlay, hidden by default; HUD rebuild V-01)
 mount("specimen", { "Specimen" }, "Overlay")
 mount("cardSheet", { "Cards", "StatesSheet" }, "Overlay", {})
+-- Round 2 collectible cards: the variant sheet and the landscape detail view
+mount("tradingSheet", { "Cards", "TradingSheet" }, "Overlay", {})
+mount("cardDetail", { "Screens", "CardDetail" }, "Overlay", {
+	onDrive = function(car: any)
+		api.harness("Drive intent for " .. tostring(car.name) .. " (preview only)")
+	end,
+})
 -- Run HUD and world feedback
 mount("run", { "Run", "RunLayer" }, "Run")
 mount("ride", { "Run", "RideChip" }, "Run", {
@@ -440,7 +448,11 @@ mount("routeLine", { "Run", "RouteLine" }, "Run")
 -- segmented bar stays mounted but hidden, a debug-only variant for before/after comparison.
 mount("heat", { "Run", "HeatPanel" }, "Run")
 mount("heatSegmented", { "Run", "HeatBar" }, "Run")
-mount("tray", { "Run", "ClaimTray" }, "Run")
+mount("tray", { "Run", "ClaimTray" }, "Run", {
+	onDetail = function(car: any)
+		api.openCardDetail(car.id, true) -- a tapped tray tile opens its card detail (preview)
+	end,
+})
 mount("stamina", { "Run", "StaminaMeter" }, "Run")
 mount("keys", { "Run", "KeysLock" }, "Run", {
 	anchor = backdrop.ride,
@@ -459,6 +471,7 @@ mount("keys", { "Run", "KeysLock" }, "Run", {
 })
 mount("banner", { "Run", "DistrictBanner" }, "Feedback")
 mount("ribbon", { "Run", "CaptureRibbon" }, "Feedback")
+mount("reveal", { "Run", "SecuredReveal" }, "Feedback") -- the full SECURED card where it clears the road view
 mount("runEnd", { "Run", "RunEnd" }, "Feedback", {
 	anchor = backdrop.ride,
 	onFinished = function(reason: string?)
@@ -608,6 +621,20 @@ do
 	end
 end
 
+-- Round 2: the landscape card detail for a roster car (ownership can be forced for review); fixtures only.
+function api.openCardDetail(id: string, owned: boolean?)
+	local detail = components.cardDetail
+	local base = Fixtures.byId(id)
+	if not detail or not base then
+		return "unknown card"
+	end
+	local car = table.clone(base) :: any
+	if owned ~= nil then
+		car.owned = owned
+	end
+	detail:open(car, Fixtures.cardInfo(id))
+	return car.name
+end
 function api.open(name: string)
 	local c = components[name]
 	if c and c.open then
@@ -736,6 +763,12 @@ function api.setSpeed(metresPerSecond: number?)
 end
 -- Round 2 Hop cues: the ONE selected target, by traffic index (2 = the Puglet ahead). Retargeting sends the new id
 -- through the run state (what Lane 1 would do) and points every cue model at the same car.
+-- Round 2 haptics (best effort, off by default; never claimed felt on hardware)
+function api.setHaptics(on: boolean)
+	local settings = table.clone(store:get().settings) :: any
+	settings.haptics = on
+	store:set("settings", settings)
+end
 function api.setHopTarget(index: number?): string
 	local model = if index then backdrop.traffic[index] else nil
 	api.patchRun({ hopTargetId = if model then "traffic-" .. tostring(index) else nil })
@@ -806,7 +839,7 @@ function api.reset()
 	if specimen and specimen.setVisible then
 		specimen:setVisible(false)
 	end
-	for _, k in { "settings", "garage", "portalCard", "welcome", "shop", "cardSheet" } do
+	for _, k in { "settings", "garage", "portalCard", "welcome", "shop", "cardSheet", "tradingSheet", "cardDetail" } do
 		api.close(k)
 	end
 	store:reset()

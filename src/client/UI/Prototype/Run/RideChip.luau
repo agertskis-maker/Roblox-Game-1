@@ -19,6 +19,7 @@ local Arcade = require(script.Parent.Parent.Arcade)
 local Gloss = require(script.Parent.Parent.Gloss)
 local Icons = require(script.Parent.Parent.Icons)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local RunBus = require(script.Parent.RunBus)
 local RunLayout = require(script.Parent.RunLayout)
 local Store = require(script.Parent.Parent.Store)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
@@ -168,12 +169,15 @@ function RideChip.new(ctx: RunLayout.Ctx)
 	self._trove:Connect(RunLayout.topChanged(ctx.screen), function()
 		self:layout()
 	end)
+	RunBus.register(ctx, "ride", self)
 	self:layout()
 	self:_apply()
 	return self
 end
 
 export type RideChip = typeof(RideChip.new((nil :: any) :: RunLayout.Ctx))
+
+-- (registered on RunBus as "ride" in new(); see the end of the constructor)
 
 function RideChip._apply(self: RideChip)
 	local run = self._ctx.store:get().run
@@ -184,7 +188,9 @@ function RideChip._apply(self: RideChip)
 	local k = run and run.keys
 	local capturing = k ~= nil and (k.status == "Holding" or k.status == "Pending")
 	local phoneL = self._ctx.screen:profile().kind == "Phone"
-	self._chip.Visible = car ~= nil and not (phoneL and capturing)
+	-- Round 2: it also steps aside while the compact SECURED stack takes its place (phones only)
+	local secured = RunBus.flags(self._ctx).secured
+	self._chip.Visible = car ~= nil and not (phoneL and (capturing or secured))
 	if not car then
 		return
 	end
@@ -245,7 +251,13 @@ function RideChip.getDebugState(self: RideChip): { [string]: any }
 	}
 end
 
+-- Re-applies the visibility rule (the SECURED stack asks for it when it comes and goes).
+function RideChip.refresh(self: RideChip)
+	self:_apply()
+end
+
 function RideChip.destroy(self: RideChip)
+	RunBus.unregister(self._ctx, "ride", self)
 	self._trove:Destroy()
 end
 

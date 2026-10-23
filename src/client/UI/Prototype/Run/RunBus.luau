@@ -11,7 +11,9 @@
 --   RunBus.suppress(ctx, slot, level, owner) -- several owners may suppress one slot; the
 --   RunBus.unsuppress(ctx, slot, owner)      -- arbiter floor is the highest live owner level,
 --                                               cleared only when the last owner releases
---   RunBus.flags(ctx) -> { warning: boolean, ended: boolean }  -- per-run presentation flags
+--   RunBus.flags(ctx) -> { warning: boolean, ended: boolean, secured: boolean }  -- per-run presentation flags
+--                                               (secured: the compact SECURED stack is showing; on phones the riding
+--                                               chip steps aside for it)
 --                                               (RunEnd writes them; reset on a new run)
 --
 -- Registered keys (HR components): "tray" (ClaimTray), "banner" (DistrictBanner), "ribbon"
@@ -25,7 +27,7 @@ type Bus = {
 	objects: { [string]: any },
 	suppress: { [string]: { [string]: string } }, -- slot -> owner -> level
 	fallback: any?,
-	flags: { warning: boolean, ended: boolean },
+	flags: { warning: boolean, ended: boolean, secured: boolean },
 }
 
 local buses: { [any]: Bus } = setmetatable({}, { __mode = "k" }) :: any
@@ -34,7 +36,7 @@ local function bus(ctx: any): Bus
 	local key = ctx.screen
 	local b = buses[key]
 	if not b then
-		b = { objects = {}, suppress = {}, fallback = nil, flags = { warning = false, ended = false } }
+		b = { objects = {}, suppress = {}, fallback = nil, flags = { warning = false, ended = false, secured = false } }
 		buses[key] = b
 	end
 	return b :: Bus
@@ -66,7 +68,7 @@ function RunBus.get(ctx: any, key: string): any?
 	return bus(ctx).objects[key]
 end
 
-function RunBus.flags(ctx: any): { warning: boolean, ended: boolean }
+function RunBus.flags(ctx: any): { warning: boolean, ended: boolean, secured: boolean }
 	return bus(ctx).flags
 end
 

@@ -21,10 +21,18 @@
 --   tray:expect(id)                     -- the ribbon is presenting this id (hold the +1)
 --   tray:arrive(id, car?)               -- the icon has settled: +1 now (idempotent)
 --   tray:arrivalPoint(id) -> Vector2?   -- absolute GUI position where that id will appear
+--   tray:countPoint() -> Vector2?       -- absolute GUI position of the count (the reveal lands there)
 --   tray:openReview() / tray:closeReview()
 --   tray:count() -> number, tray:claimed() -> { CarRef }
 --   tray:layout(), tray:setVisible(on), tray:destroy(), tray:getDebugState()
 -- Registered on RunBus as "tray" (CaptureRibbon finds it there).
+--
+-- Round 2 (R2-T1): each tile is a small STATIC thumbnail of the car (RunKit.thumb: one ViewportFrame per visible tile,
+-- never more than the tray’s four slots, no spin and no render loop; the icon stays when there is no model), the
+-- car name (truncated at a readable 16 px, in full in the review rows and the card detail), a thin rarity edge and a NEW
+-- chip when the car was not owned before this claim (car.owned == false, supplied). Three or four tiles, then "+N" for
+-- the older claims. Tapping a car tile opens its card detail (options.onDetail); "+N" opens the review of every claim
+-- (long names wrap there instead of being cut). Its place is independent of the Stamina meter (RunLayout.trayGeometry).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -46,15 +54,22 @@ local EXPECT_TIMEOUT = 4
 local SETTLE = 0.15 -- seconds a newly confirmed id waits for a ribbon's expect()
 local PENDING_WORD = "SECURING…"
 local MAX_REVIEW = 60 -- bounded review rows
+local THUMB_LIMIT = 4 -- ViewportFrame thumbnails alive at once
 
 local ClaimTray = {}
 ClaimTray.__index = ClaimTray
 
 type Entry = { kind: "Car" | "Pending" | "More", car: Store.CarRef?, id: string?, more: number? }
 
+export type Options = { onDetail: ((Store.CarRef) -> ())? }
+
 type Slot = {
 	frame: Frame,
 	ground: Frame,
+	edge: UIStroke,
+	thumb: ViewportFrame?,
+	new: Frame,
+	entry: Entry?,
 	icon: Frame,
 	name: TextLabel,
 	more: TextLabel,
@@ -79,9 +94,10 @@ local DASHES = (function(): NumberSequence
 	return NumberSequence.new(kps)
 end)()
 
-function ClaimTray.new(ctx: RunLayout.Ctx)
+function ClaimTray.new(ctx: RunLayout.Ctx, options: Options?)
 	local self = setmetatable({}, ClaimTray)
 	self._ctx = ctx
+	self._onDetail = if options then options.onDetail else nil
 	self._trove = Trove.new()
 	self._visible = true
 	self._arrived = {} :: { string } -- arrival order (ids)
@@ -414,6 +430,22 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 	Arcade.corner(ground, 6)
 	make("UIGradient", { Name = "Rarity", Rotation = 90, Parent = ground })
 	local solid = Arcade.outline(ground, "Major")
+	-- the thin rarity edge sits just inside the dark boundary
+	local edgeFrame = make("Frame", {
+		Name = "RarityEdge",
+		Position = UDim2.fromOffset(2, 2),
+		Size = UDim2.new(1, -4, 1, -4),
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+		Parent = ground,
+	})
+	Arcade.corner(edgeFrame, 4)
+	local edge = make("UIStroke", {
+		Thickness = 2.5,
+		Color = Color3.new(1, 1, 1),
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = edgeFrame,
+	})
 	local dashed = make("UIStroke", {
 		Name = "Dashed",
 		Thickness = 2.5,
@@ -438,6 +470,22 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 	name.Position = UDim2.new(0.5, 0, 1, 2)
 	name.Size = UDim2.new(1, 6, 0, 20)
 	name.TextTruncate = Enum.TextTruncate.AtEnd
+	-- NEW: the car was not owned before this claim (explicit supplied flag only)
+	local newChip = make("Frame", {
+		Name = "New",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 1, 0, -1),
+		Size = UDim2.fromOffset(40, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Visible = false,
+		ZIndex = 9,
+		Parent = ground,
+	})
+	Arcade.surface(newChip, "Gold", { outline = "Minor", gloss = false })
+	local newText = Arcade.text(newChip, { text = "NEW", role = "Small", name = "Text", z = 10 })
+	newText.Size = UDim2.fromScale(1, 1)
+	newText.TextScaled = true
+	make("UITextSizeConstraint", { MinTextSize = 16, MaxTextSize = 16, Parent = newText })
 	local more = Arcade.text(ground, {
 		text = "",
 		role = "ValueRun",
@@ -462,16 +510,13 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 		ZIndex = 10,
 		Parent = frame,
 	})
-	self._trove:Connect(hit.Activated, function()
-		if self._reviewOpen then
-			self:closeReview()
-		else
-			self:openReview()
-		end
-	end)
-	return {
+	local slot: Slot = {
 		frame = frame,
 		ground = ground,
+		edge = edge,
+		thumb = nil,
+		new = newChip,
+		entry = nil,
 		icon = icon,
 		name = name,
 		more = more,
@@ -480,6 +525,28 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 		hit = hit,
 		entryKey = nil,
 	}
+	self._trove:Connect(hit.Activated, function()
+		local e = slot.entry
+		if e and e.kind == "Car" and e.car and self._onDetail then
+			(self._onDetail :: any)(e.car) -- a car tile: its card detail
+		elseif self._reviewOpen then
+			self:closeReview()
+		else
+			self:openReview()
+		end
+	end)
+	return slot
+end
+
+-- Thumbnails alive right now (the tray never keeps more than THUMB_LIMIT ViewportFrames).
+function ClaimTray._thumbCount(self: ClaimTray): number
+	local n = 0
+	for _, s in self._slots do
+		if s.thumb then
+			n += 1
+		end
+	end
+	return n
 end
 
 function ClaimTray._render(self: ClaimTray)
@@ -511,6 +578,13 @@ function ClaimTray._render(self: ClaimTray)
 			continue
 		end
 		slot.entryKey = key
+		slot.entry = e
+		if slot.thumb then
+			slot.thumb:Destroy()
+			slot.thumb = nil
+		end
+		slot.new.Visible = false
+		slot.edge.Enabled = false
 		local grad = slot.ground:FindFirstChild("Rarity") :: UIGradient
 		local compact = g.thumb < 50
 		if e.kind == "More" then
@@ -525,13 +599,30 @@ function ClaimTray._render(self: ClaimTray)
 			slot.hit.Visible = true
 		else
 			local r = RunKit.rarity(e.car)
-			grad.Color = ColorSequence.new(r.light, r.deep)
-			slot.icon.Visible = true
+			local ghost = e.kind == "Pending"
+			-- a dark tile: the thumbnail pops, and the rarity is the thin edge inside the boundary
+			grad.Color = ColorSequence.new(Color3.fromRGB(46, 58, 104), Color3.fromRGB(24, 32, 72))
+			slot.edge.Enabled = not ghost
+			slot.edge.Color = r.light
+			if not ghost and self:_thumbCount() < THUMB_LIMIT then
+				local vp = RunKit.thumb(slot.ground, e.car)
+				if vp then
+					vp.AnchorPoint = Vector2.new(0.5, 0)
+					vp.Position = UDim2.new(0.5, 0, 0, 3)
+					vp.Size = UDim2.fromOffset(g.thumb * 0.84, g.thumb * 0.62)
+					vp.ZIndex = 6
+					slot.thumb = vp
+				end
+			end
+			slot.icon.Visible = slot.thumb == nil
 			slot.more.Visible = false
-			slot.hit.Visible = false
+			slot.hit.Visible = e.kind == "Car" and self._onDetail ~= nil
+			slot.new.Visible = e.kind == "Car" and e.car ~= nil and e.car.owned == false
+			-- compact tiles hide the name, so the NEW chip takes the bottom edge; larger tiles keep it top-right
+			slot.new.AnchorPoint = if compact then Vector2.new(0.5, 1) else Vector2.new(1, 0)
+			slot.new.Position = if compact then UDim2.new(0.5, 0, 1, 2) else UDim2.new(1, 2, 0, -2)
 			slot.name.Text = if e.car then e.car.name else ""
 			slot.name.Visible = not compact
-			local ghost = e.kind == "Pending"
 			slot.ground.BackgroundTransparency = if ghost then 0.65 else 0
 			slot.solid.Enabled = not ghost
 			slot.dashed.Enabled = ghost
@@ -607,7 +698,7 @@ function ClaimTray._renderReview(self: ClaimTray)
 		local r = RunKit.rarity(car)
 		local row = make("Frame", {
 			Name = "Row" .. i,
-			Size = UDim2.new(1, -8, 0, 34),
+			Size = UDim2.new(1, -8, 0, 52),
 			BackgroundTransparency = 1,
 			LayoutOrder = i,
 			ZIndex = 22,
@@ -626,16 +717,29 @@ function ClaimTray._renderReview(self: ClaimTray)
 		Arcade.outline(chip, "Minor")
 		make("UIGradient", { Color = ColorSequence.new(r.light, r.deep), Rotation = 90, Parent = chip })
 		local label = Arcade.text(row, {
-			text = r.label .. "  " .. (if car then car.name else ""),
+			text = r.label .. "  " .. (if car then car.name else "") .. (if car and car.owned == false
+				then "  NEW"
+				else ""),
 			role = "Small",
 			name = "Name",
 			xAlign = Enum.TextXAlignment.Left,
 			z = 23,
 		})
-		label.Position = UDim2.new(0, 38, 0.5, -11)
-		label.Size = UDim2.new(1, -40, 0, 22)
-		label.TextTruncate = Enum.TextTruncate.AtEnd
+		-- the review is where long names are read in full: they wrap instead of being cut
+		label.Position = UDim2.new(0, 38, 0.5, -23)
+		label.Size = UDim2.new(1, -40, 0, 46)
+		label.TextWrapped = true
 	end
+end
+
+-- Where the count is on screen (absolute GUI position): the SECURED card and the ribbon’s car fly to it. nil
+-- while the tray has no size yet.
+function ClaimTray.countPoint(self: ClaimTray): Vector2?
+	local number = self._number
+	if number.AbsoluteSize.X <= 0 then
+		return nil
+	end
+	return number.AbsolutePosition + number.AbsoluteSize / 2
 end
 
 function ClaimTray.openReview(self: ClaimTray)
@@ -726,6 +830,8 @@ function ClaimTray.getDebugState(self: ClaimTray): { [string]: any }
 		slots = kinds,
 		reviewOpen = self._reviewOpen,
 		reviewRows = #self._list:GetChildren() - 1,
+		thumbs = self:_thumbCount(),
+		thumbLimit = THUMB_LIMIT,
 		box = r and RunLayout.describe(r),
 		overlapsProtected = r ~= nil and RunLayout.overlaps(r, RunLayout.protected(self._ctx)),
 		instances = #self.root:GetDescendants(),

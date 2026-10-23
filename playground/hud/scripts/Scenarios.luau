@@ -703,7 +703,9 @@ function Scenarios.play(self: any, name: string): boolean
 	end
 	self:cancel()
 	-- a new scenario starts from a clean overlay stack (a cancelled one cannot close its own)
-	for _, key in { "settings", "garage", "portalCard", "welcome", "shop", "stunt", "cardSheet" } do
+	for _, key in
+		{ "settings", "garage", "portalCard", "welcome", "shop", "stunt", "cardSheet", "tradingSheet", "cardDetail" }
+	do
 		self.api.close(key)
 	end
 	self.api.applyMode()

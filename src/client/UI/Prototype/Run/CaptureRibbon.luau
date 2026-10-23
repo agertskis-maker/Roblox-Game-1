@@ -22,6 +22,13 @@
 -- still counts it once. A larger card reveal is left to Results (phones always use the ribbon).
 -- Reduced motion: a 0.15 s fade in place, no burst, no flight (the tray stamps at once), calm.
 --
+-- ROUND 2 (R2-V1): the title is SECURED! and the ribbon carries a static car THUMBNAIL (RunKit.thumb), NEW only on a
+-- supplied flag (car.owned == false) and the supplied Lap Pay (event.lapPay). The tray count changes ONCE, when the
+-- presentation starts (the confirmation exists; ownership is never shown only after an animation ends): tray:arrive is
+-- called then, and the later flight to the count is presentation only. On wide screens, where the card clears the
+-- protected road/target rectangle (RunLayout.revealRect), Run/SecuredReveal plays the full collectible card instead of
+-- the band: same identity, same sound, same side-slot arbitration.
+--
 --   local ribbon = CaptureRibbon.new(ctx)
 --   ribbon:pendingCards() -> { CarRef }, ribbon:takePendingCards() -> { CarRef }
 --   ribbon:dismiss(), ribbon:layout(), ribbon:setVisible(on), ribbon:destroy(),
@@ -53,7 +60,14 @@ local PRESENTED_MEMORY = 64
 local CaptureRibbon = {}
 CaptureRibbon.__index = CaptureRibbon
 
-type Item = { id: string, kind: "Confirmed" | "Joyride", car: Store.CarRef, amount: number?, at: number }
+type Item = {
+	id: string,
+	kind: "Confirmed" | "Joyride",
+	car: Store.CarRef,
+	amount: number?,
+	lapPay: number?,
+	at: number,
+}
 
 function CaptureRibbon.new(ctx: RunLayout.Ctx)
 	local self = setmetatable({}, CaptureRibbon)
@@ -72,6 +86,9 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 	self._bursts = 0
 	self._pieces = 0
 	self._flights = 0
+	self._cards = 0
+	self._mode = "Side"
+	self._thumb = nil :: ViewportFrame?
 
 	local root = self._trove:Add(RunLayout.canvas(ctx, "CaptureRibbon"))
 	self.root = root
@@ -232,6 +249,7 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 				kind = if event.kind == "KeysConfirmed" then "Confirmed" else "Joyride",
 				car = event.car :: Store.CarRef,
 				amount = event.amount,
+				lapPay = event.lapPay,
 				at = os.clock(),
 			}
 			self:_receive(item)
@@ -405,21 +423,56 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 	end
 	local joy = item.kind == "Joyride"
 	local r = RunKit.rarity(item.car)
+	-- the claim is confirmed: the tray count changes now, once (the flight below is only presentation)
+	if not joy then
+		local trayNow = RunBus.get(self._ctx, "tray")
+		if trayNow then
+			trayNow:arrive(item.id, item.car)
+		end
+	end
+	-- wide screens with a clear place: the full collectible card instead of the band
+	local reveal = if joy then nil else RunBus.get(self._ctx, "reveal")
+	if reveal and reveal.play then
+		local played = reveal:play({ id = item.id, car = item.car, lapPay = item.lapPay }, function()
+			if token ~= self._token then
+				return
+			end
+			self:_release()
+			self._current = nil
+			self:_next()
+		end)
+		if played then
+			self._cards += 1
+			Sounds.play("KeysCapture")
+			return
+		end
+	end
 	self._stripeGrad.Color = if joy then RunKit.SilverFill else A.Fill.Gold
 	self._underline.BackgroundColor3 = r.light
 	self._icon:ClearAllChildren()
-	if joy or not Arcade.icon(self._icon, "KeyLock") then
+	self._thumb = nil
+	local thumb = if joy then nil else RunKit.thumb(self._icon, item.car)
+	if thumb then
+		self._thumb = thumb
+	elseif joy or not Arcade.icon(self._icon, "KeyLock") then
 		self._icon:ClearAllChildren()
 		Arcade.icon(self._icon, if joy then "Car" else "Key")
 	end
-	self._title.Text = if joy then "JOYRIDE BONUS" else "YOU GOT THE KEYS!"
+	self._title.Text = if joy then "JOYRIDE BONUS" else "SECURED!"
 	local grad = self._title:FindFirstChildOfClass("UIGradient")
 	if grad then
 		grad.Color = if joy then RunKit.SilverFill else A.Face.Keys
 	end
 	local hex = r.light:ToHex()
+	local isNew = not joy and item.car.owned == false
 	self._identity.Text = string.format('<font color="#%s">%s</font>  %s', hex, r.label, item.car.name)
-	self._sub.Text = if joy then "Already in your Garage" else "Keep going!"
+	local line = if joy
+		then "Already in your Garage"
+		elseif item.lapPay ~= nil then "Lap Pay $" .. Format.group(math.floor(item.lapPay :: number))
+		else "Keep going!"
+	-- NEW only on the supplied flag, ahead of the Lap Pay line
+	self._sub.RichText = true
+	self._sub.Text = if isNew then '<font color="#FFE27A">NEW</font>  ' .. line else line
 	self._amount.Visible = joy and item.amount ~= nil
 	-- a PreviewCaption: the playground shows it only in captioned review captures
 	self._caption.Text = if joy and item.amount then "synthetic amount" else ""
@@ -433,7 +486,9 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 	end
 	self:layout()
 	local ribbon = self._ribbon
-	local rect = RunLayout.sideRect(self._ctx)
+	local mode, rect = RunLayout.ribbonPlacement(self._ctx)
+	local stack = mode == "Stack"
+	self:_setSecured(stack and RunLayout.compact(self._ctx)) -- the riding chip steps aside on phones
 	local w = ribbon.Size.X.Offset
 	local reduced = Motion.reduced()
 	ribbon.Visible = true
@@ -442,13 +497,20 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 		ribbon.GroupTransparency = 1
 		Motion.tween(ribbon, "fade", Motion.info(0.15), { GroupTransparency = 0 })
 	else
-		ribbon.Position = UDim2.fromOffset(rect.pos.X - w * 0.35, rect.pos.Y)
+		local from = if stack
+			then UDim2.fromOffset(rect.pos.X + 26, rect.pos.Y)
+			else UDim2.fromOffset(rect.pos.X - w * 0.35, rect.pos.Y)
+		ribbon.Position = from
 		ribbon.GroupTransparency = 1
 		Motion.tween(ribbon, "fade", Motion.info(IN), { GroupTransparency = 0 })
 		Motion.tween(ribbon, "slide", Motion.info(IN, Enum.EasingStyle.Back), {
 			Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y),
 		})
-		self:_burst(rect.pos + Vector2.new(38, rect.size.Y / 2), r.light, joy)
+		self:_burst(
+			rect.pos + Vector2.new(if stack then 36 else 38, if stack then 30 else rect.size.Y / 2),
+			r.light,
+			joy
+		)
 	end
 	task.delay(IN + A.Keys.RibbonHoldSeconds, function()
 		if token ~= self._token then
@@ -493,8 +555,8 @@ function CaptureRibbon._finish(self: CaptureRibbon, item: Item, token: number)
 	local reduced = Motion.reduced()
 	local tray = RunBus.get(self._ctx, "tray")
 	if item.kind == "Confirmed" and tray and not reduced then
-		-- the car icon flies from the ribbon and settles into the tray
-		local target = tray:arrivalPoint(item.id)
+		-- the car icon flies from the ribbon and settles at the tray count (already counted at confirmation)
+		local target = if tray.countPoint then tray:countPoint() else tray:arrivalPoint(item.id)
 		if target then
 			self._flights += 1
 			local from =
@@ -527,6 +589,7 @@ function CaptureRibbon._finish(self: CaptureRibbon, item: Item, token: number)
 	out.Completed:Connect(function(state)
 		if state == Enum.PlaybackState.Completed and token == self._token then
 			ribbon.Visible = false
+			self:_setSecured(false)
 		end
 	end)
 	self:_release()
@@ -536,6 +599,19 @@ function CaptureRibbon._finish(self: CaptureRibbon, item: Item, token: number)
 			self:_next()
 		end
 	end)
+end
+
+-- The compact stack takes the riding chip’s place on phones: the chip hides while it shows.
+function CaptureRibbon._setSecured(self: CaptureRibbon, on: boolean)
+	local flags = RunBus.flags(self._ctx)
+	if flags.secured == on then
+		return
+	end
+	flags.secured = on
+	local chip = RunBus.get(self._ctx, "ride")
+	if chip and chip.refresh then
+		chip:refresh()
+	end
 end
 
 function CaptureRibbon._release(self: CaptureRibbon)
@@ -550,9 +626,14 @@ function CaptureRibbon._abort(self: CaptureRibbon, item: Item)
 	self._token += 1
 	self._handle = nil
 	self._current = nil
+	local reveal = RunBus.get(self._ctx, "reveal")
+	if reveal then
+		reveal:cancel()
+	end
 	Motion.cancelAll(self._ribbon)
 	self._ribbon.GroupTransparency = 1
 	self._ribbon.Visible = false
+	self:_setSecured(false)
 	self:_settle(item)
 	self:_next()
 end
@@ -579,11 +660,16 @@ function CaptureRibbon.dismiss(self: CaptureRibbon)
 	self._token += 1
 	self._current = nil
 	self:_release()
+	local reveal = RunBus.get(self._ctx, "reveal")
+	if reveal then
+		reveal:cancel()
+	end
 	Motion.cancelAll(self._ribbon)
 	Motion.cancelAll(self._flyer)
 	self._flyer.Visible = false
 	self._ribbon.GroupTransparency = 1
 	self._ribbon.Visible = false
+	self:_setSecured(false)
 	if item then
 		self:_settle(item)
 	end
@@ -602,7 +688,38 @@ end
 function CaptureRibbon.layout(self: CaptureRibbon)
 	local ctx = self._ctx
 	RunLayout.fit(ctx, self.root)
-	local rect = RunLayout.sideRect(ctx)
+	local mode, rect = RunLayout.ribbonPlacement(ctx)
+	self._mode = mode
+	if mode == "Stack" then
+		-- a small stack beside the road view: thumbnail and SECURED! on top, the name (two lines, never cut) and Lap Pay
+		local w, h = rect.size.X, rect.size.Y
+		self._ribbon.Size = UDim2.fromOffset(w, h)
+		if not self._current then
+			self._ribbon.Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y)
+		end
+		self._icon.AnchorPoint = Vector2.new(0, 0)
+		self._icon.Size = UDim2.fromOffset(40, 40)
+		self._icon.Position = UDim2.fromOffset(10, 6)
+		self._title.Position = UDim2.fromOffset(56, 8)
+		self._title.Size = UDim2.new(1, -62, 0, 34)
+		self._identity.Position = UDim2.fromOffset(8, 48)
+		self._identity.Size = UDim2.new(1, -14, 0, 22)
+		self._identity.TextWrapped = false
+		self._identity.TextTruncate = Enum.TextTruncate.AtEnd
+		self._identity.TextYAlignment = Enum.TextYAlignment.Center
+		self._sub.Position = UDim2.new(0, 8, 1, -26)
+		self._sub.Size = UDim2.new(1, -14, 0, 22)
+		self._sub.TextXAlignment = Enum.TextXAlignment.Left
+		self._amount.Position = UDim2.new(1, -10, 1, -30)
+		self._caption.Position = UDim2.new(1, -8, 0, 2)
+		return
+	end
+	self._icon.AnchorPoint = Vector2.new(0, 0.5)
+	self._identity.TextWrapped = false
+	self._identity.TextTruncate = Enum.TextTruncate.AtEnd
+	self._identity.TextYAlignment = Enum.TextYAlignment.Center
+	self._icon.Position = UDim2.new(0, 14, 0.5, 0)
+	self._sub.TextXAlignment = Enum.TextXAlignment.Left
 	local compact = RunLayout.compact(ctx)
 	local h = math.min(rect.size.Y, if compact then 78 else 96)
 	local w = rect.size.X
@@ -635,7 +752,7 @@ function CaptureRibbon.setVisible(self: CaptureRibbon, on: boolean)
 end
 
 function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
-	local rect = RunLayout.sideRect(self._ctx)
+	local mode, rect = RunLayout.ribbonPlacement(self._ctx)
 	local pending = {}
 	for _, c in self._pending do
 		table.insert(pending, c.name)
@@ -651,9 +768,19 @@ function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
 		bursts = self._bursts,
 		maxBurstPieces = self._pieces,
 		flights = self._flights,
+		cards = self._cards,
+		thumb = self._thumb ~= nil,
+		sub = self._sub.Text,
 		pendingForResults = pending,
+		mode = mode,
 		box = RunLayout.describe(rect),
 		overlapsProtected = RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),
+		overlapsTray = RunLayout.overlaps(rect, RunLayout.trayRect(self._ctx)),
+		overlapsHop = RunLayout.overlaps(rect, (RunLayout.hopRect(self._ctx))),
+		overlapsHeat = RunLayout.overlaps(rect, (RunLayout.heatRect(self._ctx))),
+		overlapsChip = RunLayout.overlaps(rect, RunLayout.chipRect(self._ctx)),
+		chipSteppedAside = RunBus.flags(self._ctx).secured,
+		overlapsGear = RunLayout.overlaps(rect, RunLayout.gearRect(self._ctx)),
 	}
 end
 

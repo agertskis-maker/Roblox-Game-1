@@ -211,10 +211,10 @@ RunLayout.Route = table.freeze({
 	-- compact (phones)
 	CPitch = 60,
 	CIcon = 34,
-	CIconCurrent = 40,
+	CIconCurrent = 38,
 	CTrackH = 6,
-	CMarker = 24,
-	CCalloutH = 22,
+	CMarker = 22,
+	CCalloutH = 20,
 	CNameH = 18, -- one short label
 	CBadge = 28,
 	CWidth = 430,
@@ -422,6 +422,61 @@ function RunLayout.sideRect(ctx: Ctx): Rect
 	return RunLayout.rect(m, top, w, h, "Side")
 end
 
+-- Where the compact SECURED ribbon goes (Round 2). The side column is used when the ribbon would clear the claim
+-- tray, the protected road view and the Stamina slot. Everywhere else (every phone, and any screen where the left column
+-- is full) it is a small STACK (thumbnail, SECURED!, name, Lap Pay) in the column right of the protected road view, the
+-- very place the Keys ring just occupied: the lock opens and the ring hands over to the stack. That place was already
+-- chosen clear of the protected rectangle, the top block, Heat, Hop and the touch zones, so the stack never covers the
+-- road, the next target, the route line or the tray count it is about to feed.
+RunLayout.StackSize = Vector2.new(196, 96)
+function RunLayout.ribbonPlacement(ctx: Ctx): (string, Rect)
+	local side = RunLayout.sideRect(ctx)
+	local clash = RunLayout.overlaps(side, RunLayout.trayRect(ctx))
+		or RunLayout.overlaps(side, RunLayout.protected(ctx))
+		or RunLayout.overlaps(side, RunLayout.staminaRect(ctx))
+	if not clash then
+		return "Side", side
+	end
+	local d = RunLayout.design(ctx)
+	local prot = RunLayout.protected(ctx)
+	local size = RunLayout.StackSize
+	local m = RunLayout.Margin
+	local right = prot.pos.X + prot.size.X
+	-- the column right of the road view, just under Settings and the route line. On a phone that is where the riding
+	-- chip sits: it steps aside while the stack shows (RunBus flag secured), so the chip is not an obstacle there.
+	local gear = RunLayout.gearRect(ctx)
+	local chip = RunLayout.chipRect(ctx)
+	local phone = RunLayout.compact(ctx)
+	local strip = RunLayout.routeRect(ctx)
+	local top = gear.pos.Y + gear.size.Y + 6
+	if not phone then
+		top = math.max(top, chip.pos.Y + chip.size.Y + 6)
+	end
+	if right + m < strip.pos.X + strip.size.X then
+		top = math.max(top, strip.pos.Y + strip.size.Y + 6) -- under the route line where they share columns
+	end
+	local candidates = {
+		RunLayout.rect(right + m, top, size.X, size.Y, "RibbonStack"),
+		RunLayout.rect(d.X - 8 - size.X, top, size.X, size.Y, "RibbonStack"),
+		centred(right + m + size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
+		centred(prot.pos.X - m - size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
+	}
+	local avoid = {
+		prot,
+		RunLayout.topBlock(ctx),
+		RunLayout.gearRect(ctx),
+		(RunLayout.heatRect(ctx)),
+		(RunLayout.hopRect(ctx)),
+		RunLayout.trayRect(ctx),
+		RunLayout.staminaRect(ctx),
+	}
+	if not phone then
+		table.insert(avoid, chip)
+	end
+	local rect = RunLayout.solve(ctx, candidates, avoid)
+	return "Stack", rect
+end
+
 ----------------------------------------------------------------------------------------------
 -- Top stack publishing (legacy: RideChip reads it). RouteLine publishes the route block.
 
@@ -580,6 +635,43 @@ end
 
 RunLayout.heatPanelRect = function(ctx: Ctx): Rect
 	return (RunLayout.heatRect(ctx))
+end
+
+-- SECURED reveal card (Round 2, R2-V1): the full reward card on wide screens, ONLY where it clears the protected
+-- road/target rectangle, the top block, the touch zones and the other run pieces. The card sits in the column right of
+-- the protected region, past the Keys ring’s own spot; when no such place is clear (and always on phones) there is
+-- no card: the compact SECURED ribbon with the car thumbnail plays instead. Returns the rect, or nil and why.
+RunLayout.RevealSize = Vector2.new(200, 332) -- the reward card (200 x 280) and its Lap Pay plate
+function RunLayout.revealRect(ctx: Ctx): (Rect?, string?)
+	if RunLayout.compact(ctx) then
+		return nil, "Phone"
+	end
+	local prot = RunLayout.protected(ctx)
+	local size = RunLayout.RevealSize
+	local right = prot.pos.X + prot.size.X
+	local keys = RunLayout.KeysSize.X
+	local cy = prot.pos.Y + prot.size.Y * 0.4
+	local candidates = {
+		centred(right + 16 + keys + 16 + size.X / 2, cy, size, "Reveal"),
+		centred(right + 16 + size.X / 2, cy, size, "Reveal"),
+		centred(right + 16 + size.X / 2, prot.pos.Y + prot.size.Y * 0.62, size, "Reveal"),
+		centred(prot.pos.X - 16 - size.X / 2, cy, size, "Reveal"),
+	}
+	local avoid = {
+		prot,
+		RunLayout.topBlock(ctx),
+		RunLayout.gearRect(ctx),
+		RunLayout.chipRect(ctx),
+		(RunLayout.heatRect(ctx)),
+		(RunLayout.hopRect(ctx)),
+		RunLayout.trayRect(ctx),
+		RunLayout.staminaRect(ctx),
+	}
+	local rect, conflict = RunLayout.solve(ctx, candidates, avoid)
+	if conflict ~= nil then
+		return nil, conflict
+	end
+	return rect, nil
 end
 
 -- The static fallback for Keys (no rider part supplied, or it despawned): right of the

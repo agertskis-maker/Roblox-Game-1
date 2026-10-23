@@ -87,3 +87,31 @@ trajectory is claimed until Lane 1 supplies one. Retarget swings the stream to t
 **Best window**: filtered (enter after 80 ms, exit after 180 ms) so a value at the boundary cannot flash; the gold accent is one event per window (not within
 0.6 s of the last one, never twice for the same window id). The soft lock-on whoosh is throttled to once per 0.6 s. Reduced motion: steady arc, reticle, ring and
 button; no pop, flow or tightening animation. Cues clear on mode exit, target loss and a missing run.
+
+## 7. Capture, SECURED and the tray (R2-K1, R2-V1, R2-V2, R2-T1)
+**Escalation** (Keys ring, rider-relative as approved; this pass strengthens it): 0-50% HOLD ON (stable ring, restrained glow); 50-75% brighter
+segments and glow, subtle progress clicks, the riser keeps rising; 75-100% a larger ALMOST! that appears once and settles, ONE capped pulse of the
+glow and the transparent rarity edges at 1.0 cycle a second (with the Heat alarm at 1.25 a second the two stay under 2.5 peaks a second), sparse sparks
+(at most 3 a second), a thicker rarity accent. Critical Heat and input warnings outrank all of it. The countdown shows ONLY when the source supplies
+the remaining seconds with trusted timing (otherwise the percentage and ALMOST! say it). 100% is SECURING until the confirmation event: no fanfare,
+no ownership, no count from progress. **The car shudder is deferred** (no vehicle, seat, character root or camera is moved; documented).
+
+**SECURED**: confirmed identity only (dedupe, late and out-of-order confirmations, a run end during the reveal keeps the claim for Results). The tray count
+changes ONCE, when the presentation starts; the flight to the count is only presentation. Wide screens: the full collectible card (TradingCard Reward:
+SECURED stamp, name, rarity, family icon, NEW on a supplied flag, supplied Lap Pay) about 1.7 s, right of the protected road view only where it
+clears everything; rays, one bloom and at most 24 confetti behind it (32 pooled pieces, cap 40), a Legendary adds one gold shockwave inside the same time.
+Phones, and wherever no clear place exists: the compact SECURED stack (thumbnail, name, NEW, Lap Pay) in the column right of the road view under the route
+line (where the riding chip sits, which steps aside), same sound and identity. The full card is for Results and the detail view. Reduced motion: a steady
+card or stack, no zoom, rays, confetti, shockwave or flight. Haptics: one best-effort cue, OFF by default, never claimed felt (untested on hardware).
+
+**Tray**: static ViewportFrame thumbnails (at most four alive, no spin), a thin rarity edge, NEW, the name (16 px, truncated; wrapped in the review),
+three or four tiles then "+N"; a tapped car tile opens its card detail; independent of the Stamina meter.
+
+## 8. Collectible cards (R2-T2)
+One reusable card extending CarCard: **Compact** (grids: image, name, rarity, NEW), **Reward** (the reveal and Results: plus family icon, World scene
+and badge, SECURED stamp, Lap Pay plate) and the landscape **Detail** view (Screens/CardDetail) with the fine print: Lap Pay, a per-second row only with a
+defined lap duration (otherwise "unavailable (proposed)"), Heat capacity (the outline family table, seconds, scale 0-14 s), the quirk with one truthful line,
+finishes (owned / not owned / unknown are three states), a flavour line and the footer (World, collection number, claimed date only when supplied).
+Unowned: silhouette and "?" with no leaked finishes, number or date. Epic and Legendary get one slow masked foil sheen over the art only (text sits on
+its own dark panels), static in reduced motion, at most four live. Placeholder art is a labelled proxy model; flavour lines and Lap Pay values are
+preview fixtures. A fixed action bar (BACK, DRIVE) sits below the scrolling fine print, so nothing scrolls behind the buttons.

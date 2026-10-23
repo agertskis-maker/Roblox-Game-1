@@ -52,8 +52,25 @@
 -- the nearest edge with a small arrow toward the rider. No part / despawned: the static
 -- fallback (RunLayout.keysRect). The per-frame follow is connected only while the lock shows.
 --
+-- ROUND 2 ESCALATION (R2-K1), three tiers by supplied progress:
+--   0-50%    HOLD ON: stable segmented ring, restrained outline and glow;
+--   50-75%   brighter segments and glow, subtle progress clicks (Sounds KeysTick), the riser keeps rising;
+--   75-100%  a larger ALMOST! (it appears deliberately ONCE, pops once and settles at its bigger size), a bounded
+--            rhythmic pulse of the glow and the transparent rarity edges at ONE cycle per second (capped, never
+--            faster, never a strobe; with the Heat alarm at most 1.25 a second the two stay under 2.5 peaks a
+--            second), sparse sparks (at most 3 a second from a pool of 8) and a thicker rarity accent ring. The
+--            world side (a rarity outline and sparkles on the ridden car) is World/CaptureFx.
+-- Critical Heat and input warnings outrank all of this: while a warning or the run end is flagged
+-- (RunBus.flags) the pulse, edges and sparks are held still.
+-- COUNTDOWN (R2-K1): shown ONLY when the store supplies keys.remainingSeconds with keys.timingTrusted == true.
+-- It is never derived from progress or from animation time; otherwise the percentage and ALMOST! say it.
+-- SHUDDER: DEFERRED. A car shudder cannot be separated from the authoritative ridden vehicle in this preview
+-- (its body is the model the player drives), so no vehicle, seat, character root or camera is ever moved here;
+-- the capture outline and sparkles on the car (World/CaptureFx) carry the tension instead. Debug: bodyMotion.
+--
 -- Reduced motion: stable outline and segments, key-state changes as swaps, short fades, calm
--- confirmation; no spinning, flight, bounce, fracture movement or moving highlight.
+-- confirmation; no spinning, flight, bounce, pulse, sparks, edges, fracture movement or moving highlight; ALMOST!
+-- stays as steady bigger text.
 --
 --   local keys = KeysLock.new(ctx, { anchor = rideModelOrPart? })
 --   keys:setAnchor(instance?)
@@ -65,6 +82,7 @@ local RunService = game:GetService("RunService")
 local Arcade = require(script.Parent.Parent.Arcade)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local RunBus = require(script.Parent.RunBus)
 local RunKit = require(script.Parent.RunKit)
 local RunLayout = require(script.Parent.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
@@ -84,6 +102,11 @@ local PAD = 14 -- room around the ring for the fracture and glow
 local INSTR_H = 28
 local PERCENT_H = 24
 local FINAL_MEMORY = 64
+local TIER2_AT = 0.5 -- brighter, clicks
+local PULSE_HZ = 1.0 -- the one pulse rate (capped): at most one peak a second
+local SPARK_EVERY = 0.34 -- at most 3 sparks a second
+local SPARKS = 8
+local EDGE_WIDTH = 96 -- design px of the transparent rarity edge on each side
 
 local RANK = table.freeze({
 	Idle = 0,
@@ -110,6 +133,7 @@ type Capture = {
 	progress: number,
 	lit: number,
 	almost: boolean,
+	tier: number,
 	silver: boolean,
 	pendingToken: number,
 }
@@ -130,6 +154,9 @@ type Visual = {
 	shackleBase: UDim2,
 	keyBase: number,
 	instr: TextLabel,
+	ring: Frame,
+	sparks: { Frame },
+	edges: { Frame },
 	underline: Frame,
 	percent: TextLabel,
 	arrow: Frame,
@@ -161,6 +188,12 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 	self._track = "None"
 	self._rising = false
 	self._ticks = 0
+	self._drive = nil :: RBXScriptConnection?
+	self._driveT = 0
+	self._sparkAt = 0
+	self._sparksShown = 0
+	self._countdownShown = false
+	self._suppressed = false
 	self._visual = nil :: Visual?
 
 	local root = self._trove:Add(RunLayout.canvas(ctx, "KeysLock"))
@@ -185,12 +218,14 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 			v.pop.Scale = 1
 		end
 		self:_applyPendingLoop()
+		self:_applyDrive()
 	end))
 	self._trove:Add(function()
 		self._token += 1
 		self:_stopRise()
 		self:_stopFollow()
 		self:_stopPendingLoop()
+		self:_stopDrive()
 		if self._visual then
 			self._visual.trove:Destroy()
 			self._visual = nil
@@ -354,6 +389,47 @@ function KeysLock._build(self: KeysLock, R: number)
 	percent.AnchorPoint = Vector2.new(0.5, 1)
 	percent.Position = UDim2.fromScale(0.5, 1)
 	percent.Size = UDim2.new(1, 0, 0, PERCENT_H)
+	-- sparse sparks (tier 3, a pool; gold diamonds that drift off the ring edge) and the transparent rarity edges
+	local sparks = {}
+	for i = 1, SPARKS do
+		sparks[i] = make("Frame", {
+			Name = "Spark" .. i,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(7, 7),
+			Rotation = 45,
+			BackgroundColor3 = A.Fill.Gold.Keypoints[1].Value,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 16,
+			Parent = ring,
+		})
+	end
+	local edges = {}
+	for i, side in { "Left", "Right" } do
+		local edge = trove:Add(make("Frame", {
+			Name = "Edge" .. side,
+			AnchorPoint = Vector2.new(if i == 1 then 0 else 1, 0),
+			Position = UDim2.fromScale(if i == 1 then 0 else 1, 0),
+			Size = UDim2.new(0, EDGE_WIDTH, 1, 0),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 1,
+			Parent = self.root,
+		}))
+		make("UIGradient", {
+			Rotation = if i == 1 then 0 else 180,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Parent = edge,
+		})
+		RunKit.nonInteractive(edge)
+		edges[i] = edge
+	end
 	-- off-screen arrow (a small rotated square on the ring edge, pointing toward the rider)
 	local arrow = make("Frame", {
 		Name = "Arrow",
@@ -392,6 +468,9 @@ function KeysLock._build(self: KeysLock, R: number)
 		shackleBase = lock.shackle.Position,
 		keyBase = lock.key.Rotation,
 		instr = instr,
+		ring = ring,
+		sparks = sparks,
+		edges = edges,
 		underline = underline,
 		percent = percent,
 		arrow = arrow,
@@ -428,7 +507,12 @@ function KeysLock._paint(self: KeysLock)
 		v.shines[i].BackgroundTransparency = 1
 	end
 	v.glow.BackgroundColor3 = if c.silver then RunKit.SilverFill.Keypoints[2].Value else A.Fill.Gold.Keypoints[2].Value
-	v.glow.BackgroundTransparency = 0.9 - 0.22 * c.progress
+	v.glow.BackgroundTransparency = KeysLock._glowAlpha(c.progress, c.tier)
+	v.accent.Thickness = if c.tier >= 3 then 3.5 else 2
+	v.instr.TextSize = if c.almost then 26 else 20
+	for _, edge in v.edges do
+		edge.BackgroundColor3 = r.light
+	end
 	v.lock.shackle.Position = v.shackleBase
 	v.lock.key.Rotation = v.keyBase + 90 * (c.lit / K.Segments)
 	v.percent.Text = string.format("%d%%", math.floor(c.progress * 100 + 1e-6))
@@ -464,6 +548,17 @@ function KeysLock._stopRise(self: KeysLock)
 	Sounds.stopRise("KeysRise")
 end
 
+-- The glow gets brighter with the tiers (never below 0.5 transparency: restrained and transparent).
+function KeysLock._glowAlpha(progress: number, tier: number): number
+	local base = 0.9 - 0.22 * progress
+	if tier >= 3 then
+		return math.max(base - 0.1, 0.5)
+	elseif tier >= 2 then
+		return math.max(base - 0.05, 0.5)
+	end
+	return base
+end
+
 function KeysLock._start(self: KeysLock, id: string, car: Store.CarRef?)
 	local old = self._cap
 	if old and RANK[old.phase] < 3 then
@@ -478,6 +573,7 @@ function KeysLock._start(self: KeysLock, id: string, car: Store.CarRef?)
 		progress = 0,
 		lit = 0,
 		almost = false,
+		tier = 1,
 		silver = car ~= nil and car.owned == true,
 		pendingToken = 0,
 	}
@@ -497,9 +593,14 @@ function KeysLock._progress(self: KeysLock, p: number)
 	local lit = math.floor(progress * N + 1e-6)
 	local v = self._visual
 	local reduced = Motion.reduced()
+	local tier = if progress >= K.AlmostAt then 3 elseif progress >= TIER2_AT then 2 else 1
+	if tier > c.tier then
+		c.tier = tier
+		self:_logLine(c.id .. ": tier " .. tier)
+	end
 	if v then
 		v.percent.Text = string.format("%d%%", math.floor(progress * 100 + 1e-6))
-		v.glow.BackgroundTransparency = 0.9 - 0.22 * progress
+		v.glow.BackgroundTransparency = KeysLock._glowAlpha(progress, c.tier)
 		for i = c.lit + 1, lit do
 			local seg = v.segments[i]
 			v.segGrads[i].Enabled = true
@@ -525,6 +626,9 @@ function KeysLock._progress(self: KeysLock, p: number)
 	end
 	if lit > c.lit then
 		self._ticks += lit - c.lit
+		if c.tier >= 2 then
+			Sounds.play("KeysTick") -- subtle progress clicks from 50% (throttled by the hook)
+		end
 	end
 	c.lit = lit
 	if progress > 0 then
@@ -535,11 +639,115 @@ function KeysLock._progress(self: KeysLock, p: number)
 		c.almost = true -- exactly once per capture
 		if v then
 			v.instr.Text = "ALMOST!"
+			v.instr.TextSize = 26 -- larger, then it settles: no perpetual bounce
+			v.accent.Thickness = 3.5
 			if not reduced then
-				Motion.pop(v.instr, 1.12)
+				Motion.pop(v.instr, 1.2)
 			end
 		end
 		self:_logLine(c.id .. ": ALMOST!")
+	end
+	self:_applyDrive()
+end
+
+-- Tier 3 decoration: one capped pulse of the glow and the transparent rarity edges, sparse sparks. Nothing else
+-- moves. Held still while a warning or the run end is flagged (they outrank capture decoration), absent in reduced
+-- motion.
+function KeysLock._stopDrive(self: KeysLock)
+	if self._drive then
+		self._drive:Disconnect()
+		self._drive = nil
+	end
+	local v = self._visual
+	if v then
+		for _, edge in v.edges do
+			edge.Visible = false
+		end
+		for _, spark in v.sparks do
+			Motion.cancelAll(spark)
+			spark.Visible = false
+		end
+	end
+	self._sparksShown = 0
+end
+
+function KeysLock._applyDrive(self: KeysLock)
+	local cap = self._cap
+	local v = self._visual
+	local want = cap ~= nil and v ~= nil and self._showing and cap.phase == "Progress" and cap.tier >= 3
+	if not want or Motion.reduced() then
+		self:_stopDrive()
+		return
+	end
+	if self._drive then
+		return
+	end
+	self._driveT = 0
+	self._sparkAt = 0
+	self._drive = RunService.Heartbeat:Connect(function(dt: number)
+		local vis = self._visual
+		local c = self._cap
+		if not vis or not c or c.phase ~= "Progress" then
+			self:_stopDrive()
+			return
+		end
+		local flags = RunBus.flags(self._ctx)
+		local outranked = flags.warning or flags.ended
+		self._suppressed = outranked
+		local base = KeysLock._glowAlpha(c.progress, c.tier)
+		for _, edge in vis.edges do
+			edge.Visible = not outranked
+		end
+		if outranked then
+			vis.glow.BackgroundTransparency = base
+			return
+		end
+		self._driveT += dt
+		local k = 0.5 - 0.5 * math.cos(2 * math.pi * PULSE_HZ * self._driveT) -- one peak a second
+		vis.glow.BackgroundTransparency = base + 0.12 * (1 - k)
+		for _, edge in vis.edges do
+			edge.BackgroundTransparency = 0.8 + 0.12 * (1 - k)
+		end
+		if self._driveT - self._sparkAt >= SPARK_EVERY then
+			self._sparkAt = self._driveT
+			for _, spark in vis.sparks do
+				if not spark.Visible then
+					local a = math.random() * 2 * math.pi
+					local rr = vis.size / 2
+					local cx, cy = vis.size / 2 + PAD, vis.size / 2 + PAD
+					spark.Position = UDim2.fromOffset(cx + math.sin(a) * rr, cy - math.cos(a) * rr)
+					spark.BackgroundTransparency = 0.1
+					spark.Visible = true
+					self._sparksShown += 1
+					local out = Vector2.new(math.sin(a), -math.cos(a)) * 16
+					Motion.tween(spark, "spark", Motion.info(0.4), {
+						Position = UDim2.fromOffset(cx + math.sin(a) * rr + out.X, cy - math.cos(a) * rr + out.Y),
+						BackgroundTransparency = 1,
+					}).Completed
+						:Connect(function()
+							spark.Visible = false
+						end)
+					break
+				end
+			end
+		end
+	end)
+end
+
+-- The countdown replaces the percentage only when the source says its number is trustworthy.
+function KeysLock._countdown(self: KeysLock, keys: Store.KeysState)
+	local v = self._visual
+	local cap = self._cap
+	if not v or not cap or cap.phase ~= "Progress" then
+		self._countdownShown = false
+		return
+	end
+	local left = keys.remainingSeconds
+	if keys.timingTrusted == true and left ~= nil and left >= 0 and left == left then
+		v.percent.Text = string.format("%.1fs", left)
+		self._countdownShown = true
+	else
+		self._countdownShown = false -- unknown or variable: the percentage and ALMOST! say it
 	end
 end
 
@@ -552,7 +760,9 @@ function KeysLock._pending(self: KeysLock)
 	c.phase = "Pending"
 	c.progress = 1
 	c.lit = K.Segments
+	self._countdownShown = false
 	self:_stopRise()
+	self:_stopDrive()
 	self:_logLine(c.id .. ": Progress -> Pending")
 	self:_paint()
 	c.pendingToken += 1
@@ -580,6 +790,7 @@ function KeysLock._end(self: KeysLock, phase: string, reason: string?)
 	self:_setFinal(c.id, phase)
 	self:_stopRise()
 	self:_stopPendingLoop()
+	self:_stopDrive()
 	self:_logLine(c.id .. ": " .. from .. " -> " .. phase)
 	local v = self._visual
 	if not v or not self._showing then
@@ -672,6 +883,7 @@ function KeysLock._applyStore(self: KeysLock)
 	end
 	if k.status == "Holding" then
 		self:_progress(k.progress)
+		self:_countdown(k)
 	elseif k.status == "Pending" or k.status == "Confirmed" then
 		self:_progress(k.progress)
 		self:_pending()
@@ -766,6 +978,7 @@ end
 
 function KeysLock._hide(self: KeysLock, immediate: boolean)
 	self:_stopPendingLoop()
+	self:_stopDrive()
 	local v = self._visual
 	if not self._showing or not v then
 		self._showing = false
@@ -1092,6 +1305,14 @@ function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 		lit = cap and cap.lit,
 		segments = K.Segments,
 		almostShown = cap and cap.almost,
+		tier = cap and cap.tier,
+		pulsing = self._drive ~= nil and not self._suppressed,
+		pulseHz = PULSE_HZ,
+		decorationHeld = self._suppressed,
+		sparksShown = self._sparksShown,
+		edgesShown = v ~= nil and v.edges[1].Visible,
+		countdownShown = self._countdownShown,
+		bodyMotion = "none: a vehicle shudder is deferred; the ridden vehicle, seat, character root and camera are never moved",
 		silver = cap and cap.silver,
 		instruction = v and v.instr.Text,
 		percent = v and v.percent.Visible and v.percent.Text or nil,

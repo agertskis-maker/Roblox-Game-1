@@ -11,6 +11,7 @@
 --   RunKit.avatar(holder, trove)                -- local player's head shot; fallback glyph
 --                                                  while loading or on failure (never blocks)
 --   RunKit.nonInteractive(gui)
+--   RunKit.thumb(holder, car) -> ViewportFrame?  -- a STATIC car thumbnail for small tiles (the claimed tray)
 --   RunKit.disc(parent, name, size, colour, z) -> Frame   -- a round frame
 
 local Players = game:GetService("Players")
@@ -19,6 +20,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Arcade = require(script.Parent.Parent.Arcade)
 local Icons = require(script.Parent.Parent.Icons)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local ProxyCar = require(script.Parent.Parent.ProxyCar)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -50,6 +52,64 @@ local DISTRICT_COLOURS: { [string]: Color3 } = {
 
 function RunKit.districtColour(id: string?): Color3
 	return (id and DISTRICT_COLOURS[id]) or Color3.fromRGB(150, 160, 178)
+end
+
+-- A STATIC thumbnail of a car for small tiles: one ViewportFrame with the part-built proxy (or the real model once one
+-- exists), fitted ONCE at a front three-quarter angle. No spin and no render loop: the caller keeps at most four alive
+-- (the tray's slot count) and destroys the frame when the slot changes. nil when there is no model to show, so the
+-- caller keeps its icon.
+function RunKit.thumb(holder: Frame, car: Store.CarRef?): ViewportFrame?
+	if not car then
+		return nil
+	end
+	local model: Model? = nil
+	if car.model == "Proxy" then
+		model = ProxyCar.build(car)
+	elseif car.model ~= nil then
+		local folder = ReplicatedStorage:FindFirstChild("Cars")
+		local source = folder and folder:FindFirstChild(car.model)
+		if source and source:IsA("Model") then
+			model = source:Clone()
+		end
+	end
+	if not model then
+		return nil
+	end
+	local m = model :: Model
+	local cf, bounds = m:GetBoundingBox()
+	m:PivotTo(m:GetPivot() - Vector3.new(cf.X, cf.Y - bounds.Y / 2, cf.Z))
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+		elseif d:IsA("Script") or d:IsA("LocalScript") or d:IsA("Sound") or d:IsA("ParticleEmitter") then
+			d:Destroy()
+		end
+	end
+	local vp = Instance.new("ViewportFrame")
+	vp.Name = "Thumb"
+	vp.BackgroundTransparency = 1
+	vp.Size = UDim2.fromScale(1, 1)
+	vp.Ambient = Color3.fromRGB(190, 196, 210)
+	vp.LightColor = Color3.fromRGB(255, 252, 240)
+	vp.LightDirection = Vector3.new(-0.4, -0.9, -0.5)
+	m.Parent = vp
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = vp
+	vp.CurrentCamera = camera
+	-- fit once: the footprint fills about 80% of the width, three-quarter front, a little elevation
+	local el, yaw = math.rad(15), math.rad(35)
+	local radius = 0.5 * math.sqrt(bounds.X ^ 2 + bounds.Z ^ 2)
+	local tanH = math.tan(math.rad(camera.FieldOfView) / 2)
+	local distance = math.max(radius / math.sin(math.atan(0.8 * tanH)), bounds.Y / tanH)
+	local target = Vector3.new(0, bounds.Y * 0.5, 0)
+	local dir = Vector3.new(math.sin(yaw) * math.cos(el), math.sin(el), -math.cos(yaw) * math.cos(el))
+	camera.CFrame = CFrame.lookAt(target + dir * distance, target)
+	vp.Parent = holder
+	return vp
 end
 
 local icons2: any = nil
