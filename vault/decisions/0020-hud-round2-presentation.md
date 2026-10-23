@@ -39,3 +39,15 @@ capture and collecting feel substantial, and asks for Dusty Highway and Summit P
 Removing `src/client/UI/Prototype/Run/{HeatPanel,StaminaMeter,RouteLine,SecuredReveal}.luau`, the new
 `World/LandingReticle.luau`, `Cards/TradingCard.luau`, `City/Worlds/`, the new kit recipes and the playground
 changes removes the round-2 work. Promotion to production needs the normal workflow and the owning lanes.
+
+## Amendments after the independent review (2026-10-23)
+10. **A claimed-tray tile opens the non-blocking claims review**, never a full-screen card detail, because a full-screen overlay
+    swallows Hop and touches under a live ride. Card detail is for stopped screens (Results, Garage).
+11. **On phones the display-only Stamina meter may sink into the top of the assumed thumbstick zone** (8.2 px on PhoneLandscape,
+    20.7 px on PhoneSmall, limit 24) so the tappable tray stays clear of it and of the Cash. Reversible; reported as `staminaSoft`.
+12. **Plan checks fail** when a district lacks its signature landmark or a `required` landmark was not placed.
+13. **The Heat panel's overlap with the protected road rectangle on small frames is declared** (22 to 30%); the choice (hide the
+    title tab on phones or accept) is Adam's.
+14. **HOP STREAK is not built** until Adam says yes. The haptic cue is wired once per confirmed claim, with no Settings row yet.
+15. **B2 upload blocked**: the OBJ (meshes only) is the package to import; the FBX is x100 scale and embeds an image. Palette
+    images need a separate yes; Dusty Highway and Summit Pass uploads are not authorized.

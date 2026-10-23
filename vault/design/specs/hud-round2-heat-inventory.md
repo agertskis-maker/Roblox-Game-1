@@ -70,8 +70,8 @@ thresholds (`HeatGauge.Thresholds`, 0.6 / 0.85) are a provisional copy of Lane 1
 original configuration, not a live integrated run.**
 
 ## 5. Rules of record and the Stamina conflict (analysis only; no balance chosen)
-**Rules** (outline §Heat, decision 0008): each family has a Heat Capacity **in seconds** (no values are defined
-anywhere); Heat fills 0 → 100% while ridden; **it resets to zero on every Hop**; bumps add 15% (side scrape) / 30%
+**Rules** (outline §Heat, decision 0008): each family has a Heat Capacity **in seconds** (the outline's family table,
+`car-hop-outline-v2.md`, gives 8 to 14 s per family, Tunable; the card fixtures use those values; there is no Heat code); Heat fills 0 → 100% while ridden; **it resets to zero on every Hop**; bumps add 15% (side scrape) / 30%
 (rear-end); Calm < 60%, Warning 60–85%, Critical 85–<100%, Meltdown at 100% (thresholds Proposed / Tunable); the
 3-second escape window is Proposed (Lane 1); Hop stays available in Meltdown; a Keys meter that completes in Meltdown
 still claims; if the player has not escaped when the window ends the car crashes and the run ends. A tap with no
@@ -107,7 +107,10 @@ would otherwise have ended, and what happened next.
 
 ## 7. Integration result (Stage 2, WP5; Studio Play)
 `Prototype/Run/HeatPanel.luau` mounts the unmodified `HeatGauge`. Replaying `HEAT_SEQ` through it reproduces the baseline:
-identical stages, labels, steady values and alarm rates; eased values agree within sampling jitter
-(`Car-Hop-Art/review/hud-round2/heat/integration-equivalence.md`, `before-after-sheet.jpg`). `HeatGauge`, `RunHud`,
+identical stages, labels, steady values and alarm rates. Eased values differ at the first sample after an input (largest
+gap 0.12 of full scale on the Critical alarm build at +0.27 s, at most 0.03 on the other quantities), at most 0.02 from
++0.53 s and at most 0.005 at +0.8 s; sampling jitter is about 0.13 s
+(`Car-Hop-Art/review/hud-round2/heat/integration-equivalence.md`, `before-after-sheet.jpg`). Independent review caught an
+earlier "within 0.03" wording that the table did not support. `HeatGauge`, `RunHud`,
 `AlarmClock` and `Tokens` are byte-identical to `main` (git diff is empty for them). Label is: fixture using the original
 thresholds, not a live Lane 1 run.

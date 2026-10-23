@@ -43,3 +43,14 @@ Plan (outside the repo): `C:\Users\agert\.claude\plans\cosmic-prancing-jellyfish
 ## Escalation triggers (focused Opus turn only for these)
 (a) city generator for non-urban frontage (WP10), (b) SECURED reveal placement algorithm (WP9),
 (c) tension-music approach if layers clash (WP13), (d) visual-only car shudder that cannot be separated (WP9).
+
+## Final state (2026-10-23, after the independent review)
+- Stage 5 done: music (WP13), combined run and perf (WP14), reviewer and fixes (WP15). **B2 upload blocked** (my importer clicks
+  were refused by the permission check; nothing uploaded; notes in `Car-Hop-Art\downtown-kit-b2\IMPORT-README.md`).
+- Review fixes made after the report: music restart, tray tile no longer opens a full-screen card, stray threads, haptic call path,
+  stricter plan checks, district banner restyle, tray/Stamina overlap on phones (Stamina meter sinks 8 to 21 px into the assumed
+  thumbstick zone, `RunLayout.staminaSoft`), real assertions for the Stamina rules.
+- Declared and open: Heat over the protected road rectangle on small frames (22 to 30%), HOP STREAK not built, haptics Settings row,
+  Toast stack / Results card panels / Milestones not restyled, developer labels on the card detail, capture-id uniqueness assumption.
+- Review page: `Car-Hop-Art\review\hud-round2\index.html` + `REVIEW-ROUND2.md`; PR text `PR-2-description.md`. Push is Adam's.
+- Lock `STUDIO_LOCK.txt` released at the end of the session; own Studio window closed.
