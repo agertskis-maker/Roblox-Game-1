@@ -192,7 +192,7 @@ end
 
 -- Hide or show the run HUD (the Stunt Circuit mock has its own HUD)
 function api.setRunHudVisible(on: boolean)
-	for _, key in { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "dash" } do
+	for _, key in { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "hopCue", "dash" } do
 		local c = components[key]
 		if c and c.setVisible then
 			c:setVisible(on)
@@ -481,6 +481,10 @@ mount("rareReveal", { "World", "RareReveal" }, "Feedback", {
 	end,
 })
 mount("hopArc", { "World", "ArcTelegraph" }, "Run", { ride = backdrop.ride, target = backdrop.target })
+-- Round 2: the roof reticle (with the target rim and the brief HOP cue) and the one coordinator that drives every
+-- Hop target cue (ring, arc, reticle) from the run state
+mount("hopReticle", { "World", "LandingReticle" }, "Run", { target = backdrop.target })
+mount("hopCue", { "Run", "HopCue" }, "Run")
 mount("captureFx", { "World", "CaptureFx" }, "Feedback", { ride = backdrop.ride, rideId = "traffic-1" })
 mount("warnFx", { "World", "WarnFx" }, "Feedback", { ride = backdrop.ride, rideId = "traffic-1", badge = false })
 mount("tumble", { "World", "TumbleProxy" }, "Feedback", { ride = backdrop.ride })
@@ -498,6 +502,11 @@ do
 	if ring and ring.setTarget then
 		ring:setTarget(backdrop.target)
 		ring:setState("Hidden")
+	end
+	local hopCue = components.hopCue
+	if hopCue and hopCue.bind then
+		hopCue:bind({ ring = components.hopRing, arc = components.hopArc, reticle = components.hopReticle })
+		hopCue:setTargetModel(backdrop.target)
 	end
 	local lap = components.lapPay
 	if lap and lap.setCars then
@@ -614,7 +623,7 @@ end
 
 -- visibility by mode
 local HOME = { "stats", "menu", "tutorial", "route", "timers" }
-local RUN = { "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "dash", "runEnd" }
+local RUN = { "hopCue", "run", "ride", "routeLine", "heat", "tray", "stamina", "keys", "hop", "dash", "runEnd" }
 local function applyMode(mode: string)
 	for _, k in HOME do
 		local c = components[k]
@@ -647,13 +656,10 @@ local function applyMode(mode: string)
 			character:PivotTo(backdrop.homeSpot)
 		end
 	end
-	local ring = components.hopRing
-	if ring and ring.setState then
-		ring:setState(if mode == "Run" then "Available" else "Hidden")
-	end
-	local arc = components.hopArc
-	if arc and arc.setState then
-		arc:setState(if mode == "Run" then "Available" else "Hidden")
+	-- the Hop target cues (ring, arc, reticle) follow the run state through HopCue
+	local hopCue = components.hopCue
+	if hopCue and hopCue.refresh then
+		hopCue:refresh()
 	end
 	local platesNow = components.nameplates
 	if platesNow and platesNow.setVisible then
@@ -727,6 +733,23 @@ function api.setRecord(recordM: number?, verified: boolean?)
 end
 function api.setSpeed(metresPerSecond: number?)
 	scenarios.speed = metresPerSecond
+end
+-- Round 2 Hop cues: the ONE selected target, by traffic index (2 = the Puglet ahead). Retargeting sends the new id
+-- through the run state (what Lane 1 would do) and points every cue model at the same car.
+function api.setHopTarget(index: number?): string
+	local model = if index then backdrop.traffic[index] else nil
+	api.patchRun({ hopTargetId = if model then "traffic-" .. tostring(index) else nil })
+	local run = store:get().run
+	if run and not model then
+		local merged = table.clone(run) :: any
+		merged.hopTargetId = nil
+		store:set("run", merged)
+	end
+	local cue = components.hopCue
+	if cue and cue.setTargetModel then
+		cue:setTargetModel(model)
+	end
+	return if model then model.Name else "none"
 end
 api.heatVariant = "Original"
 function api.setHeatVariant(variant: string)

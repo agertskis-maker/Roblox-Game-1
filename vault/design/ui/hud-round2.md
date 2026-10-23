@@ -63,3 +63,27 @@ checkered BEST badge sits at the line’s right end; it is a record badge, not a
   the line (none in reduced motion) and a "LAP n" tag. This is a **district-route cycle, not a Speedway income lap.** The tag word is a proposal.
 - **Arrival.** One short emphasis per (cycle, district) however often a boundary is crossed; the banner is deduped by district + cycle (DistrictBanner).
 - **Held:** the production World loop, verified-record flag, run id, plan colour and phone labels are fixtures until the team agrees the contract (ledger table).
+
+## 6. Hop (R2-P1)
+The concept is a CHARACTER leaping from roof to roof; the car does not jump and nothing here changes a pose, velocity, collision or camera
+(Lane 1 owns them). The button icon is **HopFigure**: a figure over a dotted arc between two simplified roofs; the silhouette reads first at phone size.
+
+**One coordinated target** (Run/HopCue drives all of it from the run state): the dashed teal footprint ring says where; a small roof reticle
+(four corner brackets, anchored to the model bounds, a seat-height anchor for open vehicles) says the landing spot; a thin teal rim outlines the
+target; one brief HOP word appears when a target locks on. The arc is a **narrow chevron stream** (9 pooled chevrons, never more than 12, depth-tested,
+brighter toward the landing, flowing toward the target, a steady arc in reduced motion). It is a **target-direction cue, not a ballistic path**: no
+trajectory is claimed until Lane 1 supplies one. Retarget swings the stream to the new target at once; nothing of the old one remains.
+
+**State precedence** (explicit and tested): OutOfStamina > Cooldown > NoTarget > BestTiming > Ready. An unavailable or empty state never advertises best timing.
+
+| State | Button | Target cues |
+|---|---|---|
+| Ready | teal, HopFigure, HOP | ring, chevrons, reticle, rim |
+| BestTiming | steady gold ring, one brief pop | reticle tightens to 72% and turns gold, chevrons warm to gold, ring tightens |
+| Cooldown | dark sweep, WAIT | grey ring only |
+| NoTarget | grey, hatched | nothing |
+| OutOfStamina | grey, red slash across the icon, empty-bolt badge | grey ring only |
+
+**Best window**: filtered (enter after 80 ms, exit after 180 ms) so a value at the boundary cannot flash; the gold accent is one event per window (not within
+0.6 s of the last one, never twice for the same window id). The soft lock-on whoosh is throttled to once per 0.6 s. Reduced motion: steady arc, reticle, ring and
+button; no pop, flow or tightening animation. Cues clear on mode exit, target loss and a missing run.

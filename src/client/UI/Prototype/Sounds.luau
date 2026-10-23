@@ -45,6 +45,7 @@ export type Hook =
 	| "KeysRise"
 	| "KeysCapture"
 	| "Hop"
+	| "HopLock"
 	| "Dash"
 	| "Milestone"
 	| "ResultsCount"
@@ -115,6 +116,8 @@ local ROUTES: { [string]: { category: string, minInterval: number, volumeScale: 
 	Warning = { category = "Warning", minInterval = 1.2 },
 	Bonk = { category = "Bonk", minInterval = 0.5 },
 	Hop = { category = "Bonk", minInterval = 0.3, volumeScale = 0.6 },
+	-- the soft lock-on whoosh when a target is selected; throttled so target flicker cannot spam it (Round 2)
+	HopLock = { category = "Rise", minInterval = 0.6, volumeScale = 0.5 },
 	ResultsTick = { category = "Tick", minInterval = 0.08 },
 	ResultsCount = { category = "Tick", minInterval = 0.3 },
 }

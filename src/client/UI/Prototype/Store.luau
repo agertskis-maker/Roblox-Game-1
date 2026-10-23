@@ -105,8 +105,11 @@ export type RunState = {
 	stage: "Calm" | "Warning" | "Critical" | "Meltdown",
 	ride: CarRef?,
 	keys: KeysState?,
-	hop: "Unavailable" | "Available" | "Timing",
+	hop: "Unavailable" | "Available" | "Timing", -- Timing = the best-timing window (the HUD filters its flicker)
 	hopCooldown01: number, -- 0 ready .. 1 just used
+	-- Round 2 Hop cues (FIXTURES; Brian R owns the target, the window and any trajectory):
+	hopTargetId: string?, -- identity of the ONE selected target (retarget = a new id; nil = none)
+	hopWindowId: string?, -- event identity of one best-timing window (the gold accent plays once per id)
 	dash: number?, -- remaining 0..1 while a Foot Dash runs, nil otherwise
 	best: number,
 	-- Round 2 route line (FIXTURES; Brian L owns the record, Brian R the distance and district boundaries):

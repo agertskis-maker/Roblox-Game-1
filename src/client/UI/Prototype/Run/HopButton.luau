@@ -12,11 +12,15 @@
 --   touch     no key label (the button is the control)
 --   gamepad   the bound button's chip. No real binding exists in the preview: ButtonA is the
 --             documented ASSUMPTION ("A"), overridable with options.gamepadKey.
+-- Round 2: the icon is HopFigure (a character leaping between two roofs along a dotted arc; the car does not jump),
+-- and the display state follows HopState (precedence OutOfStamina > Cooldown > NoTarget > BestTiming > Ready), filtered
+-- by Run/HopCue when one is mounted (best timing is debounced; the gold accent is one event per window).
 -- States, never by colour alone:
---   Available    teal, full-strength icon, "HOP"
---   Timing       + a white ring around the button (gentle pulse; static in reduced motion)
---   cooldown     a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
---   Unavailable  grey fill + dimmed icon + diagonal hatching + "HOP" dimmed; not pressable
+--   Ready        teal, full-strength icon, "HOP"
+--   BestTiming   + a STEADY gold ring around the button, one brief pop when the window opens (none in reduced motion)
+--   Cooldown     a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
+--   NoTarget     grey fill + dimmed icon + diagonal hatching + "HOP" dimmed; not pressable
+--   OutOfStamina grey fill + a slash across the icon + the empty-bolt badge; not pressable; never shows best timing
 --
 --   local hop = HopButton.new(ctx, { onHopIntent = fn?, gamepadKey = "A"? })
 --   hop:setHopIntent(fn)        -- preview: called on press; no gameplay
@@ -28,8 +32,10 @@ local UserInputService = game:GetService("UserInputService")
 
 local Arc = require(script.Parent.Arc)
 local Arcade = require(script.Parent.Parent.Arcade)
+local HopState = require(script.Parent.HopState)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local RunBus = require(script.Parent.RunBus)
 local RunLayout = require(script.Parent.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -39,6 +45,7 @@ local make = Arcade.make
 
 local SIZE = PreviewTokens.Size.HopButton -- 96 design px body
 local KEY_CHIP_H = 26
+local GOLD = Color3.fromRGB(255, 204, 48) -- the one timing accent (Keys gold stays a different, nearby shape)
 
 export type InputKind = "Keyboard" | "Touch" | "Gamepad"
 export type Options = { onHopIntent: (() -> ())?, gamepadKey: string? }
@@ -53,6 +60,8 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 	self._trove = Trove.new()
 	self._visible = true
 	self._state = "" :: string
+	self._cue = nil :: any
+	self._accents = 0
 	self._cooldown = 0
 	self._intents = 0
 	self._onIntent = opts.onHopIntent
@@ -118,7 +127,7 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 		ZIndex = 7,
 		Parent = face,
 	})
-	Arcade.icon(icon, "CarJump")
+	Arcade.icon(icon, "HopFigure")
 	-- dim veil over the icon (structure cue for cooldown / unavailable)
 	local veil = make("Frame", {
 		Name = "Dim",
@@ -161,6 +170,32 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 		})
 	end
 	self._hatch = hatch
+	-- OutOfStamina: a slash across the icon and the empty-bolt badge (a different look from NoTarget’s hatching)
+	local slash = make("Frame", {
+		Name = "Slash",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(SIZE / 2, SIZE * 0.4),
+		Size = UDim2.fromOffset(SIZE * 0.78, 7),
+		Rotation = -38,
+		BackgroundColor3 = Color3.fromRGB(226, 52, 62),
+		Visible = false,
+		ZIndex = 13,
+		Parent = face,
+	})
+	Arcade.corner(slash, 4)
+	Arcade.outline(slash, "Minor")
+	local badge = make("Frame", {
+		Name = "NoStamina",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -3, 0, 3),
+		Size = UDim2.fromOffset(30, 30),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 14,
+		Parent = face,
+	})
+	Arcade.icon(badge, "BoltEmpty")
+	self._slash, self._outBadge = slash, badge
 	-- cooldown sweep (dark wedge shrinking from hopCooldown01 to 0)
 	local sweep = Arc.new(face, SIZE * 1.5, A.Ink, 0.5, 11)
 	self._sweep = sweep
@@ -176,7 +211,7 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 		Parent = body,
 	})
 	Arcade.corner(ring, 18)
-	local ringStroke = make("UIStroke", { Thickness = 4, Color = Color3.new(1, 1, 1), Parent = ring })
+	local ringStroke = make("UIStroke", { Thickness = 5, Color = GOLD, Parent = ring })
 	local ringScale = make("UIScale", { Name = "Pulse", Parent = ring })
 	self._ring, self._ringStroke, self._ringScale = ring, ringStroke, ringScale
 	-- input key chip (keyboard / gamepad)
@@ -243,7 +278,7 @@ end
 export type HopButton = typeof(HopButton.new((nil :: any) :: RunLayout.Ctx))
 
 function HopButton._pressable(self: HopButton): boolean
-	return self._state ~= "Unavailable" and self._state ~= "" and self._cooldown <= 0.001
+	return self._state == "Ready" or self._state == "BestTiming"
 end
 
 function HopButton._intent(self: HopButton)
@@ -308,38 +343,69 @@ function HopButton._applyInput(self: HopButton)
 end
 
 function HopButton._applyRing(self: HopButton)
-	local timing = self._state == "Timing"
+	local timing = self._state == "BestTiming"
 	local ring, scale, stroke = self._ring, self._ringScale, self._ringStroke
 	Motion.cancelAll(scale)
 	Motion.cancelAll(stroke)
 	ring.Visible = timing
 	scale.Scale = 1
 	stroke.Transparency = 0
-	if timing and not Motion.reduced() and self._visible then
-		-- about 1.1 pulses per second, well under the 2.5 per second ceiling
-		local info = TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, -1, true)
-		Motion.tween(scale, "pulse", info, { Scale = 1.08 })
-		Motion.tween(stroke, "pulse", info, { Transparency = 0.5 })
+end
+
+-- One brief pop when a best-timing window opens (an event from HopCue, not a loop); none in reduced motion.
+function HopButton._accent(self: HopButton)
+	self._accents += 1
+	if Motion.reduced() or not self._visible or not self._ring.Visible then
+		return
 	end
+	local scale = self._ringScale
+	scale.Scale = 1.16
+	Motion.tween(scale, "accent", Motion.info(0.3), { Scale = 1 })
+end
+
+function HopButton._hookCue(self: HopButton)
+	if self._cue then
+		return
+	end
+	local cue = RunBus.get(self._ctx, "hopCue")
+	if not cue then
+		return
+	end
+	self._cue = cue
+	self._trove:Add(cue.Changed:Connect(function()
+		self:_apply()
+	end))
+	self._trove:Add(cue.Accent:Connect(function()
+		task.defer(function()
+			self:_accent()
+		end)
+	end))
 end
 
 function HopButton._apply(self: HopButton)
-	local run = self._ctx.store:get().run
-	self._holder.Visible = self._ctx.store:get().mode == "Run" and run ~= nil
-	local state = if run then run.hop else "Unavailable"
+	self:_hookCue()
+	local storeState = self._ctx.store:get()
+	local run = storeState.run
+	self._holder.Visible = storeState.mode == "Run" and run ~= nil
+	local cue = self._cue
+	local display: string = if cue and cue.display then cue:display() else HopState.resolve(run)
 	local cooldown = if run then math.clamp(run.hopCooldown01, 0, 1) else 0
 	self._cooldown = cooldown
 	self._sweep:set(cooldown)
-	local changed = state ~= self._state
-	self._state = state
-	local unavailable = state == "Unavailable"
-	local cooling = not unavailable and cooldown > 0.001
-	self._grad.Color = if unavailable then A.Fill.Disabled else A.Fill.Home
-	self._hatch.Visible = unavailable
-	self._veil.BackgroundTransparency = if unavailable then 0.5 elseif cooling then 0.55 else 1
+	local changed = display ~= self._state
+	self._state = display
+	local noTarget = display == "NoTarget"
+	local noStamina = display == "OutOfStamina"
+	local cooling = display == "Cooldown"
+	local blocked = noTarget or noStamina
+	self._grad.Color = if blocked then A.Fill.Disabled else A.Fill.Home
+	self._hatch.Visible = noTarget
+	self._slash.Visible = noStamina
+	self._outBadge.Visible = noStamina
+	self._veil.BackgroundTransparency = if blocked then 0.5 elseif cooling then 0.55 else 1
 	self._label.Text = if cooling then "WAIT" else "HOP"
-	self._label.TextTransparency = if unavailable then 0.35 else 0
-	self._body.Active = not unavailable
+	self._label.TextTransparency = if blocked then 0.35 else 0
+	self._body.Active = not blocked
 	if changed then
 		self:_applyRing()
 	end
@@ -388,13 +454,18 @@ function HopButton.getDebugState(self: HopButton): { [string]: any }
 		forcedInput = self._forced,
 		keyLabel = if self._chip.Visible then self._chipText.Text else nil,
 		state = self._state,
+		display = self._state,
 		cooldown01 = self._cooldown,
 		sweep = self._sweep:get(),
 		label = self._label.Text,
 		hatched = self._hatch.Visible,
 		iconDimmed = self._veil.BackgroundTransparency < 1,
 		ringShown = self._ring.Visible,
-		ringPulsing = self._ring.Visible and not Motion.reduced(),
+		ringColour = self._ringStroke.Color,
+		ringPulsing = false, -- the ring is steady; only the window’s opening pops it once
+		accents = self._accents,
+		outOfStamina = self._slash.Visible,
+		cueMounted = self._cue ~= nil,
 		intents = self._intents,
 		box = rect and RunLayout.describe(rect),
 		conflict = self._conflict,

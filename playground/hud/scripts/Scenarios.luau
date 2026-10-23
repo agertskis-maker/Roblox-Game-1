@@ -161,6 +161,7 @@ function Scenarios.startRunState(self: any)
 		-- Round 2 route line fixtures: no prior best unless a scenario or the debug panel supplies one
 		recordM = self.recordM,
 		recordVerified = self.recordVerified,
+		hopTargetId = "traffic-2", -- the Puglet ahead (Backdrop traffic index 2)
 		runId = "fixture-run-" .. tostring(self._runIndex),
 		districtPlan = self.cityPlan or self.worldPlan or Scenarios.DistrictPlan,
 		claims = {},
@@ -483,12 +484,8 @@ end
 steps["Run: Hop, Dash, milestones"] = function(self)
 	enterRun(self)
 	local s = self.store
-	local ring = self.api.components.hopRing
 	for _, st in { "Available", "Timing", "Unavailable", "Available" } do
-		runPatch(s, { hop = st })
-		if ring and ring.setState then
-			ring:setState(st)
-		end
+		runPatch(s, { hop = st }) -- the Hop cues follow the run state through HopCue
 		task.wait(1.6)
 	end
 	runPatch(s, { hopCooldown01 = 1 })

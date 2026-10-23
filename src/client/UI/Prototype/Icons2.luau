@@ -565,6 +565,30 @@ end
 
 -- RUN / FEEDBACK -----------------------------------------------------------------------------
 
+-- HopFigure (Hop, Round 2): the CHARACTER leaps between two simplified roofs along a dotted arc (the car does not
+-- jump). At 40 px the silhouette reads first: one big figure, two roofs, three dots a side.
+defaults.HopFigure = WHITE
+painters.HopFigure = function(pen)
+	flat(pen, { rect(0.2, 0.965, 0.3, 0.035, -1, INK), rect(0.8, 0.965, 0.3, 0.035, -1, INK) })
+	group(pen, { rect(0.2, 0.87, 0.3, 0.12, 0.04), rect(0.8, 0.87, 0.3, 0.12, 0.04) })
+	group(pen, {
+		flatSpec(circle(0.23, 0.73, 0.075, pen.main)),
+		flatSpec(circle(0.27, 0.63, 0.07, pen.main)),
+		flatSpec(circle(0.33, 0.55, 0.065, pen.main)),
+		flatSpec(circle(0.67, 0.57, 0.065, pen.main)),
+		flatSpec(circle(0.73, 0.65, 0.07, pen.main)),
+		flatSpec(circle(0.77, 0.74, 0.075, pen.main)),
+	})
+	group(pen, {
+		circle(0.5, 0.17, 0.17),
+		bar(0.5, 0.29, 0.5, 0.43, 0.13),
+		bar(0.5, 0.31, 0.32, 0.25, 0.08),
+		bar(0.5, 0.31, 0.68, 0.22, 0.08),
+		bar(0.5, 0.43, 0.38, 0.57, 0.09),
+		bar(0.5, 0.43, 0.61, 0.56, 0.09),
+	})
+end
+
 -- CarJump (Hop): a white car leaping up-right off a dotted arc.
 defaults.CarJump = WHITE
 painters.CarJump = function(pen)
@@ -1205,6 +1229,7 @@ Icons2.Names = {
 	"KeyLock",
 	"Padlock",
 	"CarJump",
+	"HopFigure",
 	"Trophy",
 	"Star",
 	"Music",
