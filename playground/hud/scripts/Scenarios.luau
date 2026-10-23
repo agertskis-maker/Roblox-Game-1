@@ -80,7 +80,13 @@ function Scenarios.new(api: any)
 		end
 		local r = table.clone(state.run)
 		local before = r.distance
-		r.distance += FIXTURE_SPEED_MPS * dt
+		if self.cityStation then
+			-- over the Downtown B city the distance is the route position (PROVISIONAL 1 stud = 0.28 m,
+			-- the cars README value; Lane 1 owns the real unit)
+			r.distance = math.max(before, self.cityStation() * 0.28)
+		else
+			r.distance += FIXTURE_SPEED_MPS * dt
+		end
 		-- DistrictEnter on each explicit boundary crossing of the fixture plan (Lane 1 would
 		-- supply this event; the cycle index is local to the fixture)
 		local plan = r.districtPlan
@@ -144,6 +150,10 @@ Scenarios.DistrictPlan = table.freeze({
 function Scenarios.startRunState(self: any)
 	-- a new run gets fresh event ids (the store remembers recent ids for dedupe)
 	self._runIndex = (self._runIndex or 0) + 1
+	local bd = self.api.backdrop
+	if bd and bd.restart then
+		bd.restart()
+	end
 	self.store:set("run", {
 		distance = 0,
 		coins = 0,
@@ -155,7 +165,7 @@ function Scenarios.startRunState(self: any)
 		hopCooldown01 = 0,
 		dash = nil,
 		best = 1100,
-		districtPlan = Scenarios.DistrictPlan,
+		districtPlan = self.cityPlan or Scenarios.DistrictPlan,
 		claims = {},
 		pendingClaim = nil,
 		warning = nil,

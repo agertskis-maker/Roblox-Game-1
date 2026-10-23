@@ -476,7 +476,7 @@ function BaseFixtures.place(self: BaseFixtures, origin: CFrame)
 		text = "DOWNTOWN",
 		adornee = portalModel,
 		preset = "Gold",
-		worldHeight = 4,
+		worldHeight = 8,
 		verticalOffset = 1.5,
 		maxDistance = 300,
 	})
@@ -532,11 +532,11 @@ function BaseFixtures.placeDestinations(self: BaseFixtures, origin: CFrame): { a
 	local cctx = self:_childCtx()
 	local out = {}
 	local specs: { { text: string, preset: any, kind: string, x: number } } = {
-		{ text = "GARAGE", preset = "Teal", kind = "Garage", x = -48 },
-		{ text = "STUNT CIRCUIT", preset = "Orange", kind = "Arch", x = -24 },
+		{ text = "GARAGE", preset = "Teal", kind = "Garage", x = -110 },
+		{ text = "STUNT CIRCUIT", preset = "Orange", kind = "Arch", x = -55 },
 		{ text = "DOWNTOWN", preset = "Gold", kind = "Portal", x = 0 },
-		{ text = "DUSTY HIGHWAY", preset = "Red", kind = "Portal", x = 24 },
-		{ text = "SUMMIT PASS", preset = "White", kind = "Portal", x = 48 },
+		{ text = "DUSTY HIGHWAY", preset = "Red", kind = "Portal", x = 55 },
+		{ text = "SUMMIT PASS", preset = "White", kind = "Portal", x = 110 },
 	}
 	for _, spec in specs do
 		local base = origin * CFrame.new(spec.x, 0, 0)
@@ -573,7 +573,7 @@ function BaseFixtures.placeDestinations(self: BaseFixtures, origin: CFrame): { a
 			text = spec.text,
 			adornee = m,
 			preset = spec.preset,
-			worldHeight = 4,
+			worldHeight = 8,
 			verticalOffset = 1.5,
 			maxDistance = 320,
 		})

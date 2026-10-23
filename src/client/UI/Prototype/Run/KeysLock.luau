@@ -201,7 +201,9 @@ export type KeysLock = typeof(KeysLock.new((nil :: any) :: RunLayout.Ctx))
 
 local function ringSize(ctx: RunLayout.Ctx): number
 	local d = RunLayout.design(ctx)
-	return math.floor(math.clamp(K.RingSize, 64, math.max(64, math.min(d.X, d.Y) * 0.24)))
+	-- phone landscape is short: a smaller cap keeps the ring between the ride chip and Hop
+	local cap = if ctx.screen:profile().name == "PhoneLandscape" then 0.19 else 0.24
+	return math.floor(math.clamp(K.RingSize, 64, math.max(64, math.min(d.X, d.Y) * cap)))
 end
 
 function KeysLock._build(self: KeysLock, R: number)
@@ -883,7 +885,23 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 	local halfW = v.width / 2
 	local up = v.ringCentreY
 	local down = v.height - v.ringCentreY
-	local avoid = { prot, RunLayout.topBlock(ctx), (RunLayout.heatRect(ctx)), (RunLayout.hopRect(ctx)) }
+	-- the top row piece by piece (strip, coins, Settings) rather than the full-width top band, so
+	-- the ring can use the right column under Settings on short screens
+	local avoid = {
+		prot,
+		RunLayout.stripRect(ctx),
+		RunLayout.coinsRect(ctx),
+		RunLayout.gearRect(ctx),
+		(RunLayout.heatRect(ctx)),
+		(RunLayout.hopRect(ctx)),
+	}
+	if ctx.screen:profile().name ~= "PhoneLandscape" then
+		table.insert(avoid, RunLayout.chipRect(ctx)) -- the chip only steps aside on phone landscape
+	end
+	-- never inside a reserved touch zone (seen in the thumbstick zone on phone landscape in Studio)
+	for _, z in RunLayout.zones(ctx) do
+		table.insert(avoid, z)
+	end
 	local function clampInside(c: Vector2): Vector2
 		return Vector2.new(math.clamp(c.X, halfW + 4, d.X - halfW - 4), math.clamp(c.Y, up + 4, d.Y - down - 4))
 	end
@@ -918,6 +936,19 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 		Vector2.new(p.X, prot.pos.Y - m - down),
 		Vector2.new(prot.pos.X + prot.size.X + m + halfW, prot.pos.Y + prot.size.Y * 0.3),
 	}
+	-- short screens: the gap between the ride chip and Hop, right of the road
+	do
+		-- phone landscape: the ride chip hides during a capture, so the gap starts under the gear
+		local chip = if ctx.screen:profile().name == "PhoneLandscape"
+			then RunLayout.gearRect(ctx)
+			else RunLayout.chipRect(ctx)
+		local hop = RunLayout.hopRect(ctx)
+		local gapTop = chip.pos.Y + chip.size.Y + 4
+		local gapBottom = hop.pos.Y - 4
+		local cy = gapTop + up + math.max(0, (gapBottom - gapTop - up - down) / 2)
+		table.insert(candidates, Vector2.new(prot.pos.X + prot.size.X + m + halfW, cy))
+		table.insert(candidates, Vector2.new(d.X - 8 - halfW, cy))
+	end
 	-- prefer the side the rider is on when it has drifted right of centre
 	if p.X > d.X * 0.62 then
 		candidates[1], candidates[2] = candidates[2], candidates[1]

@@ -346,7 +346,9 @@ function HeatBar.layout(self: HeatBar)
 	local rect, conflict = RunLayout.heatRect(ctx)
 	self._rect = rect
 	self._conflict = conflict
-	local compact = RunLayout.compact(ctx)
+	-- compact on small screens, and whenever the layout had to fall back to the compact rect
+	-- (tablet: the full-width stage words overlapped there)
+	local compact = RunLayout.compact(ctx) or rect.size.X < RunLayout.HeatFull.X
 	self._compact = compact
 	RunLayout.place(self._holder, rect)
 	local w, h = rect.size.X, rect.size.Y

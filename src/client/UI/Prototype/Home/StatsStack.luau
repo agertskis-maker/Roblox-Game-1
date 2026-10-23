@@ -340,11 +340,26 @@ function StatsStack.layout(self: any)
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local L = Layout.forProfile(ctx.screen:profile(), scale)
-	self.root.Position = UDim2.fromOffset(L.stats.x * scale, L.stats.bottom * scale) -- layer px
+	local override = self._runAnchor :: Vector2?
+	if override then
+		self.root.Position = UDim2.fromOffset(override.X * scale, override.Y * scale)
+	else
+		self.root.Position = UDim2.fromOffset(L.stats.x * scale, L.stats.bottom * scale) -- layer px
+	end
 	self._placement = L.stats.placement
 	if self._cash then
 		self._cash:layout()
 	end
+end
+
+-- Run-time placement override (design px of the block's bottom-left; nil = the Home layout).
+-- Used on phone landscape, where the bottom-left sits over the thumbstick and the rider.
+function StatsStack.setRunAnchor(self: any, anchor: Vector2?, scale: number?)
+	self._runAnchor = anchor
+	if self._compact then
+		self._compactScale.Scale = scale or (A.Text.ValueRun / A.Text.Value)
+	end
+	self:layout()
 end
 
 function StatsStack.setCompact(self: any, on: boolean)

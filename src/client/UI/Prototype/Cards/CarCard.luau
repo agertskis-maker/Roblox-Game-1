@@ -570,7 +570,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	local pips: Frame = make("Frame", {
 		Name = "Pips",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(60, 16),
+		Size = UDim2.fromOffset(50, 16),
 		ZIndex = 6,
 		Parent = strip,
 	})
@@ -579,8 +579,8 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		local p: Frame = make("Frame", {
 			Name = "Pip" .. i,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0, 6 + (i - 1) * 12, 0.5, 0),
-			Size = UDim2.fromOffset(9, 9),
+			Position = UDim2.new(0, 5 + (i - 1) * 10, 0.5, 0),
+			Size = UDim2.fromOffset(8, 8),
 			Rotation = 45,
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
@@ -918,7 +918,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			quirkRow.Visible = false
 		else
 			rarityLabel.Position = UDim2.fromOffset(4, 0)
-			rarityLabel.Size = UDim2.new(1, -8 - 64, 1, 0)
+			rarityLabel.Size = UDim2.new(1, -8 - 52, 1, 0) -- room for LEGENDARY / UNCOMMON at 16 px
 			rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
 			rarityLabel.TextScaled = true
 			pips.Parent = strip

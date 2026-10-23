@@ -146,7 +146,9 @@ function Screen._layout(self: ScreenObject)
 	local viewport = if camera then camera.ViewportSize else p.size
 	-- leave a little room round the device for the preview controls
 	local fit = math.min((viewport.X - 24) / p.size.X, (viewport.Y - 24) / p.size.Y, 1)
-	self._fit.Scale = math.max(fit, 0.05)
+	local newFit = math.max(fit, 0.05)
+	local fitChanged = math.abs(self._fit.Scale - newFit) > 1e-3
+	self._fit.Scale = newFit
 	local i = p.insets
 	self.safe.Position = UDim2.fromOffset(i.left, i.top)
 	self.safe.Size = UDim2.fromOffset(p.size.X - i.left - i.right, p.size.Y - i.top - i.bottom)
@@ -171,6 +173,11 @@ function Screen._layout(self: ScreenObject)
 			label.Parent = f
 			f.Parent = self._zones
 		end
+	end
+	-- a viewport resize changes the fit: components that cache it (world billboards) re-lay out
+	local changed = (self :: any).Changed
+	if fitChanged and changed then
+		changed:Fire(p)
 	end
 end
 

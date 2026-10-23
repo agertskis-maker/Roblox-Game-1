@@ -257,6 +257,16 @@ local function districts(): { District }
 end
 
 -- Which finishes each district may use (finish = the material family baked into a lot mesh).
+-- the B2 kit's meta.district codes
+local KIT_DISTRICTS: { [string]: { string } } = {
+	MS = { "MainStreet" },
+	CH = { "CityHall" },
+	HB = { "HarborBridge" },
+	MT = { "Midtown" },
+	SP = { "SkylinePark" },
+	any = { "MainStreet", "CityHall", "HarborBridge", "Midtown", "SkylinePark" },
+}
+
 local FINISH_DISTRICTS: { [string]: { string } } = {
 	brick = { "MainStreet", "HarborBridge" },
 	cream = { "MainStreet", "SkylinePark" },
@@ -361,7 +371,7 @@ local LANDMARKS: { Landmark } = {
 	},
 	{
 		id = "HarborBridge",
-		name = "B2_LM_HarborBridge",
+		name = "B2_LM_BridgeArch192_L4W17",
 		label = "HARBOR BRIDGE",
 		width = 384,
 		depth = 0,
@@ -383,7 +393,7 @@ local LANDMARKS: { Landmark } = {
 	},
 	{
 		id = "Stadium",
-		name = "B2_LM_Stadium",
+		name = "B2_Sky_Stadium",
 		label = "STADIUM",
 		width = 220,
 		depth = 220,
@@ -439,15 +449,16 @@ local LANDMARKS: { Landmark } = {
 }
 
 local PROPS: { [string]: string } = {
-	lamp = "B2_Furn_Lamp",
-	bridgeLamp = "B2_Furn_BridgeLamp",
-	tree = "B2_Furn_Tree",
-	bench = "B2_Furn_Bench",
-	bin = "B2_Furn_Bin",
-	hydrant = "B2_Furn_Hydrant",
-	bikeRack = "B2_Furn_BikeRack",
-	planter = "B2_Furn_Planter",
-	busStop = "B2_Furn_BusStop",
+	-- the B2 kit's street furniture names (assets/downtown/kit-b/README.md)
+	lamp = "B2_Street_Lamp",
+	bridgeLamp = "B2_Street_LampFormal",
+	tree = "B2_Street_Tree",
+	bench = "B2_Street_Bench",
+	bin = "B2_Street_Bin",
+	hydrant = "B2_Street_Hydrant",
+	bikeRack = "B2_Street_BikeRack",
+	planter = "B2_Street_Planter",
+	busStop = "B2_Street_BusStop",
 }
 
 -- Small fictional sign family (§16): the three named in the brief plus originals. No real logos.
@@ -472,7 +483,8 @@ function Catalog.roadName(kind: string, length: number, lanes: number, laneWidth
 	if kind == "CurveL" or kind == "CurveR" then
 		return "B2_Road_" .. kind .. "_" .. lane
 	end
-	local short = if kind == "BridgeDeck" then "Bridge" else kind
+	-- the kit's names: BridgeDeck192, TransitionVerge96
+	local short = if kind == "Transition" then "TransitionVerge" else kind
 	return "B2_Road_" .. short .. tostring(math.floor(length + 0.5)) .. "_" .. lane
 end
 
@@ -495,6 +507,10 @@ end
 
 local function districtsOf(raw: any, finish: string): { string }
 	if type(raw) == "string" then
+		local code = KIT_DISTRICTS[raw]
+		if code then
+			return table.clone(code)
+		end
 		return { raw }
 	end
 	if type(raw) == "table" then
@@ -643,6 +659,26 @@ end
 
 local function mergeLot(cat: Catalog, name: string, meta: { [string]: any }?, bounds: any)
 	local typeName, widthText, lr, finish = string.match(name, "^B2_Lot_(%a-)(%d+)([LR]?)_(.+)$")
+	-- the B2 kit: B2_Lot_<Type><Width><Height?>_<variant>, with type, width, height class,
+	-- orientation and district in meta (e.g. B2_Lot_Shop24Low_a, B2_Lot_Corner24Mid_L, B2_Lot_Park48)
+	local m0 = meta or {}
+	if type(m0.module) == "string" then
+		local moduleName = m0.module :: string
+		local hc = m0.height_class
+		typeName = if moduleName == "corner"
+			then "Corner"
+			elseif moduleName == "tall" then "Tall"
+			elseif moduleName == "park" then "Park"
+			elseif moduleName == "plaza" or moduleName == "pocket" then "Court"
+			elseif hc == "low" then "Shop"
+			else "Mid"
+		widthText = tostring(m0.width or string.match(name, "(%d+)") or 24)
+		lr = if m0.orientation == "corner-L" then "L" elseif m0.orientation == "corner-R" then "R" else ""
+		finish = tostring(m0.colourway or string.match(name, "_(%w+)$") or "a")
+		if moduleName ~= "shop" and moduleName ~= "corner" then
+			m0.shop = false
+		end
+	end
 	if not typeName then
 		typeName, widthText, lr, finish = string.match(name, "^B2_Lot_(%a-)(%d+)([LR]?)$")
 		finish = finish or "plain"
@@ -701,6 +737,11 @@ end
 local function mergeLandmark(cat: Catalog, name: string, meta: { [string]: any }?)
 	local id = string.match(name, "^B2_LM_(.+)$")
 	if not id then
+		return
+	end
+	-- kit parts that are not frontage landmarks of their own: the bridge arches (placed by the
+	-- built-in HarborBridge entry) and the car wash brush / roller rigs
+	if string.find(id, "^BridgeArch") or string.find(id, "Brush$") or string.find(id, "Roller$") then
 		return
 	end
 	local m = meta or {}
@@ -776,10 +817,38 @@ function Catalog.load(options: LoadOptions?): Catalog
 	table.sort(names) -- deterministic merge order
 	for _, name in names do
 		local info = metaByName[name]
+		-- the B2 manifest keeps fields at the top level and has no module / width / height class;
+		-- the mesh file's own meta has them, so lots and landmarks read it from the kit folder
+		local isLot = string.sub(name, 1, 7) == "B2_Lot_"
+		if (isLot or string.sub(name, 1, 6) == "B2_LM_") and kit then
+			local file = kit:FindFirstChild(name)
+			if file then
+				local value = Catalog.readData(file)
+				if type(value) == "table" and type(value.meta) == "table" then
+					info = { meta = value.meta, bounds = value.bounds or (info and info.bounds) }
+				end
+			end
+		end
 		if string.sub(name, 1, 7) == "B2_Lot_" then
 			mergeLot(cat, name, info and info.meta, info and info.bounds)
 		elseif string.sub(name, 1, 6) == "B2_LM_" then
 			mergeLandmark(cat, name, info and info.meta)
+		end
+	end
+	-- kit-first: when the kit supplies lots, the built-in placeholder lots are not used (they
+	-- have no meshes and would only ever show as proxies)
+	local kitLots = 0
+	for _, l in cat.lots do
+		if l.fromKit then
+			kitLots += 1
+		end
+	end
+	if kitLots > 0 then
+		for i = #cat.lots, 1, -1 do
+			if not cat.lots[i].fromKit then
+				cat.lotByName[cat.lots[i].name] = nil
+				table.remove(cat.lots, i)
+			end
 		end
 	end
 	if cat.kitCount > 0 or cat.manifestCount > 0 then

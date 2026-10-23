@@ -5,7 +5,22 @@
 -- HUD pieces are hidden while the sheet shows; the next scenario's applyMode restores them.
 -- Hide the sheet again with the component's setVisible(false) (or "Specimen: off").
 
-local HOME_AND_RUN = { "cash", "menu", "tutorial", "route", "run", "ride", "keys", "hop", "dash" }
+local HOME_AND_RUN = {
+	"stats",
+	"timers",
+	"menu",
+	"tutorial",
+	"route",
+	"run",
+	"ride",
+	"strip",
+	"heat",
+	"tray",
+	"keys",
+	"hop",
+	"dash",
+	"nameplates",
+}
 
 local function specimen(host: any): any?
 	local c = host.api.components.specimen

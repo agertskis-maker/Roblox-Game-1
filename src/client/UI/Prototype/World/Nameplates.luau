@@ -373,6 +373,11 @@ function Nameplates._tick(self: Nameplates)
 	local candidates: { Candidate } = {}
 	if self._visible then
 		for _, t in self._tracked do
+			-- the ridden car's plate only while it is being captured (lead, 2026-10-23: it sat in the
+			-- middle of the road ahead in Studio, and the ride chip already names the car)
+			if t.id == self._ridden and t.state == nil then
+				continue
+			end
 			local anchor = t.part.Position + Vector3.new(0, t.top, 0)
 			local dist = (anchor - camPos).Magnitude
 			t.dist = dist

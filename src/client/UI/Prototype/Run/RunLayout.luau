@@ -27,6 +27,7 @@ local Workspace = game:GetService("Workspace")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Screen = require(script.Parent.Parent.Screen)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Store = require(script.Parent.Parent.Store)
@@ -202,7 +203,7 @@ RunLayout.Strip = table.freeze({
 	StubW = 36,
 	Gap = 6,
 	Head = 36,
-	HeadY = 60, -- head top, overlapping the tile row a little
+	HeadY = 76, -- head top, just under the tile row (it covered the current name at 60)
 	DistanceH = 26,
 	-- compact (phones): current + progress track + next
 	CompactCurrentW = 104,
@@ -352,10 +353,17 @@ function RunLayout.sideRect(ctx: Ctx): Rect
 		local h = math.max(prot.pos.Y - 6 - top, 64)
 		return RunLayout.rect(m, top, d.X - 2 * m, h, "Side")
 	end
-	local w = math.min(prot.pos.X - 2 * m, 360)
+	local pname = ctx.screen:profile().name
+	-- phone landscape: at least 300 wide so YOU GOT THE KEYS! never truncates (it then reaches
+	-- a little into the sky band of the protected region, not the road)
+	local w = math.min(math.max(prot.pos.X - 2 * m, if pname == "PhoneLandscape" then 300 else 0), 360)
 	local h = if RunLayout.compact(ctx) then 78 else 96
 	local banner = RunLayout.bannerRect(ctx)
 	local top = banner.pos.Y + 2
+	-- below the run-time top-row stats (phone landscape, tablet: HudPlayground setRunAnchor)
+	if pname == "PhoneLandscape" or pname == "Tablet" then
+		top = math.max(top, 80)
+	end
 	-- keep clear of the claim tray below it
 	local tray = RunLayout.trayRect(ctx)
 	if top + h > tray.pos.Y - 6 then
@@ -412,8 +420,16 @@ end
 RunLayout.ChipSize = Vector2.new(220, 44)
 function RunLayout.gearRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
+	-- the labelled red Settings rectangle (Arcade Small) replaced the 48 px gear
+	local w = PreviewTokens.Arcade.Button.SmallW
 	local g = RunLayout.Gear
-	return RunLayout.rect(d.X - RunLayout.Margin - g, RunLayout.Margin, g, g + 4, "Options")
+	local r = RunLayout.rect(d.X - RunLayout.Margin - w, RunLayout.Margin, w, g + 4, "Options")
+	-- narrow screens (portrait): below the district strip when they would touch
+	local strip = RunLayout.stripRect(ctx)
+	if RunLayout.overlaps(r, strip) then
+		r = RunLayout.rect(r.pos.X, strip.pos.Y + strip.size.Y + 6, w, g + 4, "Options")
+	end
+	return r
 end
 
 -- The ride chip (legacy RideChip) under the gear; moved below the strip when they would touch.
@@ -482,6 +498,15 @@ function RunLayout.heatRect(ctx: Ctx): (Rect, string?)
 	local thumb = zone(ctx, "Thumbstick")
 	local leftLimit = if thumb then thumb.pos.X + thumb.size.X + 6 else RunLayout.Margin
 	table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), y, size.X, size.Y, "Heat"))
+	-- still on the bottom row: centred in the gap between the thumbstick zone and Hop, full size
+	-- then compact (tablet: the thumbstick zone is wide)
+	local gapL, gapR = leftLimit, hop.pos.X - 6
+	for _, sz in { size, RunLayout.HeatCompact } do
+		if gapR - gapL >= sz.X then
+			local cy = d.Y - bottomGap - sz.Y
+			table.insert(candidates, RunLayout.rect((gapL + gapR) / 2 - sz.X / 2, cy, sz.X, sz.Y, "Heat"))
+		end
+	end
 	local upY = hop.pos.Y - 8 - size.Y
 	table.insert(candidates, RunLayout.rect(d.X / 2 - size.X / 2, upY, size.X, size.Y, "Heat"))
 	table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), upY, size.X, size.Y, "Heat"))
@@ -489,7 +514,10 @@ function RunLayout.heatRect(ctx: Ctx): (Rect, string?)
 		candidates,
 		RunLayout.rect(math.max(leftLimit, d.X - RunLayout.Margin - size.X), upY, size.X, size.Y, "Heat")
 	)
-	return RunLayout.solve(ctx, candidates, { RunLayout.protected(ctx), hop })
+	-- Heat is bottom centre by Adam's decision, below the rider: it avoids Hop and the reserved
+	-- zones, not the protected region (on phones that region reaches the bottom edge, which pushed
+	-- Heat to the side in Studio)
+	return RunLayout.solve(ctx, candidates, { hop })
 end
 RunLayout.heatPanelRect = function(ctx: Ctx): Rect
 	return (RunLayout.heatRect(ctx))

@@ -15,6 +15,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
+local Arcade = require(script.Parent.Parent.Arcade)
 local Gloss = require(script.Parent.Parent.Gloss)
 local Icons = require(script.Parent.Parent.Icons)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
@@ -47,17 +48,13 @@ function RideChip.new(ctx: RunLayout.Ctx)
 	local root = self._trove:Add(RunLayout.canvas(ctx, "RideChip"))
 	self.root = root
 
-	local gear = Gloss.button(root, {
+	-- HUD rebuild: the same red labelled Settings rectangle as the Home menu (Adam, §1)
+	local gear = Arcade.button(root, {
 		name = "Options",
-		size = Vector2.new(RunLayout.Gear, RunLayout.Gear),
+		label = "Settings",
+		fill = "Settings",
+		size = "Small",
 		anchor = Vector2.new(1, 0),
-		light = C.SettingsLight,
-		deep = C.SettingsDeep,
-		radius = 14,
-		iconSize = 30,
-		icon = function(holder: Frame)
-			Icons.draw(holder, "Settings", C.White)
-		end,
 		sound = "Open",
 		onActivate = function()
 			self._presses += 1
@@ -72,14 +69,14 @@ function RideChip.new(ctx: RunLayout.Ctx)
 
 	local chip = make("Frame", {
 		Name = "Chip",
-		BackgroundColor3 = C.Panel,
+		BackgroundColor3 = Color3.fromRGB(30, 44, 86),
 		BorderSizePixel = 0,
 		Size = UDim2.fromOffset(RunLayout.ChipSize.X, RunLayout.ChipSize.Y),
 		ZIndex = 3,
 		Parent = root,
 	})
-	Gloss.corner(chip, 12)
-	Gloss.stroke(chip, 2.5, C.Ink)
+	Arcade.corner(chip, 6)
+	Arcade.outline(chip, "Button")
 	chip.Active = false
 	self._chip = chip
 	local bar = make("Frame", {
@@ -132,7 +129,7 @@ function RideChip.new(ctx: RunLayout.Ctx)
 		ZIndex = 5,
 		Parent = chip,
 	})
-	Icons.draw(iconHolder, "Car", C.Ink)
+	Icons.draw(iconHolder, "Car", C.White)
 	self._name = make("TextLabel", {
 		Name = "CarName",
 		BackgroundTransparency = 1,
@@ -141,12 +138,13 @@ function RideChip.new(ctx: RunLayout.Ctx)
 		FontFace = Tokens.font(),
 		Text = "",
 		TextSize = NAME_SIZE,
-		TextColor3 = C.Ink,
+		TextColor3 = C.White,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		ZIndex = 5,
 		Parent = chip,
 	})
+	Arcade.outline(self._name, "Minor")
 
 	self._trove:Add(ctx.store:subscribe("run", function()
 		self:_apply()
@@ -165,7 +163,12 @@ function RideChip._apply(self: RideChip)
 	local run = self._ctx.store:get().run
 	local car = if run then run.ride else nil
 	self._car = car
-	self._chip.Visible = car ~= nil
+	-- phone landscape: the chip steps aside while a capture is in progress (the Keys ring uses its
+	-- space; the CAPTURING plate and the ring name the car)
+	local k = run and run.keys
+	local capturing = k ~= nil and (k.status == "Holding" or k.status == "Pending")
+	local phoneL = self._ctx.screen:profile().name == "PhoneLandscape"
+	self._chip.Visible = car ~= nil and not (phoneL and capturing)
 	if not car then
 		return
 	end

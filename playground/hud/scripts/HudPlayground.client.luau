@@ -204,6 +204,7 @@ local function goRun()
 	end
 	if store:setMode("Run") then
 		scenarios:startRunState()
+		backdrop.restart()
 	end
 end
 api.goHome = goHome
@@ -216,6 +217,8 @@ local city: any = nil
 function api.useCity(on: boolean, seed: number?): string
 	if city then
 		backdrop.setPath(nil)
+		scenarios.cityPlan = nil
+		scenarios.cityStation = nil
 		city:destroy()
 		city = nil
 	end
@@ -256,6 +259,16 @@ function api.useCity(on: boolean, seed: number?): string
 	for _, seg in segments do
 		length += seg.length
 	end
+	local districts = {}
+	for _, b in city:boundaries() do
+		if b.cycle == 1 or b.cycle == nil then
+			table.insert(districts, { id = b.id, name = b.name, length = b.lengthMetresProvisional })
+		end
+	end
+	scenarios.cityPlan = if #districts > 0 then { districts = districts, repeats = true } else nil
+	scenarios.cityStation = function(): number
+		return backdrop.station()
+	end
 	backdrop.setPath(
 		function(s: number, x: number, y: number): CFrame
 			return Route.frame(segments, s, x, y)
@@ -266,6 +279,13 @@ function api.useCity(on: boolean, seed: number?): string
 		end
 	)
 	return "city built: seed " .. tostring(seed or 2207) .. ", " .. math.floor(length) .. " studs"
+end
+-- Holds the run at `travelled` studs (nil resumes) for still captures; the chase camera stays on.
+function api.hold(travelled: number?)
+	backdrop.hold(travelled)
+end
+function api.showReserved(on: boolean)
+	screen:showReserved(on)
 end
 function api.cityStats(): any
 	return if city then city:stats() else nil
@@ -530,6 +550,16 @@ local function applyMode(mode: string)
 		if stats.setCompact then
 			stats:setCompact(mode == "Run")
 		end
+		if stats.setRunAnchor then
+			-- phone landscape and tablet runs: the top row right of the coins (design px, block
+			-- bottom-left); bottom-left there is the thumbstick, the rider and the Heat bar
+			local p = screen:profile().name
+			local topRow = p == "PhoneLandscape" or p == "Tablet"
+			stats:setRunAnchor(
+				if mode == "Run" and topRow then Vector2.new(128, 74) else nil,
+				if mode == "Run" and p == "PhoneLandscape" then 0.52 else nil
+			)
+		end
 	end
 	backdrop.setRunCamera(mode == "Run")
 	if mode == "Home" then
@@ -604,6 +634,7 @@ end)
 
 function api.setProfile(name: string)
 	screen:setProfile(name)
+	applyMode(store:get().mode)
 end
 function api.reset()
 	scenarios:cancel()

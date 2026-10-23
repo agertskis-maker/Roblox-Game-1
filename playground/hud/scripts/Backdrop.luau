@@ -54,6 +54,9 @@ export type Backdrop = {
 	setRunCamera: (on: boolean) -> (),
 	setPath: (((number, number, number) -> CFrame)?, number?, ((number) -> ())?) -> (),
 	setNeutralRoad: (on: boolean) -> (),
+	hold: (at: number?) -> (),
+	station: () -> number,
+	restart: () -> (),
 	destroy: () -> (),
 }
 
@@ -222,6 +225,8 @@ function Backdrop.build(): Backdrop
 	local path: ((number, number, number) -> CFrame)? = nil
 	local pathLength = ROAD_LENGTH
 	local onStation: ((number) -> ())? = nil
+	-- review captures: hold the traffic at one travelled distance (nil = moving)
+	local heldAt: number? = nil
 	local function setRunCamera(on: boolean)
 		local camera = Workspace.CurrentCamera
 		if runConn then
@@ -235,7 +240,9 @@ function Backdrop.build(): Backdrop
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.FieldOfView = 70
 		runConn = RunService.RenderStepped:Connect(function(dt)
-			travelled = (travelled + speed * dt) % (pathLength - 300)
+			-- re-asserted every frame: the default camera can reclaim Custom (seen in Studio captures)
+			camera.CameraType = Enum.CameraType.Scriptable
+			travelled = if heldAt then heldAt :: number else (travelled + speed * dt) % (pathLength - 300)
 			for i, m in traffic do
 				local rate = if i <= 2 then 1 else 0.85 + 0.04 * i
 				local start = starts[m]
@@ -250,10 +257,18 @@ function Backdrop.build(): Backdrop
 				(onStation :: any)(-starts[ride].Position.Z + travelled)
 			end
 			-- FIXTURE chase camera: 12 behind, 6 up, looking 20 ahead (labelled in the review)
-			local pivot = ride:GetPivot()
-			local look = Vector3.new(pivot.LookVector.X, 0, pivot.LookVector.Z)
-			look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, -1)
-			local p = pivot.Position
+			-- heading from the direction of travel (the proxy car's pivot part does not face forward)
+			local p = ride:GetPivot().Position
+			local look = Vector3.new(0, 0, -1)
+			if path then
+				local start = starts[ride]
+				local s = (-start.Position.Z + travelled) % (pathLength - 1)
+				local ahead = (path :: any)(s + 4, start.Position.X, start.Position.Y).Position
+				local flat = Vector3.new(ahead.X - p.X, 0, ahead.Z - p.Z)
+				if flat.Magnitude > 1e-3 then
+					look = flat.Unit
+				end
+			end
 			camera.CFrame = CFrame.lookAt(p - look * 12 + Vector3.new(0, 6, 0), p + look * 20 + Vector3.new(0, 1.5, 0))
 		end)
 	end
@@ -270,6 +285,19 @@ function Backdrop.build(): Backdrop
 			for _, m in traffic do
 				m:PivotTo(starts[m])
 			end
+		end
+	end
+	-- route distance of the ridden car (studs); restart puts the traffic back at the start
+	local function station(): number
+		return -starts[ride].Position.Z + travelled
+	end
+	local function restart()
+		travelled = 0
+	end
+	local function hold(at: number?)
+		heldAt = at
+		if at then
+			travelled = at
 		end
 	end
 	local function setNeutralRoad(on: boolean)
@@ -293,6 +321,9 @@ function Backdrop.build(): Backdrop
 		setRunCamera = setRunCamera,
 		setPath = setPath,
 		setNeutralRoad = setNeutralRoad,
+		hold = hold,
+		station = station,
+		restart = restart,
 		destroy = function()
 			trove:Destroy()
 		end,

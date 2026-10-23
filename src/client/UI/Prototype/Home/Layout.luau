@@ -77,7 +77,7 @@ export type CashMetrics = {
 export type ItemPos = { x: number, y: number }
 
 export type MenuLayout = {
-	kind: "Column" | "TabletColumn" | "PhoneBlock",
+	kind: "Column" | "TabletColumn" | "PhoneBlock" | "PortraitGrid",
 	x: number,
 	y: number,
 	width: number,
@@ -251,6 +251,31 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 			width = math.max(w, items.Music.x + Layout.MusicWidth),
 			height = items.Missions.y + rh,
 			size = "Compact",
+			buttonW = w,
+			buttonH = h,
+			items = items,
+		}
+	end
+	-- phone portrait (lead 2026-10-23: three across wrapped "Garage" and "Missions" mid-word in
+	-- Studio): [Settings][Music] over [Shop][Garage] over [Missions], two columns
+	if name == "PhonePortrait" then
+		local pgap = 6
+		local w = math.min(math.floor((safeW - 2 * margin - pgap) / 2), B.WideW)
+		local h = B.CompactH
+		local rh = Layout.rootHeight(h)
+		items.Settings = { x = 0, y = 0 }
+		items.Music = { x = B.SmallW + pgap + 4, y = (smallRoot - Layout.MusicHeight) / 2 }
+		local y = smallRoot + pgap
+		items.Shop = { x = 0, y = y }
+		items.Garage = { x = w + pgap, y = y }
+		items.Missions = { x = 0, y = y + rh + pgap }
+		return {
+			kind = "PortraitGrid",
+			x = margin,
+			y = 0,
+			width = math.max(2 * w + pgap, items.Music.x + Layout.MusicWidth),
+			height = items.Missions.y + rh,
+			size = "Custom",
 			buttonW = w,
 			buttonH = h,
 			items = items,

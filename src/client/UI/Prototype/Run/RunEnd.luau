@@ -15,7 +15,7 @@
 -- Heading: large but brief, from a REASON MAP with a truthful fallback:
 --   Overheated / Meltdown / MeltdownExpired / TooHot -> "OVERHEATED!" + "Heat full"
 --   Crashed -> "CRASHED!" + "The car crashed";  MissedHop -> "MISSED THE HOP!" + "You landed on
---   the road";  FellOff -> "FELL OFF!" + "You fell off the road";  anything else -> "RUN ENDED"
+--   the road";  FellOff -> "FELL OFF!" + "You fell off the road";  anything else -> "RUN OVER"
 --   with no explanatory line (never a guessed cause). An instant failure (no prior warning) is
 --   explained immediately, the same way.
 -- Arbitration: requests "Center" at "Safety"; suppresses "Upper" and "Side" below Safety from the
@@ -60,7 +60,7 @@ local HEADINGS: { [string]: { title: string, line: string? } } = {
 	MissedHop = { title = "MISSED THE HOP!", line = "You landed on the road" },
 	FellOff = { title = "FELL OFF!", line = "You fell off the road" },
 }
-local FALLBACK = { title = "RUN ENDED", line = nil :: string? }
+local FALLBACK = { title = "RUN OVER", line = nil :: string? }
 
 local WARNINGS: { [string]: string } = {
 	TooHot = "TOO HOT!",

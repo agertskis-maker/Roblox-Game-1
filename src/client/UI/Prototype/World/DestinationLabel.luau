@@ -97,8 +97,8 @@ function DestinationLabel.new(ctx: WorldKit.Ctx, params: Params)
 	self._trove = Trove.new()
 	self._visible = true
 	self._params = params
-	self._worldHeight = params.worldHeight or 5
-	self._minPx = math.max(params.minPx or 28, Tokens.TextSize.Minimum)
+	self._worldHeight = params.worldHeight or 8 -- lead 2026-10-23: 5 read small in Studio
+	self._minPx = math.max(params.minPx or 36, Tokens.TextSize.Minimum)
 	self._maxPx = params.maxPx or 120
 	self._maxDistance = params.maxDistance or 400
 	self._offset = params.verticalOffset or 3

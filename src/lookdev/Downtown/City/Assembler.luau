@@ -30,6 +30,7 @@ local Workspace = game:GetService("Workspace")
 
 local Catalog = require(script.Parent.Catalog)
 local KitMesh = require(script.Parent.Parent.KitMesh)
+local Merge = require(script.Parent.Merge)
 local Proxies = require(script.Parent.Proxies)
 local Route = require(script.Parent.Route)
 local Sequencer = require(script.Parent.Sequencer)
@@ -46,9 +47,46 @@ Assembler.DEFAULT_BUDGET = 300 -- items placed per setStation call during a chas
 Assembler.MAX_EDITABLE = 160
 Assembler.EDITABLE_TRIANGLES = 20000
 Assembler.EDITABLE_VERTICES = 60000
+-- a playtest client here holds only 8 EditableMeshes (measured 2026-10-23), so Play merges each
+-- live segment's kit pieces into one mesh (City/Merge.luau); edit mode keeps one per piece
+Assembler.MERGE_MAX_MESHES = 8
+Assembler.MERGE_AHEAD = 5
 
 local GROUND_CELL = 2000
-local GROUND_COLOUR = Color3.fromRGB(200, 196, 184)
+local GROUND_COLOUR = Color3.fromRGB(150, 146, 134) -- darker paving: the pale tone read as white in Studio
+
+-- kit meshes for the midground and skyline masses (were plain blocks: "no crude boxes", §13),
+-- picked deterministically per district and scaled to each planned mass
+local MID_MESHES: { [string]: { string } } = {
+	MainStreet = { "B2_Mid_Block36_1", "B2_Mid_Block36_2", "B2_Mid_Block36_3" },
+	CityHall = { "B2_Mid_CivicDome", "B2_Mid_Block36_2", "B2_Mid_Block36_3" },
+	HarborBridge = { "B2_Mid_Warehouse48", "B2_Mid_Block36_1" },
+	Midtown = { "B2_Mid_Glass40", "B2_Mid_Tower40_4", "B2_Mid_Block36_3" },
+	SkylinePark = { "B2_Mid_TreeClump", "B2_Mid_Block36_1" },
+}
+local SKY_MESHES: { string } = {
+	"B2_Sky_Slab_1",
+	"B2_Sky_Slab_2",
+	"B2_Sky_Slab_3",
+	"B2_Sky_Stepped_1",
+	"B2_Sky_Stepped_2",
+	"B2_Sky_Stepped_3",
+	"B2_Sky_Tower_1",
+	"B2_Sky_Tower_2",
+	"B2_Sky_Tower_3",
+	"B2_Sky_Spire",
+}
+-- kit meshes for the scenery hazards (construction keeps its barrier-and-cone proxy group)
+local HAZARD_MESHES: { [string]: string } = {
+	pothole = "B2_Haz_Pothole",
+	oil = "B2_Haz_Oil",
+}
+
+local function massMesh(m: Sequencer.MassPlan): string
+	local list = if m.band == "skyline" then SKY_MESHES else (MID_MESHES[m.district] or MID_MESHES.MainStreet)
+	local k = math.floor(m.station / 11 + 0.5) + (if m.side > 0 then 3 else 0)
+	return list[k % #list + 1]
+end
 local HALF_TURN = CFrame.Angles(0, math.pi, 0)
 local FACING_YAW: { [string]: number } = { ["-Z"] = 0, ["+X"] = 90, ["-X"] = -90, ["+Z"] = 180 }
 
@@ -66,6 +104,7 @@ export type Options = {
 	skyAhead: number?,
 	budget: number?,
 	maxEditableMeshes: number?,
+	merge: boolean?, -- default: true in a running playtest, false in edit mode
 	lighting: boolean?,
 	labels: boolean?,
 	useKit: boolean?,
@@ -94,6 +133,7 @@ export type Stats = {
 	uniqueMeshes: number,
 	uniqueTriangles: number,
 	editableMeshes: number,
+	merged: { meshes: number, parts: number, triangles: number, pending: number, failures: { string } },
 	estimatedEditableMB: number,
 	uploadedMeshes: number,
 	missingMeshes: number,
@@ -116,6 +156,7 @@ type Template = {
 	meta: { [string]: any },
 	source: string,
 	editable: EditableMesh?,
+	data: KitMesh.Data?, -- merge mode: the mesh data (no per-piece template part)
 }
 
 type Spec = {
@@ -125,10 +166,17 @@ type Spec = {
 	mesh: boolean,
 	make: () -> Instance,
 	place: (Instance) -> (),
+	merge: { data: KitMesh.Data, cframe: () -> CFrame, scale: Vector3? }?, -- merge mode: appended, not instanced
 }
 
 type Item = { key: string, inst: Instance, kind: string, tris: number, mesh: boolean }
-type Live = { items: { Item }, specs: { Spec }, nextSpec: number }
+type Live = {
+	items: { Item },
+	specs: { Spec },
+	nextSpec: number,
+	mergeItems: { Merge.Item }?,
+	mergeJob: Merge.Job?,
+}
 
 type Bucket = {
 	lots: { Sequencer.LotPlan },
@@ -163,6 +211,8 @@ type Fields = {
 	skyAhead: number,
 	budget: number,
 	maxEditable: number,
+	merge: boolean,
+	mergeFailures: { string },
 	buckets: { [number]: Bucket },
 	specCache: { [number]: { Spec } },
 	skySpecCache: { [number]: { Spec } },
@@ -420,11 +470,15 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 		useKit = opts.useKit ~= false,
 		ground = opts.ground ~= false,
 		behind = opts.behind or Assembler.DEFAULT_BEHIND,
-		ahead = opts.ahead or Assembler.DEFAULT_AHEAD,
+		ahead = opts.ahead or (if (if opts.merge == nil then RunService:IsRunning() else opts.merge)
+			then Assembler.MERGE_AHEAD
+			else Assembler.DEFAULT_AHEAD),
 		skyBehind = opts.skyBehind or Assembler.DEFAULT_SKY_BEHIND,
 		skyAhead = opts.skyAhead or Assembler.DEFAULT_SKY_AHEAD,
 		budget = opts.budget or Assembler.DEFAULT_BUDGET,
 		maxEditable = opts.maxEditableMeshes or Assembler.MAX_EDITABLE,
+		merge = if opts.merge == nil then RunService:IsRunning() else opts.merge,
+		mergeFailures = {},
 		buckets = {},
 		specCache = {},
 		skySpecCache = {},
@@ -514,6 +568,12 @@ function Assembler.prepare(self: Assembler)
 	for _, p in self.plan.props do
 		want(p.module)
 	end
+	for _, m in self.plan.masses do
+		want(massMesh(m))
+	end
+	for _, name in HAZARD_MESHES do
+		want(name)
+	end
 	table.sort(names)
 	local editableCount = 0
 	for _, t in self.templates do
@@ -564,7 +624,10 @@ function Assembler.prepare(self: Assembler)
 					template.source = "missing: uploaded id given but no mesh JSON (bounds) in the kit"
 				end
 			end
-			if not template.part and data then
+			if not template.part and data and self.merge then
+				template.data = data
+				template.source = "merge (one EditableMesh per live segment)"
+			elseif not template.part and data then
 				local vertices = #data.p // 3
 				if data.triangles > Assembler.EDITABLE_TRIANGLES or vertices > Assembler.EDITABLE_VERTICES then
 					template.source = string.format(
@@ -627,7 +690,7 @@ end
 
 local function template(self: Assembler, name: string): Template?
 	local t = self.templates[name]
-	if t and t.part then
+	if t and (t.part or t.data) then
 		return t
 	end
 	return nil
@@ -675,10 +738,28 @@ local function meshOrProxy(
 	proxyKey: string,
 	makeProxy: () -> Instance,
 	meshCFrame: (Template) -> CFrame,
-	proxyCFrame: CFrame
+	proxyCFrame: CFrame,
+	noMerge: boolean?
 ): Spec
 	local t = template(self, name)
-	if t then
+	if t and not t.part and t.data and not noMerge then
+		local data = t.data :: KitMesh.Data
+		return {
+			key = "merge:" .. name,
+			kind = kind,
+			tris = t.triangles,
+			mesh = true,
+			make = makeProxy,
+			place = function() end,
+			merge = {
+				data = data,
+				cframe = function(): CFrame
+					return meshCFrame(t)
+				end,
+			},
+		}
+	end
+	if t and t.part then
 		local part = t.part :: MeshPart
 		return {
 			key = "mesh:" .. name,
@@ -701,6 +782,75 @@ local function meshOrProxy(
 		make = makeProxy,
 		place = function(inst: Instance)
 			pivotTo(inst, proxyCFrame)
+		end,
+	}
+end
+
+-- A planned mass as a scaled kit mesh (edit: a sized MeshPart; play: merged into the segment),
+-- or the old plain block when the kit mesh is missing.
+local function massSpec(self: Assembler, m: Sequencer.MassPlan, label: string, allowMerge: boolean): Spec
+	local name = massMesh(m)
+	local t = template(self, name)
+	if t then
+		local ext = t.hi - t.lo
+		local scale = Vector3.new(
+			m.size.X / math.max(ext.X, 0.1),
+			m.size.Y / math.max(ext.Y, 0.1),
+			m.size.Z / math.max(ext.Z, 0.1)
+		)
+		if t.data and not t.part and allowMerge then
+			return {
+				key = "merge:" .. name,
+				kind = "Masses",
+				tris = t.triangles,
+				mesh = true,
+				make = function()
+					return Proxies.block(label)
+				end,
+				place = function() end,
+				merge = {
+					data = t.data :: KitMesh.Data,
+					cframe = function(): CFrame
+						return m.cframe
+					end,
+					scale = scale,
+				},
+			}
+		end
+		if t.part then
+			local part = t.part :: MeshPart
+			return {
+				key = "mesh:" .. name,
+				kind = "Masses",
+				tris = t.triangles,
+				mesh = true,
+				make = function()
+					return part:Clone()
+				end,
+				place = function(inst: Instance)
+					local p = inst :: MeshPart
+					p.Size = m.size
+					p.CastShadow = false
+					p.CFrame = m.cframe * t.turn
+				end,
+			}
+		end
+	end
+	return {
+		key = "mass",
+		kind = "Masses",
+		tris = 0,
+		mesh = false,
+		make = function()
+			return Proxies.block(label)
+		end,
+		place = function(inst: Instance)
+			local part = inst :: BasePart
+			part.Name = label
+			part.Size = m.size
+			part.Color = m.colour
+			part.CastShadow = false
+			part.CFrame = m.cframe
 		end,
 	}
 end
@@ -868,7 +1018,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 					return lm.pivot * centreOffset(t)
 				end
 				return lm.pivot * fit(t, lm.width)
-			end, lm.pivot)
+			end, lm.pivot, true)
 		)
 	end
 
@@ -902,39 +1052,35 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 
 	-- hazard previews
 	for _, h in b.hazards do
-		table.insert(specs, {
-			key = "hazard:" .. h.kind,
-			kind = "Hazards",
-			tris = 0,
-			mesh = false,
-			make = function()
-				return Proxies.hazard(h.kind, h.length, g.laneWidth, labels)
-			end,
-			place = function(inst: Instance)
-				pivotTo(inst, h.cframe)
-			end,
-		})
+		local kitName = HAZARD_MESHES[h.kind]
+		local function proxy(): Instance
+			return Proxies.hazard(h.kind, h.length, g.laneWidth, labels)
+		end
+		if kitName then
+			-- the B2 kit pothole / oil (recessed rim, sheen edge) instead of the flat proxies
+			table.insert(
+				specs,
+				meshOrProxy(self, kitName, "Hazards", "hazard:" .. h.kind, proxy, function(t)
+					return h.cframe * centreOffset(t)
+				end, h.cframe)
+			)
+		else
+			table.insert(specs, {
+				key = "hazard:" .. h.kind,
+				kind = "Hazards",
+				tris = 0,
+				mesh = false,
+				make = proxy,
+				place = function(inst: Instance)
+					pivotTo(inst, h.cframe)
+				end,
+			})
+		end
 	end
 
 	-- midground masses (one generic block each; roof tanks on some Midtown masses)
 	for _, m in b.mid do
-		table.insert(specs, {
-			key = "mass",
-			kind = "Masses",
-			tris = 0,
-			mesh = false,
-			make = function()
-				return Proxies.block("Midground")
-			end,
-			place = function(inst: Instance)
-				local part = inst :: BasePart
-				part.Name = "Midground"
-				part.Size = m.size
-				part.Color = m.colour
-				part.CastShadow = false
-				part.CFrame = m.cframe
-			end,
-		})
+		table.insert(specs, massSpec(self, m, "Midground", true))
 		if m.roofTank then
 			table.insert(specs, {
 				key = "tank",
@@ -957,6 +1103,11 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 			})
 		end
 	end
+	if self.merge then
+		for _, m in b.sky do
+			table.insert(specs, massSpec(self, m, "Skyline", true))
+		end
+	end
 	self.specCache[index] = specs
 	return specs
 end
@@ -968,24 +1119,10 @@ local function skySpecs(self: Assembler, index: number): { Spec }
 	end
 	local b = self.buckets[index]
 	local specs: { Spec } = {}
-	for _, m in b.sky do
-		table.insert(specs, {
-			key = "mass",
-			kind = "Masses",
-			tris = 0,
-			mesh = false,
-			make = function()
-				return Proxies.block("Skyline")
-			end,
-			place = function(inst: Instance)
-				local part = inst :: BasePart
-				part.Name = "Skyline"
-				part.Size = m.size
-				part.Color = m.colour
-				part.CastShadow = false
-				part.CFrame = m.cframe
-			end,
-		})
+	if not self.merge then
+		for _, m in b.sky do
+			table.insert(specs, massSpec(self, m, "Skyline", false))
+		end
 	end
 	for _, lm in b.skyLandmarks do
 		local lmLook = look(self, lm.palette)
@@ -1027,6 +1164,11 @@ local function acquire(self: Assembler, spec: Spec): Instance
 end
 
 local function release(self: Assembler, live: Live)
+	if live.mergeJob then
+		Merge.cancel(live.mergeJob)
+		live.mergeJob = nil
+	end
+	live.mergeItems = nil
 	for _, item in live.items do
 		item.inst.Parent = self.poolFolder
 		local list = self.pool[item.key]
@@ -1045,10 +1187,41 @@ local function fill(self: Assembler, live: Live, budget: number): number
 	while budget > 0 and live.nextSpec <= #live.specs do
 		local spec = live.specs[live.nextSpec]
 		live.nextSpec += 1
+		if spec.merge then
+			local list = live.mergeItems
+			if not list then
+				list = {}
+				live.mergeItems = list
+			end
+			table.insert(
+				list :: { Merge.Item },
+				{ data = spec.merge.data, cframe = spec.merge.cframe(), scale = spec.merge.scale }
+			)
+			budget -= 1
+			continue
+		end
 		local inst = acquire(self, spec)
 		inst.Parent = self.folders[spec.kind] or self.root
 		table.insert(live.items, { key = spec.key, inst = inst, kind = spec.kind, tris = spec.tris, mesh = spec.mesh })
 		budget -= 1
+	end
+	if live.nextSpec > #live.specs and live.mergeItems and not live.mergeJob then
+		local assembler = self
+		live.mergeJob = Merge.start(live.mergeItems :: { Merge.Item }, {
+			swatches = self.swatches,
+			textureId = self.textureId,
+			parent = self.folders.Lots,
+			name = "MergedSegment",
+			maxMeshes = function(): boolean
+				local count = 0
+				for _, l in assembler.live do
+					if l.mergeJob then
+						count += #l.mergeJob.meshes
+					end
+				end
+				return count < Assembler.MERGE_MAX_MESHES
+			end,
+		})
 	end
 	return budget
 end
@@ -1213,7 +1386,7 @@ function Assembler.getStats(self: Assembler): Stats
 	local unique, uniqueTris, editables, uploaded, missing = 0, 0, 0, 0, 0
 	local missingNames: { string } = {}
 	for name, t in self.templates do
-		if t.part then
+		if t.part or t.data then
 			unique += 1
 			uniqueTris += t.triangles
 			if t.editable then
@@ -1265,6 +1438,24 @@ function Assembler.getStats(self: Assembler): Stats
 		uniqueMeshes = unique,
 		uniqueTriangles = uniqueTris,
 		editableMeshes = editables,
+		merged = (function()
+			local m = { meshes = 0, parts = 0, triangles = 0, pending = 0, failures = {} }
+			for _, l in self.live do
+				local job = l.mergeJob
+				if job then
+					m.meshes += #job.meshes
+					m.parts += #job.parts
+					m.triangles += job.triangles
+					if not job.done then
+						m.pending += 1
+					end
+					if job.failed then
+						table.insert(m.failures, job.failed)
+					end
+				end
+			end
+			return m
+		end)(),
 		-- rough: about 120 bytes per preview triangle (vertex, face, normal and UV records)
 		estimatedEditableMB = math.floor(uniqueTris * 120 / 1e4 + 0.5) / 100,
 		uploadedMeshes = uploaded,
@@ -1286,6 +1477,11 @@ function Assembler.destroy(self: Assembler)
 		return
 	end
 	self.destroyed = true
+	for _, live in self.live do
+		if live.mergeJob then
+			Merge.cancel(live.mergeJob)
+		end
+	end
 	self.root:Destroy()
 	self.poolFolder:Destroy()
 	for _, list in self.pool do
