@@ -195,12 +195,14 @@ function Backdrop.build(): Backdrop
 		m.Parent = folder
 		return m
 	end
-	local ride = carOnRoad(Fixtures.Cars[1], 2, -40)
-	local target = carOnRoad(Fixtures.Cars[5], 3, -75)
+	-- the ridden car is Revolution 6, the car the Keys scenarios capture (the capture is of the car
+	-- being ridden); the Hop target ahead is a Puglet
+	local ride = carOnRoad(Fixtures.Cars[5], 2, -40)
+	local target = carOnRoad(Fixtures.Cars[1], 3, -75)
 	local traffic = { ride, target }
 	-- the car data for each traffic model, same order (nameplates use "traffic-<index>" ids,
 	-- because model names repeat)
-	local trafficCars: { Fixtures.CarRef } = { Fixtures.Cars[1], Fixtures.Cars[5] }
+	local trafficCars: { Fixtures.CarRef } = { Fixtures.Cars[5], Fixtures.Cars[1] }
 	for i, lane in { 1, 4, 2, 3 } do
 		local c = Fixtures.Cars[((i + 2) % #Fixtures.Cars) + 1]
 		table.insert(traffic, carOnRoad(c, lane, -110 - i * 45))

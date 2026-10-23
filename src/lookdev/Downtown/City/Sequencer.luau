@@ -30,6 +30,13 @@ local Sequencer = {}
 
 Sequencer.VERSION = "city-b2-1"
 Sequencer.DEFAULT_SEED = 2207
+-- studs within which a shop name never repeats, on either side (about two blocks)
+Sequencer.SIGN_GAP = 400
+-- studs of frontage left open in front of a skyline landmark (the stadium), so it can be seen
+Sequencer.SKYLINE_VIEW_GAP = 144
+-- how far behind the frontage line a skyline landmark starts (was 300: the stadium sat 565 studs
+-- out, never in a forward camera view)
+Sequencer.SKYLINE_SETBACK = 90
 Sequencer.DEFAULT_LENGTH = 2400
 Sequencer.LANE_WIDTH = 17 -- PREVIEW (reversible; see RoadWidthStudy)
 Sequencer.LANES = 4
@@ -529,6 +536,57 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	local lastId = ""
 	local targetS = rng:NextInteger(220, 320)
 	local lmGuard = 0
+	local function makeIn(
+		span: DistrictSpan,
+		def: Catalog.Landmark,
+		station: number,
+		side: number,
+		from: number,
+		to: number
+	): LandmarkPlan
+		local district = catalog.districtById[span.id]
+		local pal = district.palettes[rng:NextInteger(1, #district.palettes)]
+		local pivot: CFrame
+		if def.placement == "bridge" then
+			pivot = frame(station)
+		elseif def.placement == "skyline" then
+			pivot = pivotFor(station, side, Sequencer.SKYLINE_SETBACK + def.depth / 2 - Sequencer.SIDEWALK, def.width)
+		else
+			pivot = pivotFor(station, side, 0, def.width)
+		end
+		return {
+			id = def.id,
+			module = def.name,
+			label = def.label,
+			station = station,
+			from = from,
+			to = to,
+			side = if def.placement == "bridge" then 0 else side,
+			width = def.width,
+			depth = def.depth,
+			height = def.height,
+			district = span.id,
+			placement = def.placement,
+			pivot = pivot,
+			segment = segAt(station),
+			palette = pal.id,
+		}
+	end
+	-- the bridge district's signature is the bridge itself, at its deck centre: placed first, so
+	-- the frontage sweep below cannot step past it (seed 2207 had no arch: the sweep's station
+	-- landed 310 studs from the deck centre)
+	for spanIndex, span in spans do
+		local district = catalog.districtById[span.id]
+		local def = catalog.landmarkById[district.signature]
+		if district.bridge and def and def.placement == "bridge" then
+			for _, b in bridges do
+				if b.from >= span.startS and b.to <= span.endS + 0.01 and not usedSignature[spanIndex] then
+					table.insert(landmarks, makeIn(span, def, (b.from + b.to) / 2, 0, b.from, b.to))
+					usedSignature[spanIndex] = true
+				end
+			end
+		end
+	end
 	while targetS < length - 48 and lmGuard < 400 do
 		lmGuard += 1
 		local spanIndex = spanAt(targetS)
@@ -542,44 +600,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			from: number,
 			to: number
 		): LandmarkPlan
-			local pal = district.palettes[rng:NextInteger(1, #district.palettes)]
-			local pivot: CFrame
-			if def.placement == "bridge" then
-				pivot = frame(station)
-			elseif def.placement == "skyline" then
-				pivot = pivotFor(station, side, 300 + def.depth / 2 - Sequencer.SIDEWALK, def.width)
-			else
-				pivot = pivotFor(station, side, 0, def.width)
-			end
-			return {
-				id = def.id,
-				module = def.name,
-				label = def.label,
-				station = station,
-				from = from,
-				to = to,
-				side = if def.placement == "bridge" then 0 else side,
-				width = def.width,
-				depth = def.depth,
-				height = def.height,
-				district = span.id,
-				placement = def.placement,
-				pivot = pivot,
-				segment = segAt(station),
-				palette = pal.id,
-			}
-		end
-		-- the bridge district's signature is the bridge itself, at its deck centre
-		if district.bridge and not usedSignature[spanIndex] then
-			for _, b in bridges do
-				if b.from >= span.startS and b.to <= span.endS + 0.01 then
-					local centre = (b.from + b.to) / 2
-					local def = catalog.landmarkById[district.signature]
-					if def and math.abs(centre - targetS) <= 260 and lastId ~= def.id then
-						placed = make(def, centre, 0, b.from, b.to)
-					end
-				end
-			end
+			return makeIn(span, def, station, side, from, to)
 		end
 		if not placed then
 			local bag = lmBags[district.id]
@@ -645,6 +666,42 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			targetS += 96
 		end
 	end
+	-- every district span shows its signature landmark (seed 2207 ended Skyline Park with the car
+	-- wash and no fountain): a missing one goes to the free frontage nearest the span centre
+	for spanIndex, span in spans do
+		local district = catalog.districtById[span.id]
+		local def = catalog.landmarkById[district.signature]
+		if usedSignature[spanIndex] or not def or def.placement == "bridge" then
+			continue
+		end
+		local centre = (span.startS + span.endS) / 2
+		local placed: LandmarkPlan? = nil
+		if def.placement == "skyline" then
+			placed = makeIn(span, def, centre, lmSide, centre, centre)
+		else
+			local reach = (span.endS - span.startS) / 2
+			for off = 0, reach, 12 do
+				for _, c in { centre + off, centre - off } do
+					for _, side in { 1, -1 } do
+						local from, to = footprint(c, side, def.width)
+						if not placed and from >= span.startS and to <= span.endS and landmarkFree(from, to, side) then
+							placed = makeIn(span, def, c, side, from, to)
+						end
+					end
+				end
+				if placed then
+					break
+				end
+			end
+		end
+		if placed then
+			table.insert(landmarks, placed)
+			usedSignature[spanIndex] = true
+		end
+	end
+	table.sort(landmarks, function(a, b)
+		return a.station < b.station
+	end)
 
 	-- 5. Lots ----------------------------------------------------------------------------------
 	type SideState = {
@@ -680,6 +737,11 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		for _, lm in landmarks do
 			if lm.side == side and lm.placement == "frontage" then
 				table.insert(blocks, { from = lm.from, to = lm.to, kind = "landmark" })
+			elseif lm.side == side and lm.placement == "skyline" then
+				-- a view gap in the frontage: the stadium sat behind the Midtown towers, invisible from
+				-- the road (reviewer, 2026-10-23)
+				local half = math.min(lm.width, Sequencer.SKYLINE_VIEW_GAP) / 2
+				table.insert(blocks, { from = lm.station - half, to = lm.station + half, kind = "landmark" })
 			end
 		end
 		table.sort(blocks, function(a, b)
@@ -859,8 +921,16 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 					across[l.sign] = true
 				end
 			end
+			-- no name twice within SIGN_GAP studs on either side (reviewer, 2026-10-23: the same
+			-- shop twice inside Main Street while the old same-side check said 0)
+			local near: { [string]: boolean } = {}
+			for _, sg in signs do
+				if math.abs(sg.station - station) < Sequencer.SIGN_GAP then
+					near[sg.text] = true
+				end
+			end
 			local text = draw(signBag, rng, function(x)
-				return x ~= state.lastSign and not across[x] and not table.find(recentSigns, x)
+				return x ~= state.lastSign and not across[x] and not near[x] and not table.find(recentSigns, x)
 			end)
 			if text then
 				lot.sign = text
@@ -1396,6 +1466,15 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		local d = side * (halfRoad + edge + size.Z / 2)
 		local f = frame(st, d, size.Y / 2)
 		local radius = math.max(size.X, size.Z) / 2
+		-- keep the view gap in front of a skyline landmark (and the landmark itself) clear
+		for _, lm in landmarks do
+			if lm.placement == "skyline" and lm.side == side then
+				local half = math.max(lm.width, Sequencer.SKYLINE_VIEW_GAP) / 2
+				if math.abs(st - lm.station) < half + radius then
+					return
+				end
+			end
+		end
 		local need = if band == "midground" then halfRoad + 50 else halfRoad + 260
 		if clearOfRoute(f.Position, radius, need) then
 			table.insert(masses, {
@@ -1500,6 +1579,15 @@ function Sequencer.check(plan: Plan, catalog: Catalog.Catalog?, extraNotes: { st
 	for i = 2, #plan.segments do
 		local a, b = plan.segments[i - 1], plan.segments[i]
 		checks.segmentJoinError = math.max(checks.segmentJoinError, (a.finish.Position - b.start.Position).Magnitude)
+	end
+	-- the same name twice within SIGN_GAP studs, either side
+	for i, a in plan.signs do
+		for j = i + 1, #plan.signs do
+			local b = plan.signs[j]
+			if a.text == b.text and math.abs(a.station - b.station) < Sequencer.SIGN_GAP then
+				checks.signRepeats += 1
+			end
+		end
 	end
 	for _, side in { -1, 1 } do
 		local prev: LotPlan? = nil

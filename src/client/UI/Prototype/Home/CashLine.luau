@@ -773,12 +773,9 @@ function CashLine._worldToLocal(self: any, world: Vector3): Vector2?
 	if not onScreen or p.Z <= 0 then
 		return nil
 	end
-	local abs = Vector2.new(p.X, p.Y)
-	local gui = self.root:FindFirstAncestorOfClass("ScreenGui")
-	if gui and not gui.IgnoreGuiInset then
-		local inset = GuiService:GetGuiInset()
-		abs -= inset
-	end
+	-- viewport px count from the window top; AbsolutePosition counts from below the top bar for
+	-- every ScreenGui, IgnoreGuiInset or not (measured in Studio, 2026-10-23)
+	local abs = Vector2.new(p.X, p.Y) - GuiService:GetGuiInset()
 	local device: Frame = self._ctx.screen.root
 	local d0, ds = device.AbsolutePosition, device.AbsoluteSize
 	if abs.X < d0.X or abs.Y < d0.Y or abs.X > d0.X + ds.X or abs.Y > d0.Y + ds.Y then

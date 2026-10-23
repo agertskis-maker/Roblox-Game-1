@@ -493,7 +493,11 @@ function ClaimTray._render(self: ClaimTray)
 	self._holder.Visible = show
 	self._number.Text = tostring(count)
 	local pending = self:_pending()
-	self._caption.Visible = show and pending ~= nil
+	-- one SECURING… on screen: while the Keys ring shows its own pending word, the slot stays ghosted
+	-- without a caption
+	local keys = state.run and state.run.keys
+	local keysSays = keys ~= nil and keys.status == "Pending"
+	self._caption.Visible = show and pending ~= nil and not keysSays
 	for i, slot in self._slots do
 		local e = entries[i]
 		slot.frame.Visible = e ~= nil

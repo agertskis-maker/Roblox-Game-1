@@ -29,6 +29,7 @@ local Screen = require(Prototype:WaitForChild("Screen"))
 local Store = require(Prototype:WaitForChild("Store"))
 local Motion = require(Prototype:WaitForChild("Motion"))
 local Priority = require(Prototype:WaitForChild("Priority"))
+local RunLayout = require(Prototype:WaitForChild("Run"):WaitForChild("RunLayout"))
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
@@ -39,6 +40,9 @@ local trove = Trove.new()
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+	-- the harness character loses health off the lot; Roblox then draws its health bar top right,
+	-- outside the device frame (reviewer, 2026-10-23: "an empty dark bar top right")
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 end)
 
 local gui = trove:Add(Instance.new("ScreenGui"))
@@ -413,7 +417,21 @@ mount("ride", { "Run", "RideChip" }, "Run", {
 mount("strip", { "Run", "DistrictStrip" }, "Run")
 mount("heat", { "Run", "HeatBar" }, "Run")
 mount("tray", { "Run", "ClaimTray" }, "Run")
-mount("keys", { "Run", "KeysLock" }, "Run", { anchor = backdrop.ride })
+mount("keys", { "Run", "KeysLock" }, "Run", {
+	anchor = backdrop.ride,
+	-- the run-time Cash and car count (StatsStack is re-anchored per device; design px)
+	avoid = function()
+		local stats = components.stats
+		if not (stats and stats._content and stats.root and stats.root.Visible) then
+			return {}
+		end
+		local pos, size = screen:rectOf(stats._content)
+		local p = screen:profile()
+		local s = screen:uiScale()
+		local inset = Vector2.new(p.insets.left, p.insets.top)
+		return { RunLayout.rect((pos.X - inset.X) / s, (pos.Y - inset.Y) / s, size.X / s, size.Y / s, "Stats") }
+	end,
+})
 mount("banner", { "Run", "DistrictBanner" }, "Feedback")
 mount("ribbon", { "Run", "CaptureRibbon" }, "Feedback")
 mount("runEnd", { "Run", "RunEnd" }, "Feedback", {
@@ -483,6 +501,47 @@ do
 		end
 		plates:setRidden("traffic-1")
 		plates:setTarget("traffic-2")
+		-- the ridden car's plate names the car the run says is ridden, so the CAPTURING plate, the
+		-- Keys ring and the ribbon always name the same car (the 3D proxy keeps its shape)
+		trove:Connect(store.Changed, function(key: string, state: any)
+			local rideCar = key == "run" and state.run and state.run.ride
+			if rideCar and rideCar ~= backdrop.trafficCars[1] then
+				backdrop.trafficCars[1] = rideCar
+				plates:track("traffic-1", backdrop.ride, rideCar)
+			end
+		end)
+	end
+	-- plates never sit under the run HUD (reviewer, 2026-10-23: plates under the top band on
+	-- phones): the strip, coins, Settings, ride chip, Heat, Hop, tray, an entry banner and the stats
+	if plates and plates.setBlockers then
+		local lctx = { store = store, screen = screen }
+		plates:setBlockers(function()
+			local out = {}
+			-- 10 device px of clearance: the plate estimate is the text block, its outline and the NEW!
+			-- tag reach a little further (Studio: RARE touched the strip distance readout)
+			local PAD = Vector2.new(10, 10)
+			local function add(r: any)
+				local pos, size = RunLayout.toDevice(lctx :: any, r)
+				table.insert(out, { pos = pos - PAD, size = size + PAD * 2 })
+			end
+			add(RunLayout.stripRect(lctx :: any))
+			add(RunLayout.coinsRect(lctx :: any))
+			add(RunLayout.gearRect(lctx :: any))
+			add(RunLayout.chipRect(lctx :: any))
+			add((RunLayout.heatRect(lctx :: any)))
+			add((RunLayout.hopRect(lctx :: any)))
+			add(RunLayout.trayRect(lctx :: any))
+			local banner = components.banner
+			if banner and banner.getDebugState and banner:getDebugState().showing then
+				add(RunLayout.bannerRect(lctx :: any))
+			end
+			local stats = components.stats
+			if stats and stats._content and stats.root and stats.root.Visible then
+				local pos, size = screen:rectOf(stats._content)
+				table.insert(out, { pos = pos, size = size })
+			end
+			return out
+		end)
 	end
 	local fx = components.captureFx
 	if fx and fx.setNameplates then

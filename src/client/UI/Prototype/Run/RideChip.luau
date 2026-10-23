@@ -130,11 +130,26 @@ function RideChip.new(ctx: RunLayout.Ctx)
 		Parent = chip,
 	})
 	Icons.draw(iconHolder, "Car", C.White)
+	-- "RIDING" names what the chip is (reviewer, 2026-10-23: an unlabelled pill under Settings)
+	local tag = make("TextLabel", {
+		Name = "RidingTag",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(5 + BAR_W + PAD, 2),
+		Size = UDim2.new(1, -(5 + BAR_W + PAD) - (ICON + 2 * PAD), 0, Tokens.TextSize.Minimum),
+		FontFace = Tokens.font(),
+		Text = "RIDING",
+		TextSize = Tokens.TextSize.Minimum,
+		TextColor3 = C.PanelShade,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 5,
+		Parent = chip,
+	})
+	Arcade.outline(tag, "Minor")
 	self._name = make("TextLabel", {
 		Name = "CarName",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(5 + BAR_W + PAD, 0),
-		Size = UDim2.new(1, -(5 + BAR_W + PAD) - (ICON + 2 * PAD), 1, 0),
+		Position = UDim2.fromOffset(5 + BAR_W + PAD, Tokens.TextSize.Minimum),
+		Size = UDim2.new(1, -(5 + BAR_W + PAD) - (ICON + 2 * PAD), 1, -Tokens.TextSize.Minimum - 2),
 		FontFace = Tokens.font(),
 		Text = "",
 		TextSize = NAME_SIZE,

@@ -54,6 +54,9 @@ Assembler.MERGE_AHEAD = 5
 
 local GROUND_CELL = 2000
 local GROUND_COLOUR = Color3.fromRGB(150, 146, 134) -- darker paving: the pale tone read as white in Studio
+local WATER_COLOUR = Color3.fromRGB(46, 132, 190) -- harbour water under the bridge deck
+local WATER_ACROSS = 240 -- studs across the route: the deck, its frontage and a margin, not the skyline
+local WATER_Y = -0.25 -- centre; the ground tiles top out at -0.3
 
 -- kit meshes for the midground and skyline masses (were plain blocks: "no crude boxes", §13),
 -- picked deterministically per district and scaled to each planned mass
@@ -1020,6 +1023,33 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 				return lm.pivot * fit(t, lm.width)
 			end, lm.pivot, true)
 		)
+		if lm.placement == "bridge" then
+			-- harbour water under the deck (reviewer, 2026-10-23: no water at Harbor Bridge); a plain
+			-- part just above the ground tiles, so it costs no EditableMesh
+			local length = lm.to - lm.from + 24
+			table.insert(
+				specs,
+				{
+					key = string.format("water:%d", math.floor(length + 0.5)),
+					kind = "Landmarks",
+					tris = 0,
+					mesh = false,
+					make = function()
+						local p = Proxies.block("HarborWater")
+						p.Size = Vector3.new(WATER_ACROSS, 0.1, length)
+						p.Color = WATER_COLOUR
+						p.Material = Enum.Material.SmoothPlastic
+						p.Reflectance = 0.15
+						p.CastShadow = false
+						return p
+					end,
+					place = function(inst: Instance)
+						local at = lm.pivot.Position;
+						(inst :: BasePart).CFrame = lm.pivot.Rotation + Vector3.new(at.X, WATER_Y, at.Z)
+					end,
+				} :: Spec
+			)
+		end
 	end
 
 	-- props

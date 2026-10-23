@@ -36,9 +36,11 @@
 --   plates:untrack(instanceId)             -- despawn: fades and frees the plate
 --   plates:setRidden(instanceId?)  plates:setTarget(instanceId?)
 --   plates:setPlateState(instanceId, "CAPTURING" | nil)
+--   plates:setBlockers(fn?)                -- fn() -> HUD rects (device px) plates must not overlap
 --   plates:setCap(n?)  plates:isTracked(id) -> boolean  plates:clear()
 --   plates:layout(), plates:setVisible(on), plates:destroy(), plates:getDebugState()
 
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -105,7 +107,8 @@ function Nameplates.new(ctx: WorldKit.Ctx, options: { cap: number? }?)
 	self._fadeConn = nil :: RBXScriptConnection?
 	self._acc = 0
 	self._ticks = 0
-	self._lastSuppressed = { overlap = 0, cap = 0, zone = 0, hysteresis = 0 }
+	self._lastSuppressed = { overlap = 0, cap = 0, zone = 0, hysteresis = 0, hud = 0 }
+	self._blockers = nil :: (() -> { { pos: Vector2, size: Vector2 } })?
 	self._scale = WorldKit.billboardScale(ctx)
 
 	local folder = self._trove:Add(Instance.new("Folder"))
@@ -283,6 +286,12 @@ function Nameplates.setTarget(self: Nameplates, instanceId: string?)
 	self:_tick()
 end
 
+-- HUD rectangles (device px) no plate may overlap; the host supplies them (Run owns the layout).
+function Nameplates.setBlockers(self: Nameplates, blockers: (() -> { { pos: Vector2, size: Vector2 } })?)
+	self._blockers = blockers
+	self:_tick()
+end
+
 function Nameplates.setPlateState(self: Nameplates, instanceId: string, state: PlateState?)
 	local t = self._tracked[instanceId]
 	if not t then
@@ -354,7 +363,7 @@ function Nameplates._tick(self: Nameplates)
 	local camPos = camera.CFrame.Position
 	local s = self._scale
 	local cap = self:_cap()
-	local suppressed = { overlap = 0, cap = 0, zone = 0, hysteresis = 0 }
+	local suppressed = { overlap = 0, cap = 0, zone = 0, hysteresis = 0, hud = 0 }
 
 	-- despawn: anything whose part left the world is dropped right away
 	for id, t in table.clone(self._tracked) do
@@ -429,9 +438,32 @@ function Nameplates._tick(self: Nameplates)
 	local accepted: { Candidate } = {}
 	local wanted: { [Tracked]: Candidate } = {}
 	local screen = self._ctx.screen
-	local origin = screen.root.AbsolutePosition
+	-- WorldToViewportPoint counts from the top of the window, AbsolutePosition from below the Roblox
+	-- top bar: add the inset so plate rects and HUD rects share one space (Studio, 2026-10-23: plates
+	-- were judged 58 px lower than drawn, so a plate under the ride chip was not suppressed)
+	local origin = screen.root.AbsolutePosition + GuiService:GetGuiInset()
+	-- HUD panels plates must not sit under (device px; seen in Studio: plates under the top band on
+	-- phones). This applies to the ridden and Hop-target plates too: the HUD wins, the ring and arc
+	-- still mark the target.
+	local blockers = if self._blockers then self._blockers() else {}
 	for _, c in candidates do
 		local forced = c.class <= 1
+		if #blockers > 0 then
+			local p0 = screen:toDevice(c.rect.min - origin)
+			local p1 = p0 + screen:toDevice(c.rect.max - c.rect.min)
+			local hit = false
+			for _, b in blockers do
+				local b1 = b.pos + b.size
+				if p0.X < b1.X and p1.X > b.pos.X and p0.Y < b1.Y and p1.Y > b.pos.Y then
+					hit = true
+					break
+				end
+			end
+			if hit then
+				suppressed.hud += 1
+				continue
+			end
+		end
 		if not forced then
 			if #accepted >= cap then
 				suppressed.cap += 1

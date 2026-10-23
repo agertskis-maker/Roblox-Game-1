@@ -23,6 +23,7 @@
 --   PhonePortrait      x 10%..90%, y 40%..76%   (the car fills more of the narrow width)
 -- Diagnostics (RunLayer:setDiagnostics) draw it as "PROTECTED ROAD AHEAD".
 
+local GuiService = game:GetService("GuiService")
 local Workspace = game:GetService("Workspace")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -144,7 +145,9 @@ function RunLayout.worldToCanvas(ctx: Ctx, worldPos: Vector3): (Vector2, boolean
 	end
 	local v, _ = camera:WorldToViewportPoint(worldPos)
 	local screen = ctx.screen
-	local origin = screen.root.AbsolutePosition
+	-- viewport px count from the window top, AbsolutePosition from below the top bar (Studio,
+	-- 2026-10-23: the projected rider was 58 px low)
+	local origin = screen.root.AbsolutePosition + GuiService:GetGuiInset()
 	local device = screen:toDevice(Vector2.new(v.X, v.Y) - origin)
 	local p = screen:profile()
 	local s = screen:uiScale()

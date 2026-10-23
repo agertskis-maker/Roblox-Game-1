@@ -95,8 +95,10 @@ ResultsCard.Reasons = {
 	Overheated = { heading = "OVERHEATED!", line = "Heat full", face = "Heat", icon = "Flame" },
 } :: { [string]: Reason }
 
--- The truthful fallback: no cause is invented.
-ResultsCard.Fallback = { heading = "RUN OVER", line = nil, face = "White", icon = "Flag" } :: Reason
+-- The truthful fallback: no cause is invented (the line only introduces the summary; reviewer,
+-- 2026-10-23: an empty body under RUN OVER looked broken).
+ResultsCard.Fallback =
+	{ heading = "RUN OVER", line = "Here is how your run went", face = "White", icon = "Flag" } :: Reason
 
 function ResultsCard.reasonFor(endReason: string?): Reason
 	if endReason then
@@ -401,14 +403,21 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local buttonDims = Vector2.zero -- (retryW, retryH) the buttons were built with
 	local homeDims = Vector2.zero
 
-	local function setButtons(on: boolean)
+	-- `looksLive`: during the reveal the buttons ignore input but keep their colours (reviewer,
+	-- 2026-10-23: grey buttons read as disabled); only after a choice do they turn grey
+	local buttonsLook = false
+	local function setButtons(on: boolean, looksLive: boolean?)
 		buttonsEnabled = on
-		if retry then
-			retry.setEnabled(on)
+		buttonsLook = on or looksLive == true
+		local function apply(b: Arcade.Button?)
+			if b then
+				b.setEnabled(buttonsLook)
+				b.body.Active = on
+				b.body.Selectable = on
+			end
 		end
-		if home then
-			home.setEnabled(on)
-		end
+		apply(retry)
+		apply(home)
 	end
 
 	local function choose(which: string)
@@ -468,7 +477,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		buttonsTrove:Add(h.trove)
 		h.root.ZIndex = 11
 		retry, home = r, h
-		setButtons(buttonsEnabled)
+		setButtons(buttonsEnabled, buttonsLook)
 	end
 
 	-- tap-anywhere catcher during the reveal (above everything on the card)
@@ -673,7 +682,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local function playReveal()
 		revealTrove:Clean()
 		chosen = nil
-		setButtons(false)
+		setButtons(false, true)
 		body.CanvasPosition = Vector2.zero
 		if Motion.reduced() then
 			finishReveal()
@@ -1042,7 +1051,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	}
 
 	layoutNow()
-	setButtons(false)
+	setButtons(false, true)
 	return results
 end
 

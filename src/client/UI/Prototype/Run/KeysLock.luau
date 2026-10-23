@@ -98,7 +98,9 @@ local KeysLock = {}
 KeysLock.__index = KeysLock
 KeysLock.Rank = RANK
 
-export type Options = { anchor: Instance? }
+-- avoid: extra design-px rects the ring keeps clear of (the host knows where the run-time Cash and
+-- car count sit; seen in Studio: the ring over them on phone portrait)
+export type Options = { anchor: Instance?, avoid: (() -> { RunLayout.Rect })? }
 
 type Capture = {
 	id: string,
@@ -141,6 +143,7 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 	self._trove = Trove.new()
 	self._visible = true
 	self._anchor = if options then options.anchor else nil
+	self._extraAvoid = if options then options.avoid else nil
 	self._cap = nil :: Capture?
 	self._final = {} :: { [string]: string }
 	self._finalOrder = {} :: { string }
@@ -898,6 +901,12 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 	if ctx.screen:profile().name ~= "PhoneLandscape" then
 		table.insert(avoid, RunLayout.chipRect(ctx)) -- the chip only steps aside on phone landscape
 	end
+	local extra = self._extraAvoid
+	if extra then
+		for _, r in extra() do
+			table.insert(avoid, r)
+		end
+	end
 	-- never inside a reserved touch zone (seen in the thumbstick zone on phone landscape in Studio)
 	for _, z in RunLayout.zones(ctx) do
 		table.insert(avoid, z)
@@ -959,7 +968,31 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 			return cc, "Rider", nil
 		end
 	end
-	return clampInside(candidates[1]), "Rider", nil
+	-- no preferred spot is clear (seen on phone landscape: the ring sat under Hop): scan the screen
+	-- for the clear spot nearest the rider, else the spot with the least overlap
+	local function overlapArea(c: Vector2): number
+		local box = self:_box(c)
+		local total = 0
+		for _, a in avoid do
+			local w = math.min(box.pos.X + box.size.X, a.pos.X + a.size.X) - math.max(box.pos.X, a.pos.X)
+			local h = math.min(box.pos.Y + box.size.Y, a.pos.Y + a.size.Y) - math.max(box.pos.Y, a.pos.Y)
+			if w > 0 and h > 0 then
+				total += w * h
+			end
+		end
+		return total
+	end
+	local best, bestScore = clampInside(candidates[1]), math.huge
+	for sy = up + 4, d.Y - down - 4, 8 do
+		for sx = halfW + 4, d.X - halfW - 4, 8 do
+			local c = Vector2.new(sx, sy)
+			local score = overlapArea(c) * 1000 + (c - p).Magnitude
+			if score < bestScore then
+				best, bestScore = c, score
+			end
+		end
+	end
+	return best, "Rider", nil
 end
 
 function KeysLock._place(self: KeysLock, dt: number)

@@ -159,7 +159,7 @@ function Scenarios.startRunState(self: any)
 		coins = 0,
 		heat = 0.08,
 		stage = "Calm",
-		ride = car("puglet"),
+		ride = car("rev6"), -- the backdrop rides a Revolution 6 (Backdrop.luau)
 		keys = nil,
 		hop = "Available",
 		hopCooldown01 = 0,
