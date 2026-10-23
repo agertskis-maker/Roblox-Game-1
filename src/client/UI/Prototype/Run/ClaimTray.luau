@@ -187,7 +187,8 @@ function ClaimTray.new(ctx: RunLayout.Ctx)
 		Parent = root,
 	})
 	Arcade.corner(review, A.Button.Radius)
-	Arcade.outline(review, "Button", Color3.new(1, 1, 1))
+	-- Round 2: the same bold blue surface as the other overlays (was a dark panel with a white outline)
+	Arcade.surface(review, "Garage")
 	local title = Arcade.text(review, {
 		text = "CLAIMED THIS RUN",
 		role = "Label",

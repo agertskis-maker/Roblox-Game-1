@@ -94,6 +94,8 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 		Parent = ribbon,
 	})
 	Arcade.corner(band, A.Button.Radius)
+	-- Round 2: a bold gold surface (was a dark translucent card); the rarity stripe and line stay
+	Arcade.surface(band, "Gold")
 	local stripe = make("Frame", {
 		Name = "Stripe",
 		Size = UDim2.new(0, 8, 1, 0),

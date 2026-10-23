@@ -76,7 +76,8 @@ function RideChip.new(ctx: RunLayout.Ctx)
 		Parent = root,
 	})
 	Arcade.corner(chip, 6)
-	Arcade.outline(chip, "Button")
+	-- Round 2: a bold blue surface (was a navy card)
+	Arcade.surface(chip, "Garage")
 	chip.Active = false
 	self._chip = chip
 	local bar = make("Frame", {

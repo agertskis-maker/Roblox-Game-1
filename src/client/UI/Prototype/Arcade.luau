@@ -258,6 +258,30 @@ end
 
 -- SURFACE DETAILS --------------------------------------------------------------------------
 
+-- Round 2 (R2-HM3): turns a plain Frame into a bold arcade surface: a clear colour gradient from the kit's
+-- fills (not a dark translucent panel), ONE thick dark outline (replacing any outline the frame had, so a
+-- heavy border is never nested in another), a narrow gloss band and limited rounding. Used by the run
+-- overlays (capture ribbon, warning chip, ride chip, tray review) so they share the buttons' language.
+function Arcade.surface(frame: Frame, fill: FillName, options: { gloss: boolean?, outline: StrokeRole? }?)
+	local opts = options or {}
+	frame.BackgroundColor3 = Color3.new(1, 1, 1)
+	frame.BackgroundTransparency = 0
+	frame.BorderSizePixel = 0
+	for _, child in frame:GetChildren() do
+		if child:IsA("UIStroke") or child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	make("UIGradient", { Color = A.Fill[fill], Rotation = 90, Parent = frame })
+	Arcade.outline(frame, opts.outline or "Button")
+	if not frame:FindFirstChildOfClass("UICorner") then
+		Arcade.corner(frame)
+	end
+	if opts.gloss ~= false and not frame:FindFirstChild("Gloss") then
+		Arcade.gloss(frame)
+	end
+end
+
 -- The narrow gloss band at the top of a body: a soft white strip, never over the label's
 -- centre line.
 function Arcade.gloss(body: GuiObject)

@@ -42,19 +42,19 @@ live-read integration / untested.
 | ID | Requirement (short) | WP | Status |
 |---|---|---|---|
 | R2-G1 | Earlier commits on GitHub before implementation | 1 | done: `git ls-remote` 2026-10-23 14:20, HUD `2ecea81`, main `0195fa2` |
-| R2-H1 | Inventory of the original Heat (path/revision, visual vs logic, inputs, thresholds, active, author) | 2 | open |
-| R2-H2 | Proven explanation of why the playground uses another bar, at the top of the review page | 2 | open |
-| R2-H3 | Use the original visual component directly; adapt inputs; do not copy logic | 5 | open |
-| R2-H4 | Baseline original behaviour + equivalent input sequence after integration; label fixture accurately | 2, 5 | open |
-| R2-H5 | Heat bottom-centre; tested with Stamina/Keys/route on phone landscape, tablet, desktop | 5 | open |
-| R2-O1 | Landscape-only (`StarterGui.ScreenOrientation = LandscapeSensor`), both sides; remove portrait branches | 3 | open |
-| R2-O2 | Layout matrix: small phone ≈844×390 or smaller, tablet, 1920×1080; notch sides; record sizes | 3 | open |
-| R2-O3 | Emulator vs physical rotation stated honestly | 3 | open |
-| R2-C1 | Remove run coin counter; Cash pickups as +$X cue; Results "Road coins +$X" row without double count | 4 | open |
-| R2-C2 | Tests: clustered, during count-up, run-end coincidence, delayed, zero, reset | 4 | open |
-| R2-HM1 | Remove car-plus icon and owned count; Garage "12 / 24 CARS" pill with truthful fallbacks | 4 | open |
-| R2-HM2 | Shop seamless rainbow, sparse glints, NEW only from a supplied flag, reduced motion, paused when hidden | 4 | open |
-| R2-HM3 | Restyle all retained run overlays into the arcade family | 4 | open |
+| R2-H1 | Inventory of the original Heat (path/revision, visual vs logic, inputs, thresholds, active, author) | 2 | done: hud-round2-heat-inventory.md |
+| R2-H2 | Proven explanation of why the playground uses another bar, at the top of the review page | 2 | done (proven cause) |
+| R2-H3 | Use the original visual component directly; adapt inputs; do not copy logic | 5 | runtime-tested: HeatPanel uses the unmodified HeatGauge |
+| R2-H4 | Baseline original behaviour + equivalent input sequence after integration; label fixture accurately | 2, 5 | runtime-tested: integration-equivalence.md |
+| R2-H5 | Heat bottom-centre; tested with Stamina/Keys/route on phone landscape, tablet, desktop | 5 | runtime-tested on six frames; Stamina/Keys/route composition still pending |
+| R2-O1 | Landscape-only (`StarterGui.ScreenOrientation = LandscapeSensor`), both sides; remove portrait branches | 3 | runtime-tested: property read in Edit and Play (PlayerGui.ScreenOrientation LandscapeSensor, CurrentScreenOrientation LandscapeLeft) |
+| R2-O2 | Layout matrix: small phone ≈844×390 or smaller, tablet, 1920×1080; notch sides; record sizes | 3 | runtime-tested on six virtual frames (virtual, not physical devices) |
+| R2-O3 | Emulator vs physical rotation stated honestly | 3 | virtual frames only; no physical or emulator rotation test yet |
+| R2-C1 | Remove run coin counter; Cash pickups as +$X cue; Results "Road coins +$X" row without double count | 4 | runtime-tested (pickup cue, Results source row built; Results visual still to capture) |
+| R2-C2 | Tests: clustered, during count-up, run-end coincidence, delayed, zero, reset | 4 | partly tested: cluster, duplicate, during count-up, delayed balance; run-end/zero Results pending capture |
+| R2-HM1 | Remove car-plus icon and owned count; Garage "12 / 24 CARS" pill with truthful fallbacks | 4 | runtime-tested (pill cases) |
+| R2-HM2 | Shop seamless rainbow, sparse glints, NEW only from a supplied flag, reduced motion, paused when hidden | 4 | runtime-tested (seam wrap, NEW flag, reduced motion, hidden); video pending |
+| R2-HM3 | Restyle all retained run overlays into the arcade family | 4 | partly: ribbon, warning chip, ride chip, tray review, panels done; cards (WP9) and banner (WP7) pending |
 | R2-S1 | Stamina demo: 10, −1 per accepted hop, none at 0, ride continues; meter, low/zero states; restore pickups off by default; HOP STREAK off by default | 6 | open |
 | R2-S2 | Gameplay conflict analysis from the real Heat rules | 2 | open |
 | R2-R1 | Subway route line: five stations per World, marker, callout, honest units | 7 | open |
@@ -94,8 +94,8 @@ Unchanged from [[hud-rebuild-downtown-b]]: `run.districtPlan`, `DistrictEnter`, 
 | `shop.newItem` | NEW ribbon flag | Brian L |
 | `StarterGui.ScreenOrientation = LandscapeSensor` in `default.project.json` | one-line addition for the team (Adam chose playground projects only for this task) | team |
 
-## Removed paths (portrait) — filled in during WP3
-(none yet)
+## Removed paths (portrait), WP3
+Screen.Profiles.PhonePortrait; Home/Layout PortraitGrid menu shape, portrait stats placements (Above, AboveJump, block scale), portrait banner and toasts; RunLayout.portrait, PhonePortrait protected fractions, portrait tray row, upper-row and side-slot branches; ClaimTray horizontal layout; SettingsPanel stacked rows; DebugPanel, Home and Run scenario profile lists (now api.profiles); HudPlayground run anchors (setRunAnchor removed from StatsStack). Shared input infrastructure untouched.
 
 ## Waiting for you (expected)
 Sound listening; guided B2 import clicks if the importer cannot be driven; permission to upload the Dusty/Summit

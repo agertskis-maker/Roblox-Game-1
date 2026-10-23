@@ -654,6 +654,17 @@ end
 
 -- Debug-only: "Original" (default; the approved ENGINE HEAT panel) or "Segmented" (the round-1 bar), for
 -- before/after comparison. Round 2 uses Original everywhere.
+-- Debug-only: merges fields into the current run state (a held state for review captures).
+function api.patchRun(patch: { [string]: any })
+	local run = store:get().run
+	if run then
+		local merged = table.clone(run) :: any
+		for k, v in patch do
+			merged[k] = v
+		end
+		store:set("run", merged)
+	end
+end
 api.heatVariant = "Original"
 function api.setHeatVariant(variant: string)
 	api.heatVariant = if variant == "Segmented" then "Segmented" else "Original"

@@ -249,7 +249,10 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 
 	local function updateCollection()
 		local g = ctx.store:get().garage
-		countText.Text = string.format("%d / %d", g.owned, g.total)
+		-- an unknown total is shown as the owned count alone, never an invented total
+		countText.Text = if g.total ~= nil
+			then string.format("%d / %d", g.owned, g.total)
+			else string.format("%d", g.owned)
 	end
 	trove:Add(ctx.store:subscribe("garage", function()
 		updateCollection()

@@ -158,7 +158,8 @@ function RunEnd.new(ctx: RunLayout.Ctx, options: Options?)
 		Parent = chipInner,
 	})
 	Arcade.corner(band, A.Button.Radius)
-	Arcade.outline(band, "Button", A.Badge)
+	-- Round 2: a bold red surface with one thick dark outline (was a dark card with a red outline)
+	Arcade.surface(band, "Settings")
 	local bang = make("Frame", {
 		Name = "Bang",
 		AnchorPoint = Vector2.new(0, 0.5),

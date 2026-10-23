@@ -37,15 +37,15 @@ local function rgb(r: number, g: number, b: number): Color3
 end
 
 -- TOKEN CANDIDATE: screen panel body gradient (deep navy, top -> bottom).
-Style.PanelTop = rgb(46, 66, 128)
+Style.PanelTop = rgb(66, 124, 226)
 -- TOKEN CANDIDATE
-Style.PanelBottom = rgb(24, 34, 74)
+Style.PanelBottom = rgb(34, 70, 168)
 -- TOKEN CANDIDATE: inset wells (rows, grid holder, detail pane) inside a panel.
-Style.Well = rgb(16, 24, 52)
+Style.Well = rgb(20, 38, 96)
 -- TOKEN CANDIDATE: well transparency (the panel gradient shows through a little).
 Style.WellTransparency = 0.2
 -- TOKEN CANDIDATE: subordinate text colour on the dark panel (still outlined).
-Style.TextSoft = rgb(190, 210, 250)
+Style.TextSoft = rgb(226, 238, 255)
 -- TOKEN CANDIDATE: panel corner radius (limited rounding, like the kit's 7 on buttons).
 Style.Radius = 10
 -- TOKEN CANDIDATE: panel lip depth (hard dark offset, no soft shadow).
