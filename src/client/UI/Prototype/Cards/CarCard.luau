@@ -1023,6 +1023,23 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		fitCamera()
 	end
 
+	-- The rarity word must never be cut ("UNCOM" / "LEGENDA" showed in a real render of a compact card at a small HUD scale: the
+	-- 16 px minimum is in real pixels, so a card scaled down leaves too little room). The full word is used whenever it fits;
+	-- only when it cannot fit does a short form ("UNCOM.", "LEGEND.") take its place. The word is never dropped.
+	local RARITY_SHORT: { [string]: string } = { UNCOMMON = "UNCOM.", LEGENDARY = "LEGEND." }
+	local rarityFull = ""
+	local function fitRarity()
+		if rarityFull == "" then
+			return
+		end
+		rarityLabel.TextWrapped = false
+		rarityLabel.Text = rarityFull
+		if rarityLabel.TextBounds.X > rarityLabel.AbsoluteSize.X + 0.5 then
+			rarityLabel.Text = RARITY_SHORT[rarityFull] or rarityFull
+		end
+	end
+	trove:Connect(rarityLabel:GetPropertyChangedSignal("AbsoluteSize"), fitRarity)
+
 	local function applyCar()
 		local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
 		root.Name = opts.name or ("CarCard_" .. car.id)
@@ -1030,7 +1047,8 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		stripGradient.Color = ColorSequence.new(rarity.light:Lerp(rarity.deep, 0.35), rarity.deep)
 		stageGradient.Color =
 			ColorSequence.new(rarity.deep:Lerp(Color3.new(1, 1, 1), 0.4), rarity.light:Lerp(Color3.new(1, 1, 1), 0.78))
-		rarityLabel.Text = rarity.label
+		rarityFull = rarity.label
+		fitRarity()
 		for i, p in pipFrames do
 			local filled = i <= rarity.pips
 			p.BackgroundColor3 = if filled then Color3.new(1, 1, 1) else A.Ink
@@ -1241,6 +1259,8 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				nameSize = nameSize,
 				rarity = car.rarity,
 				rarityLabel = rarityLabel.Text,
+				rarityWord = rarityFull,
+				rarityFits = rarityLabel.TextBounds.X <= rarityLabel.AbsoluteSize.X + 0.5,
 				pips = rarity.pips,
 				variant = car.variant,
 				variantLabel = if finish then finish.label else nil,

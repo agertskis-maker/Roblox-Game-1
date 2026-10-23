@@ -69,6 +69,7 @@ type Slot = {
 	edge: UIStroke,
 	thumb: ViewportFrame?,
 	new: Frame,
+	newText: TextLabel,
 	entry: Entry?,
 	icon: Frame,
 	name: TextLabel,
@@ -475,7 +476,7 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 		Name = "New",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, 1, 0, -1),
-		Size = UDim2.fromOffset(40, 20),
+		Size = UDim2.fromOffset(50, 20), -- "NEW" at the 16 px minimum measures 32 px: 40 wide clipped it to "NE", 50 holds it with room
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		Visible = false,
 		ZIndex = 9,
@@ -516,6 +517,7 @@ function ClaimTray._makeSlot(self: ClaimTray, i: number, size: number): Slot
 		edge = edge,
 		thumb = nil,
 		new = newChip,
+		newText = newText,
 		entry = nil,
 		icon = icon,
 		name = name,
@@ -608,7 +610,7 @@ function ClaimTray._render(self: ClaimTray)
 				local vp = RunKit.thumb(slot.ground, e.car)
 				if vp then
 					vp.AnchorPoint = Vector2.new(0.5, 0)
-					vp.Position = UDim2.new(0.5, 0, 0, 3)
+					vp.Position = UDim2.new(0.5, 0, 0, 11) -- below the NEW chip
 					vp.Size = UDim2.fromOffset(g.thumb * 0.84, g.thumb * 0.62)
 					vp.ZIndex = 6
 					slot.thumb = vp
@@ -620,7 +622,7 @@ function ClaimTray._render(self: ClaimTray)
 			slot.new.Visible = e.kind == "Car" and e.car ~= nil and e.car.owned == false
 			-- compact tiles hide the name, so the NEW chip takes the bottom edge; larger tiles keep it top-right
 			slot.new.AnchorPoint = if compact then Vector2.new(0.5, 1) else Vector2.new(1, 0)
-			slot.new.Position = if compact then UDim2.new(0.5, 0, 1, 2) else UDim2.new(1, 2, 0, -2)
+			slot.new.Position = if compact then UDim2.new(0.5, 0, 1, 2) else UDim2.new(1, 2, 0, 1)
 			slot.name.Text = if e.car then e.car.name else ""
 			slot.name.Visible = not compact
 			slot.ground.BackgroundTransparency = if ghost then 0.65 else 0
@@ -819,7 +821,21 @@ function ClaimTray.getDebugState(self: ClaimTray): { [string]: any }
 		waiting += 1
 	end
 	local r = self._geometry and self._geometry.rect
+	-- every visible NEW chip must hold its whole word (a real render once showed "NE": numbers alone had passed)
+	local chips, chipsFit, widest = 0, true, 0
+	for _, slot in self._slots do
+		if slot.new.Visible then
+			chips += 1
+			widest = math.max(widest, slot.newText.TextBounds.X)
+			if slot.newText.TextBounds.X > slot.new.AbsoluteSize.X - 6 then
+				chipsFit = false
+			end
+		end
+	end
 	return {
+		newChips = chips,
+		newChipsFit = chipsFit,
+		newChipTextWidth = widest,
 		visible = self._visible,
 		shown = self._holder.Visible,
 		count = #self._arrived,

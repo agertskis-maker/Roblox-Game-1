@@ -22,6 +22,7 @@ local make = Arcade.make
 local TradingSheet = {}
 
 local CELL = Vector2.new(210, 372)
+local COMPACT_CELL = Vector2.new(150, 222) -- compact cards need far less room than the reward cards: two grids, not one big cell size
 
 type Spec = { label: string, car: TradingCard.CarRef, info: TradingCard.Info?, variant: string, stamp: string? }
 
@@ -127,13 +128,32 @@ function TradingSheet.new(ctx: Overlay.Ctx)
 	closeButton.root.ZIndex = 12
 
 	local scroll = Style.scroll(panel, "Cells", 5)
-	make("UIGridLayout", {
-		CellSize = UDim2.fromOffset(CELL.X, CELL.Y),
-		CellPadding = UDim2.fromOffset(14, 14),
+	make("UIListLayout", {
+		Padding = UDim.new(0, 16),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		Parent = scroll,
 	})
+	local function grid(name: string, order: number, cell: Vector2): Frame
+		local f: Frame = make("Frame", {
+			Name = name,
+			BackgroundTransparency = 1,
+			LayoutOrder = order,
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.fromScale(1, 0),
+			Parent = scroll,
+		})
+		make("UIGridLayout", {
+			CellSize = UDim2.fromOffset(cell.X, cell.Y),
+			CellPadding = UDim2.fromOffset(14, 14),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			Parent = f,
+		})
+		return f
+	end
+	local compactGrid = grid("CompactCards", 1, COMPACT_CELL)
+	local rewardGrid = grid("RewardCards", 2, CELL)
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 12),
 		PaddingBottom = UDim.new(0, 12),
@@ -149,7 +169,7 @@ function TradingSheet.new(ctx: Overlay.Ctx)
 			BackgroundTransparency = 1,
 			LayoutOrder = i,
 			ZIndex = 6,
-			Parent = scroll,
+			Parent = if spec.variant == "Compact" then compactGrid else rewardGrid,
 		})
 		local card = TradingCard.new(cell, spec.car, spec.info, { variant = spec.variant, stamp = spec.stamp })
 		card.root.AnchorPoint = Vector2.new(0.5, 0)
