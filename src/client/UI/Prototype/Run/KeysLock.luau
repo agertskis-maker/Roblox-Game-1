@@ -79,6 +79,7 @@ local make = Arcade.make
 local PENDING_TIMEOUT = 8 -- seconds of Pending before "Not confirmed"
 local FOLLOW_OMEGA = 14 -- critically damped follow stiffness (1/s)
 local DEADBAND = 1.5 -- design px
+local SCAN_EVERY = 0.2 -- seconds between fallback placement scans
 local PAD = 14 -- room around the ring for the fracture and glow
 local INSTR_H = 28
 local PERCENT_H = 24
@@ -144,6 +145,8 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 	self._visible = true
 	self._anchor = if options then options.anchor else nil
 	self._extraAvoid = if options then options.avoid else nil
+	self._scanBest = nil :: Vector2?
+	self._scanAt = 0
 	self._cap = nil :: Capture?
 	self._final = {} :: { [string]: string }
 	self._finalOrder = {} :: { string }
@@ -982,6 +985,12 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 		end
 		return total
 	end
+	-- the scan is a few thousand boxes: at most SCAN_EVERY seconds apart (phone portrait hits it
+	-- every frame), reusing the last result in between
+	local now = os.clock()
+	if self._scanBest and now - self._scanAt < SCAN_EVERY then
+		return self._scanBest :: Vector2, "Rider", nil
+	end
 	local best, bestScore = clampInside(candidates[1]), math.huge
 	for sy = up + 4, d.Y - down - 4, 8 do
 		for sx = halfW + 4, d.X - halfW - 4, 8 do
@@ -992,6 +1001,7 @@ function KeysLock._target(self: KeysLock): (Vector2, string, Vector2?)
 			end
 		end
 	end
+	self._scanBest, self._scanAt = best, now
 	return best, "Rider", nil
 end
 
