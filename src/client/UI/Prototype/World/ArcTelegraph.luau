@@ -33,6 +33,9 @@ local C = PreviewTokens.Color
 
 local POINTS = 12 -- 11 spans, every other one drawn = 6 dashes
 local MIN_GAP, MAX_GAP = 3, 140
+-- the curve is drawn from this fraction on: the chase camera sits just behind the ride, so the first
+-- span drew as a long bar up the road (reviewer, 2026-10-23: "a teal beam pointing at nothing")
+local DRAW_FROM = 0.3
 
 export type ArcState = "Available" | "Unavailable" | "Timing" | "Hidden"
 
@@ -66,7 +69,6 @@ function ArcTelegraph.new(ctx: WorldKit.Ctx, options: { ride: Instance?, target:
 	local dashes = math.floor(POINTS / 2)
 	for d = 1, dashes do
 		local i = d * 2 - 1
-		local u = (d - 1) / math.max(dashes - 1, 1)
 		local beam = Instance.new("Beam")
 		beam.Name = "Dash" .. d
 		beam.Attachment0 = self._points[i]
@@ -75,11 +77,11 @@ function ArcTelegraph.new(ctx: WorldKit.Ctx, options: { ride: Instance?, target:
 		beam.Segments = 1
 		beam.LightInfluence = 0
 		beam.LightEmission = 0.4
-		beam.Width0 = 0.3 - 0.12 * u
-		beam.Width1 = 0.3 - 0.12 * u
-		-- semi-transparent; fades away over the last third near the target
-		local t = if u < 0.6 then 0.3 else 0.3 + (u - 0.6) / 0.4 * 0.6
-		beam.Transparency = NumberSequence.new(t)
+		-- even width and opacity to the end: the arc must land visibly on the target (reviewer,
+		-- 2026-10-23: with the old fade over the last third it read as a bar pointing at nothing)
+		beam.Width0 = 0.6
+		beam.Width1 = 0.6
+		beam.Transparency = NumberSequence.new(0.25)
 		beam.Color = ColorSequence.new(if d % 2 == 1 then C.HopLight else C.White)
 		beam.Enabled = false
 		beam.Parent = carrier
@@ -113,11 +115,11 @@ function ArcTelegraph._update(self: ArcTelegraph): boolean
 	if gap < MIN_GAP or gap > MAX_GAP then
 		return false
 	end
-	local apex = math.max(start.Y, finish.Y) + math.clamp(gap * 0.18, 2.5, 8)
+	local apex = math.max(start.Y, finish.Y) + math.clamp(gap * 0.1, 1.5, 4) -- a low hop, kept near the cars
 	local mid = (start + finish) / 2
 	local control = Vector3.new(mid.X, 2 * apex - mid.Y, mid.Z)
 	for i, p in self._points do
-		local t = (i - 1) / (POINTS - 1)
+		local t = DRAW_FROM + (1 - DRAW_FROM) * (i - 1) / (POINTS - 1)
 		local q = start:Lerp(control, t):Lerp(control:Lerp(finish, t), t)
 		p.Position = q -- the carrier sits at the origin, so local = world
 	end

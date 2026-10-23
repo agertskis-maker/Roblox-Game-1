@@ -234,7 +234,19 @@ function HeatBar.new(ctx: RunLayout.Ctx)
 	self._trove:Add(ctx.store:subscribe("run", function()
 		self:_apply()
 	end))
-	self._trove:Connect(ctx.store.ModeChanged, function()
+	-- once the rider is off the car (eject or run end) "HOP NOW!" invites an action that is gone
+	-- (reviewer, 2026-10-23: it stayed up under OVERHEATED!)
+	self._ended = false
+	self._trove:Connect(ctx.store.Event, function(event: any)
+		if event.kind == "Dismounted" or event.kind == "RunEnded" then
+			self._ended = true
+			self:_applyWords()
+		end
+	end)
+	self._trove:Connect(ctx.store.ModeChanged, function(mode: string, from: string?)
+		if mode == "Run" and from ~= "Run" then
+			self._ended = false
+		end
 		self:_apply()
 	end)
 	self._trove:Add(Motion.onReducedChanged(function()
@@ -334,8 +346,8 @@ function HeatBar._applyWords(self: HeatBar)
 	self._current.Text = LABELS[stage] or ""
 	-- phones have room for one line: at Meltdown the instruction wins (the full bar and the red
 	-- frame still say "losing control")
-	self._hopNow.Visible = melt and not compact
-	if melt and compact then
+	self._hopNow.Visible = melt and not compact and not self._ended
+	if melt and compact and not self._ended then
 		self._current.Text = "HOP NOW!"
 	end
 end

@@ -38,7 +38,7 @@ local A = PreviewTokens.Arcade
 local RED = PreviewTokens.Color.HeatHigh
 local RED_LIGHT = Color3.fromRGB(255, 96, 80) -- TOKEN CANDIDATE: warning outline on the car
 local PULSE_SECONDS = 1.25
-local FILL_MIN, FILL_MAX = 0.62, 0.8
+local FILL_MIN, FILL_MAX = 0.45, 0.6 -- was 0.62..0.8: read as a hairline in Studio (reviewer, 2026-10-23)
 local EVENT_ONLY_SECONDS = 4
 local BOARD = Vector2.new(230, 64)
 

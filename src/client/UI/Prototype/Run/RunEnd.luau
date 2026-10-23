@@ -378,13 +378,14 @@ local function anchorPosition(anchor: Instance?): Vector3?
 	return nil
 end
 
--- The chip sits just above the protected region, at the rider's x (clamped on screen).
+-- The chip sits just above the Heat bar, at the rider's x (clamped on screen). It used to sit just
+-- above the protected region, which put it mid-road over the car ahead (reviewer, 2026-10-23).
 function RunEnd._placeChip(self: RunEnd)
 	local ctx = self._ctx
 	local d = RunLayout.design(ctx)
-	local prot = RunLayout.protected(ctx)
+	local heat = RunLayout.heatRect(ctx)
 	local w = self._chip.Size.X.Offset
-	local x = prot.pos.X + prot.size.X / 2
+	local x = heat.pos.X + heat.size.X / 2
 	local world = anchorPosition(self._anchor)
 	if world then
 		local p, on = RunLayout.worldToCanvas(ctx, world :: Vector3)
@@ -399,16 +400,15 @@ function RunEnd._placeChip(self: RunEnd)
 	else
 		x = current
 	end
-	self._chip.Position = UDim2.fromOffset(x, prot.pos.Y - 6)
+	self._chip.Position = UDim2.fromOffset(x, heat.pos.Y - 4)
 end
 
 function RunEnd._startFollow(self: RunEnd)
 	if self._follow then
 		return
 	end
-	local ctx = self._ctx
-	local prot = RunLayout.protected(ctx)
-	self._chip.Position = UDim2.fromOffset(prot.pos.X + prot.size.X / 2, prot.pos.Y - 6)
+	local heat = RunLayout.heatRect(self._ctx)
+	self._chip.Position = UDim2.fromOffset(heat.pos.X + heat.size.X / 2, heat.pos.Y - 4)
 	self:_placeChip()
 	self._follow = RunService.Heartbeat:Connect(function()
 		self:_placeChip()
