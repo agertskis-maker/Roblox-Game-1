@@ -428,53 +428,76 @@ end
 -- very place the Keys ring just occupied: the lock opens and the ring hands over to the stack. That place was already
 -- chosen clear of the protected rectangle, the top block, Heat, Hop and the touch zones, so the stack never covers the
 -- road, the next target, the route line or the tray count it is about to feed.
+-- The stack tries the full size, then a mini (150 x 66: thumbnail, SECURED!, Lap Pay line and the name, all at the 16 px
+-- minimum), in every candidate place. The riding chip steps aside on EVERY layout that shows the stack, so it is never an
+-- obstacle. The very tightest layout (PhoneSmall with the Stamina meter) has no clear place at all: the last resort is the
+-- spot level with the Settings button, covering only that button (the ribbon takes no input, so it stays tappable); the third
+-- result names it ("Options"), and "Unresolved" would mean even that failed.
 RunLayout.StackSize = Vector2.new(196, 96)
-function RunLayout.ribbonPlacement(ctx: Ctx): (string, Rect)
+RunLayout.StackMini = Vector2.new(150, 66)
+function RunLayout.ribbonPlacement(ctx: Ctx): (string, Rect, string?)
 	local side = RunLayout.sideRect(ctx)
 	local clash = RunLayout.overlaps(side, RunLayout.trayRect(ctx))
 		or RunLayout.overlaps(side, RunLayout.protected(ctx))
 		or RunLayout.overlaps(side, RunLayout.staminaRect(ctx))
 	if not clash then
-		return "Side", side
+		return "Side", side, nil
 	end
 	local d = RunLayout.design(ctx)
 	local prot = RunLayout.protected(ctx)
-	local size = RunLayout.StackSize
 	local m = RunLayout.Margin
 	local right = prot.pos.X + prot.size.X
 	-- the column right of the road view, just under Settings and the route line. On a phone that is where the riding
 	-- chip sits: it steps aside while the stack shows (RunBus flag secured), so the chip is not an obstacle there.
 	local gear = RunLayout.gearRect(ctx)
-	local chip = RunLayout.chipRect(ctx)
-	local phone = RunLayout.compact(ctx)
 	local strip = RunLayout.routeRect(ctx)
 	local top = gear.pos.Y + gear.size.Y + 6
-	if not phone then
-		top = math.max(top, chip.pos.Y + chip.size.Y + 6)
-	end
 	if right + m < strip.pos.X + strip.size.X then
 		top = math.max(top, strip.pos.Y + strip.size.Y + 6) -- under the route line where they share columns
 	end
-	local candidates = {
-		RunLayout.rect(right + m, top, size.X, size.Y, "RibbonStack"),
-		RunLayout.rect(d.X - 8 - size.X, top, size.X, size.Y, "RibbonStack"),
-		centred(right + m + size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
-		centred(prot.pos.X - m - size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
-	}
-	local avoid = {
+	local function candidatesFor(size: Vector2): { Rect }
+		return {
+			RunLayout.rect(right + m, top, size.X, size.Y, "RibbonStack"),
+			RunLayout.rect(d.X - 8 - size.X, top, size.X, size.Y, "RibbonStack"),
+			centred(right + m + size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
+			centred(prot.pos.X - m - size.X / 2, prot.pos.Y + prot.size.Y * 0.4, size, "RibbonStack"),
+		}
+	end
+	local sizes = { RunLayout.StackSize, RunLayout.StackMini }
+	local base = {
 		prot,
 		RunLayout.topBlock(ctx),
-		RunLayout.gearRect(ctx),
+		gear,
 		(RunLayout.heatRect(ctx)),
 		(RunLayout.hopRect(ctx)),
 		RunLayout.trayRect(ctx),
 		RunLayout.staminaRect(ctx),
 	}
-	if not phone then
-		table.insert(avoid, chip)
+	for _, size in sizes do
+		local rect, conflict = RunLayout.solve(ctx, candidatesFor(size), base)
+		if conflict == nil then
+			return "Stack", rect, nil
+		end
 	end
-	local rect = RunLayout.solve(ctx, candidates, avoid)
-	return "Stack", rect
+	-- last resort: level with the Settings button, covering only that button
+	local noGear = {
+		prot,
+		RunLayout.topBlock(ctx),
+		(RunLayout.heatRect(ctx)),
+		(RunLayout.hopRect(ctx)),
+		RunLayout.trayRect(ctx),
+		RunLayout.staminaRect(ctx),
+	}
+	for _, size in sizes do
+		local list = candidatesFor(size)
+		table.insert(list, 1, RunLayout.rect(d.X - 8 - size.X, gear.pos.Y, size.X, size.Y, "RibbonStack"))
+		local rect, conflict = RunLayout.solve(ctx, list, noGear)
+		if conflict == nil then
+			return "Stack", rect, "Options"
+		end
+	end
+	local rect = RunLayout.solve(ctx, candidatesFor(RunLayout.StackSize), base)
+	return "Stack", rect, "Unresolved"
 end
 
 ----------------------------------------------------------------------------------------------

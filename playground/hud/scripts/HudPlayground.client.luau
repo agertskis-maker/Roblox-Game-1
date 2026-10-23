@@ -240,7 +240,7 @@ api.goRun = goRun
 -- client (EditableMesh kit; labelled proxies for anything missing), hides the neutral road, and
 -- moves the backdrop traffic and chase camera along the city route. Preview only.
 local city: any = nil
-function api.useCity(on: boolean, seed: number?): string
+function api.useCity(on: boolean, seed: number?, world: string?): string
 	if city then
 		backdrop.setPath(nil)
 		scenarios.cityPlan = nil
@@ -260,11 +260,14 @@ function api.useCity(on: boolean, seed: number?): string
 	end
 	local City = require(module :: ModuleScript) :: any
 	local Route = require((module :: Instance):WaitForChild("Route") :: ModuleScript) :: any
+	-- Round 2: a World ("DustyHighway" / "SummitPass") builds from the same planner and finds its own kit and swatches
+	local worldId = if world and world ~= "Downtown" then world else nil
 	local ok, err = pcall(function()
 		city = City.new({
 			parent = backdrop.folder,
 			kit = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2"),
-			kitData = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2Data"),
+			kitData = if worldId then nil else ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2Data"),
+			world = worldId,
 			seed = seed or 2207,
 			preview = true,
 			lighting = true,
@@ -285,13 +288,26 @@ function api.useCity(on: boolean, seed: number?): string
 	for _, seg in segments do
 		length += seg.length
 	end
+	local shorts: { [string]: string } = {}
+	for _, d in WorldRoutes.plan(worldId or "Downtown").districts do
+		shorts[d.id] = d.short
+	end
 	local districts = {}
 	for _, b in city:boundaries() do
 		if b.cycle == 1 or b.cycle == nil then
-			table.insert(districts, { id = b.id, name = b.name, length = b.lengthMetresProvisional })
+			table.insert(
+				districts,
+				{ id = b.id, name = b.name, short = shorts[b.id], length = b.lengthMetresProvisional }
+			)
 		end
 	end
-	scenarios.cityPlan = if #districts > 0 then { districts = districts, repeats = true } else nil
+	scenarios.cityPlan = if #districts > 0
+		then { districts = districts, repeats = true, world = WorldRoutes.worlds[worldId or "Downtown"] }
+		else nil
+	api.musicWorld = worldId or "Downtown"
+	if store:get().mode == "Run" then
+		Music.setWorld(api.musicWorld)
+	end
 	scenarios.cityStation = function(): number
 		return backdrop.station()
 	end
@@ -304,7 +320,12 @@ function api.useCity(on: boolean, seed: number?): string
 			city:setStation(s)
 		end
 	)
-	return "city built: seed " .. tostring(seed or 2207) .. ", " .. math.floor(length) .. " studs"
+	return (worldId or "Downtown")
+		.. " city built: seed "
+		.. tostring(seed or 2207)
+		.. ", "
+		.. math.floor(length)
+		.. " studs"
 end
 -- Holds the run at `travelled` studs (nil resumes) for still captures; the chase camera stays on.
 function api.hold(travelled: number?)
@@ -826,6 +847,34 @@ function api.setHopTarget(index: number?): string
 		cue:setTargetModel(model)
 	end
 	return if model then model.Name else "none"
+end
+-- Debug: the rectangles the Run HUD lays out on the current layout (design px), as JSON, for overlap work.
+function api.layoutRects(): string
+	local ribbon = components.ribbon
+	local ctx = ribbon and ribbon._ctx
+	if not ctx then
+		return "no ctx"
+	end
+	local function box(r: any): any
+		return if r then { x = r.pos.X, y = r.pos.Y, w = r.size.X, h = r.size.Y, name = r.name } else nil
+	end
+	local out: { [string]: any } = { design = { x = RunLayout.design(ctx).X, y = RunLayout.design(ctx).Y } }
+	out.protected = box(RunLayout.protected(ctx))
+	out.hop = box((RunLayout.hopRect(ctx)))
+	out.heat = box((RunLayout.heatRect(ctx)))
+	out.tray = box(RunLayout.trayRect(ctx))
+	out.gear = box(RunLayout.gearRect(ctx))
+	out.stamina = box(RunLayout.staminaRect(ctx))
+	out.route = box(RunLayout.routeRect(ctx))
+	out.chip = box(RunLayout.chipRect(ctx))
+	out.side = box(RunLayout.sideRect(ctx))
+	out.top = box(RunLayout.topBlock(ctx))
+	local zones = {}
+	for _, z in RunLayout.zones(ctx) do
+		table.insert(zones, box(z))
+	end
+	out.zones = zones
+	return game:GetService("HttpService"):JSONEncode(out)
 end
 api.heatVariant = "Original"
 function api.setHeatVariant(variant: string)

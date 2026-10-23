@@ -488,7 +488,7 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 	local ribbon = self._ribbon
 	local mode, rect = RunLayout.ribbonPlacement(self._ctx)
 	local stack = mode == "Stack"
-	self:_setSecured(stack and RunLayout.compact(self._ctx)) -- the riding chip steps aside on phones
+	self:_setSecured(stack) -- the riding chip steps aside wherever the stack shows (every layout)
 	local w = ribbon.Size.X.Offset
 	local reduced = Motion.reduced()
 	ribbon.Visible = true
@@ -698,18 +698,32 @@ function CaptureRibbon.layout(self: CaptureRibbon)
 			self._ribbon.Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y)
 		end
 		self._icon.AnchorPoint = Vector2.new(0, 0)
+		self._identity.TextWrapped = false
+		self._identity.TextTruncate = Enum.TextTruncate.AtEnd
+		self._identity.TextYAlignment = Enum.TextYAlignment.Center
+		self._sub.TextXAlignment = Enum.TextXAlignment.Left
+		if h < 80 then
+			-- the mini stack (150 x 66): thumbnail beside SECURED! and the Lap Pay line, the name under both (16 px lines)
+			self._icon.Size = UDim2.fromOffset(34, 34)
+			self._icon.Position = UDim2.fromOffset(8, 6)
+			self._title.Position = UDim2.fromOffset(48, 3)
+			self._title.Size = UDim2.new(1, -52, 0, 20)
+			self._sub.Position = UDim2.fromOffset(48, 23)
+			self._sub.Size = UDim2.new(1, -52, 0, 18)
+			self._identity.Position = UDim2.fromOffset(8, 43)
+			self._identity.Size = UDim2.new(1, -14, 0, 18)
+			self._amount.Position = UDim2.new(1, -8, 1, -22)
+			self._caption.Position = UDim2.new(1, -8, 0, 1)
+			return
+		end
 		self._icon.Size = UDim2.fromOffset(40, 40)
 		self._icon.Position = UDim2.fromOffset(10, 6)
 		self._title.Position = UDim2.fromOffset(56, 8)
 		self._title.Size = UDim2.new(1, -62, 0, 34)
 		self._identity.Position = UDim2.fromOffset(8, 48)
 		self._identity.Size = UDim2.new(1, -14, 0, 22)
-		self._identity.TextWrapped = false
-		self._identity.TextTruncate = Enum.TextTruncate.AtEnd
-		self._identity.TextYAlignment = Enum.TextYAlignment.Center
 		self._sub.Position = UDim2.new(0, 8, 1, -26)
 		self._sub.Size = UDim2.new(1, -14, 0, 22)
-		self._sub.TextXAlignment = Enum.TextXAlignment.Left
 		self._amount.Position = UDim2.new(1, -10, 1, -30)
 		self._caption.Position = UDim2.new(1, -8, 0, 2)
 		return
@@ -752,7 +766,7 @@ function CaptureRibbon.setVisible(self: CaptureRibbon, on: boolean)
 end
 
 function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
-	local mode, rect = RunLayout.ribbonPlacement(self._ctx)
+	local mode, rect, soft = RunLayout.ribbonPlacement(self._ctx)
 	local pending = {}
 	for _, c in self._pending do
 		table.insert(pending, c.name)
@@ -773,6 +787,7 @@ function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
 		sub = self._sub.Text,
 		pendingForResults = pending,
 		mode = mode,
+		softOverlap = soft, -- nil = clear everywhere; "Options" = covers only the Settings button; "Unresolved" = a real clash
 		box = RunLayout.describe(rect),
 		overlapsProtected = RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),
 		overlapsTray = RunLayout.overlaps(rect, RunLayout.trayRect(self._ctx)),

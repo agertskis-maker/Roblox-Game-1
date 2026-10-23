@@ -190,7 +190,7 @@ function RideChip._apply(self: RideChip)
 	local phoneL = self._ctx.screen:profile().kind == "Phone"
 	-- Round 2: it also steps aside while the compact SECURED stack takes its place (phones only)
 	local secured = RunBus.flags(self._ctx).secured
-	self._chip.Visible = car ~= nil and not (phoneL and (capturing or secured))
+	self._chip.Visible = car ~= nil and not ((phoneL and capturing) or secured)
 	if not car then
 		return
 	end
