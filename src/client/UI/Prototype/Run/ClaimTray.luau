@@ -31,7 +31,7 @@
 -- never more than the tray’s four slots, no spin and no render loop; the icon stays when there is no model), the
 -- car name (truncated at a readable 16 px, in full in the review rows and the card detail), a thin rarity edge and a NEW
 -- chip when the car was not owned before this claim (car.owned == false, supplied). Three or four tiles, then "+N" for
--- the older claims. Tapping a car tile opens its card detail (options.onDetail); "+N" opens the review of every claim
+-- the older claims. Tapping a car tile opens the review of every claim beside the tray (it never covers the road view), or its card detail only when a host supplies options.onDetail; the playground does NOT (a full-screen card detail would swallow Hop and touches under a live ride, so it opens only from stopped screens); "+N" opens the review of every claim
 -- (long names wrap there instead of being cut). Its place is independent of the Stamina meter (RunLayout.trayGeometry).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -618,7 +618,7 @@ function ClaimTray._render(self: ClaimTray)
 			end
 			slot.icon.Visible = slot.thumb == nil
 			slot.more.Visible = false
-			slot.hit.Visible = e.kind == "Car" and self._onDetail ~= nil
+			slot.hit.Visible = e.kind == "Car"
 			slot.new.Visible = e.kind == "Car" and e.car ~= nil and e.car.owned == false
 			-- compact tiles hide the name, so the NEW chip takes the bottom edge; larger tiles keep it top-right
 			slot.new.AnchorPoint = if compact then Vector2.new(0.5, 1) else Vector2.new(1, 0)

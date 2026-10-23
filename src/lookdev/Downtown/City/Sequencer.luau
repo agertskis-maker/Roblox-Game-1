@@ -168,6 +168,7 @@ export type Checks = {
 	paletteViolations: number,
 	orientationViolations: number,
 	districtsWithoutSignature: { string },
+	requiredMissing: { string }, -- a landmark a district lists as required that the plan did not place (Worlds)
 	segmentJoinError: number,
 	spans: number,
 	notes: { string },
@@ -1627,6 +1628,7 @@ function Sequencer.check(plan: Plan, catalog: Catalog.Catalog?, extraNotes: { st
 		paletteViolations = 0,
 		orientationViolations = 0,
 		districtsWithoutSignature = {},
+		requiredMissing = {},
 		segmentJoinError = 0,
 		spans = #plan.spans,
 		notes = notes,
@@ -1754,8 +1756,23 @@ function Sequencer.check(plan: Plan, catalog: Catalog.Catalog?, extraNotes: { st
 		if not found then
 			table.insert(checks.districtsWithoutSignature, span.name .. " #" .. i)
 		end
+		-- Round 2 review: a required landmark that found no free frontage used to be skipped silently
+		local district = cat.districtById[span.id]
+		for _, wanted in if district then district.required or {} else {} do
+			local have = false
+			for _, lm in plan.landmarks do
+				if lm.id == wanted and lm.station >= span.startS and lm.station < span.endS then
+					have = true
+				end
+			end
+			if not have then
+				table.insert(checks.requiredMissing, span.name .. " #" .. i .. ": " .. wanted)
+			end
+		end
 	end
 	checks.passed = checks.atLeast2000
+		and #checks.districtsWithoutSignature == 0
+		and #checks.requiredMissing == 0
 		and checks.districtLengthsOk
 		and checks.immediateLotRepeats == 0
 		and checks.identicalPairs == 0
@@ -1907,6 +1924,9 @@ function Sequencer.describe(plan: Plan): string
 	)
 	if #c.districtsWithoutSignature > 0 then
 		add("  districts without their signature landmark: " .. table.concat(c.districtsWithoutSignature, ", "))
+	end
+	if #c.requiredMissing > 0 then
+		add("  required landmarks not placed: " .. table.concat(c.requiredMissing, ", "))
 	end
 	add(string.format("  segment join error %.4f studs", c.segmentJoinError))
 	for _, n in c.notes do

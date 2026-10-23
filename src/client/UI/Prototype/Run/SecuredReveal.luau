@@ -18,8 +18,9 @@
 -- calls tray:arrive when it starts), so the flight is only presentation.
 --
 -- Reduced motion: no zoom, rays, confetti, bloom, shockwave or flight: a stable, steady card for 1.3 s, then it is gone.
--- Haptics: one best-effort UINotification cue through Run/Haptics, OFF unless store.settings.haptics is true; never
--- claimed felt on hardware.
+-- Haptics: fired by Run/CaptureRibbon once per confirmed claim (card or compact stack, so phones get it too) through
+-- Run/Haptics, best effort, OFF unless store.settings.haptics is true (only the playground sets it: no Settings row yet);
+-- never claimed felt on hardware. This module only reports the counts.
 --
 --   local reveal = SecuredReveal.new(ctx)            -- registered on RunBus as "reveal"
 --   reveal:available() -> Rect?                       -- where the card would go, nil = use the compact ribbon
@@ -69,7 +70,7 @@ function SecuredReveal.new(ctx: RunLayout.Ctx)
 	self._cancels = 0
 	self._flights = 0
 	self._shock = 0
-	self._haptic = "none"
+
 	self._lastReduced = false
 	self._legendary = false
 
@@ -307,7 +308,6 @@ function SecuredReveal.play(self: SecuredReveal, item: Item, onDone: ((boolean) 
 	stage.Position = UDim2.fromOffset(r.pos.X, r.pos.Y)
 	stage.Visible = true
 	self._rays.Visible = not reduced
-	self._haptic = Haptics.confirm(self._ctx.store:get().settings.haptics == true)
 
 	local centre = r.pos + Vector2.new(r.size.X / 2, r.size.Y * 0.45)
 	local hold = if reduced then HOLD_REDUCED else IN + HOLD
@@ -416,7 +416,6 @@ function SecuredReveal.getDebugState(self: SecuredReveal): { [string]: any }
 		flights = self._flights,
 		shockwaves = self._shock,
 		legendary = self._legendary,
-		haptic = self._haptic,
 		haptics = Haptics.counts(),
 		cardAvailable = rect ~= nil,
 		cardUnavailableBecause = why,

@@ -40,6 +40,7 @@ local Arcade = require(script.Parent.Parent.Arcade)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local Haptics = require(script.Parent.Haptics)
 local RunBus = require(script.Parent.RunBus)
 local RunKit = require(script.Parent.RunKit)
 local RunLayout = require(script.Parent.RunLayout)
@@ -87,6 +88,7 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 	self._pieces = 0
 	self._flights = 0
 	self._cards = 0
+	self._haptic = "none" :: string -- the last haptic cue result ("off" | "requested" | "unsupported"): requested, never felt
 	self._mode = "Side"
 	self._thumb = nil :: ViewportFrame?
 
@@ -429,6 +431,8 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 		if trayNow then
 			trayNow:arrive(item.id, item.car)
 		end
+		-- one best-effort cue per confirmed claim, whichever way it is shown (full card or compact stack), so phones get it too
+		self._haptic = Haptics.confirm(self._ctx.store:get().settings.haptics == true)
 	end
 	-- wide screens with a clear place: the full collectible card instead of the band
 	local reveal = if joy then nil else RunBus.get(self._ctx, "reveal")
@@ -691,7 +695,7 @@ function CaptureRibbon.layout(self: CaptureRibbon)
 	local mode, rect = RunLayout.ribbonPlacement(ctx)
 	self._mode = mode
 	if mode == "Stack" then
-		-- a small stack beside the road view: thumbnail and SECURED! on top, the name (two lines, never cut) and Lap Pay
+		-- a small stack beside the road view: thumbnail and SECURED! on top, the name (one line, cut with an ellipsis when it is too long: the full name is on the card, in the tray review and in Results) and Lap Pay
 		local w, h = rect.size.X, rect.size.Y
 		self._ribbon.Size = UDim2.fromOffset(w, h)
 		if not self._current then
@@ -787,6 +791,8 @@ function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
 		sub = self._sub.Text,
 		pendingForResults = pending,
 		mode = mode,
+		haptic = self._haptic,
+		haptics = Haptics.counts(),
 		softOverlap = soft, -- nil = clear everywhere; "Options" = covers only the Settings button; "Unresolved" = a real clash
 		box = RunLayout.describe(rect),
 		overlapsProtected = RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),

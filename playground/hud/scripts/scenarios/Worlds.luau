@@ -6,6 +6,8 @@
 --   Worlds: combined run   per World (Downtown, Dusty Highway, Summit Pass) and per layout: the World builds, the run
 --                          starts, no HUD component fails, the route line shows the World, a SECURED reveal plays clear of
 --                          the protected view (or the compact stack on phones), Stamina shows, then the City is removed.
+--   Layout: tray and Stamina clear   on every layout with the Stamina meter on: the claim tray clears the Cash, the Stamina meter and
+--                          the thumbstick zone (the display-only meter may sink into the zone on phones, by a reported amount).
 
 local Players = game:GetService("Players")
 
@@ -102,7 +104,7 @@ S["Worlds: combined run"] = function(host: Host)
 			verdict(
 				host,
 				string.format("%s / %s: HUD fine over the city", world, profile),
-				failureCount(host) == 0 and (asm.liveItems or 0) > 0 and presented,
+				failureCount(host) == 0 and (asm.liveItems or 0) > 0 and presented and route.world == world,
 				string.format(
 					"failures %d, city live items %s (proxy %s), route world %s, stamina on %s, SECURED: %s",
 					failureCount(host),
@@ -119,6 +121,57 @@ S["Worlds: combined run"] = function(host: Host)
 	end
 	host.api.useCity(false)
 	host.api.setSpeed(nil)
+	host.api.setProfile("Desktop")
+end
+
+S["Layout: tray and Stamina clear"] = function(host: Host)
+	local HttpService = game:GetService("HttpService")
+	local function overlap(a: any, b: any): boolean
+		if not a or not b then
+			return false
+		end
+		local dx = math.min(a.x + a.w, b.x + b.w) - math.max(a.x, b.x)
+		local dy = math.min(a.y + a.h, b.y + b.h) - math.max(a.y, b.y)
+		return dx > 0.5 and dy > 0.5
+	end
+	for _, profile in host.api.profiles do
+		host.api.setProfile(profile)
+		host.api.setSpeed(0)
+		Motion.setOverride(nil)
+		if host.store:get().mode == "Run" then
+			host.store:setMode("Home")
+		end
+		host.enterRun()
+		host.wait(0.6)
+		host.api.setStamina(true, 10)
+		host.wait(0.4)
+		local rects: any = HttpService:JSONDecode(host.api.layoutRects())
+		local thumbstick: any = nil
+		for _, z in rects.zones do
+			if z.name == "Thumbstick" then
+				thumbstick = z
+			end
+		end
+		local stamina = dbg(host, "stamina") -- the meter itself: the rectangle it really draws
+		local soft = rects.staminaSoft or 0
+		local trayStamina = overlap(rects.tray, rects.stamina)
+		local trayCash = overlap(rects.tray, rects.cash)
+		local trayZone = overlap(rects.tray, thumbstick)
+		verdict(
+			host,
+			profile .. ": tray clear of Cash, Stamina and the thumbstick zone",
+			not trayStamina and not trayCash and not trayZone and stamina.overlapsTray == false and soft <= 24,
+			string.format(
+				"tray vs Stamina %s, vs Cash %s, vs thumbstick %s, meter debug overlapsTray %s, meter sinks %.1f px into the zone (limit 24)",
+				tostring(trayStamina),
+				tostring(trayCash),
+				tostring(trayZone),
+				tostring(stamina.overlapsTray),
+				soft
+			)
+		)
+	end
+	host.api.setStamina(false)
 	host.api.setProfile("Desktop")
 end
 

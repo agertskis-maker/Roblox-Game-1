@@ -25,14 +25,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Arcade = require(script.Parent.Parent.Arcade)
 local Motion = require(script.Parent.Parent.Motion)
-local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunBus = require(script.Parent.RunBus)
 local RunKit = require(script.Parent.RunKit)
 local RunLayout = require(script.Parent.RunLayout)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local A = PreviewTokens.Arcade
 local make = Arcade.make
 
 local IN = 0.2
@@ -76,22 +74,11 @@ function DistrictBanner.new(ctx: RunLayout.Ctx)
 	local band = make("Frame", {
 		Name = "Band",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		BackgroundTransparency = 0.15,
-		BorderSizePixel = 0,
 		ZIndex = 5,
 		Parent = group,
 	})
-	-- tapered ends so it reads as a band over the world, not a floating panel
-	make("UIGradient", {
-		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.16, 0),
-			NumberSequenceKeypoint.new(0.84, 0),
-			NumberSequenceKeypoint.new(1, 1),
-		}),
-		Parent = band,
-	})
+	-- Round 2 (R2-HM3): the arcade surface (bold orange fill, one thick dark outline, gloss) instead of the tapered dark band
+	Arcade.surface(band, "Missions")
 	local content = make("Frame", {
 		Name = "Content",
 		AnchorPoint = Vector2.new(0.5, 0.5),

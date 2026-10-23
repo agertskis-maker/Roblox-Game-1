@@ -91,6 +91,8 @@ function StaminaMeter.new(ctx: RunLayout.Ctx)
 	self._flights = 0
 	self._ticks = 0
 	self._lowWordUntil = 0
+	self._swapTimer = nil :: thread? -- the one pending "LOW STAMINA" swap-back, never more than one
+	self._dead = false
 	self._pickup = nil :: { at: number, pos: Vector2? }?
 	self._boltName = "" :: string
 
@@ -167,6 +169,12 @@ function StaminaMeter.new(ctx: RunLayout.Ctx)
 		end
 	end)
 	self._trove:Add(function()
+		self._dead = true
+		local timer = self._swapTimer
+		if timer then
+			self._swapTimer = nil
+			pcall(task.cancel, timer)
+		end
 		Motion.cancelAll(bolt)
 		Motion.cancelAll(number)
 	end)
@@ -350,6 +358,9 @@ function StaminaMeter._apply(self: StaminaMeter)
 		if value > previous then
 			task.defer(function()
 				-- decided one frame later so the pickup event is known whichever listener ran first
+				if self._dead then
+					return
+				end
 				local recent = self._pickup
 				if recent and os.clock() - recent.at < FLIGHT_WINDOW and recent.pos then
 					self:_flyBolt(recent.pos)
@@ -388,9 +399,11 @@ function StaminaMeter._layoutInner(self: StaminaMeter)
 		self._pipRow.Visible = not showWord
 		self._word.Position = UDim2.fromOffset(numberX + 28, 18)
 		self._pipRow.Position = UDim2.fromOffset(64, 11)
-		if compactSwap then
-			task.delay(LOW_WORD_SECONDS + 0.05, function()
-				if not self._ctx.store:get().run then
+		if compactSwap and not self._swapTimer then
+			-- one timer per swap window: _layoutInner runs on every run update, and a timer per call piled up threads
+			self._swapTimer = task.delay(LOW_WORD_SECONDS + 0.05, function()
+				self._swapTimer = nil
+				if self._dead or not self._ctx.store:get().run then
 					return
 				end
 				self:_layoutInner()

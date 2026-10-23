@@ -58,6 +58,7 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 	local opts: Options = options or {}
 	self._ctx = ctx
 	self._trove = Trove.new()
+	self._dead = false
 	self._visible = true
 	self._state = "" :: string
 	self._cue = nil :: any
@@ -377,7 +378,9 @@ function HopButton._hookCue(self: HopButton)
 	end))
 	self._trove:Add(cue.Accent:Connect(function()
 		task.defer(function()
-			self:_accent()
+			if not self._dead then
+				self:_accent()
+			end
 		end)
 	end))
 end
@@ -475,6 +478,7 @@ function HopButton.getDebugState(self: HopButton): { [string]: any }
 end
 
 function HopButton.destroy(self: HopButton)
+	self._dead = true
 	self._trove:Destroy()
 end
 

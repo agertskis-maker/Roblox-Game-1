@@ -290,8 +290,10 @@ end
 function Music.enable(on: boolean)
 	enabled = on
 	if not on then
+		local w = world -- remembered, so enabling again resumes the same World
 		Music.stop(0.3)
-	elseif world and not muted then
+		world = w
+	elseif world and not muted and not base then
 		local w = world
 		world = nil
 		Music.setWorld(w)
@@ -303,13 +305,15 @@ function Music.isEnabled(): boolean
 end
 
 function Music.setMuted(m: boolean)
+	local was = muted
 	muted = m
 	if m then
 		-- the parent group is already 0; also stop the voices so nothing streams while Music is Off
 		local w = world
 		Music.stop(0.05)
 		world = w
-	elseif enabled and world then
+	elseif was and enabled and world and not base then
+		-- only a real unmute starts the loop again; a repeated setMuted(false) (every Settings slider tick calls it) is a no-op
 		local w = world
 		world = nil
 		Music.setWorld(w)

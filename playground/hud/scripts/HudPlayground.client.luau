@@ -470,11 +470,9 @@ mount("routeLine", { "Run", "RouteLine" }, "Run")
 -- segmented bar stays mounted but hidden, a debug-only variant for before/after comparison.
 mount("heat", { "Run", "HeatPanel" }, "Run")
 mount("heatSegmented", { "Run", "HeatBar" }, "Run")
-mount("tray", { "Run", "ClaimTray" }, "Run", {
-	onDetail = function(car: any)
-		api.openCardDetail(car.id, true) -- a tapped tray tile opens its card detail (preview)
-	end,
-})
+-- No onDetail here on purpose: a tray tile opens the non-blocking review beside the tray. A full-screen card detail
+-- would swallow Hop and touches under a live ride (reviewer finding), so it is reached only from api.openCardDetail.
+mount("tray", { "Run", "ClaimTray" }, "Run")
 mount("stamina", { "Run", "StaminaMeter" }, "Run")
 mount("keys", { "Run", "KeysLock" }, "Run", {
 	anchor = backdrop.ride,
@@ -863,8 +861,10 @@ function api.layoutRects(): string
 	out.hop = box((RunLayout.hopRect(ctx)))
 	out.heat = box((RunLayout.heatRect(ctx)))
 	out.tray = box(RunLayout.trayRect(ctx))
+	out.cash = box(RunLayout.cashRect(ctx))
 	out.gear = box(RunLayout.gearRect(ctx))
 	out.stamina = box(RunLayout.staminaRect(ctx))
+	out.staminaSoft = RunLayout.staminaSoft(ctx) -- px the display-only meter sinks into the thumbstick zone (phones)
 	out.route = box(RunLayout.routeRect(ctx))
 	out.chip = box(RunLayout.chipRect(ctx))
 	out.side = box(RunLayout.sideRect(ctx))

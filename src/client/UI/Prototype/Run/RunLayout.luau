@@ -331,11 +331,28 @@ export type TrayGeometry = {
 -- (phones) = one row.
 RunLayout.StaminaFull = Vector2.new(204, 68)
 RunLayout.StaminaCompact = Vector2.new(172, 36)
+-- Phones: the Cash, the claim tray (header + one row of thumbnails) and this meter need more height than lies between
+-- the Cash and the thumbstick zone (8 px short on PhoneLandscape, 21 px on PhoneSmall: found by looking at a phone
+-- recording, the bolt sat on a tray tile). The meter is display-only, so it may sink into the top of the (assumed)
+-- thumbstick zone by exactly the shortfall, never more than StaminaSoftMax. The tray holds the tappable tiles, so it
+-- stays clear of the zone. RunLayout.staminaSoft reports the sink for the debug state.
+RunLayout.StaminaSoftMax = 24
+function RunLayout.staminaSoft(ctx: Ctx): number
+	local thumb = zone(ctx, "Thumbstick")
+	if not RunLayout.compact(ctx) or not thumb then
+		return 0
+	end
+	local T = RunLayout.Tray
+	local cash = RunLayout.cashRect(ctx)
+	local rest = thumb.pos.Y - 6 - RunLayout.StaminaCompact.Y
+	local need = cash.pos.Y + cash.size.Y + 8 + T.HeaderCompact + T.ThumbCompact + 6
+	return math.clamp(need - rest, 0, RunLayout.StaminaSoftMax)
+end
 function RunLayout.staminaRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
 	local size = if RunLayout.compact(ctx) then RunLayout.StaminaCompact else RunLayout.StaminaFull
 	local thumb = zone(ctx, "Thumbstick")
-	local y = if thumb then thumb.pos.Y - 6 - size.Y else d.Y * 0.62 - size.Y / 2
+	local y = if thumb then thumb.pos.Y - 6 - size.Y + RunLayout.staminaSoft(ctx) else d.Y * 0.62 - size.Y / 2
 	return RunLayout.rect(RunLayout.Margin, y, size.X, size.Y, "Stamina")
 end
 

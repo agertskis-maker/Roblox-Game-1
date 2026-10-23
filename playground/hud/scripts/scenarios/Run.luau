@@ -454,6 +454,12 @@ end
 
 -- Round 2 (R2-S1): the Stamina DEMO (a proposal; off by default). A fixture adapter spends one per ACCEPTED
 -- hop; rejected attempts spend nothing; at zero the ride continues. All values are fixtures.
+-- Real assertions for the Stamina rules (the rest of this scenario logs values to read; review finding: the claim
+-- "checks pass" needs PASS/FAIL lines, not prose).
+local function verdict(host: Host, name: string, ok: boolean, detail: string)
+	host.log(string.format("%s %s: %s", if ok then "PASS" else "FAIL", name, detail))
+end
+
 local function logStamina(host: Host, tag: string)
 	local meter = comp(host, "stamina")
 	local d = if meter and meter.getDebugState then meter:getDebugState() else nil
@@ -498,12 +504,58 @@ S["Run: Stamina 10 to 0 (Round 2 demo)"] = function(host)
 	send(host, "HopAccepted", {})
 	host.wait(0.6)
 	logStamina(host, "extra accepted hop at 0 (expect still 0, run continues)")
+	do
+		local fx0: any = host.api.staminaDebug()
+		local meter0: any = comp(host, "stamina"):getDebugState()
+		local heat0: any = comp(host, "heat"):getDebugState()
+		local run0: any = host.store:get().run
+		verdict(
+			host,
+			"Stamina: 10 accepted hops spend exactly 10, zero is the floor, the run continues",
+			run0 ~= nil
+				and run0.stamina.value == 0
+				and fx0.counts.spent == 10
+				and fx0.counts.ignoredAtZero == 1
+				and fx0.counts.clamped == 0
+				and meter0.mode == "Empty"
+				and meter0.word == "OUT OF STAMINA"
+				and host.store:get().mode == "Run",
+			string.format(
+				"value %s, spent %s, ignored at zero %s, meter %s / %q",
+				tostring(run0 and run0.stamina.value),
+				tostring(fx0.counts.spent),
+				tostring(fx0.counts.ignoredAtZero),
+				tostring(meter0.mode),
+				tostring(meter0.word)
+			)
+		)
+		verdict(
+			host,
+			"Heat panel: HOP NOW! hidden while Stamina is zero",
+			heat0.hopNowShown == false,
+			"hopNowShown " .. tostring(heat0.hopNowShown)
+		)
+	end
 	host.runPatch({ distance = 400 })
 	host.wait(1.5)
 	logStamina(host, "later, still riding (no auto end)")
 	host.api.resetStamina()
 	host.wait(1.2)
 	logStamina(host, "reset (expect 10)")
+	do
+		local heat1: any = comp(host, "heat"):getDebugState()
+		local run1: any = host.store:get().run
+		verdict(
+			host,
+			"Stamina reset: 10 again and HOP NOW! shown again",
+			run1 ~= nil and run1.stamina.value == 10 and heat1.hopNowShown == true,
+			string.format(
+				"value %s, hopNowShown %s",
+				tostring(run1 and run1.stamina.value),
+				tostring(heat1.hopNowShown)
+			)
+		)
+	end
 end
 
 S["Run: Stamina restore pickups and max above 10 (Round 2 demo)"] = function(host)

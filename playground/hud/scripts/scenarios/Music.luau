@@ -73,6 +73,32 @@ S["Music: default off and mute"] = function(host: Host)
 	host.wait(0.4)
 	s = st()
 	verdict(host, "unmuted resumes the remembered World", s.liveMusicSounds == 1 and s.world == "SummitPass", fmt(s))
+	-- review finding: every Settings slider tick calls setMuted(false); that must not restart the loop
+	local createdBefore = s.created
+	for _ = 1, 5 do
+		Music.setMuted(false)
+	end
+	host.wait(0.3)
+	s = st()
+	verdict(
+		host,
+		"repeated setMuted(false) restarts nothing (a slider tick)",
+		s.created == createdBefore and s.liveMusicSounds == 1,
+		string.format("created %d -> %d, %s", createdBefore, s.created, fmt(s))
+	)
+	-- switching Music off in the audition panel and on again resumes the same World
+	Music.enable(false)
+	host.wait(0.6)
+	local offState = st()
+	Music.enable(true)
+	host.wait(0.4)
+	s = st()
+	verdict(
+		host,
+		"enable off then on resumes the same World",
+		offState.liveMusicSounds == 0 and s.liveMusicSounds == 1 and s.world == "SummitPass",
+		fmt(s)
+	)
 	Music.reset()
 	host.wait(0.2)
 	verdict(host, "reset leaves nothing behind", st().liveMusicSounds == 0, fmt(st()))
