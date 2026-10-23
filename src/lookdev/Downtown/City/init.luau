@@ -122,8 +122,18 @@ function City.new(options: Options?): City
 	local worldId = opts.world or "Downtown"
 	local worldDef = Worlds.get(worldId)
 	assert(worldDef ~= nil or worldId == "Downtown", "unknown World: " .. tostring(worldId))
+	-- a World finds its own kit and swatches by default (Lane3_DowntownKitWorlds / ...Data), searched after the shared kit
+	local extraKits = opts.extraKits
+	local kitData = opts.kitData
+	if worldDef then
+		local worldKit, worldData = Catalog.worldFolders()
+		if not extraKits and worldKit then
+			extraKits = { worldKit }
+		end
+		kitData = kitData or worldData
+	end
 	local catalog = if worldDef
-		then Catalog.forWorld(worldDef, { kit = opts.kit, kitData = opts.kitData, extraKits = opts.extraKits })
+		then Catalog.forWorld(worldDef, { kit = opts.kit, kitData = kitData, extraKits = extraKits })
 		else Catalog.load({ kit = opts.kit, kitData = opts.kitData })
 	local plan = Sequencer.plan(
 		opts.seed or Sequencer.DEFAULT_SEED,
@@ -139,9 +149,9 @@ function City.new(options: Options?): City
 		parent = parent,
 		name = opts.name,
 		kit = opts.kit,
-		kitData = opts.kitData,
+		kitData = kitData,
 		world = worldDef,
-		extraKits = opts.extraKits,
+		extraKits = extraKits,
 		textureId = opts.textureId,
 		paletteColumn = opts.paletteColumn or (if worldDef then worldDef.paletteColumn else nil),
 		meshIds = opts.meshIds,

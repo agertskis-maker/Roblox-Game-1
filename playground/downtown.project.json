@@ -40,6 +40,24 @@
           "optional": "../../Car-Hop-Art/downtown-kit-b2/meshes"
         }
       },
+      "Lane3_DowntownKitWorlds": {
+        "$path": {
+          "optional": "../../Car-Hop-Art/downtown-kit-worlds/meshes"
+        }
+      },
+      "Lane3_DowntownKitWorldsData": {
+        "$className": "Folder",
+        "manifest": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-worlds/manifest.json"
+          }
+        },
+        "swatches": {
+          "$path": {
+            "optional": "../../Car-Hop-Art/downtown-kit-worlds/swatches.json"
+          }
+        }
+      },
       "Lane3_DowntownKitB2Data": {
         "$className": "Folder",
         "manifest": {

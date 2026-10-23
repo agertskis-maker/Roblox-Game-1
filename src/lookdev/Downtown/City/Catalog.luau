@@ -27,6 +27,9 @@ local Catalog = {}
 
 Catalog.KIT_FOLDER = "Lane3_DowntownKitB2"
 Catalog.DATA_FOLDER = "Lane3_DowntownKitB2Data"
+-- Round 2: the World kits (DH_* and SP_* meshes, one folder) and their data (swatches with the columns DH and SU)
+Catalog.WORLD_KIT_FOLDER = "Lane3_DowntownKitWorlds"
+Catalog.WORLD_DATA_FOLDER = "Lane3_DowntownKitWorldsData"
 
 export type HeightClass = "low" | "mid" | "tall"
 export type Orientation = "front" | "corner-L" | "corner-R"
@@ -672,6 +675,15 @@ function Catalog.defaultFolders(): (Instance?, Instance?)
 	local second: Instance = if RunService:IsRunning() then ServerStorage else ReplicatedStorage
 	local kit = first:FindFirstChild(Catalog.KIT_FOLDER) or second:FindFirstChild(Catalog.KIT_FOLDER)
 	local data = first:FindFirstChild(Catalog.DATA_FOLDER) or second:FindFirstChild(Catalog.DATA_FOLDER)
+	return kit, data
+end
+
+-- The World kit and data folders for the current mode (or nil): the same lookup as defaultFolders.
+function Catalog.worldFolders(): (Instance?, Instance?)
+	local first: Instance = if RunService:IsRunning() then ReplicatedStorage else ServerStorage
+	local second: Instance = if RunService:IsRunning() then ServerStorage else ReplicatedStorage
+	local kit = first:FindFirstChild(Catalog.WORLD_KIT_FOLDER) or second:FindFirstChild(Catalog.WORLD_KIT_FOLDER)
+	local data = first:FindFirstChild(Catalog.WORLD_DATA_FOLDER) or second:FindFirstChild(Catalog.WORLD_DATA_FOLDER)
 	return kit, data
 end
 

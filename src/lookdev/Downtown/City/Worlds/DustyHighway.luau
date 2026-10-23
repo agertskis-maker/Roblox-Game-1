@@ -39,12 +39,12 @@ return {
 	lighting = {
 		props = {
 			ClockTime = 14.2,
-			Brightness = 2.7,
+			Brightness = 2.1,
 			Ambient = rgb(120, 104, 92),
 			OutdoorAmbient = rgb(170, 150, 128),
 			EnvironmentDiffuseScale = 1,
 			EnvironmentSpecularScale = 0.5,
-			ExposureCompensation = 0,
+			ExposureCompensation = -0.25,
 			GlobalShadows = true,
 			ShadowSoftness = 0.2,
 			GeographicLatitude = 33,
