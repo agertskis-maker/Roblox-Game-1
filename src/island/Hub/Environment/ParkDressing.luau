@@ -1150,7 +1150,8 @@ local BED_FLOWERS = { -- back, middle, front; all under 3 (beds sit in viewing c
 
 -- one flower every PLANT_STEP studs each way (Task 4 concept review: 1.7 gave about 100 per round
 -- bed, thousands island-wide)
-local PLANT_STEP = 2.6
+local PLANT_STEP = 4.2 -- 2.6 gave about 870 clumps and 530k triangles island-wide (Task 4 Studio count)
+local PLANT_SCALE = 1.35 -- larger clumps at the wider step keep the beds reading full
 
 local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, pathSide: Vector2, palette: number)
 	local meta = KitAssets.info(name).meta or {}
@@ -1173,9 +1174,17 @@ local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, path
 					-- depth across the bed from the path side (-1 front .. 1 back)
 					local depth = -((q - centre):Dot(toward)) / math.max(math.max(rx, ry), 0.1)
 					local band = if depth > 0.35 then 1 elseif depth > -0.35 then 2 else 3
-					put(ctx, "Beds", kinds[band], q, (u * 7 + v * 3) % 6.28, if band == 3 then 0.9 else 1, {
-						y = y + (meta.soil or 0.6),
-					})
+					put(
+						ctx,
+						"Beds",
+						kinds[band],
+						q,
+						(u * 7 + v * 3) % 6.28,
+						if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
+						{
+							y = y + (meta.soil or 0.6),
+						}
+					)
 				end
 			end
 		end
@@ -1260,9 +1269,17 @@ local function cornerBed(ctx: Ctx, C: Vector2, u1: Vector2, u2: Vector2, palette
 					local edge = math.min(s, t)
 					local band = if edge < 3.4 then 3 elseif edge < 6 then 2 else 1
 					local q = c0 + e1 * s + e2 * t
-					put(ctx, "Beds", kinds[band], q, (s * 5 + t * 3) % 6.28, if band == 3 then 0.9 else 1, {
-						y = y + soil,
-					})
+					put(
+						ctx,
+						"Beds",
+						kinds[band],
+						q,
+						(s * 5 + t * 3) % 6.28,
+						if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
+						{
+							y = y + soil,
+						}
+					)
 				end
 			end
 		end
@@ -1310,9 +1327,17 @@ local function arcBed(
 				-- tallest on the centre line, low edging both sides (fountain beds are seen from both)
 				local off = math.abs(d) / math.max(half - 1, 0.5)
 				local band = if off < 0.34 then 1 elseif off < 0.67 then 2 else 3
-				put(ctx, "Beds", kinds[band], q, (k * 31 + d * 7) % 6.28, if band == 3 then 0.9 else 1, {
-					y = y + soil,
-				})
+				put(
+					ctx,
+					"Beds",
+					kinds[band],
+					q,
+					(k * 31 + d * 7) % 6.28,
+					if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE,
+					{
+						y = y + soil,
+					}
+				)
 			end
 		end
 	end
