@@ -26,7 +26,8 @@ Plan (outside the repo): `C:\Users\agert\.claude\plans\cosmic-prancing-jellyfish
 ## Decisions made so far (reversible)
 1. Orientation set in the two playground projects only (Adam, 2026-10-23); `default.project.json` line recorded for the team.
 2. Heat adapter keeps `HeatGauge` unmodified; segmented bar kept unmounted as a debug variant.
-. Heat scale steps 1.0/0.92/0.89 (label >= 16 px); tablet and PhoneSmall use the soft thumbstick overlap (<= 60 px), flagged ThumbstickSoft.
+3. Heat baseline hosted the original panel standalone (as RunHud does), not via RunHudPreview.
+4. Heat scale steps 1.0/0.92/0.89 (label >= 16 px); tablet and PhoneSmall use the soft thumbstick overlap (<= 60 px), flagged ThumbstickSoft.
 5. Garage button is taller by Arcade.PillExtra (26) so icon and label keep full size; pill drops "CARS" then the total when it would not fit.
 6. Overlay restyle through Arcade.surface (gradient fill, one thick outline, gloss): gold ribbon, red warning chip, blue RIDING chip, blue tray review; Style panels brightened to cobalt.
 
