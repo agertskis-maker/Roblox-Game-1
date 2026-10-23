@@ -261,7 +261,9 @@ local function classify(grid: Grid, seed: number, progress: (string, number) -> 
 				elseif zone == "rocky" then
 					m = if n > 0 then Enum.Material.Basalt else Enum.Material.Rock
 				elseif zone == "beach" then
-					m = Enum.Material.Sand
+					-- lawn, not sand, under the hub buildings and leaderboards on the lake shore
+					-- (Task 4 complaint review: the Garage and its forecourt stood on the beach)
+					m = if Layout.inDestination(p, 3) then Enum.Material.Grass else Enum.Material.Sand
 				else
 					m = if n > 0.25 then Enum.Material.Rock else Enum.Material.Limestone
 				end

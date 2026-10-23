@@ -61,7 +61,7 @@ local WARM_LIGHT = Color3.fromRGB(255, 224, 182)
 local SHOWROOM_LIGHT = Color3.fromRGB(255, 240, 222)
 local PAVING = Color3.fromRGB(206, 202, 194)
 local BAY_LINE = Color3.fromRGB(246, 244, 238)
-local PROXY_GREY = Color3.fromRGB(170, 178, 190)
+local COVER = GARAGE_RED_ORANGE -- the car dust cover (proposal)
 
 -- Stand-in colours (Play fallback only, while the meshes are previews)
 local STAND_CREAM = Color3.fromRGB(240, 232, 212)
@@ -602,16 +602,38 @@ local function previewCar(seat: CFrame, index: number, parent: Instance): Model
 		local shift = Vector3.new(seat.X - bbox.X, seat.Y - lowest, seat.Z - bbox.Z)
 		model:PivotTo(model:GetPivot() + shift)
 	else
+		-- No car yet: a car under a fabric dust cover, tyres showing below the hem. It reads as
+		-- "a car is coming" without designing a car look (car looks are Brian L's,
+		-- vault/decisions/0015-car-modeling-to-brian-l.md). Task 4 review J5: the earlier grey
+		-- body-and-cabin boxes read as stepped blocks. 13 long x 6 wide x 4.1 tall, the approved
+		-- car scale. Rounded ends are cylinders across the car (a Part cylinder's axis is its X).
 		model = Instance.new("Model")
 		model.Name = "PreviewCarProxy"
-		-- 13 long x 6 wide x 4.5 tall, the approved car scale; a body and a cabin
-		local body = plain("Body", Vector3.new(6, 2.6, 13), seat * CFrame.new(0, 1.3, 0), model)
-		local cabin = plain("Cabin", Vector3.new(5.2, 1.9, 6.4), seat * CFrame.new(0, 2.6 + 0.95, 0.6), model)
-		for _, p in { body, cabin } do
+		local function piece(name: string, shape: Enum.PartType, size: Vector3, at: Vector3, colour: Color3)
+			local p = plain(name, size, seat * CFrame.new(at), model)
+			p.Shape = shape
 			p.Transparency = 0
-			p.Color = PROXY_GREY
+			p.Color = colour
+			p.Material = Enum.Material.SmoothPlastic -- Fabric read muddy brown through the tinted glass
 			p.CastShadow = true
 		end
+		-- tyres: inside the cover's sides, the lower half showing under the hem (hem at 0.9)
+		for _, x in { -2.55, 2.55 } do
+			for _, z in { -4.1, 4.1 } do
+				piece("Tyre", Enum.PartType.Cylinder, Vector3.new(0.9, 2, 2), Vector3.new(x, 1, z), STAND_TYRE)
+			end
+		end
+		-- the covered body: a block with rounded nose and tail, then a rounded cabin hump
+		piece("Cover", Enum.PartType.Block, Vector3.new(6, 1.8, 11.2), Vector3.new(0, 1.8, 0), COVER)
+		for _, z in { -5.6, 5.6 } do
+			piece("Cover", Enum.PartType.Cylinder, Vector3.new(6, 1.8, 1.8), Vector3.new(0, 1.8, z), COVER)
+		end
+		piece("Cover", Enum.PartType.Block, Vector3.new(5, 1.4, 4.4), Vector3.new(0, 3.4, 0.6), COVER)
+		for _, z in { -1.6, 2.8 } do
+			piece("Cover", Enum.PartType.Cylinder, Vector3.new(5, 1.4, 1.4), Vector3.new(0, 3.4, z), COVER)
+		end
+		-- a cream tie band round the middle, like a fitted cover's strap
+		piece("CoverBand", Enum.PartType.Block, Vector3.new(6.08, 1.84, 0.5), Vector3.new(0, 1.8, 0.6), CREAM)
 		model.WorldPivot = seat -- no PrimaryPart, so the pivot stays at the bottom centre
 	end
 	model:SetAttribute("Preview", true)
@@ -848,6 +870,28 @@ local function buildGarage(root: Instance, report: Report): Model
 		"text_faces.1"
 	)
 	garageSign(face, faceSize, shell.meta["sign.face.capitals"] or 6.5)
+	-- the showroom back-wall panel (text_faces.2), blank until Task 4 review J5: SHOWROOM and a
+	-- PREVIEW tag while the cars are covered stand-ins (proposal, in the pending sign batch)
+	do
+		local size =
+			Vector2.new(needMeta("GarageShell", "text_faces.2.size.1"), needMeta("GarageShell", "text_faces.2.size.2"))
+		local panel = signFace(
+			"ShowroomPanel",
+			base,
+			needPoint("GarageShell", "text_faces.2.centre"),
+			needPoint("GarageShell", "text_faces.2.normal"),
+			size,
+			signs,
+			"GarageShell",
+			"text_faces.2"
+		)
+		local pps = 20
+		local g = surfaceGui(panel, pps, 0.6, "Task 4 review J5, showroom panel")
+		local w, h = size.X * pps, size.Y * pps
+		local bg = frame(g, "Panel", UDim2.fromScale(0, 0), UDim2.fromOffset(w, h), NAVY, nil, 10)
+		lettering(bg, "SHOWROOM", Vector2.new(w / 2, h * 0.38), w - 24, math.floor(h * 0.46), CREAM, INK, 3, 2)
+		previewTag(bg, math.floor(h * 0.17), UDim2.fromScale(0.5, 0.8), Vector2.new(0.5, 0.5))
+	end
 
 	-- the "Open Garage" prompt at the recorded PromptPoint, outside the entrance. Preview only:
 	-- each client shows "Not connected yet" to whoever pressed it (Destinations.client.luau).

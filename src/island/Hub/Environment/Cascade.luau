@@ -24,11 +24,14 @@ Cascade.UpperFaceY = -292
 Cascade.LowerFaceY = -276
 Cascade.LipHeight = 168.5 -- water leaves the lip here
 Cascade.LipEdgeY = -289 -- the projecting lip's north edge
-Cascade.Ledge = { height = 82, basin = Vector2.new(X + 2, -284), basinRadius = 9.5, basinFloor = 76.5, water = 81.2 }
+-- The ledge basin sits wholly on the ledge, 1 stud behind the lower face (Task 4 complaint review
+-- J3: at radius 9.5 round y -284 its front hung 1.5 past the face, a water bowl in the air).
+Cascade.Ledge = { height = 82, basin = Vector2.new(X + 2, -284.5), basinRadius = 7.5, basinFloor = 76.5, water = 81.2 }
 Cascade.LowerLip = { height = 81.2, y = -276 }
--- The main curtain off the second ledge: 14 wide (research: 12 to 16), on the falls line.
-Cascade.Curtain = { x = X, width = 14 }
--- The landing pool: 40 across (about 2.9 curtain widths, research 2.5 to 3), 26 north-south,
+-- The main curtain off the second ledge, on the falls line: 18 wide (Task 4 complaint review J4:
+-- at 14, the research middle, it read thin against the broad cliff from the lake and the plaza).
+Cascade.Curtain = { x = X, width = 18 }
+-- The landing pool: 40 across (about 2.2 curtain widths; research 2.5 to 3 for a 14 curtain), 26 north-south,
 -- joined to the lake and stopping at the lower face. `radius` is the larger semi-axis, for
 -- code that wants a round keep-out.
 Cascade.Pool = { centre = Vector2.new(X - 1, -265), rx = 20, ry = 13, radius = 20, floor = -9 }

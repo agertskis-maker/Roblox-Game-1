@@ -25,18 +25,35 @@ The avenue boost lanes (glowing chevron strips on the six plot avenues, IRW-84) 
 | Ease back | 0.5 s smoothstep to exactly the base | `WalkBoostLogic.Ease` (Tunable) |
 | Strip half-width | 2.1 studs (from the built model's `StripHalfWidth`) | `BoostLanes.HalfWidth` |
 | Height band of the root over the strip | -1 to +10 studs (a standing root is about +3, a jump peaks about +9.4) | `WalkBoostLogic.MinAbove` / `MaxAbove` (Tunable) |
+| Air grace (state guard) | 1 s of Jumping / Freefall still counts | `WalkBoostLogic.AirGrace` (Tunable) |
 | Feedback | two wind trails at the feet, stretched speed streaks behind (moving only), a faint steady glow at the feet | `WalkBoost.luau` |
 
-- **On a strip**: the HumanoidRootPart's plan position (x = world X, y = -world Z) is within the half-width of a strip's centre segment and its height is inside the band. Strips are read from the built island (the inlay beam of each strip in `Workspace.Lane3_IslandEnvironment.BoostLanes`, broken at bridge decks), so a bridge above an avenue is not a strip.
+- **On a strip**: the HumanoidRootPart's plan position (x = world X, y = -world Z) is within the half-width of a strip's centre segment and its height is inside the band. Strips are read from the built island (the inlay beam of each strip in `Workspace.Lane3_IslandEnvironment.BoostLanes`, broken at bridge decks), so a bridge above an avenue is not a strip. It only counts while the humanoid is walking (see State guard).
 - **No stacking**: the multiplier is a level, not a product. Re-entering, many samples in one frame, or two overlapping strips all give 1.5, never more. Re-entering during the ease returns straight to 1.5. (Rise is instant; a reversible detail chosen by Claude.)
 - **Base speed kept**: the speed goes through `SpeedModifiers` (one source, `IslandBoostLane`). If anyone else sets WalkSpeed while the boost is active, their value becomes the base; when the boost ends, their value is what comes back, not 16.
 - **Respawn**: each new character gets a fresh state and one fresh set of effects; death and character removal clean everything for the old one.
+
+## State guard
+Added for the movement review (finding M1, 2026-10-22): being over a strip only counts while the humanoid is walking, so a seated player, a swimmer or a ragdoll on an avenue gets no boost. The rule is `WalkBoostLogic.gait` and `WalkBoostLogic.stepGated` (pure, unit-tested); the client caches the humanoid's state from `Humanoid.StateChanged` and watches `Sit`, both in the per-character Trove, so nothing is polled.
+
+| Gait | Humanoid states | Over a strip |
+|---|---|---|
+| walk | Running, RunningNoPhysics, Landed | counts |
+| air | Jumping, Freefall | counts for the first 1 s of the spell in the air (`AirGrace`), then the normal linger and ease |
+| off | Climbing, PlatformStanding (or `PlatformStand`), Physics, Ragdoll, FallingDown, GettingUp, and any other state | does not count: the normal 0.5 s linger and 0.5 s ease |
+| drop | Seated (or `Sit`, or a `SeatPart`), Swimming, Dead | exact base at once, effects off, state cleared; applied on the event, without waiting for a frame |
+
+Decisions made by Claude (reversible, labelled):
+- **Air grace 1 s.** A default jump is about 0.55 s, so a hop on a strip keeps the full boost; a longer fall stops counting and eases back. Jumping then Freefall is one spell; landing restarts it. Reversal: `AirGrace = 0` makes only the walk states count (the linger still carries a hop).
+- **Drop, not ease, for seated, swimming and dead.** A seated driver or a swimmer should not keep 24 for another second, and standing up gives a boost only if still over a strip (nothing is carried from before the sit). Swimming speed follows WalkSpeed, so a fall into the river is not boosted.
+- **Ease for the other states.** Climbing, PlatformStand, ragdoll and physics states end the boost the same way stepping off does, which also covers a brief GettingUp after a stumble.
+- The preview walkers (`WalkTests`) still use the ungated `step`; they model an ideal walker.
 
 ## Files
 
 | File | What |
 |---|---|
-| `src/shared/Island/WalkBoostLogic.luau` | Pure logic: numbers, strip geometry, height band, the state machine (multiplier as a function of time and on-strip samples). One source of truth, also used by the preview walkers. |
+| `src/shared/Island/WalkBoostLogic.luau` | Pure logic: numbers, strip geometry, height band, the state machine (multiplier as a function of time and on-strip samples), the state guard (`gait`, `counts`, `stepGated`). One source of truth, also used by the preview walkers. |
 | `src/shared/Movement/SpeedModifiers.luau` | The speed layer: per humanoid, named sources, largest wins, clamped to 1.5, exact base restore, holds nothing when idle. |
 | `src/client/Home/Island/WalkBoost.luau` | The client controller: switch, takeover, strip reading, character binding, effects, reduced motion. |
 | `src/client/Home/Island/WalkBoostStarter.client.luau` | Starts one controller for the local player when the switch is on. |
@@ -63,9 +80,9 @@ Follows `GuiService.ReducedMotionEnabled`, plus the preview-only LocalPlayer att
 ## Tests
 `WalkBoostTests.run(options)` returns a report table (`passed`, `failed`, `skipped`, `failures`, `results`); `WalkBoostTests.text(report)` makes it printable.
 
-- **logic** (any mode): numbers; multiplier at fixed times (linger, ease midpoint 1.25, exact 1 at the end); monotonic, bounded ease; the state machine (enter, repeated samples, re-entry during the ease, older samples, reset); 200 seeded random sample sequences against an independent model, never above 1.5 or below 1; a 60 Hz walk across a strip (full for 0.5 s after leaving, base at 1.0 s); strip geometry, half-width edge, end caps, the world Z flip, the height band, overlapping strips.
+- **logic** (any mode): numbers; multiplier at fixed times (linger, ease midpoint 1.25, exact 1 at the end); monotonic, bounded ease; the state machine (enter, repeated samples, re-entry during the ease, older samples, reset); 200 seeded random sample sequences against an independent model, never above 1.5 or below 1; a 60 Hz walk across a strip (full for 0.5 s after leaving, base at 1.0 s); the state guard (gait of every humanoid state, Sit and PlatformStand flags, air grace edges, `stepGated` for not walking, seated, a 1 s hop, a long fall, a jump onto a strip, and 200 seeded random gait sequences against an independent model); strip geometry, half-width edge, end caps, the world Z flip, the height band, overlapping strips.
 - **modifiers** (any mode, on a stand-alone Humanoid): largest wins, no product, clamp; exact base restore; float read-back not mistaken for someone else's change; someone else's base kept; no state or connections left when idle or destroyed.
-- **character** (Play mode, client): the live boost is switched off for the run and its effects are checked gone; then on the real character with test strips and a test clock: enter (24), repeats and overlap (24), effects in full motion, reduced motion mid-boost (no trails or particles, glow kept), linger and ease (24 at +0.5 s, about 20 at +0.75 s, exactly 16 at +1.0 s), re-entry while easing, someone else's base, takeover (stands aside, exact base, idle connections only, consumer mode reports 1.5 without writing), runtime disable mid-boost (exact base at once, idle connections only, no effects), destroy (zero connections); then one strip of the built island (on, off 8 studs to the side, off 30 studs above). With `{ respawn = true }`: reset from the client, then the new character is bound with the same connection count, one set of effects, fresh state, and the boost works.
+- **character** (Play mode, client): the live boost is switched off for the run and its effects are checked gone; then on the real character with test strips and a test clock: enter (24), repeats and overlap (24), effects in full motion, reduced motion mid-boost (no trails or particles, glow kept), linger and ease (24 at +0.5 s, about 20 at +0.75 s, exactly 16 at +1.0 s), re-entry while easing, someone else's base, takeover (stands aside, exact base, idle connections only, consumer mode reports 1.5 without writing), runtime disable mid-boost (exact base at once, idle connections only, no effects), the state guard on the real humanoid (`Sit` on a strip: exact base and no effects at once without an update; stand up on the strip: 24; stand up off it: base; `PlatformStand`: linger, ease, exactly 16; connection count unchanged), destroy (zero connections); then one strip of the built island (on, off 8 studs to the side, off 30 studs above). With `{ respawn = true }`: reset from the client, then the new character is bound with the same connection count, one set of effects, fresh state, and the boost works.
 
 Run in Studio, Play mode, through the MCP `execute_luau` tool with `datamodel_type` "Client":
 

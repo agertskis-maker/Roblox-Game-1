@@ -17,6 +17,7 @@ local Cascade = require(script.Parent.Cascade)
 local Field = require(script.Parent.Field)
 local Flora = require(script.Parent.Flora)
 local KitAssets = require(script.Parent.KitAssets)
+local Layout = require(script.Parent.Parent.Layout)
 local TerrainWriter = require(script.Parent.TerrainWriter)
 
 local GroundCover = {}
@@ -50,7 +51,10 @@ local function put(
 	sink: number,
 	yaw: number,
 	scale: number
-): MeshPart
+): MeshPart?
+	if Layout.inDestination(p, 2) then
+		return nil -- not on a hub building, forecourt, apron or leaderboard (Task 4 review N2)
+	end
 	local y = Flora.surfaceY(ctx.grid, p) - sink
 	local base = CFrame.new(p.X, y, -p.Y) * CFrame.Angles(0, yaw, 0)
 	local part = KitAssets.place(name, base, scale)
@@ -244,8 +248,11 @@ local function buildUnderstory(ctx: Ctx, flora: Instance?)
 		local a = ctx.rng:NextNumber(0, 6.28)
 		local q = p + Vector2.new(math.cos(a), math.sin(a)) * 13
 		if Flora.plantable(ctx.grid, q, 0.25) and Field.hubDistance(q) > 30 then
-			logs += 1
 			local log = put(ctx, "Logs", "HollowLog", q, 0.3, a + math.pi / 2, 1)
+			if not log then
+				continue
+			end
+			logs += 1
 			put(ctx, "Logs", "MushroomsBrown", q + Vector2.new(math.cos(a), math.sin(a)) * 2.2, 0.1, a, 1)
 			if logs == 1 then
 				anchor(ctx, "RaccoonLog", log.Position, { Yaw = a + math.pi / 2 })

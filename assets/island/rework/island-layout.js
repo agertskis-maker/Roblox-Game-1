@@ -14,6 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 
+const SPUR_W = 8; // Task 4 spurs to the snack corners and the gazebo (as wide as the garden ring)
 const WALK = 16; // Roblox default WalkSpeed; no override exists in src (Stage A read 16 in the place)
 const APPROVED_PATH = 427.1; // approved Speedway lap length (island-base.md revision 2)
 
@@ -613,6 +614,33 @@ function run(over, label) {
 	const gazebo = Object.assign(facingBox(polar(0, T4.gazebo.r), T4.gazebo.w, T4.gazebo.d), { id: "Gazebo" });
 	const food = Object.assign(facingBox(polar(T4.snack.bearing, T4.snack.r), T4.snack.w, T4.snack.d), { id: "SnackCornerEast" });
 	const foodWest = Object.assign(facingBox(mirror(food.c), T4.snack.w, T4.snack.d), { id: "SnackCornerWest" });
+	// spurs (Task 4 movement review M4): each snack corner's paved pad joins the nearest avenue
+	// from its front edge; the gazebo (outside the river loop) joins the promenade on the axis.
+	// Each spur ends on the other path's centre line, so the join gets its fillets.
+	const closestOn = (pts, p) => {
+		let best = null;
+		for (let i = 1; i < pts.length; i++) {
+			const a = pts[i - 1], ab = sub(pts[i], a);
+			const t = Math.max(0, Math.min(1, ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / (ab.x * ab.x + ab.y * ab.y)));
+			const q = add(a, mul(ab, t));
+			if (!best || len(sub(q, p)) < len(sub(best, p))) best = q;
+		}
+		return best;
+	};
+	// from the middle of the pad's front edge (the stands face the fountain, so walkers arrive
+	// seeing the headers at an angle, not edge-on) to the nearest point of the nearest avenue
+	const frontSpur = (b) => {
+		const start = add(b.c, mul(b.dir, b.d / 2 - 1)); // starts 1 inside the pad
+		let q = null;
+		for (const a of H.avenues) {
+			const c = closestOn(a.line, start);
+			if (!q || len(sub(c, start)) < len(sub(q, start))) q = c;
+		}
+		return [start, q];
+	};
+	const spurs = { SpurSnackCornerEast: frontSpur(food) };
+	spurs.SpurSnackCornerWest = spurs.SpurSnackCornerEast.map(mirror);
+	spurs.SpurGazebo = [sub(gazebo.c, mul(gazebo.dir, T4.gazebo.d / 2 - 1)), polar(0, H.prom.centre)];
 	// leaderboards: Most Cars Owned beside the Garage (north end of its forecourt), Fastest Stunt
 	// Circuit at the mirrored spot beside the Stunt entrance
 	const north = garage.side.y > 0 ? garage.side : mul(garage.side, -1);
@@ -681,6 +709,7 @@ function run(over, label) {
 	for (const q of H.portals) pathLines.push({ kind: "approach " + q.id, pts: [mul(q.front, P.plazaR / len(q.front)), q.front], w: 14 });
 	pathLines.push({ kind: "stage walk", pts: [V(-P.portal.spacing, P.portal.frontY + 3), V(P.portal.spacing, P.portal.frontY + 3)], w: 10 });
 	for (const [kind, pts] of Object.entries(walks)) pathLines.push({ kind, pts, w: 10 });
+	for (const [kind, pts] of Object.entries(spurs)) pathLines.push({ kind, pts, w: SPUR_W });
 	for (const b of [garage, stunt]) pathLines.push({ kind: b.id + " approach", pts: [b.door, mul(b.door, P.plazaR / len(b.door))], w: 12 });
 	const bridges = [];
 	for (const pl of pathLines)
@@ -721,7 +750,7 @@ function run(over, label) {
 	}
 	// the stream must stay clear of the plaza, buildings and portals
 	const streamHits = [garage, stunt, gazebo, food, foodWest, ...boards].filter((b) => streamStrips.some((q) => overlaps(q, b.poly))).map((b) => b.id);
-	return { label, H, check, stream, streamClear, streamHits, garage, stunt, gazebo, food, foodWest, boards, walks, wing, wingX, net, alt, table, bridges, corridorHits, extras };
+	return { label, H, check, stream, streamClear, streamHits, garage, stunt, gazebo, food, foodWest, boards, walks, spurs, wing, wingX, net, alt, table, bridges, corridorHits, extras };
 }
 
 // ---------- report ----------
@@ -771,7 +800,7 @@ function summary(o) {
 	};
 }
 
-module.exports = { run, summary, baseParams, layout, network, toPlan, polar, rect, V, len, sub, add, mul, overlaps, inside, area, strip, WALK };
+module.exports = { run, summary, baseParams, layout, network, toPlan, polar, rect, V, len, sub, add, mul, overlaps, inside, area, strip, WALK, SPUR_W };
 
 if (require.main === module) {
 	const outDir = process.argv[2] || ".";

@@ -287,6 +287,12 @@ local function meshLook(model: Model, frame: CFrame, b: BridgeData): string?
 		return nil
 	end
 	local mesh = part :: MeshPart
+	-- an oblique crossing has a longer span than the kit's 26-stud deck: stretch the deck along the
+	-- path (the mesh is centred on its length) so both ends land on the bank
+	local deck = KitAssets.info(name).meta.deck_length or 26
+	if b.span > deck then
+		mesh.Size = Vector3.new(mesh.Size.X * b.span / deck, mesh.Size.Y, mesh.Size.Z)
+	end
 	mesh.Name = "Mesh"
 	mesh.Parent = model
 	return name

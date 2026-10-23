@@ -85,7 +85,8 @@ function Waterfall.softEnds(t: number, ends: number): NumberSequence
 		NumberSequenceKeypoint.new(1, 1),
 	})
 end
-local RAINBOW_SOFT_ENDS = 0.24
+local RAINBOW_SOFT_ENDS = 0.26
+local RAINBOW_ALPHA = 0.62 -- the bow's lowest transparency (brief §7: restrained opacity)
 
 -- How far south (world z) the written terrain reaches at (x, y) looking north from the lake,
 -- or nil; the lower streams start just in front of it so the rock never hides them.
@@ -427,6 +428,7 @@ local function curtain(folder: Instance, host: BasePart, top: Vector3, bottom: V
 	local out = Vector3.new(0, -0.45, -1) -- leaving the lip, outward and down
 	local down = Vector3.new(0, -1, 0)
 	local drop = (top - bottom).Y
+	local k14 = width / 14 -- the layer widths were set for a 14-wide curtain
 	for k, sp in CURTAIN_LAYERS do
 		local off = (sp[3] :: number) * half
 		local a0 = curtainAttach(host, top + Vector3.new(off, 0, 0), out)
@@ -435,8 +437,8 @@ local function curtain(folder: Instance, host: BasePart, top: Vector3, bottom: V
 		local b = beam(folder, a0, a1, {
 			name = "Curtain" .. sp[1],
 			texture = sp[2],
-			width0 = sp[4],
-			width1 = sp[5],
+			width0 = sp[4] * k14,
+			width1 = sp[5] * k14,
 			speed = sp[6],
 			length = sp[7],
 			colour = if lift > 0
@@ -778,15 +780,15 @@ function Waterfall.build(parent: Instance): Model
 		Color = ColorSequence.new(rgb(232, 255, 170)),
 	})
 
-	-- A larger, softer mist rainbow (Task 4) beside the curtain (the client fades it by distance
-	-- and viewpoint). It rises from the landing pool's spray on the west side, so its arc stands
-	-- against the dark wet cliff and the west buttress rather than over the white water; only its
-	-- right foot meets the spray. 50 across and about 26 high (the old bow was 33 by 16), its
-	-- band 6.5 wide, lowest transparency 0.45 (research: 0.35 to 0.55), and both feet fade out
-	-- (SoftEnds) so it reads as a partial arc in the mist rather than a hard painted band.
+	-- The mist rainbow (Task 4, brief §7: "a larger soft rainbow across the mist volume"). Complaint
+	-- review J2: the 50-wide bow beside the curtain still read as a small saturated arc on dark
+	-- rock. It now spans the landing pool's spray, centred on the curtain: 92 across and about 40
+	-- high, its band 9 wide, lowest transparency 0.62 (restrained: the texture's colours are full
+	-- strength, so opacity is the saturation control), both feet faded over a quarter of the arc.
+	-- It hangs 13 in front of the pool centre, so it crosses the lower curtain rather than the rock.
 	local bowY = -(pool.centre.Y + 13)
-	local left = Vector3.new(cw.x - 54, 2.5, bowY)
-	local right = Vector3.new(cw.x - 4, 2.5, bowY)
+	local left = Vector3.new(cw.x - 46, 2.5, bowY)
+	local right = Vector3.new(cw.x + 46, 2.5, bowY)
 	-- curves bend along X (up); the band faces the camera, so it keeps its width over the top of
 	-- the arc, and the texture is stretched once along it
 	local r0 = Instance.new("Attachment")
@@ -798,20 +800,20 @@ function Waterfall.build(parent: Instance): Model
 	local bow = beam(folders.Rainbow, r0, r1, {
 		name = "MistRainbow",
 		texture = TEX.Rainbow,
-		width0 = 6.5,
-		width1 = 6.5,
+		width0 = 9,
+		width1 = 9,
 		speed = 0,
-		length = 50,
+		length = 92,
 		colour = ColorSequence.new(Color3.new(1, 1, 1)),
-		transparency = Waterfall.softEnds(0.45, RAINBOW_SOFT_ENDS),
-		curve0 = 34,
-		curve1 = -34,
+		transparency = Waterfall.softEnds(RAINBOW_ALPHA, RAINBOW_SOFT_ENDS),
+		curve0 = 54,
+		curve1 = -54,
 		faceCamera = true,
 		light = 0.5,
 		-- drawn over the falls behind it (it hangs in the spray in front of them)
 		z = 2,
 	})
-	bow:SetAttribute("BaseTransparency", 0.45)
+	bow:SetAttribute("BaseTransparency", RAINBOW_ALPHA)
 	bow:SetAttribute("SoftEnds", RAINBOW_SOFT_ENDS)
 	bow.Segments = 40
 	bow.TextureMode = Enum.TextureMode.Stretch

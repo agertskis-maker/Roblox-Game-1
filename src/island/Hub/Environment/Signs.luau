@@ -203,8 +203,10 @@ function Signs.plotGateName(part: BasePart, plotIndex: number, accent: Color3)
 	if id then
 		image(g, id)
 	end
-	-- row 1: the owner name in upper case, scaled to fit, then truncated (spec §4 long-name state)
-	local name = label(g, "PLAYER NAME", { 0.03, 0.03, 0.94, 0.58 }, 58)
+	-- row 1: the owner name in upper case, scaled to fit, then truncated (spec §4 long-name state).
+	-- Until Lane 2's plot ownership supplies a name, it reads YOUR SPEEDWAY (Task 4 complaint
+	-- review J8: "PLAYER NAME" read as an unfilled template on all six homes)
+	local name = label(g, "YOUR SPEEDWAY", { 0.03, 0.03, 0.94, 0.58 }, 58)
 	name.Name = "OwnerName"
 	name.TextScaled = true
 	name.TextTruncate = Enum.TextTruncate.AtEnd
@@ -219,7 +221,8 @@ function Signs.plotGateName(part: BasePart, plotIndex: number, accent: Color3)
 	end
 	name:SetAttribute("Placeholder", "owner name, from Lane 2 plot ownership (filtered display name)")
 	name:SetAttribute("Preview", true)
-	-- row 2: YOUR SPEEDWAY in an accent-bordered cream pill, then the PREVIEW stats
+	-- row 2: the PREVIEW stats (the YOUR SPEEDWAY / SPEEDWAY tab joins them once row 1 shows the
+	-- owner name)
 	local row = Instance.new("Frame")
 	row.Name = "InfoRow"
 	row.BackgroundTransparency = 1
@@ -233,12 +236,9 @@ function Signs.plotGateName(part: BasePart, plotIndex: number, accent: Color3)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Padding = UDim.new(0, 14)
 	list.Parent = row
-	local tab = chip(row, "YOUR SPEEDWAY", 22, NAVY, 1, CREAM, accent)
-	tab.Name = "Label"
-	tab:SetAttribute("Placeholder", "YOUR SPEEDWAY for the owner, SPEEDWAY for others (spec proposal, decision 5)")
 	local tag = chip(row, "PREVIEW", 18, PREVIEW_MAGENTA, 2, Color3.new(1, 1, 1), PREVIEW_MAGENTA)
 	tag.Name = "PreviewTag"
-	local cars = chip(row, "7 CARS", 22, CREAM, 3)
+	local cars = chip(row, "7 CARS", 22, NAVY, 3, CREAM, accent) -- the pill keeps the plot accent
 	cars.Name = "CarCount"
 	cars:SetAttribute("Preview", "made-up car count; no contract yet")
 	if SHOW_INCOME_TIER then

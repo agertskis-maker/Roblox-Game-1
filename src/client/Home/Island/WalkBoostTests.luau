@@ -4,13 +4,15 @@
 --
 -- Three groups:
 --   logic      WalkBoostLogic, pure: numbers, geometry, height band, the state machine as a
---              function of time and on-strip samples (fixed and seeded random sample sequences).
+--              function of time and on-strip samples (fixed and seeded random sample sequences),
+--              and the state guard (gait per humanoid state, air grace, stepGated).
 --   modifiers  SpeedModifiers on a stand-alone Humanoid (not in a character): max-wins, no
 --              stacking, exact base restore, someone else's base kept, cleanup.
 --   character  Studio Play mode, client: WalkBoost controllers on the real local character, with
 --              a test clock and test strips (deterministic), then once over a strip of the built
 --              island. Covers enter, linger and ease, no stacking, effects and reduced motion,
---              takeover, runtime disable, destroy, and (option respawn) a respawn.
+--              takeover, runtime disable, the state guard (Sit, PlatformStand), destroy, and
+--              (option respawn) a respawn.
 -- The live boost is switched off (LocalPlayer "Lane3WalkBoostEnabled" = false) while the character
 -- group runs; every attribute, the root's anchoring, position and WalkSpeed are put back after.
 --
@@ -201,6 +203,178 @@ local function logicTests(check: Checker)
 		)
 	end
 
+	-- the state guard (review M1): gait classification
+	do
+		local H = Enum.HumanoidStateType
+		local GRACE = L.AirGrace
+		check("guard: air grace is 1 s", GRACE == 1)
+		local function all(states: { Enum.HumanoidStateType }, want: WalkBoostLogic.Gait): boolean
+			for _, st in states do
+				if L.gait(st) ~= want then
+					return false
+				end
+			end
+			return true
+		end
+		check(
+			"guard: Running, RunningNoPhysics, Landed are walk",
+			all({ H.Running, H.RunningNoPhysics, H.Landed }, "walk")
+		)
+		check("guard: Jumping, Freefall are air", all({ H.Jumping, H.Freefall }, "air"))
+		check(
+			"guard: Climbing, PlatformStanding, Physics, Ragdoll, FallingDown, GettingUp are off",
+			all({ H.Climbing, H.PlatformStanding, H.Physics, H.Ragdoll, H.FallingDown, H.GettingUp }, "off")
+		)
+		check("guard: None, Flying, StrafingNoPhysics are off", all({ H.None, H.Flying, H.StrafingNoPhysics }, "off"))
+		check("guard: Seated, Swimming, Dead are drop", all({ H.Seated, H.Swimming, H.Dead }, "drop"))
+		do
+			local walks, valid = 0, true
+			for _, item in H:GetEnumItems() do
+				local g = L.gait(item :: any)
+				valid = valid and (g == "walk" or g == "air" or g == "off" or g == "drop")
+				if g == "walk" then
+					walks += 1
+				end
+			end
+			check("guard: every state has a gait; only three are walk", valid and walks == 3, walks)
+		end
+		check("guard: Sit while Running is drop", L.gait(H.Running, true) == "drop")
+		check("guard: Sit while in the air is drop", L.gait(H.Freefall, true) == "drop")
+		check("guard: PlatformStand while Running is off", L.gait(H.Running, false, true) == "off")
+		check("guard: PlatformStand while Swimming is still drop", L.gait(H.Swimming, false, true) == "drop")
+
+		check("guard: walk counts", L.counts("walk"))
+		check("guard: off never counts", not L.counts("off") and not L.counts("off", 0))
+		check("guard: drop never counts", not L.counts("drop"))
+		check("guard: air counts at take-off", L.counts("air", 0))
+		check("guard: air counts at the end of the grace", L.counts("air", GRACE))
+		check("guard: air stops counting after the grace", not L.counts("air", GRACE + 0.01))
+	end
+
+	-- the state guard: stepGated
+	do
+		local GRACE = L.AirGrace
+		local s = L.newState()
+		local m, counted = L.stepGated(s, 0, true, "walk")
+		check("gated: walking onto a strip: full, counted", m == M and counted)
+		m, counted = L.stepGated(s, 0.25, true, "off")
+		check("gated: not walking on a strip: not counted, linger holds", m == M and not counted)
+		check(
+			"gated: not walking: eases like stepping off (+0.75 s)",
+			approx(L.stepGated(s, 0.75, true, "off"), 1.25, EPS)
+		)
+		check("gated: not walking: exactly 1 at +1.0 s", L.stepGated(s, 1.0, true, "off") == 1)
+		check("gated: walking again on the strip: full at once", L.stepGated(s, 1.1, true, "walk") == M)
+
+		-- seated (or swimming, or dead) on a strip: exactly 1 at once, state cleared
+		s = L.newState()
+		L.stepGated(s, 0, true, "walk")
+		m, counted = L.stepGated(s, 0.1, true, "drop")
+		check("gated: drop on a strip: exactly 1 at once", m == 1 and not counted)
+		check("gated: drop clears the state", s.lastOnStrip == nil and s.airSince == nil)
+		check("gated: drop a frame later: still 1", L.stepGated(s, 0.2, true, "drop") == 1)
+		check("gated: stand up on the strip: full", L.stepGated(s, 0.3, true, "walk") == M)
+		L.stepGated(s, 0.4, true, "drop")
+		check("gated: stand up off the strip: 1, nothing carried", L.stepGated(s, 0.5, false, "walk") == 1)
+
+		-- a hop on a strip: full boost throughout, 60 Hz
+		s = L.newState()
+		L.stepGated(s, 0, true, "walk")
+		local held = true
+		for f = 1, 60 do
+			held = held and L.stepGated(s, f / 60, true, "air") == M
+		end
+		check("gated: a 1 s hop on a strip: full throughout", held)
+		check("gated: landing after the hop: full", L.stepGated(s, 1.05, true, "walk") == M)
+		check("gated: landing ends the air spell", s.airSince == nil)
+
+		-- a long fall over a strip: counts for the grace, then the normal linger and ease
+		s = L.newState()
+		L.stepGated(s, 0, true, "walk")
+		L.stepGated(s, 0, true, "air") -- take-off: the spell starts at 0
+		m, counted = L.stepGated(s, GRACE, true, "air")
+		check("gated: long fall, end of the grace: counted", m == M and counted)
+		m, counted = L.stepGated(s, GRACE + 0.01, true, "air")
+		check("gated: long fall, past the grace: not counted", m == M and not counted)
+		check("gated: long fall: full to grace + linger", L.stepGated(s, GRACE + LINGER, true, "air") == M)
+		check(
+			"gated: long fall: easing (grace + 0.75 s)",
+			approx(L.stepGated(s, GRACE + 0.75, true, "air"), 1.25, EPS),
+			L.stepGated(s, GRACE + 0.75, true, "air")
+		)
+		check("gated: long fall: exactly 1 at grace + 1.0 s", L.stepGated(s, GRACE + LINGER + EASE, true, "air") == 1)
+
+		-- the air clock restarts after landing; a jump onto a strip counts
+		s = L.newState()
+		L.stepGated(s, 10, false, "air")
+		L.stepGated(s, 10.5, false, "walk")
+		L.stepGated(s, 10.6, false, "air")
+		check("gated: a new jump restarts the air clock", s.airSince == 10.6)
+		check("gated: jumping onto a strip: full", L.stepGated(s, 11.5, true, "air") == M)
+		check(
+			"gated: reset clears the air clock",
+			(function()
+				L.reset(s)
+				return s.airSince == nil and s.lastOnStrip == nil
+			end)()
+		)
+	end
+
+	-- the state guard against an independent model, seeded random gait sequences
+	do
+		local rng = Random.new(20261023)
+		local gaits: { WalkBoostLogic.Gait } = { "walk", "walk", "air", "off", "drop" }
+		local ok, dropOk, maxSeen, minSeen, expired = true, true, 1, 1, 0
+		for _ = 1, 200 do
+			local s = L.newState()
+			local t = 0
+			local gait: WalkBoostLogic.Gait = "walk"
+			local lastOn: number?, airSince: number? = nil, nil
+			for _ = 1, 120 do
+				t += rng:NextNumber(0, 0.2)
+				if rng:NextNumber() < 0.2 then
+					gait = gaits[rng:NextInteger(1, #gaits)]
+				end
+				local over = rng:NextNumber() < 0.5
+				local expect = 1
+				if gait == "drop" then
+					lastOn, airSince = nil, nil
+				else
+					if gait == "air" then
+						airSince = airSince or t
+					else
+						airSince = nil
+					end
+					local inGrace = gait == "air" and t - (airSince :: number) <= L.AirGrace
+					if gait == "air" and not inGrace then
+						expired += 1
+					end
+					if over and (gait == "walk" or inGrace) then
+						lastOn = t
+					end
+					if lastOn then
+						local since = t - lastOn
+						if since <= LINGER then
+							expect = M
+						elseif since < LINGER + EASE then
+							local u = (since - LINGER) / EASE
+							expect = M - (M - 1) * u * u * (3 - 2 * u)
+						end
+					end
+				end
+				local m = L.stepGated(s, t, over, gait)
+				ok = ok and math.abs(m - expect) < EPS
+				dropOk = dropOk and (gait ~= "drop" or m == 1)
+				maxSeen = math.max(maxSeen, m)
+				minSeen = math.min(minSeen, m)
+			end
+		end
+		check("gated: 200 random gait sequences match the model", ok)
+		check("gated: random sequences cover an expired air grace", expired > 0, expired)
+		check("gated: random sequences: a drop is always exactly 1", dropOk)
+		check("gated: random sequences never above 1.5 or below 1", maxSeen <= M and minSeen >= 1, maxSeen)
+	end
+
 	-- geometry
 	do
 		local strip: WalkBoostLogic.Strip = { from = Vector2.new(0, 0), to = Vector2.new(20, 0) }
@@ -343,6 +517,19 @@ local function parts(player: Player, timeout: number): (Model?, Humanoid?, BaseP
 	return nil, nil, nil
 end
 
+-- Waits (real time, up to timeout s) until the controller's state guard reads the given gait:
+-- the humanoid's own state changes (standing up, getting up) take a few frames.
+local function waitGait(c: WalkBoost.Controller, gait: WalkBoostLogic.Gait, timeout: number): boolean
+	local started = os.clock()
+	while c.status().gait ~= gait do
+		if os.clock() - started > timeout then
+			return false
+		end
+		task.wait()
+	end
+	return true
+end
+
 local function stripUnder(root: BasePart, humanoid: Humanoid, withHeight: boolean): WalkBoostLogic.Strip
 	local p = WalkBoostLogic.toPlan(root.Position)
 	local ground = root.Position.Y - humanoid.HipHeight - root.Size.Y / 2
@@ -398,10 +585,12 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 	})
 	table.insert(cleanups, c.destroy)
 	local idle = WalkBoost.IdleConnections
-	local boundManual = idle + 1
+	local boundManual = idle + 1 + WalkBoost.GuardConnections -- Died + the state guard
 
 	local st = c.status()
 	check("bound to the character", st.bound and st.character == char)
+	local walking = waitGait(c, "walk", 3)
+	check("state guard: the held test character reads as walking", walking, c.status().gait)
 	check("bound: connection count", st.connections == boundManual, st.connections)
 	check("one set of effects", oneSet(char))
 	check("off the strip: base", c.update(0) == 1 and hum.WalkSpeed == base, hum.WalkSpeed)
@@ -547,6 +736,71 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 	c.update(11)
 	check("enable again: boost works", hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
 
+	-- the state guard on the real humanoid (review M1). Sit and PlatformStand are set the way a
+	-- seat or a script sets them; the strip under the root stays in place throughout.
+	do
+		table.insert(cleanups, function()
+			if hum.Parent then
+				hum.Sit = false
+				hum.PlatformStand = false
+			end
+		end)
+		hum.Sit = true
+		flush()
+		st = c.status()
+		check("state guard: sit on a strip: exact base at once, no update", hum.WalkSpeed == base, hum.WalkSpeed)
+		check("state guard: sit: gait drop", st.gait == "drop", st.gait)
+		check("state guard: sit: no trails or particles", not st.trails and not st.streaksEnabled)
+		check("state guard: sit: no glow", st.glow == 0, st.glow)
+		check("state guard: sit: no modifier state", SpeedModifiers.multiplier(hum) == 1)
+		c.update(11.5)
+		st = c.status()
+		check("state guard: seated a frame later: still base", hum.WalkSpeed == base, hum.WalkSpeed)
+		check("state guard: seated: over the strip but not counted", st.overStrip and not st.onStrip)
+		check("state guard: seated: effects kept, not duplicated", oneSet(char))
+		hum.Sit = false
+		local stood = waitGait(c, "walk", 3)
+		check("state guard: stand up: walking again", stood, c.status().gait)
+		c.update(12)
+		check("state guard: stand up on the strip: 24", hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
+
+		-- sit, move off the strip, stand up: nothing carried over
+		local kept = table.clone(strips)
+		hum.Sit = true
+		flush()
+		table.clear(strips)
+		hum.Sit = false
+		waitGait(c, "walk", 3)
+		c.update(12.1)
+		check("state guard: stand up off the strip: exact base", hum.WalkSpeed == base, hum.WalkSpeed)
+		for _, s in kept do
+			table.insert(strips, s)
+		end
+
+		-- PlatformStand on the strip: not counted, the normal linger and ease
+		c.update(13)
+		check("state guard: boosted before PlatformStand", hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
+		hum.PlatformStand = true
+		flush()
+		c.update(13.25)
+		st = c.status()
+		check("state guard: PlatformStand: gait off", st.gait == "off", st.gait)
+		check("state guard: PlatformStand +0.25 s: linger holds 24", hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
+		c.update(13.75)
+		check(
+			"state guard: PlatformStand +0.75 s: easing (about 20)",
+			approx(hum.WalkSpeed, base * 1.25, 0.01),
+			hum.WalkSpeed
+		)
+		c.update(14)
+		check("state guard: PlatformStand +1.0 s: exactly 16", hum.WalkSpeed == base, hum.WalkSpeed)
+		hum.PlatformStand = false
+		local back = waitGait(c, "walk", 3)
+		c.update(15)
+		check("state guard: PlatformStand off: boost works again", back and hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
+		check("state guard: connection count unchanged", c.status().connections == boundManual, c.status().connections)
+	end
+
 	-- destroy
 	c.destroy()
 	st = c.status()
@@ -584,7 +838,7 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 			check("built strip: on, 24", real.status().onStrip and hum.WalkSpeed == base * 1.5, hum.WalkSpeed)
 			check(
 				"built strip: watchers added",
-				real.status().connections == idle + 1 + WalkBoost.StripWatchConnections,
+				real.status().connections == idle + 1 + WalkBoost.GuardConnections + WalkBoost.StripWatchConnections,
 				real.status().connections
 			)
 			local side = Vector2.new(-look.Y, look.X) * 8
@@ -657,6 +911,7 @@ local function characterTests(check: Checker, skip: (string) -> (), respawn: boo
 	check("respawn: same connection count (no duplicates)", st.connections == boundManual, st.connections)
 	check("respawn: one set of effects", oneSet(nc))
 	check("respawn: base speed", nh.WalkSpeed == base, nh.WalkSpeed)
+	check("respawn: the new character reads as walking", waitGait(r, "walk", 5), r.status().gait)
 	table.clear(strips)
 	r.update(40)
 	check("respawn: fresh state (no boost carried over)", nh.WalkSpeed == base, nh.WalkSpeed)

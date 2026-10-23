@@ -507,6 +507,9 @@ local GATE_PIECES = {
 local COURT_TOP = SURFACE + 0.1 -- the court slab's top (buildFront)
 local LAMP_COLOUR = Color3.fromRGB(255, 212, 150) -- warm globe light (Tunable)
 local FLAG_LENGTH = 3 -- studs out from the pole (Tunable; "two modest flags")
+local FLAG_TIP = 0.15 -- the flag tapers to this width: a pennant, not a square (review J8)
+local CHECKER_SCALE = 0.5 -- of the PlotGateChecker strip height
+local CHECKER_TOP = 9.2 -- studs above the gate base: just under the accent collars (from 9.3)
 
 local function buildGate(front: Folder, base: CFrame, index: number)
 	local accent = Signs.PlotAccents[(index - 1) % #Signs.PlotAccents + 1]
@@ -518,6 +521,15 @@ local function buildGate(front: Folder, base: CFrame, index: number)
 			-- the accent mesh is one neutral swatch: drop the palette texture so the colour shows
 			piece.TextureID = ""
 			piece.Color = accent
+		elseif name == "PlotGateChecker" then
+			-- brief §11 "narrow checkered strip": half the recorded height (two rows), raised to sit
+			-- just under the pillar collars (Task 4 complaint review J8: the full-height panels
+			-- read as checkerboard shafts)
+			local info = KitAssets.info(name)
+			local oldMid = (info.min.Y + info.max.Y) / 2
+			local h = (info.max.Y - info.min.Y) * CHECKER_SCALE
+			piece.Size = Vector3.new(piece.Size.X, h, piece.Size.Z)
+			piece.CFrame = piece.CFrame + base.UpVector * (CHECKER_TOP - h / 2 - oldMid)
 		end
 		piece.Parent = front
 	end
@@ -638,7 +650,7 @@ local function buildGate(front: Folder, base: CFrame, index: number)
 			b.Texture = "" -- texture hook: an approved flag cloth id would go here; plain accent for now
 			b.Color = ColorSequence.new(accent)
 			b.Transparency = NumberSequence.new(0)
-			b.Width0, b.Width1 = top.Y - bottom.Y, top.Y - bottom.Y
+			b.Width0, b.Width1 = top.Y - bottom.Y, FLAG_TIP
 			b.FaceCamera = false
 			b.Segments = 10
 			b.LightInfluence = 1

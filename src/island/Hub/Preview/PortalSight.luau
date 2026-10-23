@@ -10,12 +10,26 @@
 -- (water, spray) are not solid and are judged by eye (see the review page). It also reports how
 -- much of the lower falls each entrance sees.
 --
+-- Locked state (architecture review M7, review X2): the lock on Dusty Highway and Summit Pass is
+-- built per player on the client (Portals.client.luau buildLock), so it is not in Edit mode. With
+-- { locked = true } the test builds blocking boxes for it under Lane3_PortalSightShapes, in the
+-- same frames as buildLock, for every gate whose Chained attribute is true (Downtown never is):
+-- the padlock body and shackle, the LOCKED plaque hanging under it, the requirement plaque on
+-- its pedestal (PlaqueBase), and, unless chains = false, the X chain runs and the four neck
+-- wraps. Each box is the piece's KitManifest bounds (min..max in the piece frame), so it is the
+-- mesh's bounding box: exact for the plaques and padlock, conservative for the chains (the open
+-- link centres count as solid). task4-layout.js --locked uses the same boxes.
+--
 --   local I = game.ServerStorage.Island:Clone()
---   require(I.Hub.Preview.PortalSight).run()
+--   local S = require(I.Hub.Preview.PortalSight)
+--   S.run()                                   -- unlocked (every portal open)
+--   S.run({ locked = true })                  -- locked: lock pieces and chains
+--   S.run({ locked = true, chains = false })  -- locked without the chains
 
 local AssetService = game:GetService("AssetService")
 
 local Cascade = require(script.Parent.Parent.Environment.Cascade)
+local KitManifest = require(script.Parent.Parent.Environment.KitManifest)
 local Layout = require(script.Parent.Parent.Layout)
 
 local PortalSight = {}
@@ -23,7 +37,121 @@ local PortalSight = {}
 local R, CY = 11, 13
 local EYES = { 4.5, 5.5, 6.5 }
 
-function PortalSight.run(): { [string]: any }
+export type Options = {
+	locked: boolean?, -- add the Dusty Highway and Summit Pass lock pieces (default false)
+	chains: boolean?, -- with locked: include the X chains and neck wraps (default true)
+}
+
+-- The client lock's constants (Portals.client.luau buildLock): the X stands LOCK_AHEAD in front
+-- of the field plane, its second diagonal 0.7 further forward; the padlock sits 0.35 in front of
+-- the crossing.
+local LOCK_AHEAD = 2
+local DIAGONALS = {
+	{ a = "left_high", b = "right_low", offset = 0 },
+	{ a = "left_low", b = "right_high", offset = 0.7 },
+}
+
+local function kit(name: string): any
+	return (KitManifest :: any)[name]
+end
+
+local function kitNumber(name: string, key: string, default: number): number
+	local v = kit(name) and kit(name).meta[key]
+	return if type(v) == "number" then v else default
+end
+
+local function kitPoint(name: string, key: string, default: Vector3): Vector3
+	local v = kit(name) and kit(name).points[key]
+	return if typeof(v) == "Vector3" then v else default
+end
+
+-- One gate's lock as blocking boxes { name, cf, size }, in buildLock's frames. Empty when the
+-- gate is not chained or has no Origin.
+local function lockBoxes(gate: Instance, chains: boolean): { { name: string, cf: CFrame, size: Vector3 } }
+	local out = {}
+	local gateFrame = gate:GetAttribute("Origin")
+	if gate:GetAttribute("Chained") ~= true or typeof(gateFrame) ~= "CFrame" then
+		return out
+	end
+	local function add(piece: string, label: string, frame: CFrame)
+		local info = kit(piece)
+		if not info then
+			return
+		end
+		local lo, hi = info.min :: Vector3, info.max :: Vector3
+		table.insert(out, { name = label, cf = frame * CFrame.new((lo + hi) / 2), size = hi - lo })
+	end
+	local function localPoint(key: string): Vector3?
+		local v = gate:GetAttribute("pt_" .. key)
+		return if typeof(v) == "Vector3" then v else nil
+	end
+	local front = gateFrame:VectorToWorldSpace(Vector3.zAxis)
+	local setback = gate:GetAttribute("Setback")
+	local fieldZ = if type(setback) == "number" then setback else 0
+	local crossZ = fieldZ + LOCK_AHEAD
+	local runPitch = kitNumber("GateChainRun", "run_pitch", 11)
+	local runLength = kitPoint("GateChainRun", "last_link_centre", Vector3.new(8.8, 0, 0)).X
+	for _, d in DIAGONALS do
+		local la, lb = localPoint("chain_anchors_" .. d.a), localPoint("chain_anchors_" .. d.b)
+		if la and lb then
+			crossZ = math.max(crossZ, la.Z)
+			if chains then
+				local a, b = gateFrame:PointToWorldSpace(la), gateFrame:PointToWorldSpace(lb)
+				local ahead = math.max(0, fieldZ + LOCK_AHEAD + d.offset - la.Z)
+				local dir = (b - a).Unit
+				local length = (b - a).Magnitude
+				local count = math.max(1, math.floor((length - runLength) / runPitch) + 1)
+				local start = (length - ((count - 1) * runPitch + runLength)) / 2
+				local finish = start + (count - 1) * runPitch + runLength
+				local function along(s0: number): Vector3
+					local ramp = math.clamp(math.min((s0 - start) / runLength, (finish - s0) / runLength), 0, 1)
+					return a + dir * s0 + front * (ahead * ramp)
+				end
+				for r = 0, count - 1 do
+					local s0 = start + r * runPitch
+					local p0, p1 = along(s0), along(s0 + runLength)
+					local runDir = (p1 - p0).Unit
+					local up = front:Cross(runDir).Unit
+					add("GateChainRun", "ChainRun", CFrame.fromMatrix(p0, runDir, up))
+				end
+			end
+		end
+	end
+	if chains then
+		for _, key in { "left_low", "left_high", "right_low", "right_high" } do
+			local at = localPoint("chain_wraps_" .. key)
+			if at then
+				add("GateChainWrap", "ChainWrap", gateFrame * CFrame.new(at))
+			end
+		end
+	end
+	local crossLocal = localPoint("chain_cross")
+	if crossLocal then
+		local cross = gateFrame:PointToWorldSpace(Vector3.new(crossLocal.X, crossLocal.Y, crossZ + 0.35))
+		local below = kitNumber("GatePadlockBody", "assembly.body_centre_below_cross", 4.5)
+		local body = CFrame.new(cross - Vector3.new(0, below, 0)) * gateFrame.Rotation
+		add("GatePadlockBody", "PadlockBody", body)
+		local hinge = body
+			* CFrame.new(
+				kitNumber("GatePadlockBody", "shackle_seat.1", -2.3),
+				kitNumber("GatePadlockBody", "shackle_seat.2", 2.4),
+				0
+			)
+		add("GatePadlockShackle", "PadlockShackle", hinge)
+		local eyeY = kitPoint("GatePadlockBody", "plaque_eyes.1", Vector3.new(-2.4, -2.925, 0)).Y
+		local ringY = kitPoint("GateLockedPlaque", "hang_rings.1", Vector3.new(-2.4, 2.42, 0)).Y
+		add("GateLockedPlaque", "LockedPlaque", body * CFrame.new(0, eyeY - 0.5 - ringY, 0))
+	end
+	local base = gate:GetAttribute("PlaqueBase")
+	if typeof(base) == "CFrame" then
+		add("GateRequirementPlaque", "RequirementPlaque", base)
+	end
+	return out
+end
+
+function PortalSight.run(options: Options?): { [string]: any }
+	local locked = options ~= nil and options.locked == true
+	local withChains = not (options ~= nil and options.chains == false)
 	local park = Layout.Data.park
 	local preview = workspace:FindFirstChild("Lane3_IslandPreview")
 	assert(preview, "Build the hub preview first")
@@ -86,6 +214,30 @@ function PortalSight.run(): { [string]: any }
 					copy.Parent = shapes
 					table.insert(exclude, d)
 					shaped += 1
+				end
+			end
+		end
+	end
+	-- the locked state: the client lock's pieces as solid boxes, one Folder "<World>Lock" each
+	local lockPieces = 0
+	if locked and rig then
+		for _, gate in rig:GetChildren() do
+			local boxes = lockBoxes(gate, withChains)
+			if #boxes > 0 then
+				local folder = Instance.new("Folder")
+				folder.Name = tostring(gate:GetAttribute("World") or gate.Name) .. "Lock"
+				folder.Parent = shapes
+				for _, b in boxes do
+					local p = Instance.new("Part")
+					p.Name = b.name
+					p.Anchored = true
+					p.CanCollide = false
+					p.CanQuery = true
+					p.Transparency = 0.5
+					p.Size = b.size
+					p.CFrame = b.cf
+					p.Parent = folder
+					lockPieces += 1
 				end
 			end
 		end
@@ -212,7 +364,15 @@ function PortalSight.run(): { [string]: any }
 		d.CanQuery = false
 	end
 	shapes:Destroy()
-	return { rows = rows, worstVisiblePercent = math.round(worst * 10000) / 100, shapedCopies = shaped, falls = falls }
+	return {
+		rows = rows,
+		worstVisiblePercent = math.round(worst * 10000) / 100,
+		shapedCopies = shaped,
+		falls = falls,
+		locked = locked,
+		chains = locked and withChains,
+		lockPieces = lockPieces,
+	}
 end
 
 return PortalSight

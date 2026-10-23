@@ -9,6 +9,15 @@
 -- goes through ReplicatedStorage.Shared.Movement.SpeedModifiers (one source, "IslandBoostLane",
 -- largest-wins), so it never stacks and never overwrites a base speed set by anyone else.
 --
+-- STATE GUARD (review M1): being over a strip only counts while the humanoid is walking
+-- (Running, RunningNoPhysics, Landed), or in the air (Jumping, Freefall) for at most 1 s
+-- (WalkBoostLogic.AirGrace), so a hop keeps the boost. Climbing, PlatformStand, Physics,
+-- Ragdoll, FallingDown, GettingUp and any other state do not count: the boost runs its normal
+-- 0.5 s linger and 0.5 s ease. Seated (Sit or a SeatPart), Swimming and Dead reset it to the exact
+-- base at once, on the event, effects off. Standing up on a strip boosts again; off one, it does
+-- not. The state is cached from Humanoid.StateChanged and Sit changes, both in the per-character
+-- Trove; the classification is WalkBoostLogic.gait / stepGated (unit-tested).
+--
 -- THE SWITCH: WalkBoost.ENABLED below. false turns the whole boost off (the starter script
 -- creates nothing). At run time the LocalPlayer attribute "Lane3WalkBoostEnabled" = false turns
 -- it off too (exact base speed back at once, every per-character connection and effect gone);
@@ -79,6 +88,8 @@ export type Status = {
 	character: Model?,
 	multiplier: number,
 	onStrip: boolean,
+	overStrip: boolean,
+	gait: WalkBoostLogic.Gait?,
 	walkSpeed: number?,
 	base: number?,
 	connections: number,
@@ -112,6 +123,7 @@ type Binding = {
 	root: BasePart,
 	trove: Trove.Trove,
 	effects: Effects?,
+	stateType: Enum.HumanoidStateType, -- the humanoid's state, kept by StateChanged (no polling)
 }
 
 -- The built island's boost strips: one inlay beam per strip, under BoostLanes. Strips whose
@@ -237,7 +249,8 @@ function WalkBoost.new(options: Options?): Controller
 	local bound: Binding? = nil
 	local pending: { character: Model, trove: Trove.Trove }? = nil
 	local current = 1
-	local lastOn = false
+	local lastOn = false -- the last sample counted as on a strip (over one, in a counting gait)
+	local lastOver = false -- the last sample was over a strip (geometry only)
 	local stripsModel: Instance? = nil
 	local stripsDirty = true
 	local strips: { Strip } = {}
@@ -359,6 +372,7 @@ function WalkBoost.new(options: Options?): Controller
 		bound = nil
 		WalkBoostLogic.reset(state)
 		lastOn = false
+		lastOver = false
 		if write then
 			SpeedModifiers.clear(b.humanoid, WalkBoost.Source) -- the exact base comes back
 		end
@@ -369,18 +383,14 @@ function WalkBoost.new(options: Options?): Controller
 		publish(nil)
 	end
 
-	local function update(nowArg: number?): number
-		local b = bound
-		if destroyed or not b then
-			return 1
-		end
-		local now = nowArg or clock()
-		local list, hw = currentStrips()
-		local on = b.root.Parent ~= nil
-			and b.humanoid.Health > 0
-			and WalkBoostLogic.overStrip(b.root.Position, list, hw)
-		lastOn = on
-		local m = WalkBoostLogic.step(state, now, on)
+	-- The state guard's gait for the bound humanoid (WalkBoostLogic.gait): the cached state plus
+	-- the Sit, SeatPart and PlatformStand properties, which change before the state does.
+	local function gaitOf(b: Binding): WalkBoostLogic.Gait
+		local h = b.humanoid
+		return WalkBoostLogic.gait(b.stateType, h.Sit or h.SeatPart ~= nil, h.PlatformStand)
+	end
+
+	local function apply(b: Binding, m: number)
 		if write then
 			if m > 1 then
 				SpeedModifiers.set(b.humanoid, WalkBoost.Source, m)
@@ -390,7 +400,34 @@ function WalkBoost.new(options: Options?): Controller
 		end
 		showEffects(b, m)
 		setMultiplier(m)
+	end
+
+	local function update(nowArg: number?): number
+		local b = bound
+		if destroyed or not b then
+			return 1
+		end
+		local now = nowArg or clock()
+		local list, hw = currentStrips()
+		local over = b.root.Parent ~= nil
+			and b.humanoid.Health > 0
+			and WalkBoostLogic.overStrip(b.root.Position, list, hw)
+		local m, counted = WalkBoostLogic.stepGated(state, now, over, gaitOf(b))
+		lastOver = over
+		lastOn = counted
+		apply(b, m)
 		return m
+	end
+
+	-- A drop gait (seated, swimming, dead) takes effect on the event, without waiting for a frame:
+	-- exact base speed and no effects at once. Other gait changes wait for the next update, whose
+	-- time comes from the clock (the event handler has no time of its own).
+	local function guard(b: Binding)
+		if bound == b and gaitOf(b) == "drop" then
+			WalkBoostLogic.reset(state)
+			lastOn = false
+			apply(b, 1)
+		end
 	end
 
 	local function bind(character: Model)
@@ -416,6 +453,7 @@ function WalkBoost.new(options: Options?): Controller
 				root = root,
 				trove = t,
 				effects = if wantEffects then makeEffects(t, humanoid, root) else nil,
+				stateType = humanoid:GetState(),
 			}
 			bound = binding
 			WalkBoostLogic.reset(state)
@@ -423,6 +461,15 @@ function WalkBoost.new(options: Options?): Controller
 				if bound == binding then
 					unbind()
 				end
+			end)
+			-- the state guard: the state is cached from StateChanged; Sit covers seats and scripted
+			-- sits alike (Humanoid.Seated only fires for seat parts)
+			track(t, humanoid.StateChanged, function(_old: Enum.HumanoidStateType, new: Enum.HumanoidStateType)
+				binding.stateType = new
+				guard(binding)
+			end)
+			track(t, humanoid:GetPropertyChangedSignal("Sit"), function()
+				guard(binding)
 			end)
 			if not opts.manual then
 				track(t, RunService.Heartbeat, function()
@@ -504,6 +551,8 @@ function WalkBoost.new(options: Options?): Controller
 				character = if b then b.character else nil,
 				multiplier = current,
 				onStrip = lastOn,
+				overStrip = lastOver,
+				gait = if b then gaitOf(b) else nil,
 				walkSpeed = if b then b.humanoid.WalkSpeed else nil,
 				base = if b then SpeedModifiers.base(b.humanoid) else nil,
 				connections = live,
@@ -531,10 +580,12 @@ function WalkBoost.new(options: Options?): Controller
 end
 
 -- Connection counts, for leak tests. Idle (always, until destroy): the player's attributes,
--- reduced motion, character added and removing. Bound adds Died and, unless manual, the frame
--- loop; reading the built lanes (no fixed strips) adds two strip watchers while bound.
+-- reduced motion, character added and removing. Bound adds Died, the two state-guard watchers
+-- (StateChanged, Sit) and, unless manual, the frame loop; reading the built lanes (no fixed
+-- strips) adds two strip watchers while bound.
 WalkBoost.IdleConnections = 4
-WalkBoost.BoundConnections = 2 -- Died + frame loop (manual: 1)
+WalkBoost.GuardConnections = 2 -- StateChanged + Sit
+WalkBoost.BoundConnections = 4 -- Died + guard + frame loop (manual: 3)
 WalkBoost.StripWatchConnections = 2
 
 return WalkBoost

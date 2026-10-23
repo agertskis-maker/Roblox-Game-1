@@ -768,9 +768,10 @@ local function buildSnackCorners(ctx: Ctx)
 			ctx.rejected.snackStand = (ctx.rejected.snackStand or 0) + 1
 		end
 	end
-	-- picnic tables with parasols through their centres
-	for _, s in { -7, 7 } do
-		local p = at(s, 5)
+	-- picnic tables with parasols through their centres, out at the sides so no canopy stands
+	-- between the front spur and a header (Task 4 concept review M18, complaint review J6)
+	for _, s in { -10.5, 10.5 } do
+		local p = at(s, 9)
 		if KitAssets.has("PicnicTable") then
 			local a = putPair(ctx, "SnackCorners", "PicnicTable", p, side, 1, { solid = true, r = 3.5 })
 			if a and KitAssets.has("Parasol") then
@@ -835,10 +836,10 @@ local function buildSnackCorners(ctx: Ctx)
 	else
 		ctx.rejected.snackPosts = (ctx.rejected.snackPosts or 0) + 1
 	end
-	-- bins at the two front corners
+	-- bins either side of the spur mouth, clear of the post feet (review N5)
 	if KitAssets.has("ParkBin") then
-		for _, s in { -11, 11 } do
-			putPair(ctx, "SnackCorners", "ParkBin", at(s, 12.5), front, 1, { solid = true, r = 1.2 })
+		for _, s in { -6, 6 } do
+			putPair(ctx, "SnackCorners", "ParkBin", at(s, 12.8), front, 1, { solid = true, r = 1.2 })
 		end
 	end
 	for _, b in { east, buildingById("SnackCornerWest") } do
@@ -896,6 +897,7 @@ local function lawnOk(p: Vector2, r: number, pathMin: number): boolean
 		and bridgeClear(p) >= r + 4
 		and buildingClear(p) >= r + 2
 		and onLand(p, r + SHORE_MARGIN)
+		and not Layout.onPlazaFillet(p, r + 0.5) -- the round plaza fillets are paving (review J7)
 end
 
 local function lawnOkPair(p: Vector2, r: number, pathMin: number): boolean
@@ -1092,7 +1094,17 @@ local function buildHedges(ctx: Ctx)
 		local a = (k + 0.5) / n * math.pi * 2
 		local p = Vector2.new(math.cos(a), math.sin(a)) * r
 		local tangent = Vector2.new(-math.sin(a), math.cos(a))
-		if pathClear(p) > 1.5 and streamClear(p) > 2 and buildingClear(p) > 1 then
+		-- both hedge ends off the round plaza fillets (review J7: hedges lay on the join paving)
+		local ends = { p + tangent * 3.4, p - tangent * 3.4, p }
+		local onFillet = false
+		for _, q in ends do
+			onFillet = onFillet or Layout.onPlazaFillet(q, 0.8)
+		end
+		-- nor on the paved stage forecourt between the plaza and the portal stage walk (Park
+		-- buildJoins paves |x| < spacing + 7 up to the walk's plaza-side edge)
+		local pr = park.portal
+		local onForecourt = p.Y < 0 and math.abs(p.X) < pr.spacing + 7 + 3 and p.Y > pr.frontY + 3 + 5 - 3
+		if pathClear(p) > 1.5 and streamClear(p) > 2 and buildingClear(p) > 1 and not onFillet and not onForecourt then
 			put(ctx, "Hedges", "HedgeLow", p, yawAlong(tangent), 1, { solid = true })
 		end
 	end
@@ -1197,37 +1209,6 @@ local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, path
 			end
 		end
 	end
-end
-
-local function bedPair(ctx: Ctx, name: string, p: Vector2, along: Vector2, palette: number): boolean
-	local meta = KitAssets.info(name).meta or {}
-	local reach = math.max(meta.rx or 4.5, meta.ry or 4.5)
-	if not lawnOkPair(p, reach, 1.5) then
-		return false
-	end
-	local y = groundY(p)
-	local a = putPair(ctx, "Beds", name, p, Vector2.new(-along.Y, along.X), 1, { y = y, r = reach + 1 })
-	if not a then
-		return false
-	end
-	local _, nearest = pathClear(p)
-	local toward = Vector2.new(0, 1)
-	if nearest and (nearest :: any).points then
-		local pts = (nearest :: any).points
-		local best, foot = math.huge, p
-		for i = 1, #pts - 1 do
-			local s, e = pts[i], pts[i + 1]
-			local ab = e - s
-			local t = math.clamp((p - s):Dot(ab) / ab:Dot(ab), 0, 1)
-			local f = s + ab * t
-			if (f - p).Magnitude < best then
-				best, foot = (f - p).Magnitude, f
-			end
-		end
-		toward = if (foot - p).Magnitude > 0.1 then (foot - p).Unit else toward
-	end
-	plantBed(ctx, name, p, along, toward, palette)
-	return true
 end
 
 -- A corner bed (BedCornerFillet: its origin is the path corner, its two straight sides run along
@@ -1372,20 +1353,8 @@ local function buildBeds(ctx: Ctx)
 			end
 		end
 	end
-	-- 3. straight beds along the east avenues
-	walkEast(30, 22, function(p, dir, normal, path, _n)
-		if not string.find((path :: any).kind, "Avenue") then
-			return
-		end
-		local width = (path :: any).width or 8
-		for _, s in { 1, -1 } do
-			local name = if KitAssets.has("BedAvenueStraight") then "BedAvenueStraight" else "BedOval"
-			local meta = KitAssets.info(name).meta
-			local at = p + normal * s * (width / 2 + 1.5 + (meta.ry or 3.5))
-			palette += 1
-			bedPair(ctx, name, at, dir, palette)
-		end
-	end)
+	-- 3. (removed, Task 4 review J1: the 24 straight beds along the avenues read as brown
+	--    confetti from above; the lawns there stay open, which also frames the avenues)
 	-- 4. curved avenue beds along the promenade's park-side edge, between the avenues
 	if KitAssets.has("BedAvenueArc") then
 		for _, bearing in { 30, 60 } do
@@ -1410,6 +1379,36 @@ local function buildBeds(ctx: Ctx)
 			end
 		end
 	end
+end
+
+-- Bedding carpets (Task 4 review J1: the beds read as half-empty brown soil). Each bed gets a
+-- copy of its own mesh, untextured, in a deep leaf green, shrunk toward its centre so its rim
+-- sits just inside the stone kerb and raised a hair above the soil: the soil reads as low
+-- bedding foliage with the flowers rising from it, and the copy's rim reads as a clipped green
+-- edging. No new asset; mirrored with its bed (the copy keeps the bed's PlanAt and MirrorPair).
+local CARPET_GREEN = Color3.fromRGB(70, 138, 74) -- deeper than the lawn (proposal)
+local CARPET_SHRINK = 0.9 -- of the bed's plan size
+local CARPET_LIFT = 0.04
+local function carpetBeds(ctx: Ctx)
+	local beds = folder(ctx, "Beds")
+	local made = 0
+	for _, bed in beds:GetChildren() do
+		if bed:IsA("MeshPart") and string.sub(bed.Name, 1, 3) == "Bed" and KitAssets.has(bed.Name) then
+			local c = bed:Clone()
+			c.Name = "BedCarpet"
+			c.TextureID = ""
+			c.Color = CARPET_GREEN
+			c.Material = Enum.Material.Grass
+			c.CastShadow = false
+			c.CanCollide = false
+			c.CanQuery = false
+			c.Size = Vector3.new(bed.Size.X * CARPET_SHRINK, bed.Size.Y, bed.Size.Z * CARPET_SHRINK)
+			c.CFrame = bed.CFrame + Vector3.new(0, CARPET_LIFT, 0)
+			c.Parent = beds
+			made += 1
+		end
+	end
+	ctx.counts.BedCarpet = made
 end
 
 -- ---------------------------------------------------------------- lawns
@@ -1569,6 +1568,7 @@ function ParkDressing.build(parent: Instance, grid: TerrainWriter.Grid, seed: nu
 	buildHedges(ctx)
 	-- Task 4: the formal bed family first, then the furniture fills round it
 	buildBeds(ctx)
+	carpetBeds(ctx)
 	task.wait()
 	buildFurniture(ctx)
 	task.wait()

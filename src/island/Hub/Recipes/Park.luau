@@ -59,17 +59,13 @@ local function polyline(
 		end
 		for _, piece in pieces do
 			if piece[2] - piece[1] > 0.05 then
-				local cut = #pieces > 1 or piece[1] > 0 or piece[2] < length
-				Kit.strip(
-					parent,
-					W(a + dir * piece[1]),
-					W(a + dir * piece[2]),
-					width,
-					0.1,
-					topY,
-					options,
-					if cut then 0 else width * 0.3
-				)
+				-- the segment's own ends run on by 0.15 x width (covering the lens between a square
+				-- end and the curving plaza edge, and the joints between segments); an end at a
+				-- bridge cut stops exactly at the deck. Task 4 review J7: one cut used to drop the
+				-- run-on at every end of that segment, leaving grass crescents at the plaza.
+				local s0 = if piece[1] <= 0 then -width * 0.15 else piece[1]
+				local s1 = if piece[2] >= length then length + width * 0.15 else piece[2]
+				Kit.strip(parent, W(a + dir * s0), W(a + dir * s1), width, 0.1, topY, options, 0)
 			end
 		end
 	end
@@ -121,31 +117,31 @@ end
 local function triangle(parent: Instance, a: Vector2, b: Vector2, c: Vector2, topY: number, colour: Color3)
 	local thickness = 0.1
 	local A, B, C = W(a, topY - thickness / 2), W(b, topY - thickness / 2), W(c, topY - thickness / 2)
-	-- the longest side is the base; the apex drops a perpendicular foot onto it
-	local ab, bc, ca = (B - A).Magnitude, (C - B).Magnitude, (A - C).Magnitude
-	if ab >= bc and ab >= ca then
-		A, B, C = A, B, C
-	elseif bc >= ab and bc >= ca then
-		A, B, C = B, C, A
-	else
-		A, B, C = C, A, B
+	-- the standard two-wedge triangle: relabel so BC is the longest side, drop the foot of the
+	-- apex A onto it, and fill each half with a wedge whose right angle sits at the foot (Task 4
+	-- review J7: the earlier orientation test flipped some halves and left grass slivers)
+	local ab, ac, bc = B - A, C - A, C - B
+	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
+	if abd > acd and abd > bcd then
+		A, C = C, A
+	elseif acd > bcd and acd > abd then
+		A, B = B, A
 	end
-	local base = B - A
-	local baseLen = base.Magnitude
-	if baseLen < 0.05 then
+	ab, ac, bc = B - A, C - A, C - B
+	local normal = ac:Cross(ab)
+	if normal.Magnitude < 1e-6 or bc.Magnitude < 0.05 then
 		return
 	end
-	local along = base / baseLen
-	local t = (C - A):Dot(along)
-	local foot = A + along * t
-	local height = (C - foot).Magnitude
+	local right = normal.Unit
+	local up = bc:Cross(right).Unit
+	local back = bc.Unit
+	local height = math.abs(ab:Dot(up))
 	if height < 0.05 then
 		return
 	end
-	local up = (C - foot).Unit
-	local normal = along:Cross(up).Unit
-	for _, piece in { { A, foot, t }, { B, foot, baseLen - t } } do
-		local corner, f, len = piece[1], piece[2], piece[3]
+	for _, half in { { B, ab, right, back }, { C, ac, -right, -back } } do
+		local corner, edge, r, bk = half[1], half[2], half[3], half[4]
+		local len = math.abs(edge:Dot(back))
 		if len > 0.05 then
 			local w = Instance.new("WedgePart")
 			w.Name = "JoinFill"
@@ -158,14 +154,7 @@ local function triangle(parent: Instance, a: Vector2, b: Vector2, c: Vector2, to
 			w.TopSurface = Enum.SurfaceType.Smooth
 			w.BottomSurface = Enum.SurfaceType.Smooth
 			w.Size = Vector3.new(thickness, height, len)
-			-- a wedge's slope runs from its top-back edge to its bottom-front edge; its right angle
-			-- sits at the foot, the long leg (Z) along the base toward `corner`
-			local back = (f - corner).Unit
-			local mid = (corner + f) / 2 + up * height / 2
-			w.CFrame = CFrame.fromMatrix(mid, normal, up, back)
-			if normal:Cross(up):Dot(back) < 0 then
-				w.CFrame = CFrame.fromMatrix(mid, -normal, up, back)
-			end
+			w.CFrame = CFrame.fromMatrix((A + corner) / 2, r, up, bk)
 			w.Parent = parent
 		end
 	end
@@ -235,6 +224,28 @@ local function filletCorners(
 	return made
 end
 
+-- The round fillets where the paths meet the plaza (Layout.PlazaFillets), each drawn as a
+-- triangle fan from the corner where the path edge crosses the plaza circle. Task 4 review J7:
+-- straight fillets ended on the circle's tangent line and left thin grass crescents between that
+-- line and the curving plaza edge. The fan's inner chord falls inside the plaza disc, under it.
+local FILLET_SEGMENTS = 6
+local function plazaFillets(parent: Instance, colour: Color3): number
+	for _, f in Layout.PlazaFillets do
+		local O = f.centre
+		local a1 = math.atan2(f.t1.Y - O.Y, f.t1.X - O.X)
+		local a2 = math.atan2(f.t2.Y - O.Y, f.t2.X - O.X)
+		local sweep = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi -- the short way round
+		local prev = f.t1
+		for k = 1, FILLET_SEGMENTS do
+			local a = a1 + sweep * k / FILLET_SEGMENTS
+			local q = O + Vector2.new(math.cos(a), math.sin(a)) * f.radius
+			triangle(parent, f.corner, prev, q, PATH_TOP, colour)
+			prev = q
+		end
+	end
+	return #Layout.PlazaFillets
+end
+
 -- Fills the corners where the paths join each other and the plaza, and the strip between the
 -- plaza edge, the three portal approaches and the stage walk (the Task 4 before view showed
 -- grass gaps and slivers there).
@@ -249,31 +260,9 @@ local function buildJoins(model: Model)
 			return d <= path.width / 2 + 0.6
 		end
 	end
-	local onPlaza = function(p: Vector2): boolean
-		-- the fillet's tangent point runs along the tangent, a little outside the curving edge
-		return p.Magnitude <= park.plazaRadius + 4
-	end
+	made += plazaFillets(folder, Palette.Paving)
 	for i, P in park.paths do
 		local pts = P.points
-		-- plaza joins: a path end on the plaza circle
-		for _, e in { pts[1], pts[#pts] } do
-			if math.abs(e.Magnitude - park.plazaRadius) < 1.5 then
-				local _, dir = nearestOn(pts, e)
-				local tangent = Vector2.new(-e.Y, e.X).Unit
-				made += filletCorners(
-					folder,
-					e,
-					dir,
-					P.width / 2,
-					tangent,
-					0,
-					P.width / 2,
-					onPath(P),
-					onPlaza,
-					Palette.Paving
-				)
-			end
-		end
 		-- crossings and T-joins with every later path
 		for k = i + 1, #park.paths do
 			local Q = park.paths[k]
@@ -631,9 +620,54 @@ local function buildPortals(model: Model)
 	end
 end
 
+-- Paved pads under the snack corners (their whole 30 x 28 box) and a round one under the gazebo,
+-- each with a one-stud border in the promenade tone; spurs in the layout join them to the paths
+-- (Task 4 movement review M4: they stood on lawn with no approach). Paving tops sit with the paths.
+local PADS = { SnackCornerEast = "box", SnackCornerWest = "box", Gazebo = "round" }
+local BORDER = 1
+local function buildPads(model: Model)
+	local folder = Instance.new("Folder")
+	folder.Name = "Pads"
+	folder.Parent = model
+	for _, b in park.buildings do
+		local kind = PADS[b.id]
+		if kind == "round" then
+			local d = math.max(b.width, b.depth) + 6
+			local c = W(b.centre)
+			Kit.disc(folder, c, d + 2 * BORDER, 0.1, PATH_TOP - 0.01, {
+				name = b.id .. "PadBorder",
+				color = Palette.Promenade,
+				collide = true,
+				castShadow = false,
+			})
+			Kit.disc(folder, c, d, 0.1, PATH_TOP, {
+				name = b.id .. "Pad",
+				color = Palette.Paving,
+				collide = true,
+				castShadow = false,
+			})
+		elseif kind == "box" then
+			local pos = W(b.centre)
+			local face = W(b.facing) - W(Vector2.zero)
+			for _, layer in { { "PadBorder", BORDER, Palette.Promenade, 0.01 }, { "Pad", 0, Palette.Paving, 0 } } do
+				local grow = (layer[2] :: number) * 2
+				local top = PATH_TOP - (layer[4] :: number)
+				local at = Vector3.new(pos.X, top - 0.05, pos.Z)
+				Kit.part(folder, Vector3.new(b.width + grow, 0.1, b.depth + grow), CFrame.lookAt(at, at + face), {
+					name = b.id .. (layer[1] :: string),
+					color = layer[3] :: Color3,
+					collide = true,
+					castShadow = false,
+				})
+			end
+		end
+	end
+end
+
 function Park.build(model: Model)
 	buildPlaza(model)
 	buildPaths(model)
+	buildPads(model)
 	buildJoins(model)
 	buildBuildings(model)
 	buildPortals(model)

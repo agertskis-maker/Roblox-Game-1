@@ -149,6 +149,131 @@ Layout.StartS = Layout.LeftStraight.s0 + 0.75 * L
 Layout.StartU = uS + 0.25 * L
 Layout.SampleCount = track.sampleCount
 
+-- Round fillets where the paths meet the plaza circle (Task 4 review J7), plan frame. Each
+-- fillet of radius `radius` (half the path width) touches the path edge at `t1` and the plaza
+-- circle at `t2`; `centre` is its circle's centre, out on the lawn. The paved corner is bounded
+-- by the edge from `corner` (where the edge crosses the plaza circle) to `t1`, the fillet arc to
+-- `t2`, and the plaza circle back to `corner`. The Park recipe paves it; the dressing keeps off.
+export type Fillet = { corner: Vector2, centre: Vector2, radius: number, t1: Vector2, t2: Vector2 }
+local function nearestDir(points: { Vector2 }, p: Vector2): Vector2
+	local best, dir = math.huge, Vector2.new(1, 0)
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local ab = b - a
+		if ab.Magnitude > 1e-6 then
+			local t = math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
+			local d = (p - (a + ab * t)).Magnitude
+			if d < best then
+				best, dir = d, ab.Unit
+			end
+		end
+	end
+	return dir
+end
+local fillets: { Fillet } = {}
+do
+	local plazaR = Data.park.plazaRadius
+	for _, path in Data.park.paths do
+		local pts = path.points
+		local h = path.width / 2
+		local r = h
+		for _, e in { pts[1], pts[#pts] } do
+			if math.abs(e.Magnitude - plazaR) < 1.5 then
+				local dir = nearestDir(pts, e)
+				if dir:Dot(e) < 0 then
+					dir = -dir
+				end
+				local n = Vector2.new(-dir.Y, dir.X)
+				-- the outward root of |b + dir t| = radius
+				local function outward(b: Vector2, radius: number): number?
+					local bd = b:Dot(dir)
+					local disc = bd * bd - b:Dot(b) + radius * radius
+					if disc < 0 then
+						return nil
+					end
+					return -bd + math.sqrt(disc)
+				end
+				for _, s in { 1, -1 } do
+					local edge = e + n * s * h
+					local tc = outward(edge, plazaR)
+					local line = e + n * s * (h + r)
+					local to = outward(line, plazaR + r)
+					if tc and to and to > tc then
+						local centre = line + dir * to
+						table.insert(fillets, {
+							corner = edge + dir * tc,
+							centre = centre,
+							radius = r,
+							t1 = edge + dir * to,
+							t2 = centre * (plazaR / (plazaR + r)),
+						})
+					end
+				end
+			end
+		end
+	end
+end
+Layout.PlazaFillets = fillets
+
+-- True when p lies on a plaza fillet's paving, grown by `margin`.
+function Layout.onPlazaFillet(p: Vector2, margin: number): boolean
+	local plazaR = Data.park.plazaRadius
+	if p.Magnitude < plazaR - margin then
+		return false
+	end
+	for _, f in fillets do
+		-- inside the corner's bounding triangle (corner, t1, t2) grown by the margin, and outside
+		-- the fillet circle shrunk by it
+		local d = (p - f.centre).Magnitude
+		if d > f.radius - margin then
+			local u = f.t1 - f.corner
+			local v = f.t2 - f.corner
+			local w = p - f.corner
+			local den = u.X * v.Y - u.Y * v.X
+			if math.abs(den) > 1e-6 then
+				local a = (w.X * v.Y - w.Y * v.X) / den
+				local b = (u.X * w.Y - u.Y * w.X) / den
+				local grow = margin / math.max(1, math.min(u.Magnitude, v.Magnitude))
+				if a >= -grow and b >= -grow and a + b <= 1 + grow then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- True when plan point p lies within `margin` of a hub building's box (the Garage and Stunt
+-- boxes run on 14 studs in front for their forecourt and apron) or a leaderboard. Scatter
+-- outside the park (ground cover) keeps off these (Task 4 review N2: tall grass on the apron).
+local FORECOURT = { Garage = 14, StuntGate = 14 }
+function Layout.inDestination(p: Vector2, margin: number): boolean
+	local park = Data.park :: any
+	local function inBox(centre: Vector2, facing: Vector2, width: number, depth: number, front: number): boolean
+		local side = Vector2.new(-facing.Y, facing.X)
+		local q = p - (centre + facing * front / 2)
+		return math.abs(q:Dot(side)) < width / 2 + margin and math.abs(q:Dot(facing)) < (depth + front) / 2 + margin
+	end
+	for _, b in park.buildings do
+		if inBox(b.centre, b.facing, b.width, b.depth, FORECOURT[b.id] or 0) then
+			return true
+		end
+	end
+	for _, b in park.boards do
+		if inBox(b.centre, b.facing or Vector2.new(0, 1), b.width, b.depth, 0) then
+			return true
+		end
+	end
+	-- the portal gates (their plinths run back about 12 from the portal front line)
+	local portal = park.portal
+	for _, q in park.portals do
+		if inBox(Vector2.new(q.x, portal.frontY - 6), Vector2.new(0, 1), portal.width + 6, 14, 0) then
+			return true
+		end
+	end
+	return false
+end
+
 -- Reservations by id (plot frame polygons).
 export type Reservation = typeof(Data.reservations[1])
 local byId: { [string]: Reservation } = {}

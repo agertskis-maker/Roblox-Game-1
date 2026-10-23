@@ -1755,6 +1755,30 @@ return {
 					Vector2.new(-38.545, -10.69),
 				},
 			},
+			{
+				kind = "SpurSnackCornerEast",
+				width = 8,
+				points = {
+					Vector2.new(100.096, 148.398),
+					Vector2.new(124.247, 124.247),
+				},
+			},
+			{
+				kind = "SpurSnackCornerWest",
+				width = 8,
+				points = {
+					Vector2.new(-100.096, 148.398),
+					Vector2.new(-124.247, 124.247),
+				},
+			},
+			{
+				kind = "SpurGazebo",
+				width = 8,
+				points = {
+					Vector2.new(0, 203),
+					Vector2.new(0, 237.187),
+				},
+			},
 		},
 		bridges = {
 			{
@@ -1762,7 +1786,7 @@ return {
 				at = Vector2.new(-152.569, 40.881),
 				dir = Vector2.new(0.966, -0.259),
 				deckWidth = 18,
-				span = 26,
+				span = 31,
 			},
 			{
 				path = "Avenue2",
@@ -1797,7 +1821,7 @@ return {
 				at = Vector2.new(152.569, 40.881),
 				dir = Vector2.new(-0.966, -0.259),
 				deckWidth = 18,
-				span = 26,
+				span = 31,
 			},
 			{
 				path = "GarageApproach",

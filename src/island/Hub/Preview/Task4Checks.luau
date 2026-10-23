@@ -1,8 +1,30 @@
 --!strict
 -- DEVELOPMENT CHECKS (Lane 3, Task 4). Deterministic checks on the built island, each failure
 -- naming the object and its position:
---   shore     no dry-land piece stands in the lake or the river (whole footprint, 0 margin here;
---             the dressing itself keeps 3 and 4 studs) — the "turtle on a brown pad" rule
+--   shore     decision 0018 §5, as stated: every point of a dry-land piece's footprint is at
+--             least LakeMargin (3) studs from the lake waterline and RiverMargin (4) from the
+--             river edge. A point fails when it lies inside the lake grown by 3 studs (the
+--             irregular shoreline, Field.lakeShape, plus the plunge pool, Cascade.Pool), or within
+--             streamWidth / 2 + 4 of the river centre line (Field.riverDistance). The lake
+--             distance is measured on rings 0.25 apart in 48 directions, refined by bisection;
+--             each failure gives the piece, its worst point and that point's measured distance.
+--             Footprint: the bottom face's centre, corners and edge points at most 4 apart.
+--             Pieces: ParkDressing, Destinations and Portals (environment) and the river Bridges
+--             (hub preview). Exempt: Wet = true, anything under LakeDressing, Waterfall or
+--             Fountain, invisible parts, the PortalKit templates; a tree (ParkDressing.Trees)
+--             tests only its trunk base, as its canopy may lean over the water. Bridges: the
+--             abutments, the mid-span piles and their cap beam are the only pieces allowed in
+--             the water (they are the supports); the posts are carried on the deck; the pieces
+--             that span the river (deck, fascias, rails, a bridge mesh) test the corners of their
+--             two ends (the deck must land on dry bank); every other bridge piece is a full
+--             footprint. Flora, GroundCover and LakeDressing (reeds, shore grass) are not tested.
+--   beach     (decided with the shore check, Task 4 review J10; reversible) no built piece stands
+--             on the dry beach sand: the band between the lake waterline and Field.sample's bank
+--             limit (lake e < 1.12) in the beach zone, where the terrain is Sand. The beach is
+--             kept open (LakeDressing and GroundCover keep off it too), and a building, board or
+--             forecourt on it reads as standing at the water's edge. When the terrain is written
+--             a point counts only if the terrain under it really is Sand. A piece meant for the
+--             beach sets BeachOk = true (none does today). Failures give the lake distance.
 --   turtle    no CarTopiary anywhere
 --   grounding every placed mesh rests on something: the support below its base (terrain or
 --             another part) is within GroundTolerance at the centre or a corner; flags pieces
@@ -13,8 +35,10 @@
 --   local I = game.ServerStorage.Island:Clone()
 --   local C = require(I.Hub.Preview.Task4Checks)
 --   C.run()            -- every check; returns { failures = {...}, summary = {...} }
+--   C.shore()          -- the shore and beach failures only
 --   C.snapshot()       -- counts per top folder, for a before / after rebuild comparison
 
+local Cascade = require(script.Parent.Parent.Environment.Cascade)
 local Field = require(script.Parent.Parent.Environment.Field)
 local KitManifest = require(script.Parent.Parent.Environment.KitManifest)
 local Layout = require(script.Parent.Parent.Layout)
@@ -24,9 +48,31 @@ local Task4Checks = {}
 Task4Checks.GroundTolerance = 0.35 -- studs between a base and the support under it
 Task4Checks.BuryTolerance = 1.6 -- studs a base may sit below the ground at its lowest corner
 Task4Checks.MirrorTolerance = 0.05
+Task4Checks.LakeMargin = 3 -- decision 0018 §5: studs from the lake waterline to any footprint point
+Task4Checks.RiverMargin = 4 -- decision 0018 §5: studs from the river edge to any footprint point
 
--- Pieces allowed over water: they carry Wet = true, or live under these folders.
-local WET_FOLDERS = { Bridges = true, LakeDressing = true, Waterfall = true, Fountain = true }
+-- Pieces allowed over water: they carry Wet = true, or live under these folders. The Bridges are
+-- not here: only their supports may stand in the water (BRIDGE_SUPPORTS).
+local WET_FOLDERS = { LakeDressing = true, Waterfall = true, Fountain = true }
+-- Bridges (Environment/Bridges.luau part names): the supports stand in the water by design; the
+-- intermediate posts stand on the deck; the span pieces cross the river and test their ends.
+local BRIDGE_SUPPORTS = { Abutment1 = true, Abutment2 = true, Pile1 = true, Pile2 = true, PierCap = true }
+local BRIDGE_CARRIED = { Post = true }
+local BRIDGE_SPANS = {
+	Deck = true,
+	Fascia1 = true,
+	Fascia2 = true,
+	TopRail1 = true,
+	TopRail2 = true,
+	MidRail1 = true,
+	MidRail2 = true,
+	Mesh = true,
+}
+-- Field.sample's lake bank band: e < 1.12 outside the shoreline is bank, Sand in the beach zone.
+local BEACH_E = 1.12
+local RING_STEP = 0.25
+local RING_DIRS = 48
+local BEACH_REACH = 16 -- how far the lake distance is measured for a beach failure
 -- Not ground-standing: hanging or carried pieces (strings, glass, headers, flowers in beds,
 -- canopies, effects).
 local NOT_STANDING = {
@@ -86,56 +132,248 @@ local function corners(part: BasePart): { Vector3 }
 	return out
 end
 
-local function inWater(p: Vector2): (boolean, string)
-	if Field.lakeShape(p) then
-		return true, "lake"
-	end
-	local d = Field.polylineDistance(park.stream, p)
-	if d < park.streamWidth / 2 then
-		return true, "river"
-	end
-	return false, ""
-end
-
-function Task4Checks.shore(): { any }
-	local fails = {}
-	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
-	local dressing = env and env:FindFirstChild("ParkDressing")
-	if not dressing then
-		return { { check = "shore", problem = "no ParkDressing folder" } }
-	end
-	-- the park dressing, the Garage / Stunt / leaderboard destinations and the portal gates
-	-- (architecture review M6: the first version tested the dressing only)
-	local pieces: { Instance } = {}
-	for _, name in { "ParkDressing", "Destinations", "Portals" } do
-		local folder = env and env:FindFirstChild(name)
-		if folder then
-			for _, d in folder:GetDescendants() do
-				table.insert(pieces, d)
-			end
+-- The bottom face of a part as plan points: centre, corners, and edge points at most 4 apart.
+local function footprint(part: BasePart): { Vector2 }
+	local h = part.Size / 2
+	local out = { plan(part.CFrame:PointToWorldSpace(Vector3.new(0, -h.Y, 0))) }
+	local nx = math.max(1, math.ceil(part.Size.X / 4))
+	local nz = math.max(1, math.ceil(part.Size.Z / 4))
+	for i = 0, nx do
+		local x = -h.X + part.Size.X * i / nx
+		for _, z in { -h.Z, h.Z } do
+			table.insert(out, plan(part.CFrame:PointToWorldSpace(Vector3.new(x, -h.Y, z))))
 		end
 	end
-	for _, d in pieces do
-		if d:IsA("BasePart") and not wetAllowed(d) and d.Transparency < 1 then
-			-- a tree may lean over the water: only its trunk base must stand on land
-			local tree = d:FindFirstAncestor("Trees") ~= nil
-			if tree and d.Name ~= "Trunk" then
-				continue
+	for k = 1, nz - 1 do
+		local z = -h.Z + part.Size.Z * k / nz
+		for _, x in { -h.X, h.X } do
+			table.insert(out, plan(part.CFrame:PointToWorldSpace(Vector3.new(x, -h.Y, z))))
+		end
+	end
+	return out
+end
+
+-- Lake water: the irregular shoreline, or the plunge pool below the falls (joined to the lake;
+-- the same test as Field.sample).
+local function inLake(p: Vector2): boolean
+	if Field.lakeShape(p) then
+		return true
+	end
+	local pool = Cascade.Pool
+	local rel = p - pool.centre
+	return (rel.X / pool.rx) ^ 2 + (rel.Y / pool.ry) ^ 2 < 1 and p.Y > Cascade.lowerFaceY(p.X) + 0.5
+end
+
+local RING: { Vector2 } = {}
+for k = 0, RING_DIRS - 1 do
+	local a = k / RING_DIRS * math.pi * 2
+	table.insert(RING, Vector2.new(math.cos(a), math.sin(a)))
+end
+local LAKE_MIN_R = math.min(Field.Lake.rx, Field.Lake.ry)
+local POOL_R = math.max(Cascade.Pool.rx, Cascade.Pool.ry)
+
+-- Studs from p to the nearest lake water, measured up to `reach`: 0 inside the water, math.huge
+-- when there is none within reach. The ellipse value e changes by at most 1 / min(rx, ry) per
+-- stud and the lake lies inside e = 1, so a point with e - 1 > reach / min(rx, ry) (and far from
+-- the pool) is skipped. Otherwise rings RING_STEP apart in RING_DIRS directions find the first
+-- water, and a bisection along that direction refines it to about 0.01 stud.
+local function lakeGap(p: Vector2, reach: number): number
+	if inLake(p) then
+		return 0
+	end
+	if Field.lakeE(p) - 1 > reach / LAKE_MIN_R and (p - Cascade.Pool.centre).Magnitude > POOL_R + reach then
+		return math.huge
+	end
+	local r = RING_STEP
+	while r <= reach + 1e-6 do
+		local best = math.huge
+		for _, dir in RING do
+			if inLake(p + dir * r) then
+				local lo, hi = r - RING_STEP, r
+				for _ = 1, 5 do
+					local mid = (lo + hi) / 2
+					if inLake(p + dir * mid) then
+						hi = mid
+					else
+						lo = mid
+					end
+				end
+				best = math.min(best, hi)
 			end
-			local tests = if tree then { d.Position } else { d.Position, table.unpack(corners(d)) }
-			for _, c in tests do
-				local wet, where = inWater(plan(c))
-				if wet then
-					table.insert(
-						fails,
-						{ check = "shore", object = d:GetFullName(), at = fmt(d.Position), water = where }
-					)
-					break
+		end
+		if best < math.huge then
+			return best
+		end
+		r += RING_STEP
+	end
+	return math.huge
+end
+
+local river = Field.river(park.stream, park.streamWidth, (park :: any).riverLoop == true)
+
+-- Studs from p to the river's water edge (negative inside the water).
+local function riverGap(p: Vector2): number
+	return Field.riverDistance(river, p) - river.half
+end
+
+-- On the dry beach sand (see the header): outside the lake, inside Field.sample's bank band, in
+-- the beach zone, and, when the terrain is written, on Sand.
+local terrainOnly = RaycastParams.new()
+terrainOnly.FilterType = Enum.RaycastFilterType.Include
+terrainOnly.IgnoreWater = true
+local function onBeach(p: Vector2): boolean
+	local wet, _, zone = Field.lakeShape(p)
+	if wet or zone ~= "beach" or Field.lakeE(p) >= BEACH_E then
+		return false
+	end
+	-- the ground is the terrain or the hub's paving (the portal stage, paths): a piece on paving laid
+	-- over the sand band does not stand on the beach
+	local ground: { Instance } = { workspace.Terrain }
+	local preview = workspace:FindFirstChild("Lane3_IslandPreview")
+	if preview then
+		table.insert(ground, preview)
+	end
+	terrainOnly.FilterDescendantsInstances = ground
+	local hit = workspace:Raycast(Vector3.new(p.X, 80, -p.Y), Vector3.new(0, -160, 0), terrainOnly)
+	return hit == nil or (hit.Instance == workspace.Terrain and hit.Material == Enum.Material.Sand)
+end
+
+local function round2(n: number): number
+	return math.round(n * 100) / 100
+end
+
+-- The pieces the shore rule covers, with how each is tested: "footprint", "trunk", "span".
+local function shorePieces(env: Instance): ({ { part: BasePart, role: string } }, number)
+	local out = {}
+	local supports = 0
+	-- the park dressing, the Garage / Stunt / leaderboard destinations and the portal gates
+	-- (architecture review M6: the first version tested the dressing only)
+	for _, name in { "ParkDressing", "Destinations", "Portals" } do
+		local folder = env:FindFirstChild(name)
+		if folder then
+			for _, d in folder:GetDescendants() do
+				if
+					d:IsA("BasePart")
+					and d.Transparency < 1
+					and not wetAllowed(d)
+					and not d:FindFirstAncestor("PortalKit")
+				then
+					-- a tree may lean over the water: only its trunk base must stand on land
+					local tree = d:FindFirstAncestor("Trees") ~= nil
+					if not tree then
+						table.insert(out, { part = d, role = "footprint" })
+					elseif d.Name == "Trunk" then
+						table.insert(out, { part = d, role = "trunk" })
+					end
 				end
 			end
 		end
 	end
-	return fails
+	-- the river bridges (hub preview, Recipes/Park): see BRIDGE_SUPPORTS
+	local preview = workspace:FindFirstChild("Lane3_IslandPreview")
+	local bridges = preview and preview:FindFirstChild("Bridges", true)
+	if bridges then
+		for _, d in bridges:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 and d:GetAttribute("Wet") ~= true then
+				if BRIDGE_SUPPORTS[d.Name] then
+					supports += 1
+				elseif BRIDGE_SPANS[d.Name] then
+					table.insert(out, { part = d, role = "span" })
+				elseif not BRIDGE_CARRIED[d.Name] then
+					table.insert(out, { part = d, role = "footprint" })
+				end
+			end
+		end
+	end
+	return out, supports
+end
+
+-- Shore and beach failures, the number of pieces tested, and the bridge supports exempted.
+local function shoreRun(): ({ any }, number, number)
+	local fails = {}
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	if not (env and env:FindFirstChild("ParkDressing")) then
+		return { { check = "shore", problem = "no ParkDressing folder" } }, 0, 0
+	end
+	local pieces, supports = shorePieces(env)
+	local lakeNeed, riverNeed = Task4Checks.LakeMargin, Task4Checks.RiverMargin
+	for _, piece in pieces do
+		local d = piece.part
+		local points: { Vector2 }
+		if piece.role == "trunk" then
+			points = { plan(d.Position) }
+		elseif piece.role == "span" then
+			points = {}
+			local deckWidth = d.Parent and d.Parent:GetAttribute("DeckWidth")
+			if d.Name == "Mesh" and type(deckWidth) == "number" then
+				-- the kit bridge mesh's bounds take in the wing walls that flare at the abutments
+				-- (abutments may stand in the bank): its deck ends are tested at the deck's width
+				for _, x in { -d.Size.X / 2, d.Size.X / 2 } do
+					for _, z in { -deckWidth / 2, deckWidth / 2 } do
+						table.insert(points, plan(d.CFrame:PointToWorldSpace(Vector3.new(x, -d.Size.Y / 2, z))))
+					end
+				end
+			else
+				for _, c in corners(d) do
+					table.insert(points, plan(c))
+				end
+			end
+		else
+			points = footprint(d)
+		end
+		-- the worst point: the largest shortfall against its margin
+		local worst: { [string]: any }? = nil
+		local worstShort = 0
+		local beachAt: Vector2? = nil
+		for _, p in points do
+			local lake = lakeGap(p, lakeNeed)
+			if lake < lakeNeed and lakeNeed - lake > worstShort then
+				worstShort = lakeNeed - lake
+				worst = { water = "lake", distance = lake, need = lakeNeed, point = p }
+			end
+			local rv = riverGap(p)
+			if rv < riverNeed and riverNeed - rv > worstShort then
+				worstShort = riverNeed - rv
+				worst = { water = "river", distance = rv, need = riverNeed, point = p }
+			end
+			if beachAt == nil and lake > 0 and onBeach(p) then
+				beachAt = p
+			end
+		end
+		if worst then
+			local pt = worst.point :: Vector2
+			table.insert(fails, {
+				check = "shore",
+				object = d:GetFullName(),
+				at = fmt(d.Position),
+				point = string.format("(%.1f, %.1f)", pt.X, -pt.Y), -- world X, Z
+				water = worst.water,
+				distance = round2(worst.distance), -- studs to the water's edge; 0 or less is in it
+				need = worst.need,
+				tested = piece.role,
+			})
+		end
+		if beachAt and not d:GetAttribute("BeachOk") then
+			local gap = lakeGap(beachAt, BEACH_REACH)
+			local shown: any = string.format("> %d", BEACH_REACH)
+			if gap < math.huge then
+				shown = round2(gap)
+			end
+			table.insert(fails, {
+				check = "beach",
+				object = d:GetFullName(),
+				at = fmt(d.Position),
+				point = string.format("(%.1f, %.1f)", beachAt.X, -beachAt.Y),
+				lakeDistance = shown, -- studs from that point to the lake waterline
+				tested = piece.role,
+			})
+		end
+	end
+	return fails, #pieces, supports
+end
+
+function Task4Checks.shore(): { any }
+	return (shoreRun())
 end
 
 function Task4Checks.turtle(): { any }
@@ -342,7 +580,8 @@ function Task4Checks.run(): { [string]: any }
 			table.insert(failures, f)
 		end
 	end
-	add(Task4Checks.shore())
+	local s, shoreChecked, bridgeSupports = shoreRun()
+	add(s)
 	add(Task4Checks.turtle())
 	add(Task4Checks.treesOnBuildings())
 	local g, grounded = Task4Checks.grounding()
@@ -353,6 +592,8 @@ function Task4Checks.run(): { [string]: any }
 		failures = failures,
 		summary = {
 			failures = #failures,
+			shoreChecked = shoreChecked, -- pieces the shore and beach checks tested
+			bridgeSupportsExempt = bridgeSupports, -- abutments, piles and pile caps (in the water)
 			groundingChecked = grounded,
 			mirrorPieces = mirrored,
 		},

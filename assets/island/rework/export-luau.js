@@ -94,7 +94,18 @@ for (const q of H.portals) paths.push({ kind: "Approach" + q.id, width: 14, poin
 paths.push({ kind: "StageWalk", width: 10, points: [V(-P.portal.spacing, P.portal.frontY + 3), V(P.portal.spacing, P.portal.frontY + 3)] });
 for (const [kind, points] of Object.entries(o.walks)) paths.push({ kind, width: 10, points }); // Task 4: lakeside and forecourt walks
 for (const b of [o.garage, o.stunt]) paths.push({ kind: b.id + "Approach", width: 12, points: [b.door, mul(b.door, P.plazaR / len(b.door))] });
+for (const [kind, points] of Object.entries(o.spurs)) paths.push({ kind, width: L.SPUR_W, points }); // Task 4: snack corner and gazebo spurs
 
+const BANK = 4.5; // studs of dry bank under each deck corner (the shore rule asks 4)
+function streamGap(p) {
+	let best = Infinity;
+	for (let j = 1; j < o.stream.length; j++) {
+		const c = o.stream[j - 1], ab = sub(o.stream[j], c);
+		const t = Math.max(0, Math.min(1, ((p.x - c.x) * ab.x + (p.y - c.y) * ab.y) / (ab.x * ab.x + ab.y * ab.y)));
+		best = Math.min(best, len(sub(p, add(c, mul(ab, t)))));
+	}
+	return best - P.task4.riverWidth / 2;
+}
 function cross2(a, b) {
 	return a.x * b.y - a.y * b.x;
 }
@@ -113,7 +124,22 @@ for (const pl of paths)
 			const t = cross2(sub(c, a), s) / den;
 			const u = cross2(sub(c, a), r) / den;
 			if (t >= 0 && t <= 1 && u >= 0 && u < 1) {
-				bridges.push({ path: pl.kind, at: add(a, mul(r, t)), dir: mul(r, 1 / len(r)), deckWidth: pl.width + 2, span: P.task4.riverWidth + 10 });
+				// the deck runs on until each of its corners is BANK studs clear of the river edge on both
+				// sides, measured on the real (curving) river; at least the kit's 26 (Task 4 shore check:
+				// Bridges 01 and 06 cross a bend at an angle and landed a corner 0.5 from the water)
+				const deckWidth = pl.width + 2;
+				const at = add(a, mul(r, t));
+				const dir = mul(r, 1 / len(r));
+				const side = V(-dir.y, dir.x);
+				let half = 13;
+				for (const lat of [-deckWidth / 2, deckWidth / 2])
+					for (const sgn of [-1, 1]) {
+						let k = 0;
+						while (k < 40 && streamGap(add(add(at, mul(side, lat)), mul(dir, sgn * k))) < BANK) k += 0.1;
+						half = Math.max(half, k);
+					}
+				const span = Math.round(2 * half * 10) / 10;
+				bridges.push({ path: pl.kind, at: add(a, mul(r, t)), dir: mul(r, 1 / len(r)), deckWidth, span });
 			}
 		}
 if (bridges.length !== o.bridges.length) throw new Error(`bridge count ${bridges.length} differs from the layout's ${o.bridges.length}`);
