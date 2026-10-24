@@ -19,7 +19,7 @@ Brian L, car modeling is yours from 2026-10-21, on top of Lane 2 (Data & Economy
 | [[0010-vehicle-direction]] (in `vault/decisions/`) | The vehicle direction and the five naming and logo guardrails | Accepted 2026-10-20 |
 | [[rarity-style]] | Rarity style guide: quality floor, tier ladder, palette, triangle budgets, evidence for "finished" | Proposed |
 | [[roster]] | 24-car launch roster across the three Worlds, plus two electric Downtown extras (Polytruck, Sparkster, added 2026-10-24), with parody names and risk notes | Proposed |
-| [[showroom-roster]] | Brian L's five-tier revision of the 24-car Studio showroom: green Uncommon added, Zip and Street Kid to Legendary, Solar Flare dropped, two electric cars added, name flags | Proposed 2026-10-24 |
+| [[showroom-roster]] | Brian L's five-tier revision of the 24-car Studio showroom: green Uncommon added, Zip and Street Kid to Legendary, Solar Flare dropped, two electric cars added, name flags | Approved by Brian L 2026-10-24; tier needs lane agreement |
 | [[first-car-record]] | Word-for-word copies of the first-car notes: conventions, measurements, upload history, Studio checks | History |
 
 These are copies from Adam's branch `feature/lane3-first-car-downtown` (`f309ea2`). The Blender recipe kit (`assets/vehicles/`, Python) and the Studio preview script (`src/client/Home/CarPreview`) stay on that branch; read them with `git show feature/lane3-first-car-downtown:<path>` if useful.

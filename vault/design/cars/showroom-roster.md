@@ -4,12 +4,14 @@ date: 2026-10-24
 tags:
   - design
   - vehicles
-status: proposed
+status: approved-by-car-owner
 ---
 
-# Showroom roster, five tiers (proposed)
+# Showroom roster, five tiers
 
-> [!warning] Proposal
+> [!note] Approved by Brian L (car looks owner) on 2026-10-24: "Approved: the five-tier showroom roster as written."
+> The fifth tier still needs "Agreed" from Brian R and Adam before it reaches the GDD or the Catalog, and the Lap Pay values and the flagged names are still open.
+>
 > Brian L's revision, 2026-10-24, of the 24-car showroom seen in Studio screenshots (four tiers: Common, Rare, Epic, Legendary, six cars each). The showroom place is not in Git; this note only records the plan. Nothing is built, uploaded, or in the Catalog. The five-tier list needs "Agreed" from all three lane owners on [[BOARD]]. This is a different list from [[roster]] (24 cars by World and family); which one the game uses is open. Names follow `AGENTS.md` "Vehicles"; risk notes are judgement, not legal advice.
 
 Lap Pay per tier (proposals from [[rarity-style]] section 12, not approved): Common $5, Uncommon $8, Rare $12, Epic $30, Legendary $80.
