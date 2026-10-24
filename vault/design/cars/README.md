@@ -18,7 +18,7 @@ Brian L, car modeling is yours from 2026-10-21, on top of Lane 2 (Data & Economy
 | this README | Decisions, Adam's look rules, the first car, open items | Decisions settled 2026-10-21 |
 | [[0010-vehicle-direction]] (in `vault/decisions/`) | The vehicle direction and the five naming and logo guardrails | Accepted 2026-10-20 |
 | [[rarity-style]] | Rarity style guide: quality floor, tier ladder, palette, triangle budgets, evidence for "finished" | Proposed |
-| [[roster]] | 24-car launch roster across the three Worlds, with parody names and risk notes | Proposed |
+| [[roster]] | 24-car launch roster across the three Worlds, plus two electric Downtown extras (Polytruck, Sparkster, added 2026-10-24), with parody names and risk notes | Proposed |
 | [[first-car-record]] | Word-for-word copies of the first-car notes: conventions, measurements, upload history, Studio checks | History |
 
 These are copies from Adam's branch `feature/lane3-first-car-downtown` (`f309ea2`). The Blender recipe kit (`assets/vehicles/`, Python) and the Studio preview script (`src/client/Home/CarPreview`) stay on that branch; read them with `git show feature/lane3-first-car-downtown:<path>` if useful.
@@ -49,6 +49,7 @@ These are copies from Adam's branch `feature/lane3-first-car-downtown` (`f309ea2
 
 - The tier ladder detail, quality floor, palette roles and per-car triangle budgets (3,000 to 12,000 by tier) in [[rarity-style]].
 - The 24-car [[roster]] and every car name in it. The roster's Downtown Compact is "Puglet", a late-1980s/90s three-door supermini. Adam's new first car (the Fiat 500 parody) replaces it in that slot.
+- The two electric extras (Polytruck, Rare pickup; Sparkster, Epic sports car), requested by Brian L on 2026-10-24. As extras they give Downtown 10 cars and break the "8 per World, one per family" shape, which Adam and Brian R need to agree to.
 - Uncommon economy values (Keys claim 3.5 s, Lap Pay $8, Joyride Bonus $5). These are yours as Lane 2 and are not in code, the Catalog or saves.
 - Every rig and running-gear convention below.
 
