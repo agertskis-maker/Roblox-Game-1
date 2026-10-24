@@ -1,5 +1,5 @@
 ---
-title: Showroom roster, five tiers (proposed)
+title: Showroom roster, five tiers
 date: 2026-10-24
 tags:
   - design
@@ -10,9 +10,9 @@ status: approved-by-car-owner
 # Showroom roster, five tiers
 
 > [!note] Approved by Brian L (car looks owner) on 2026-10-24: "Approved: the five-tier showroom roster as written."
-> The fifth tier still needs "Agreed" from Brian R and Adam before it reaches the GDD or the Catalog, and the Lap Pay values and the flagged names are still open.
+> This is Brian L's car-modeling list for his own private showroom place, so it needs no sign-off from the other lanes (Brian L, 2026-10-24). Putting the five tiers into the game's GDD or Catalog is a separate, later step. The Lap Pay values and the flagged names are still open.
 >
-> Brian L's revision, 2026-10-24, of the 24-car showroom seen in Studio screenshots (four tiers: Common, Rare, Epic, Legendary, six cars each). The showroom place is not in Git; this note only records the plan. Nothing is built, uploaded, or in the Catalog. The five-tier list needs "Agreed" from all three lane owners on [[BOARD]]. This is a different list from [[roster]] (24 cars by World and family); which one the game uses is open. Names follow `AGENTS.md` "Vehicles"; risk notes are judgement, not legal advice.
+> Brian L's revision, 2026-10-24, of the 24-car showroom seen in Studio screenshots (four tiers: Common, Rare, Epic, Legendary, six cars each). The showroom place is not in Git; this note only records the plan. Nothing is built, uploaded, or in the Catalog. This is a different list from [[roster]] (24 cars by World and family); which one the game uses is open. Names follow `AGENTS.md` "Vehicles"; risk notes are judgement, not legal advice.
 
 Lap Pay per tier (proposals from [[rarity-style]] section 12, not approved): Common $5, Uncommon $8, Rare $12, Epic $30, Legendary $80.
 
@@ -76,6 +76,6 @@ These existing names may break rule 2 (no real model or brand name used unchange
 
 ## Other mismatches to settle
 
-- The showroom's Variants are Gold, Diamond and Rainbow. The GDD has Gold, Chrome and Rainbow as **Decided**. Changing Chrome to Diamond needs the team to agree.
+- The showroom's Variants are Gold, Diamond and Rainbow. The GDD has Gold, Chrome and Rainbow as **Decided**. Using Diamond in the game instead of Chrome would be a GDD change for later.
 - [[roster]] lists 24 different cars by World and family. The team needs to choose which list is the real one, or merge them.
 - The showroom models were not checked for logos, badges or copied shapes. Zip, Street Kid, Viper Strike and Cruiser look closest to specific real cars and should be checked first.

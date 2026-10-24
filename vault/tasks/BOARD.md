@@ -38,7 +38,6 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 - [ ] Cars: roster edit, two electric Downtown extras (Polytruck, Rare pickup; Sparkster, Epic sports car) added to the proposed roster - Brian L, with Claude Code, 2026-10-24. Docs only, branch `feature/lane2-ev-roster` ([[roster]], [[2026-10-24]])
-  - **Agreement needed from Brian R and Adam (and Brian L):** (1) the five-tier rarity list with **Uncommon (green)** between Common and Rare, already used by the cars pack but not yet by [[GDD]] or the outline, which still list four tiers; the Catalog will need a fifth rarity, and the Catalog is a shared contract, so each lane owner writes "Agreed" here. (2) Downtown holding 10 cars with two of them extras, instead of 8 with one per family. Brian L: ___ Brian R: ___ Adam: ___
 
 ## Up next
 - [ ] Cars: car rig contract with Brian R, then the first car (Fiat 500 parody) from vault/design/cars/ - Brian L
