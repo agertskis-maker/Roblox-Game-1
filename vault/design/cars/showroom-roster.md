@@ -12,7 +12,7 @@ status: approved-by-car-owner
 > [!note] Approved by Brian L (car looks owner) on 2026-10-24: "Approved: the five-tier showroom roster as written."
 > This is Brian L's car-modeling list for his own private showroom place, so it needs no sign-off from the other lanes (Brian L, 2026-10-24). Putting the five tiers into the game's GDD or Catalog is a separate, later step. The Lap Pay values and the flagged names are still open.
 >
-> Brian L's revision, 2026-10-24, of the 24-car showroom seen in Studio screenshots (four tiers: Common, Rare, Epic, Legendary, six cars each). The showroom place is not in Git; this note only records the plan. Nothing is built, uploaded, or in the Catalog. This is a different list from [[roster]] (24 cars by World and family); which one the game uses is open. Names follow `AGENTS.md` "Vehicles"; risk notes are judgement, not legal advice.
+> Brian L's revision, 2026-10-24, of the 24-car showroom seen in Studio screenshots (four tiers: Common, Rare, Epic, Legendary, six cars each). The showroom place (`CarHop_Showroom.rbxl`, Brian L's local file) is not in Git. On 2026-10-24 it was rearranged to match this list: a green UNCOMMON zone, Common moved one zone along, cars moved between tiers with their `Rarity` attribute updated, name-sign placeholders "(to build)" for the six new cars, Solar Flare parked in `ServerStorage.ParkedCars`, and a full copy of the old layout in `ServerStorage.CarShowroom_Backup_2026-10-24`. Nothing is built, uploaded, or in the Catalog. This is a different list from [[roster]] (24 cars by World and family); which one the game uses is open. Names follow `AGENTS.md` "Vehicles"; risk notes are judgement, not legal advice.
 
 Lap Pay per tier (proposals from [[rarity-style]] section 12, not approved): Common $5, Uncommon $8, Rare $12, Epic $30, Legendary $80.
 
@@ -49,18 +49,19 @@ The rule used to place every car: **roughly what the real car it parodies costs,
 | Rare | Polytruck | New: angular faceted electric pickup | Electric pickup, about $80-100k | Futuristic, but still a truck | New |
 | Epic | Desert King | Lifted desert pickup | High-performance off-road truck, about $90k | Expensive specialist truck | Same |
 | Epic | Executive | Dark luxury car | Luxury sedan, $100k+ | Expensive, special looking | Same |
-| Epic | Husky | White boxy luxury 4x4 | Luxury off-roader, $100k+ | Expensive, special looking | Same |
-| Epic | (black SUV, name unreadable in the screenshot) | Black SUV | Luxury SUV | Same as Husky | Same |
+| Epic | Monarch | White boxy luxury 4x4 | Luxury off-roader, $100k+ | Expensive, special looking | Same |
+| Epic | Night Rider | Black performance car | Luxury performance car, $100k+ | Expensive, special looking | Same |
 | Epic | Velvet | Purple sports coupe | Premium sports coupe, $100-150k | Fancy, but not a supercar | Down from Legendary |
 | Epic | Sparkster | New: low electric two-seater with a removable roof | Electric sports car, about $100-200k | Supercar-quick, below the true exotics | New |
 | Legendary | Zip | Yellow wedge supercar | Italian supercar, $250k+ | A dream car | Up from Rare |
 | Legendary | Street Kid | Purple wedge supercar | Italian supercar, $300k+ | A dream car | Up from Rare |
 | Legendary | Viper Strike | Green supercar | Supercar | A dream car | Same |
 | Legendary | Phantom | Dark grey hypercar | Hypercar, $1M+ | The rarest kind of car | Same |
+| Legendary | Apex | Low hypercar | Hypercar, $1M+ | The rarest kind of car | Same |
 | Legendary | Cruiser | Blue open-top supercar | Collector supercar, $1M+ | A dream car | Same |
 | (dropped) | Solar Flare | Round bubble concept car with orange wheels | No real car | Odd one out; park for a later fun slot | Removed |
 
-Count: 6 Common, 6 Uncommon, 5 Rare, 6 Epic, 5 Legendary, 28 cars. Three Legendaries (Zip, Street Kid, Viper Strike) are wedge supercars; if that feels samey, Zip can sit in Epic instead.
+Count: 6 Common, 6 Uncommon, 5 Rare, 6 Epic, 6 Legendary, 29 cars (6 of them still to build). Three Legendaries (Zip, Street Kid, Viper Strike) are wedge supercars; if that feels samey, Zip can sit in Epic instead.
 
 ## Name checks against `AGENTS.md` "Vehicles" (flags, not decisions)
 
