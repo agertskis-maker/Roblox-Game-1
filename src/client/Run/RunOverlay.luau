@@ -25,7 +25,7 @@ export type RunOverlay = {
 	setFootDash: (self: RunOverlay, remaining: number?) -> (),
 	banner: (self: RunOverlay, text: string, colour: Color3?) -> (),
 	alert: (self: RunOverlay, text: string, colour: Color3) -> (),
-	setHint: (self: RunOverlay, visible: boolean) -> (),
+	setHint: (self: RunOverlay, visible: boolean, text: string?) -> (),
 	setLevel: (self: RunOverlay, level: number, revives: number) -> (),
 	addToTray: (self: RunOverlay, title: string, colour: Color3, isNew: boolean) -> (),
 	showResults: (self: RunOverlay, results: Results, revivesLeft: number, onRevive: () -> (), onRetry: () -> ()) -> (),
@@ -249,8 +249,11 @@ function RunOverlay.alert(self: RunOverlay, text: string, colour: Color3)
 	end)
 end
 
-function RunOverlay.setHint(self: RunOverlay, visible: boolean)
+function RunOverlay.setHint(self: RunOverlay, visible: boolean, text: string?)
 	self._hint.Visible = visible
+	if text then
+		self._hint.Text = text
+	end
 end
 
 function RunOverlay.setLevel(self: RunOverlay, level: number, revives: number)

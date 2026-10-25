@@ -25,6 +25,49 @@ RunConfig.RAMP_TIME = 60
 -- left lane). One speed per lane means traffic never drives through its own lane-mates.
 RunConfig.LANE_SPEED = table.freeze({ 0.56, 0.64, 0.72, 0.8 })
 
+-- Run profiles. "Highway" is the outline's run (bumps add Heat). "Circuit" is Brian R's PROPOSED
+-- racing-track variant for playtesting: much faster, traffic far slower than you so you must cut
+-- lanes, and any contact with a car ends the run. Contact ending the run changes a Decided rule
+-- (outline section 06, "Bumps add Heat"), so Circuit stays opt-in until the team agrees.
+-- The profile is part of what the server needs to re-derive traffic (with the seed).
+export type Scenery = "Canyon" | "Circuit"
+export type Profile = {
+	name: string,
+	speedScale: number, -- times the run speed curve
+	laneSpeed: { number }, -- traffic fraction of the scaled run speed, per lane
+	gapScale: number, -- times the traffic spacing
+	crashEndsRun: boolean,
+	steerScale: number, -- times each family's steering speed
+	scenery: Scenery,
+	spawnAhead: number,
+}
+RunConfig.PROFILES = table.freeze({
+	Highway = table.freeze({
+		name = "Highway",
+		speedScale = 1,
+		laneSpeed = RunConfig.LANE_SPEED,
+		gapScale = 1,
+		crashEndsRun = false,
+		steerScale = 1,
+		scenery = "Canyon",
+		spawnAhead = 700,
+	} :: Profile),
+	Circuit = table.freeze({
+		name = "Circuit",
+		speedScale = 1.7,
+		laneSpeed = table.freeze({ 0.4, 0.48, 0.56, 0.64 }),
+		gapScale = 0.85,
+		crashEndsRun = true,
+		steerScale = 1.6,
+		scenery = "Circuit",
+		spawnAhead = 1150,
+	} :: Profile),
+} :: { [string]: Profile })
+
+function RunConfig.profile(name: string?): Profile
+	return RunConfig.PROFILES[name or "Highway"] or RunConfig.PROFILES.Highway
+end
+
 -- Traffic spawning, in studs along the road.
 RunConfig.FIRST_CAR = 80
 RunConfig.SPAWN_AHEAD = 700

@@ -34,9 +34,13 @@ export type Spawn = {
 
 export type RunSequence = {
 	seed: number,
+	profile: RunConfig.Profile,
 	ensure: (self: RunSequence, distance: number) -> { Spawn },
 	get: (self: RunSequence, index: number) -> Spawn?,
 	alongAt: (self: RunSequence, spawn: Spawn, t: number) -> number,
+	travelledAt: (self: RunSequence, t: number) -> number,
+	speedAt: (self: RunSequence, t: number) -> number,
+	laneSpeed: (self: RunSequence, lane: number) -> number,
 	lateralAt: (self: RunSequence, spawn: Spawn, t: number) -> number,
 	_rng: Random,
 	_spawns: { Spawn },
@@ -167,7 +171,7 @@ function RunSequence.variantFor(spawn: Spawn, owned: boolean): RunConfig.Variant
 	return "None"
 end
 
-function RunSequence.new(seed: number): RunSequence
+function RunSequence.new(seed: number, profile: RunConfig.Profile?): RunSequence
 	local rng = Random.new(seed)
 	local nextStart = {}
 	for lane = 1, RunConfig.LANES do
@@ -175,6 +179,7 @@ function RunSequence.new(seed: number): RunSequence
 	end
 	local self = setmetatable({
 		seed = seed,
+		profile = profile or RunConfig.profile(nil),
 		_rng = rng,
 		_spawns = {},
 		_nextStart = nextStart,
@@ -215,7 +220,7 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 		table.insert(self._spawns, spawn)
 		-- Herds come in bunches: mostly short gaps, sometimes a long open stretch to steer through.
 		local open = if rng:NextNumber() < 0.15 then rng:NextNumber(1.6, 3) else 1
-		self._nextStart[lane] = start + length + gapAt(start) * rng:NextNumber(0.6, 1.5) * open
+		self._nextStart[lane] = start + length + gapAt(start) * self.profile.gapScale * rng:NextNumber(0.6, 1.5) * open
 	end
 	return self._spawns
 end
@@ -224,8 +229,22 @@ function RunSequence.get(self: RunSequence, index: number): Spawn?
 	return self._spawns[index]
 end
 
-function RunSequence.alongAt(_self: RunSequence, spawn: Spawn, t: number): number
-	return spawn.start + RunConfig.LANE_SPEED[spawn.lane] * RunConfig.travelledAt(t)
+-- Studs the profile's run speed has covered by run time t.
+function RunSequence.travelledAt(self: RunSequence, t: number): number
+	return RunConfig.travelledAt(t) * self.profile.speedScale
+end
+
+-- The profile's run speed at run time t (studs per second).
+function RunSequence.speedAt(self: RunSequence, t: number): number
+	return RunConfig.speedAt(t) * self.profile.speedScale
+end
+
+function RunSequence.laneSpeed(self: RunSequence, lane: number): number
+	return self.profile.laneSpeed[lane]
+end
+
+function RunSequence.alongAt(self: RunSequence, spawn: Spawn, t: number): number
+	return spawn.start + self.profile.laneSpeed[spawn.lane] * RunSequence.travelledAt(self, t)
 end
 
 function RunSequence.lateralAt(_self: RunSequence, spawn: Spawn, t: number): number

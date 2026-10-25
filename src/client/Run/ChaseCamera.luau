@@ -21,6 +21,7 @@ export type ChaseCamera = {
 	) -> (),
 	jolt: (self: ChaseCamera, strength: number) -> (),
 	punch: (self: ChaseCamera) -> (),
+	stepCockpit: (self: ChaseCamera, dt: number, along: number, lateral: number, eyeUp: number, speed01: number) -> (),
 	getCFrame: (self: ChaseCamera) -> CFrame,
 	destroy: (self: ChaseCamera) -> (),
 	_lateral: number?,
@@ -97,6 +98,36 @@ function ChaseCamera.step(
 	local eye = (base * CFrame.new(lat, self._height + RunConfig.CAMERA_UP, -(along - self._back))).Position + shake
 	local focus = (base * CFrame.new(lat, self._height + 2, -(along + RunConfig.CAMERA_LOOK_AHEAD))).Position
 	local cam = camera()
+	cam.CFrame = CFrame.lookAt(eye, focus, base.UpVector)
+	cam.FieldOfView = self._fov
+end
+
+-- In-car view: the eye sits in the driver's seat looking down the track. Sideways movement is
+-- followed exactly (you are in the car); only the jolt and the field of view are smoothed.
+function ChaseCamera.stepCockpit(
+	self: ChaseCamera,
+	dt: number,
+	along: number,
+	lateral: number,
+	eyeUp: number,
+	speed01: number
+)
+	self._time += dt
+	self._lateral = lateral
+	self._height = eyeUp
+	self._jolt = math.max(self._jolt - dt * 4, 0)
+	self._punch = math.max(self._punch - dt * 2.2, 0)
+	local wantFov = RunConfig.CAMERA_FOV
+		+ 8
+		+ (RunConfig.CAMERA_FOV_FAST - RunConfig.CAMERA_FOV) * math.clamp(speed01, 0, 1)
+	self._fov += (wantFov - self._fov) * (1 - math.exp(-6 * dt))
+	local t = self._time
+	local shake = Vector3.new(math.sin(t * 61) * self._jolt, math.cos(t * 47) * self._jolt, 0)
+		+ Vector3.new(0, math.sin(t * 23) * 0.04 * speed01, 0)
+	local base = RunConfig.ORIGIN
+	local eye = (base * CFrame.new(lateral, eyeUp, -along)).Position + shake
+	local focus = (base * CFrame.new(lateral, eyeUp - 1.2, -(along + 60))).Position
+	local cam = Workspace.CurrentCamera :: Camera
 	cam.CFrame = CFrame.lookAt(eye, focus, base.UpVector)
 	cam.FieldOfView = self._fov
 end

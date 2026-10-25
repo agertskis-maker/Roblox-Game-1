@@ -1,6 +1,6 @@
 --!strict
 -- One collection run, played on the player's device (outline section 06, Stage 1 prototype),
--- tuned to play like a rodeo-style stampede game: the rider sits on the roof, a weaving herd of
+-- tuned to play like a rodeo-style stampede game: the rider rides inside the car, a weaving herd of
 -- traffic of mixed sizes, a catch meter over the rider (the Keys), "Needs N" gates on stronger
 -- cars, a tray of cars caught this run, free revives and rare-car alerts.
 --
@@ -48,6 +48,7 @@ type Car = {
 	width: number,
 	height: number,
 	roof: number,
+	seat: number, -- where the rider sits: inside the cabin, or on the saddle of an open vehicle
 	needs: number,
 	along: number,
 	lateral: number,
@@ -79,6 +80,8 @@ export type Session = {
 export type Options = {
 	seed: number?,
 	session: Session?,
+	profile: string?, -- "Highway" (default) or "Circuit"
+
 	hud: boolean?, -- drive Lane 3's RunHud (default true when it exists)
 }
 
@@ -230,8 +233,9 @@ function RunController.new(options: Options?): RunController
 	self._ring = ring
 	self._arrow = arrow
 	self._session = session
-	self._sequence = RunSequence.new(seed)
-	self._road = trove:Add(RunRoad.new(zone, seed), "destroy")
+	self._profile = RunConfig.profile(opts.profile)
+	self._sequence = RunSequence.new(seed, self._profile)
+	self._road = trove:Add(RunRoad.new(zone, seed, self._profile.scenery), "destroy")
 	self._fx = trove:Add(RunFx.new(zone), "destroy")
 	self._input = trove:Add(RunInput.new(), "destroy")
 	self._overlay = trove:Add(RunOverlay.new(playerGui), "destroy")
@@ -285,9 +289,15 @@ function RunController.new(options: Options?): RunController
 	self._started = false
 	self._forceMiss = false
 	self._lastLevel = -1
+	self._riderHidden = false
+	self._cockpit = false
+	self._cockpitCar = nil :: Car?
 
 	trove:Connect(self._input.Hop, function()
 		self:requestHop()
+	end)
+	trove:Connect(self._input.View, function()
+		self._cockpit = not self._cockpit
 	end)
 
 	return self :: RunController
@@ -324,6 +334,7 @@ local function addCar(
 		width = dims.width,
 		height = dims.height,
 		roof = CarVisual.roofHeight(familyName, size),
+		seat = if family.openTop then CarVisual.roofHeight(familyName, size) else dims.height * 0.22,
 		needs = if spawn then spawn.needs else 0,
 		along = 0,
 		lateral = 0,
@@ -364,7 +375,7 @@ local function removeCar(self: any, car: Car)
 end
 
 local function spawnAhead(self: any)
-	local horizon = self._along + RunConfig.SPAWN_AHEAD
+	local horizon = self._along + self._profile.spawnAhead
 	local spawns = self._sequence:ensure(horizon)
 	while self._nextSpawn <= #spawns do
 		local spawn = spawns[self._nextSpawn]
@@ -398,7 +409,7 @@ local function laneClear(self: any, car: Car, lane: number): boolean
 end
 
 local function moveTraffic(self: any, dt: number)
-	local speed = RunConfig.speedAt(self._t)
+	local speed = self._sequence:speedAt(self._t)
 	for i = #self._cars, 1, -1 do
 		local car = self._cars[i]
 		car.bumpCooldown = math.max(car.bumpCooldown - dt, 0)
@@ -406,7 +417,7 @@ local function moveTraffic(self: any, dt: number)
 			continue
 		end
 		if car.retired then
-			car.along += RunConfig.LANE_SPEED[car.lane] * speed * dt
+			car.along += self._sequence:laneSpeed(car.lane) * speed * dt
 			local x = RunConfig.laneCenter(car.lane)
 			car.lateral += (x - car.lateral) * (1 - math.exp(-2 * dt))
 			if car.fade then
@@ -512,11 +523,64 @@ local function placeRider(self: any)
 	if seated then
 		lean = -self._steer * 0.18
 	end
-	local bob = if seated then math.sin(self._t * 14) * 0.08 else 0
+	local bob = if seated then math.sin(self._t * 14) * 0.05 else 0
 	root.CFrame = RunRoad.frame(self._along, self._lateral, self._up + (if seated then SIT_UP else ROOT_UP) + bob)
 		* CFrame.Angles(0, 0, lean)
 	if humanoid and humanoid.Sit ~= seated then
 		humanoid.Sit = seated
+	end
+	-- Inside a closed car the rider is hidden behind tinted glass (outline section 06); on an
+	-- open vehicle, in the air and on foot the rider is visible.
+	local ridden = self._ridden :: Car?
+	local hidden = seated and ridden ~= nil and not ridden.family.openTop
+	if hidden ~= self._riderHidden then
+		self._riderHidden = hidden
+		local character = self._player.Character
+		if character then
+			for _, d in character:GetDescendants() do
+				if d:IsA("BasePart") or d:IsA("Decal") then
+					(d :: any).LocalTransparencyModifier = if hidden then 1 else 0
+				end
+			end
+		end
+	end
+end
+
+local COCKPIT_HIDE = {
+	Cabin = true,
+	Roof = true,
+	Windscreen = true,
+	RearWindow = true,
+	PartyBall = true,
+	Wing = true,
+	WingStand = true,
+	Cab = true,
+	Trailer = true,
+	TrailerStripe = true,
+}
+
+-- In the in-car view, hide the parts of the ridden car that would block the windscreen.
+local function applyCockpit(self: any)
+	local ridden = self._ridden :: Car?
+	local want = if self._cockpit and self._mode == "Riding" then ridden else nil
+	if self._cockpitCar == want then
+		return
+	end
+	local old = self._cockpitCar :: Car?
+	if old then
+		for _, d in old.model:GetChildren() do
+			if d:IsA("BasePart") and COCKPIT_HIDE[d.Name] then
+				d.LocalTransparencyModifier = 0
+			end
+		end
+	end
+	self._cockpitCar = want
+	if want then
+		for _, d in want.model:GetChildren() do
+			if d:IsA("BasePart") and COCKPIT_HIDE[d.Name] then
+				d.LocalTransparencyModifier = 1
+			end
+		end
 	end
 end
 
@@ -655,7 +719,7 @@ local function boardCar(self: any, car: Car)
 	end
 	self._lateral = car.lateral
 	self._along = car.along
-	self._up = car.roof
+	self._up = car.seat
 	self._heat = 0
 	self._meltdownLeft = nil
 	self._slowLeft = 0
@@ -765,6 +829,18 @@ local function bumpRidden(self: any, ridden: Car)
 		if overlapA <= 0 or overlapL <= 0 then
 			continue
 		end
+		if self._profile.crashEndsRun then
+			local at = RunRoad.frame(
+				(car.along + ridden.along) / 2,
+				(car.lateral + ridden.lateral) / 2,
+				math.min(car.height, ridden.height) * 0.5
+			)
+			self._fx:sparks(at)
+			self._fx:burst(at, Color3.fromRGB(255, 150, 60))
+			self._bumps += 1
+			endRun(self, "Crashed into a " .. carName(car))
+			return
+		end
 		local fresh = car.bumpCooldown <= 0
 		local mult = ridden.family.bumpHeatMultiplier
 		local rear = false
@@ -848,7 +924,7 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 		then 1 - math.exp(-dt / (RunConfig.MELTDOWN_STEER_LAG * (0.3 + melt)))
 		else 1 - math.exp(-dt * 14)
 	self._steer += (steerInput - self._steer) * lag
-	local lateral = ridden.lateral + self._steer * family.steerSpeed * dt
+	local lateral = ridden.lateral + self._steer * family.steerSpeed * self._profile.steerScale * dt
 	lateral += drag * RunConfig.ROAD_HALF_WIDTH * 2.4
 	if self._meltdownLeft then
 		lateral += (math.sin(self._t * 9) * 5 * melt + self._meltdownDrift * 6 * melt) * dt
@@ -864,8 +940,11 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	if self._meltdownLeft then
 		factor *= 1 - (1 - RunConfig.MELTDOWN_MIN_SPEED) * melt
 	end
-	ridden.along += RunConfig.speedAt(self._t) * factor * dt
+	ridden.along += self._sequence:speedAt(self._t) * factor * dt
 	bumpRidden(self, ridden)
+	if self._mode == "Ended" then
+		return
+	end
 	ridden.lateral = clampLateral(ridden.lateral, ridden.width)
 	self._heat = math.min(self._heat, 1)
 
@@ -879,7 +958,7 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 
 	self._along = ridden.along
 	self._lateral = ridden.lateral
-	self._up = ridden.roof
+	self._up = ridden.seat
 end
 
 local function stepHop(self: any, dt: number, steerInput: number)
@@ -888,7 +967,7 @@ local function stepHop(self: any, dt: number, steerInput: number)
 	local target = hop.target
 	if hop.inPlace and target then
 		-- The car keeps going straight under an in-place hop.
-		target.along += RunConfig.speedAt(self._t) * target.family.speedMultiplier * dt
+		target.along += self._sequence:speedAt(self._t) * target.family.speedMultiplier * dt
 	else
 		hop.nudge = math.clamp(
 			hop.nudge + steerInput * RunConfig.HOP_NUDGE_SPEED * dt,
@@ -898,7 +977,7 @@ local function stepHop(self: any, dt: number, steerInput: number)
 	end
 	local toAlong = if target then target.along else hop.fromAlong
 	local toLateral = (if target then target.lateral else hop.fromLateral) + hop.nudge
-	local toUp = if target then target.roof else 0
+	local toUp = if target then target.seat else 0
 	-- Ease the forward travel so the leap reads: quick launch, soft landing.
 	local e = 1 - (1 - a) * (1 - a)
 	self._along = hop.fromAlong + (toAlong - hop.fromAlong) * e
@@ -912,8 +991,10 @@ end
 local function stepFoot(self: any, dt: number, steerInput: number, drag: number)
 	self._footLeft -= dt
 	self._steer = steerInput
-	self._along += RunConfig.speedAt(self._t) * RunConfig.FOOT_SPEED * dt
-	local lateral = self._lateral + steerInput * RunConfig.FOOT_STEER * dt + drag * RunConfig.ROAD_HALF_WIDTH * 2
+	self._along += self._sequence:speedAt(self._t) * RunConfig.FOOT_SPEED * dt
+	local lateral = self._lateral
+		+ steerInput * RunConfig.FOOT_STEER * self._profile.steerScale * dt
+		+ drag * RunConfig.ROAD_HALF_WIDTH * 2
 	self._lateral = clampLateral(lateral, RunConfig.FOOT_SIZE)
 	self._up = 0
 	for _, car in self._cars do
@@ -1015,14 +1096,20 @@ local function updateUi(self: any)
 	end
 
 	self._overlay:setFootDash(if self._footLeft then self._footLeft / RunConfig.FOOT_DASH_TIME else nil)
-	self._overlay:setHint(self._t < 6)
+	self._overlay:setHint(
+		self._t < 7,
+		if self._profile.crashEndsRun
+			then "Cut lanes to survive! Touching a car ends the run  ·  Hop: Space  ·  V: in-car view"
+			else "Steer: A / D or drag  ·  Hop: Space or tap  ·  V: in-car view"
+	)
 	self._overlay:setLevel(self._session.level, self._session.revives)
 	refreshLevel(self)
 end
 
 local function step(self: any, dt: number)
 	local carLength = if self._ridden then (self._ridden :: Car).length else 4
-	local speed01 = (RunConfig.speedAt(self._t) - RunConfig.START_SPEED) / (RunConfig.TOP_SPEED - RunConfig.START_SPEED)
+	local speed01 = (self._sequence:speedAt(self._t) - RunConfig.START_SPEED)
+		/ (RunConfig.TOP_SPEED - RunConfig.START_SPEED)
 	if self._mode == "Ended" then
 		if self._camera then
 			self._camera:step(dt, self._along, self._lateral, self._up, carLength, 0)
@@ -1060,7 +1147,13 @@ local function step(self: any, dt: number)
 	self._road:update(self._along)
 	render(self)
 	placeRider(self)
-	self._camera:step(dt, self._along, self._lateral, self._up, carLength, speed01)
+	applyCockpit(self)
+	local ridden = self._ridden :: Car?
+	if self._cockpit and self._mode == "Riding" and ridden then
+		self._camera:stepCockpit(dt, ridden.along - ridden.length * 0.08, ridden.lateral, ridden.height * 0.72, speed01)
+	else
+		self._camera:step(dt, self._along, self._lateral, self._up, carLength, speed01)
+	end
 	self._fx:setSpeedLines(self._camera:getCFrame(), 0.3 + speed01 * 0.7)
 	updateUi(self)
 	self._report:step(self._t)
@@ -1136,7 +1229,7 @@ function RunController.getDebugState(self: any): DebugState
 		mode = self._mode,
 		t = self._t,
 		metres = RunConfig.toMetres(self._along),
-		speed = RunConfig.speedAt(self._t),
+		speed = self._sequence:speedAt(self._t),
 		along = self._along,
 		lateral = self._lateral,
 		family = if ridden then ridden.family.name else nil,

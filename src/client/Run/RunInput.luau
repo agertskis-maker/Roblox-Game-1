@@ -15,12 +15,14 @@ local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local HOP_ACTION = "Lane1RunHop"
+local VIEW_ACTION = "Lane1RunView"
 local TAP_MAX_MOVE = 14
 local TAP_MAX_TIME = 0.3
 local STICK_DEADZONE = 0.2
 
 export type RunInput = {
 	Hop: any, -- Signal fired once per Hop press
+	View: any, -- Signal fired when the player switches between chase and in-car view (V / Y)
 	-- Keyboard or gamepad steer, -1 (left) to 1 (right).
 	getSteer: (self: RunInput) -> number,
 	-- Touch drag since the last call, as a fraction of the screen width (left negative).
@@ -45,6 +47,7 @@ function RunInput.new(): RunInput
 	local trove = Trove.new()
 	local self = setmetatable({
 		Hop = trove:Add(Signal.new()),
+		View = trove:Add(Signal.new()),
 		_trove = trove,
 		_keys = {},
 		_stick = 0,
@@ -61,6 +64,15 @@ function RunInput.new(): RunInput
 	end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
 	trove:Add(function()
 		ContextActionService:UnbindAction(HOP_ACTION)
+	end)
+	ContextActionService:BindActionAtPriority(VIEW_ACTION, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			typed.View:Fire()
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.V, Enum.KeyCode.ButtonY)
+	trove:Add(function()
+		ContextActionService:UnbindAction(VIEW_ACTION)
 	end)
 
 	trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)

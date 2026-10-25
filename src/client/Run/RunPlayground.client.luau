@@ -36,6 +36,9 @@ local session: RunController.Session = {
 	level = RunConfig.START_RIDER_LEVEL,
 	revives = RunConfig.FREE_REVIVES,
 }
+-- Brian R's playtest uses the proposed racing-circuit profile (crash ends the run). Switch with
+-- c:Invoke("profile", "Highway") to compare with the outline's run.
+local profile = "Circuit"
 local current: RunController.RunController? = nil
 local autopilot = false
 local lastAutoHop = 0
@@ -47,7 +50,7 @@ local function startRun(seed: number?)
 	end
 	local character = player.Character or player.CharacterAdded:Wait()
 	character:WaitForChild("HumanoidRootPart")
-	local run = RunController.new({ seed = seed, session = session })
+	local run = RunController.new({ seed = seed, session = session, profile = profile })
 	current = run
 	run.Ended:Connect(function()
 		task.defer(startRun, nil)
@@ -63,6 +66,10 @@ control.OnInvoke = function(command: string, arg: any): any
 	if command == "retry" then
 		startRun(if typeof(arg) == "number" then arg else nil)
 		return "started"
+	elseif command == "profile" then
+		profile = if arg == "Highway" then "Highway" else "Circuit"
+		startRun(nil)
+		return profile
 	elseif command == "autopilot" then
 		autopilot = arg == true
 		if not autopilot and run then
@@ -102,7 +109,7 @@ RunService.Heartbeat:Connect(function()
 	end
 	local s = run:getDebugState()
 	if s.mode == "Riding" then
-		local blocked = s.aheadGap ~= nil and (s.aheadGap :: number) < 25
+		local blocked = s.aheadGap ~= nil and (s.aheadGap :: number) < (if profile == "Circuit" then 90 else 25)
 		run:setSteerOverride(if blocked then (if s.lateral > 0 then -1 else 1) else 0)
 		local keysDone = s.keysNeed == nil
 		local wantHop = (keysDone and s.heat > 0.3) or s.heat > 0.8 or (blocked and (s.aheadGap :: number) < 8)
