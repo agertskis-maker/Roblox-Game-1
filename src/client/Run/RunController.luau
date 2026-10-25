@@ -263,7 +263,13 @@ function RunController.new(options: Options?): RunController
 	self._mode = "Riding" :: Mode
 	self._t = 0
 	self._cars = {} :: { Car }
-	self._nextSpawn = 1
+	self._queued = 0
+	self._laneQueue = {} :: { { RunSequence.Spawn } }
+	self._laneHead = {} :: { number }
+	for lane = 1, RunConfig.LANES do
+		self._laneQueue[lane] = {}
+		self._laneHead[lane] = 1
+	end
 	self._ridden = nil :: Car?
 	self._along = 0
 	self._lateral = RunConfig.laneCenter(2)
@@ -374,25 +380,52 @@ local function removeCar(self: any, car: Car)
 	end
 end
 
+-- Spawns cars as they come into range. Every car in a lane drives at that lane's speed, so
+-- within a lane the seed order is also the order along the road: one queue per lane, and the
+-- front of each queue is the only car that can be next to appear. Cars are created only when
+-- they are within the profile's view distance, so the count stays flat however long a run lasts.
 local function spawnAhead(self: any)
 	local horizon = self._along + self._profile.spawnAhead
+	-- A car's position is always at or past its start, so every car that could be in range has
+	-- start < horizon: generate up to there and sort the new ones into their lane queues.
 	local spawns = self._sequence:ensure(horizon)
-	while self._nextSpawn <= #spawns do
-		local spawn = spawns[self._nextSpawn]
-		if spawn.start > horizon then
-			break
-		end
-		self._nextSpawn += 1
-		local along = self._sequence:alongAt(spawn, self._t)
-		if along > self._along - RunConfig.DESPAWN_BEHIND then
-			local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.size, spawn.paint)
-			car.along = along
-			car.lateral = self._sequence:lateralAt(spawn, self._t)
-			if self._t > 1 and (spawn.rarity == RunConfig.ALERT_RARITY or spawn.size == "Giant") then
-				self._overlay:alert("A " .. carName(car) .. " is on the road ahead!", CarTags.RARITY_TEXT[spawn.rarity])
-				self._fx:sound("alert", 0.5, 1.3)
+	while self._queued < #spawns do
+		self._queued += 1
+		local spawn = spawns[self._queued]
+		table.insert(self._laneQueue[spawn.lane], spawn)
+	end
+	for lane = 1, RunConfig.LANES do
+		local queue = self._laneQueue[lane]
+		local head = self._laneHead[lane]
+		while head <= #queue do
+			local spawn = queue[head]
+			local along = self._sequence:alongAt(spawn, self._t)
+			if along > horizon then
+				break
+			end
+			head += 1
+			if along > self._along - RunConfig.DESPAWN_BEHIND then
+				local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.size, spawn.paint)
+				car.along = along
+				car.lateral = self._sequence:lateralAt(spawn, self._t)
+				if self._t > 1 and (spawn.rarity == RunConfig.ALERT_RARITY or spawn.size == "Giant") then
+					self._overlay:alert(
+						"A " .. carName(car) .. " is on the road ahead!",
+						CarTags.RARITY_TEXT[spawn.rarity]
+					)
+					self._fx:sound("alert", 0.5, 1.3)
+				end
 			end
 		end
+		-- Drop consumed entries now and then so the queues never grow.
+		if head > 64 then
+			table.move(queue, head, #queue, 1)
+			for i = #queue - head + 2, #queue do
+				queue[i] = nil
+			end
+			head = 1
+		end
+		self._laneHead[lane] = head
 	end
 end
 
