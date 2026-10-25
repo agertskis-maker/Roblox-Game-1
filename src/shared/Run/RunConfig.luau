@@ -40,6 +40,8 @@ export type Profile = {
 	steerScale: number, -- times each family's steering speed
 	scenery: Scenery,
 	spawnAhead: number,
+	keysTime: { [Rarity]: number }, -- seconds aboard to claim, by rarity
+	heatScale: number, -- times each family's Heat Capacity (keeps every claim possible with Heat to spare)
 }
 RunConfig.PROFILES = table.freeze({
 	Highway = table.freeze({
@@ -51,16 +53,21 @@ RunConfig.PROFILES = table.freeze({
 		steerScale = 1,
 		scenery = "Canyon",
 		spawnAhead = 700,
+		keysTime = table.freeze({ Common = 3, Rare = 4, Epic = 5, Legendary = 6 }), -- same as KEYS_TIME below
+		heatScale = 1,
 	} :: Profile),
 	Circuit = table.freeze({
 		name = "Circuit",
 		speedScale = 1.7,
 		laneSpeed = table.freeze({ 0.4, 0.48, 0.56, 0.64 }),
-		gapScale = 0.85,
+		gapScale = 1.35,
 		crashEndsRun = true,
 		steerScale = 1.6,
 		scenery = "Circuit",
 		spawnAhead = 1150,
+		-- Brian R: keeping a car takes 5 seconds or more (the outline's Decided values are 3 to 6).
+		keysTime = table.freeze({ Common = 5, Rare = 6, Epic = 7, Legendary = 8 }),
+		heatScale = 1.6,
 	} :: Profile),
 } :: { [string]: Profile })
 

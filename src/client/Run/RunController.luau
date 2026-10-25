@@ -704,7 +704,7 @@ local function startKeys(self: any, car: Car)
 	self._keysNeed = nil
 	if not car.keysDone and car.spawn then
 		self._keys = 0
-		self._keysNeed = RunConfig.KEYS_TIME[car.rarity]
+		self._keysNeed = self._profile.keysTime[car.rarity]
 	end
 end
 
@@ -902,7 +902,9 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	if self._cardLeft > 0 then
 		self._cardLeft -= dt
 	else
-		self._heat += dt / family.heatCapacity * (if strong then RunConfig.TOO_STRONG_HEAT else 1)
+		self._heat += dt / (family.heatCapacity * self._profile.heatScale) * (if strong
+			then RunConfig.TOO_STRONG_HEAT
+			else 1)
 	end
 	if self._heat >= 1 and not self._meltdownLeft then
 		self._meltdownLeft = RunConfig.MELTDOWN_TIME
