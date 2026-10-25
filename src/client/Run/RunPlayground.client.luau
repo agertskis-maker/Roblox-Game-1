@@ -11,6 +11,8 @@
 --   c:Invoke("steer", -1 .. 1)   -> hold a steer value; c:Invoke("steer") gives control back
 --   c:Invoke("miss")             -> the next landing misses (Foot Dash check)
 --   c:Invoke("retry", seed?)     -> start a new run
+--   c:Invoke("revive")           -> use a free revive after a run ends
+--   c:Invoke("level", n)         -> set the session Rider Level (testing the Needs gate)
 --   c:Invoke("autopilot", true)  -> a simple test driver that steers and hops by itself
 
 local HttpService = game:GetService("HttpService")
@@ -27,7 +29,13 @@ local RunController = require(script.Parent:WaitForChild("RunController"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local owned: { [string]: boolean } = {}
+local RunConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Run"):WaitForChild("RunConfig"))
+-- One playtest session: what was claimed, the Rider Level and free revives. Never saved.
+local session: RunController.Session = {
+	owned = {},
+	level = RunConfig.START_RIDER_LEVEL,
+	revives = RunConfig.FREE_REVIVES,
+}
 local current: RunController.RunController? = nil
 local autopilot = false
 local lastAutoHop = 0
@@ -39,7 +47,7 @@ local function startRun(seed: number?)
 	end
 	local character = player.Character or player.CharacterAdded:Wait()
 	character:WaitForChild("HumanoidRootPart")
-	local run = RunController.new({ seed = seed, owned = owned })
+	local run = RunController.new({ seed = seed, session = session })
 	current = run
 	run.Ended:Connect(function()
 		task.defer(startRun, nil)
@@ -73,6 +81,11 @@ control.OnInvoke = function(command: string, arg: any): any
 	elseif command == "steer" then
 		run:setSteerOverride(if typeof(arg) == "number" then arg else nil)
 		return "ok"
+	elseif command == "revive" then
+		return run:revive()
+	elseif command == "level" then
+		session.level = if typeof(arg) == "number" then arg else session.level
+		return session.level
 	elseif command == "miss" then
 		run:forceMiss()
 		return "next landing misses"

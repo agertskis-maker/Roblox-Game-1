@@ -1,12 +1,16 @@
 --!strict
--- One collection run, played on the player's device (outline section 06, Stage 1 prototype).
--- Steering, traffic from the run seed, the Hop with its target ring, Foot Dash, Heat with the
--- Meltdown escape window (decision 0008), bumps, the Keys meter and the chase camera.
+-- One collection run, played on the player's device (outline section 06, Stage 1 prototype),
+-- tuned to play like a rodeo-style stampede game: the rider sits on the roof, a weaving herd of
+-- traffic of mixed sizes, a catch meter over the rider (the Keys), "Needs N" gates on stronger
+-- cars, a tray of cars caught this run, free revives and rare-car alerts.
 --
--- What this does NOT do yet (by design for Stage 1): no remotes, no saving, no Cash, no real
--- ownership. "Claimed" cars are remembered only for this playtest session so the Joyride Bonus
--- path can be seen. Every event is recorded in run-report shape (RunReport) for Lane 2 later.
+-- Team names stay: Heat (the time limit on each car, reset on every Hop, decision 0008) and Keys
+-- (the catch meter, timed by rarity). What this does NOT do yet, by design for Stage 1: no
+-- remotes, no saving, no Cash. Ownership, Rider Level and revives live in a session table the
+-- playground keeps, so the Joyride and Needs paths can be felt. Every event is recorded in
+-- run-report shape (RunReport) for Lane 2 later.
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -18,8 +22,10 @@ local RunSequence = require(ReplicatedStorage.Shared.Run.RunSequence)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local CarTags = require(script.Parent.CarTags)
 local CarVisual = require(script.Parent.CarVisual)
 local ChaseCamera = require(script.Parent.ChaseCamera)
+local RunFx = require(script.Parent.RunFx)
 local RunInput = require(script.Parent.RunInput)
 local RunOverlay = require(script.Parent.RunOverlay)
 local RunReport = require(script.Parent.RunReport)
@@ -29,18 +35,25 @@ type Mode = "Riding" | "Hopping" | "FootDash" | "Ended"
 type Stage = "Calm" | "Warning" | "Critical" | "Meltdown"
 
 type Car = {
-	index: number, -- spawn index; 0 for the Loaner
+	index: number, -- spawn index; 0 for a Loaner
 	spawn: RunSequence.Spawn?,
 	family: Families.Family,
 	rarity: RunConfig.Rarity,
+	size: RunConfig.Size,
+	variant: RunConfig.Variant,
 	modelId: string,
-	paint: number,
 	model: Model,
+	tag: BillboardGui?,
+	length: number,
+	width: number,
+	height: number,
+	roof: number,
+	needs: number,
 	along: number,
 	lateral: number,
 	lane: number,
-	retired: boolean, -- was ridden; now drifts with traffic and is no longer on the seed schedule
-	fade: number?, -- seconds left before a drifting car that has nowhere to go disappears
+	retired: boolean, -- was ridden; drifts with traffic, off the seed schedule
+	fade: number?, -- seconds left before a drifting car with nowhere to go disappears
 	keysDone: boolean,
 	bumpCooldown: number,
 }
@@ -56,9 +69,16 @@ type Hop = {
 	nudge: number,
 }
 
+-- Kept by the playground across runs in one playtest. Not saved anywhere.
+export type Session = {
+	owned: { [string]: boolean },
+	level: number,
+	revives: number,
+}
+
 export type Options = {
 	seed: number?,
-	owned: { [string]: boolean }?, -- model ids treated as owned this session (Joyride Bonus path)
+	session: Session?,
 	hud: boolean?, -- drive Lane 3's RunHud (default true when it exists)
 }
 
@@ -72,11 +92,16 @@ export type DebugState = {
 	lateral: number,
 	family: string?,
 	rarity: string?,
+	size: string?,
+	needs: number?,
+	level: number,
+	revives: number,
 	heat: number,
 	stage: Stage,
 	meltdownLeft: number?,
 	keys: number?,
 	keysNeed: number?,
+	tooStrong: boolean,
 	footDashLeft: number?,
 	target: number?,
 	targetDistance: number?,
@@ -93,9 +118,10 @@ export type DebugState = {
 
 export type RunController = {
 	seed: number,
-	Ended: any, -- Signal(results)
+	Ended: any, -- Signal(results) fired when the player presses Retry
 	start: (self: RunController) -> (),
 	requestHop: (self: RunController) -> (),
+	revive: (self: RunController) -> boolean,
 	setSteerOverride: (self: RunController, steer: number?) -> (),
 	forceMiss: (self: RunController) -> (),
 	getDebugState: (self: RunController) -> DebugState,
@@ -106,8 +132,9 @@ local RunController = {}
 RunController.__index = RunController
 
 local BIND_NAME = "Lane1Run"
-local SEAT_UP = 0.55 -- fraction of car height where the rider sits
-local ROOT_UP = 3 -- HumanoidRootPart centre above the feet
+local SIT_UP = 1.7 -- HumanoidRootPart above the roof while seated
+local ROOT_UP = 3 -- HumanoidRootPart above the feet when standing
+local TAG_RANGE = 170
 
 local function stageFor(heat: number, melting: boolean): Stage
 	if melting then
@@ -134,9 +161,21 @@ end
 local function setModelTransparency(model: Model, transparency: number)
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
-			d.Transparency = math.max(d.Transparency, transparency)
+			d.LocalTransparencyModifier = transparency
 		end
 	end
+end
+
+local function carName(car: Car): string
+	return CarTags.title({
+		family = car.family.name,
+		rarity = car.rarity,
+		size = car.size,
+		variant = car.variant,
+		odds = 1,
+		needs = car.needs,
+		owned = false,
+	})
 end
 
 function RunController.new(options: Options?): RunController
@@ -145,6 +184,8 @@ function RunController.new(options: Options?): RunController
 	local playerGui = player:WaitForChild("PlayerGui")
 	local seed = opts.seed or Random.new():NextInteger(1, 2 ^ 30)
 	local trove = Trove.new()
+	local session: Session = opts.session
+		or { owned = {}, level = RunConfig.START_RIDER_LEVEL, revives = RunConfig.FREE_REVIVES }
 
 	local zone = trove:Add(Instance.new("Folder"))
 	zone.Name = "Lane1_RunZone"
@@ -162,9 +203,22 @@ function RunController.new(options: Options?): RunController
 	ring.CastShadow = false
 	ring.Material = Enum.Material.Neon
 	ring.Color = Color3.fromRGB(255, 214, 70)
-	ring.Transparency = 0.35
+	ring.Transparency = 1
 	ring.Size = Vector3.new(0.2, 10, 10)
 	ring.Parent = zone
+	local arrow = Instance.new("Part")
+	arrow.Name = "HopArrow"
+	arrow.Anchored = true
+	arrow.CanCollide = false
+	arrow.CanQuery = false
+	arrow.CanTouch = false
+	arrow.CastShadow = false
+	arrow.Material = Enum.Material.Neon
+	arrow.Color = Color3.fromRGB(255, 214, 70)
+	arrow.Shape = Enum.PartType.Ball
+	arrow.Size = Vector3.new(1.4, 1.4, 1.4)
+	arrow.Transparency = 1
+	arrow.Parent = zone
 
 	local self = setmetatable({}, RunController) :: any
 	self.seed = seed
@@ -174,13 +228,16 @@ function RunController.new(options: Options?): RunController
 	self._zone = zone
 	self._carsFolder = carsFolder
 	self._ring = ring
+	self._arrow = arrow
+	self._session = session
 	self._sequence = RunSequence.new(seed)
 	self._road = trove:Add(RunRoad.new(zone, seed), "destroy")
+	self._fx = trove:Add(RunFx.new(zone), "destroy")
 	self._input = trove:Add(RunInput.new(), "destroy")
 	self._overlay = trove:Add(RunOverlay.new(playerGui), "destroy")
 	self._report = trove:Add(RunReport.new(seed), "destroy")
+	self._meter = CarTags.rideMeter(zone)
 	self._camera = nil
-	self._owned = opts.owned or {}
 	self._hud = nil
 	if opts.hud ~= false then
 		local ui = script.Parent.Parent:FindFirstChild("UI")
@@ -226,7 +283,8 @@ function RunController.new(options: Options?): RunController
 	self._nextMilestone = RunConfig.MILESTONE_METRES
 	self._cause = nil :: string?
 	self._started = false
-	self._riderVisible = true
+	self._forceMiss = false
+	self._lastLevel = -1
 
 	trove:Connect(self._input.Hop, function()
 		self:requestHop()
@@ -242,19 +300,31 @@ local function addCar(
 	spawn: RunSequence.Spawn?,
 	familyName: string,
 	rarity: RunConfig.Rarity,
+	size: RunConfig.Size,
 	paint: number
 ): Car
 	local family = Families.get(familyName)
-	local model = CarVisual.build(familyName, rarity, paint)
-	model.Parent = self._carsFolder
+	local modelId = familyName .. "_" .. rarity
+	local owned = self._session.owned[modelId] == true
+	local variant: RunConfig.Variant = if spawn then RunSequence.variantFor(spawn, owned) else "None"
+	local model =
+		CarVisual.build({ family = familyName, rarity = rarity, size = size, paint = paint, variant = variant })
+	local dims = CarVisual.dimensions(familyName, size)
 	local car: Car = {
 		index = if spawn then spawn.index else 0,
 		spawn = spawn,
 		family = family,
 		rarity = rarity,
-		modelId = familyName .. "_" .. rarity,
-		paint = paint,
+		size = size,
+		variant = variant,
+		modelId = modelId,
 		model = model,
+		tag = nil,
+		length = dims.length,
+		width = dims.width,
+		height = dims.height,
+		roof = CarVisual.roofHeight(familyName, size),
+		needs = if spawn then spawn.needs else 0,
 		along = 0,
 		lateral = 0,
 		lane = if spawn then spawn.lane else 2,
@@ -263,6 +333,21 @@ local function addCar(
 		keysDone = false,
 		bumpCooldown = 0,
 	}
+	if spawn then
+		local tag = CarTags.attach(model, {
+			family = familyName,
+			rarity = rarity,
+			size = size,
+			variant = variant,
+			odds = spawn.odds,
+			needs = spawn.needs,
+			owned = owned,
+		}, car.height)
+		tag.MaxDistance = TAG_RANGE
+		CarTags.setLevel(tag, car.needs, self._session.level)
+		car.tag = tag
+	end
+	model.Parent = self._carsFolder
 	table.insert(self._cars, car)
 	return car
 end
@@ -289,9 +374,13 @@ local function spawnAhead(self: any)
 		self._nextSpawn += 1
 		local along = self._sequence:alongAt(spawn, self._t)
 		if along > self._along - RunConfig.DESPAWN_BEHIND then
-			local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.paint)
+			local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.size, spawn.paint)
 			car.along = along
 			car.lateral = self._sequence:lateralAt(spawn, self._t)
+			if self._t > 1 and (spawn.rarity == RunConfig.ALERT_RARITY or spawn.size == "Giant") then
+				self._overlay:alert("A " .. carName(car) .. " is on the road ahead!", CarTags.RARITY_TEXT[spawn.rarity])
+				self._fx:sound("alert", 0.5, 1.3)
+			end
 		end
 	end
 end
@@ -300,7 +389,7 @@ local function laneClear(self: any, car: Car, lane: number): boolean
 	local x = RunConfig.laneCenter(lane)
 	for _, other in self._cars do
 		if other ~= car and other ~= self._ridden and math.abs(other.lateral - x) < RunConfig.LANE_WIDTH / 2 then
-			if math.abs(other.along - car.along) < (other.family.length + car.family.length) / 2 + 6 then
+			if math.abs(other.along - car.along) < (other.length + car.length) / 2 + 6 then
 				return false
 			end
 		end
@@ -342,13 +431,27 @@ end
 local function retire(self: any, car: Car)
 	car.retired = true
 	local lane = nearestLane(car.lateral)
-	if laneClear(self, car, lane) then
-		car.lane = lane
-	else
-		car.lane = lane
+	car.lane = lane
+	if not laneClear(self, car, lane) then
 		car.fade = 1
 	end
-	CarVisual.setHeat(car.model, car.paint, 0)
+	CarVisual.update(car.model, 0, self._t)
+	if car.tag then
+		car.tag.Enabled = true
+	end
+end
+
+local function refreshLevel(self: any)
+	local level = self._session.level
+	if level == self._lastLevel then
+		return
+	end
+	self._lastLevel = level
+	for _, car in self._cars do
+		if car.tag then
+			CarTags.setLevel(car.tag, car.needs, level)
+		end
+	end
 end
 
 -- Hop targeting -----------------------------------------------------------------------------
@@ -367,13 +470,13 @@ local function findTarget(self: any): Car?
 			continue
 		end
 		local dl = car.lateral - self._lateral
-		local dist = math.sqrt(da * da + dl * dl)
+		local dist = math.sqrt(da * da + dl * dl) - car.length * 0.25
 		if dist > range then
 			continue
 		end
 		local score = dist
 		if math.abs(steer) > 0.1 and math.abs(dl) > 3 then
-			score += if math.sign(dl) == math.sign(steer) then -12 else 25
+			score += if math.sign(dl) == math.sign(steer) then -14 else 25
 		end
 		if da < 0 then
 			score += 10
@@ -383,6 +486,38 @@ local function findTarget(self: any): Car?
 		end
 	end
 	return best
+end
+
+-- Rider ---------------------------------------------------------------------------------------
+
+local function riderParts(self: any): (Model?, BasePart?, Humanoid?)
+	local character = self._player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if root and root:IsA("BasePart") then
+		return character, root, humanoid
+	end
+	return character, nil, humanoid
+end
+
+local function placeRider(self: any)
+	local _, root, humanoid = riderParts(self)
+	if not root then
+		return
+	end
+	root.Anchored = true
+	root.AssemblyLinearVelocity = Vector3.zero
+	local seated = self._mode == "Riding" and self._ridden ~= nil
+	local lean = 0
+	if seated then
+		lean = -self._steer * 0.18
+	end
+	local bob = if seated then math.sin(self._t * 14) * 0.08 else 0
+	root.CFrame = RunRoad.frame(self._along, self._lateral, self._up + (if seated then SIT_UP else ROOT_UP) + bob)
+		* CFrame.Angles(0, 0, lean)
+	if humanoid and humanoid.Sit ~= seated then
+		humanoid.Sit = seated
+	end
 end
 
 -- Public actions ----------------------------------------------------------------------------
@@ -423,6 +558,12 @@ function RunController.requestHop(self: any)
 	self._keysNeed = nil
 	self._footLeft = nil
 	self._mode = "Hopping"
+	self._fx:sound("hop", 0.5, 1.05)
+	local _, root = riderParts(self)
+	self._fx:setTrail(root, true)
+	if self._camera then
+		self._camera:punch()
+	end
 end
 
 function RunController.setSteerOverride(self: any, steer: number?)
@@ -436,6 +577,29 @@ end
 
 -- Simulation --------------------------------------------------------------------------------
 
+local function results(self: any)
+	return {
+		metres = RunConfig.toMetres(self._along),
+		hops = self._hops,
+		claimed = table.clone(self._claimed),
+		joyrides = self._joyrides,
+		saves = self._saves,
+		cause = self._cause or "?",
+		seed = self.seed,
+	}
+end
+
+local function showEnd(self: any)
+	if self._mode ~= "Ended" then
+		return
+	end
+	self._overlay:showResults(results(self), self._session.revives, function()
+		self:revive()
+	end, function()
+		self.Ended:Fire(results(self))
+	end)
+end
+
 local function endRun(self: any, cause: string)
 	if self._mode == "Ended" then
 		return
@@ -444,78 +608,126 @@ local function endRun(self: any, cause: string)
 	self._cause = cause
 	self._target = nil
 	self._ring.Transparency = 1
-	self._overlay:setKeys(nil)
+	self._arrow.Transparency = 1
+	self._meter.gui.Enabled = false
 	self._overlay:setFootDash(nil)
 	self._report:push({ kind = "RunEnd", t = self._t, d = self._along, cause = cause })
+	self._fx:dust(RunRoad.frame(self._along, self._lateral, 1), 6)
+	self._fx:sound("bump", 0.7, 0.8)
 	if self._camera then
 		self._camera:jolt(0.8)
 	end
 	if self._ridden then
 		setModelTransparency((self._ridden :: Car).model, 0.5)
 	end
-	local results = {
-		metres = RunConfig.toMetres(self._along),
-		hops = self._hops,
-		claimed = table.clone(self._claimed),
-		joyrides = self._joyrides,
-		saves = self._saves,
-		cause = cause,
-		seed = self.seed,
-	}
 	print(
 		string.format(
 			"[Lane1Run] run over: seed %d, %d m, %d hops, cause %s, events %s",
 			self.seed,
-			math.floor(results.metres),
+			math.floor(RunConfig.toMetres(self._along)),
 			self._hops,
 			cause,
-			game:GetService("HttpService"):JSONEncode(self._report:counts())
+			HttpService:JSONEncode(self._report:counts())
 		)
 	)
 	task.delay(0.8, function()
-		if self._overlay and self._mode == "Ended" then
-			self._overlay:showResults(results, function()
-				self.Ended:Fire(results)
-			end)
-		end
+		showEnd(self)
 	end)
+end
+
+local function startKeys(self: any, car: Car)
+	self._keys = nil
+	self._keysNeed = nil
+	if not car.keysDone and car.spawn then
+		self._keys = 0
+		self._keysNeed = RunConfig.KEYS_TIME[car.rarity]
+	end
+end
+
+local function boardCar(self: any, car: Car)
+	self._mode = "Riding"
+	self._ridden = car
+	car.retired = true -- leaves the seed schedule while ridden
+	car.fade = nil
+	setModelTransparency(car.model, 0)
+	if car.tag then
+		car.tag.Enabled = false
+	end
+	self._lateral = car.lateral
+	self._along = car.along
+	self._up = car.roof
+	self._heat = 0
+	self._meltdownLeft = nil
+	self._slowLeft = 0
+	startKeys(self, car)
+	self._fx:setSteam(car.model, 0)
+	self._meter.gui.Enabled = true
 end
 
 local function land(self: any, hop: Hop)
 	local car = hop.target
 	self._hop = nil
+	local _, root = riderParts(self)
+	self._fx:setTrail(root, false)
 	if hop.inPlace then
 		self._mode = "Riding"
+		self._fx:sound("land", 0.4)
 		return
 	end
 	local stillThere = table.find(self._cars, car) ~= nil and not car.fade
-	local miss = self._forceMiss
-		or not stillThere
-		or math.abs(hop.nudge) > car.family.width / 2 + RunConfig.LAND_TOLERANCE
+	local miss = self._forceMiss or not stillThere or math.abs(hop.nudge) > car.width / 2 + RunConfig.LAND_TOLERANCE
 	self._forceMiss = false
 	if miss then
 		self._mode = "FootDash"
 		self._footLeft = RunConfig.FOOT_DASH_TIME
 		self._up = 0
+		self._meter.gui.Enabled = false
+		self._fx:dust(RunRoad.frame(self._along, self._lateral, 0.5), 4)
 		self._overlay:banner("Missed! Run!", Color3.fromRGB(255, 120, 90))
 		return
 	end
-	self._mode = "Riding"
-	self._ridden = car
-	car.retired = true -- leaves the seed schedule while ridden
-	car.fade = nil
-	self._lateral = car.lateral
-	self._heat = 0
-	self._meltdownLeft = nil
-	self._slowLeft = 0
+	boardCar(self, car)
+	self._fx:dust(RunRoad.frame(car.along, car.lateral, 0.5), math.max(car.width, 5))
+	self._fx:sound("land", 0.6)
 	if hop.fromFoot then
 		self._saves += 1
 		self._overlay:banner("Nice save!", Color3.fromRGB(120, 230, 140))
 	end
-	if not car.keysDone and car.spawn then
-		self._keys = 0
-		self._keysNeed = RunConfig.KEYS_TIME[car.rarity]
+end
+
+function RunController.revive(self: any): boolean
+	if self._mode ~= "Ended" or self._session.revives <= 0 then
+		return false
 	end
+	self._session.revives -= 1
+	self._overlay:hideResults()
+	if self._ridden then
+		retire(self, self._ridden)
+		self._ridden = nil
+	end
+	-- Land on the nearest car ahead; if there is none close, a fresh Loaner appears under you.
+	local best: Car? = nil
+	local bestDist = 80
+	for _, car in self._cars do
+		local da = car.along - self._along
+		if not car.fade and da > -5 and da < bestDist then
+			best, bestDist = car, da
+		end
+	end
+	local car = best
+	if not car then
+		local loaner = addCar(self, nil, Families.LOANER, "Common", "Normal", 1)
+		loaner.along = self._along
+		loaner.lateral = RunConfig.laneCenter(nearestLane(self._lateral))
+		car = loaner
+	end
+	local landed = car :: Car
+	self._cause = nil
+	boardCar(self, landed)
+	self._report:push({ kind = "Revive", t = self._t, d = self._along, target = landed.index })
+	self._overlay:banner("Revived!", Color3.fromRGB(255, 200, 90))
+	self._fx:burst(RunRoad.frame(landed.along, landed.lateral, landed.roof + 2), Color3.fromRGB(255, 220, 120))
+	return true
 end
 
 local function completeKeys(self: any, car: Car)
@@ -524,15 +736,21 @@ local function completeKeys(self: any, car: Car)
 	self._keysNeed = nil
 	self._cardLeft = RunConfig.KEYS_CARD_TIME
 	self._report:push({ kind = "KeysComplete", t = self._t, d = self._along, index = car.index })
-	local name = car.rarity .. " " .. car.family.name
-	if self._owned[car.modelId] then
+	local name = carName(car)
+	local colour = CarTags.RARITY_TEXT[car.rarity]
+	if self._session.owned[car.modelId] then
 		self._joyrides += 1
-		self._overlay:banner("Joyride Bonus! " .. name, CarVisual.RARITY_COLOR[car.rarity])
+		self._overlay:banner("Joyride Bonus! " .. name, colour)
+		self._overlay:addToTray(name, colour, false)
 	else
-		self._owned[car.modelId] = true
+		self._session.owned[car.modelId] = true
+		self._session.level += RunConfig.LEVEL_PER_NEW_MODEL
 		table.insert(self._claimed, name)
-		self._overlay:banner("You got the Keys! " .. name, CarVisual.RARITY_COLOR[car.rarity])
+		self._overlay:banner("You got the Keys! " .. name, colour)
+		self._overlay:addToTray(name, colour, true)
 	end
+	self._fx:burst(RunRoad.frame(car.along, car.lateral, car.roof + 2), CarVisual.RARITY_COLOR[car.rarity])
+	self._fx:sound("claim", 0.7, if car.rarity == "Common" then 1 else 1.25)
 end
 
 local function bumpRidden(self: any, ridden: Car)
@@ -542,16 +760,18 @@ local function bumpRidden(self: any, ridden: Car)
 		end
 		local da = car.along - ridden.along
 		local dl = car.lateral - ridden.lateral
-		local overlapA = (car.family.length + ridden.family.length) / 2 - math.abs(da)
-		local overlapL = (car.family.width + ridden.family.width) / 2 - math.abs(dl)
+		local overlapA = (car.length + ridden.length) / 2 - math.abs(da)
+		local overlapL = (car.width + ridden.width) / 2 - math.abs(dl)
 		if overlapA <= 0 or overlapL <= 0 then
 			continue
 		end
 		local fresh = car.bumpCooldown <= 0
 		local mult = ridden.family.bumpHeatMultiplier
+		local rear = false
 		if overlapA <= overlapL then
 			if da > 0 then
 				ridden.along -= overlapA + 0.05
+				rear = true
 				if fresh then
 					self._heat += RunConfig.BUMP_REAR * mult
 					self._slowLeft = RunConfig.REAR_SLOW_TIME
@@ -571,11 +791,18 @@ local function bumpRidden(self: any, ridden: Car)
 		if fresh then
 			car.bumpCooldown = RunConfig.BUMP_COOLDOWN
 			self._bumps += 1
+			local at = RunRoad.frame(
+				(car.along + ridden.along) / 2,
+				(car.lateral + ridden.lateral) / 2,
+				math.min(car.height, ridden.height) * 0.5
+			)
+			self._fx:sparks(at)
+			self._fx:sound("bump", if rear then 0.6 else 0.4, if rear then 0.9 else 1.2)
 			if self._camera then
-				self._camera:jolt(0.35)
+				self._camera:jolt(if rear then 0.45 else 0.25)
 			end
 			if self._hud then
-				self._hud:jolt(0.6)
+				self._hud:jolt(if rear then 0.8 else 0.5)
 			end
 		end
 	end
@@ -586,19 +813,25 @@ local function clampLateral(lateral: number, width: number): number
 	return math.clamp(lateral, -limit, limit)
 end
 
+local function tooStrong(self: any, car: Car): boolean
+	return car.spawn ~= nil and not car.keysDone and self._session.level < car.needs
+end
+
 local function stepRiding(self: any, dt: number, steerInput: number, drag: number)
 	local ridden = self._ridden :: Car
 	local family = ridden.family
+	local strong = tooStrong(self, ridden)
 
-	-- Heat (paused while the Keys card is up).
+	-- Heat (paused while the Keys card is up). A car that is too strong overheats faster.
 	if self._cardLeft > 0 then
 		self._cardLeft -= dt
 	else
-		self._heat += dt / family.heatCapacity
+		self._heat += dt / family.heatCapacity * (if strong then RunConfig.TOO_STRONG_HEAT else 1)
 	end
 	if self._heat >= 1 and not self._meltdownLeft then
 		self._meltdownLeft = RunConfig.MELTDOWN_TIME
 		self._meltdownDrift = if Random.new(self.seed + self._hops):NextNumber() < 0.5 then -1 else 1
+		self._overlay:banner("Losing control! HOP NOW!", Color3.fromRGB(255, 90, 70))
 	end
 	local melt = 0
 	if self._meltdownLeft then
@@ -611,14 +844,16 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	end
 
 	-- Steering: free left/right; sluggish and drifting during Meltdown, never inverted.
-	local lag = if self._meltdownLeft then 1 - math.exp(-dt / (RunConfig.MELTDOWN_STEER_LAG * (0.3 + melt))) else 1
+	local lag = if self._meltdownLeft
+		then 1 - math.exp(-dt / (RunConfig.MELTDOWN_STEER_LAG * (0.3 + melt)))
+		else 1 - math.exp(-dt * 14)
 	self._steer += (steerInput - self._steer) * lag
 	local lateral = ridden.lateral + self._steer * family.steerSpeed * dt
 	lateral += drag * RunConfig.ROAD_HALF_WIDTH * 2.4
 	if self._meltdownLeft then
 		lateral += (math.sin(self._t * 9) * 5 * melt + self._meltdownDrift * 6 * melt) * dt
 	end
-	ridden.lateral = clampLateral(lateral, family.width)
+	ridden.lateral = clampLateral(lateral, ridden.width)
 
 	-- Forward.
 	local factor = family.speedMultiplier
@@ -631,11 +866,11 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	end
 	ridden.along += RunConfig.speedAt(self._t) * factor * dt
 	bumpRidden(self, ridden)
-	ridden.lateral = clampLateral(ridden.lateral, family.width)
+	ridden.lateral = clampLateral(ridden.lateral, ridden.width)
 	self._heat = math.min(self._heat, 1)
 
-	-- Keys.
-	if self._keys and self._keysNeed then
+	-- Keys (the catch meter): only fills when the Rider Level is enough.
+	if self._keys and self._keysNeed and not strong then
 		self._keys += dt
 		if self._keys >= self._keysNeed then
 			completeKeys(self, ridden)
@@ -644,7 +879,7 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 
 	self._along = ridden.along
 	self._lateral = ridden.lateral
-	self._up = family.height * SEAT_UP
+	self._up = ridden.roof
 end
 
 local function stepHop(self: any, dt: number, steerInput: number)
@@ -663,9 +898,11 @@ local function stepHop(self: any, dt: number, steerInput: number)
 	end
 	local toAlong = if target then target.along else hop.fromAlong
 	local toLateral = (if target then target.lateral else hop.fromLateral) + hop.nudge
-	local toUp = if target then target.family.height * SEAT_UP else 0
-	self._along = hop.fromAlong + (toAlong - hop.fromAlong) * a
-	self._lateral = hop.fromLateral + (toLateral - hop.fromLateral) * a
+	local toUp = if target then target.roof else 0
+	-- Ease the forward travel so the leap reads: quick launch, soft landing.
+	local e = 1 - (1 - a) * (1 - a)
+	self._along = hop.fromAlong + (toAlong - hop.fromAlong) * e
+	self._lateral = hop.fromLateral + (toLateral - hop.fromLateral) * e
 	self._up = hop.fromUp + (toUp - hop.fromUp) * a + 4 * RunConfig.HOP_HEIGHT * a * (1 - a)
 	if a >= 1 then
 		land(self, hop)
@@ -686,8 +923,8 @@ local function stepFoot(self: any, dt: number, steerInput: number, drag: number)
 		local da = car.along - self._along
 		local dl = car.lateral - self._lateral
 		if
-			math.abs(da) < car.family.length / 2 + RunConfig.FOOT_SIZE / 2
-			and math.abs(dl) < car.family.width / 2 + RunConfig.FOOT_SIZE / 2
+			math.abs(da) < car.length / 2 + RunConfig.FOOT_SIZE / 2
+			and math.abs(dl) < car.width / 2 + RunConfig.FOOT_SIZE / 2
 		then
 			endRun(self, "Hit on foot")
 			return
@@ -698,80 +935,98 @@ local function stepFoot(self: any, dt: number, steerInput: number, drag: number)
 	end
 end
 
-local function placeRider(self: any)
-	local character = self._player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not (root and root:IsA("BasePart")) then
-		return
-	end
-	root.Anchored = true
-	root.AssemblyLinearVelocity = Vector3.zero
-	root.CFrame = RunRoad.frame(self._along, self._lateral, self._up + ROOT_UP)
-	local hidden = self._mode == "Riding" and self._ridden ~= nil and not (self._ridden :: Car).family.openTop
-	if hidden ~= not self._riderVisible then
-		self._riderVisible = not hidden
-		for _, d in character:GetDescendants() do
-			if d:IsA("BasePart") or d:IsA("Decal") then
-				(d :: any).LocalTransparencyModifier = if hidden then 1 else 0
-			end
-		end
-	end
-end
-
 local function render(self: any)
 	local t = self._t
 	for _, car in self._cars do
-		local shake = CFrame.identity
+		local offset = CFrame.identity
 		if car == self._ridden then
-			local heat = self._heat
-			CarVisual.setHeat(car.model, car.paint, heat)
-			if heat >= RunConfig.HEAT_CRITICAL or self._meltdownLeft then
-				local s = if self._meltdownLeft then 0.12 else 0.05
-				shake = CFrame.Angles(math.sin(t * 40) * s, 0, math.cos(t * 33) * s)
+			CarVisual.update(car.model, self._heat, t)
+			if self._heat >= RunConfig.HEAT_CRITICAL or self._meltdownLeft then
+				local s = if self._meltdownLeft then 0.1 else 0.04
+				offset = CFrame.Angles(math.sin(t * 40) * s, 0, math.cos(t * 33) * s)
 			end
+			-- Landing bounce on the suspension.
+			if self._hop == nil and self._mode == "Riding" then
+				offset *= CFrame.Angles(0, -self._steer * 0.06, -self._steer * 0.05)
+			end
+		elseif car.variant == "Rainbow" then
+			CarVisual.update(car.model, 0, t)
 		end
-		car.model:PivotTo(RunRoad.frame(car.along, car.lateral, 0) * shake)
+		-- Traffic rocks gently, like animals in a herd.
+		local rock = math.sin(t * 6 + car.index) * 0.015
+		car.model:PivotTo(RunRoad.frame(car.along, car.lateral, 0) * offset * CFrame.Angles(rock, 0, rock))
 	end
 	local target = self._target
 	if target and (self._mode == "Riding" or self._mode == "FootDash") then
-		local d = math.max(target.family.width, target.family.length * 0.6) + 2
+		local d = math.max(target.width, target.length * 0.7) + 3
 		local pulse = 1 + math.sin(t * 8) * 0.06
 		self._ring.Size = Vector3.new(0.2, d * pulse, d * pulse)
 		self._ring.CFrame = RunRoad.frame(target.along, target.lateral, 0.15) * CFrame.Angles(0, 0, math.pi / 2)
-		self._ring.Transparency = 0.35
+		self._ring.Color = if tooStrong(self, target) then Color3.fromRGB(255, 96, 86) else Color3.fromRGB(255, 214, 70)
+		self._ring.Transparency = 0.3
+		self._arrow.CFrame =
+			RunRoad.frame(target.along, target.lateral, target.roof + 2.5 + math.abs(math.sin(t * 6)) * 1.2)
+		self._arrow.Color = self._ring.Color
+		self._arrow.Transparency = 0
 	else
 		self._ring.Transparency = 1
+		self._arrow.Transparency = 1
 	end
 end
 
-local function updateHud(self: any)
+local function updateUi(self: any)
 	local stage = stageFor(self._heat, self._meltdownLeft ~= nil)
-	local heat = if self._mode == "Riding" then self._heat else 0
+	local riding = self._mode == "Riding"
 	if self._hud then
 		self._hud:setState({
 			cash = 0,
 			distance = RunConfig.toMetres(self._along),
-			heat = heat,
-			stage = if self._mode == "Riding" then stage else "Calm",
+			heat = if riding then self._heat else 0,
+			stage = if riding then stage else "Calm",
 		})
 	end
-	if self._keys and self._keysNeed and self._ridden then
-		local ridden = self._ridden :: Car
-		self._overlay:setKeys(
-			self._keys / self._keysNeed,
-			string.format("Keys: %s %s  %.1f / %.0f s", ridden.rarity, ridden.family.name, self._keys, self._keysNeed)
-		)
+	self._fx:setSteam(
+		if riding and self._ridden then (self._ridden :: Car).model else nil,
+		if riding then self._heat else 0
+	)
+
+	-- Catch meter over the rider.
+	local meter = self._meter
+	local _, root = riderParts(self)
+	meter.gui.Adornee = root
+	local ridden = self._ridden :: Car?
+	if riding and ridden and ridden.spawn then
+		meter.gui.Enabled = true
+		if ridden.keysDone then
+			meter.fill.Size = UDim2.fromScale(1, 1)
+			meter.label.Text = "Got the Keys!"
+			meter.label.TextColor3 = Color3.fromRGB(140, 240, 150)
+		elseif tooStrong(self, ridden) then
+			meter.fill.Size = UDim2.fromScale(0, 1)
+			meter.label.Text = string.format("Too strong! Needs %d", ridden.needs)
+			meter.label.TextColor3 = Color3.fromRGB(255, 120, 110)
+		elseif self._keys and self._keysNeed then
+			meter.fill.Size = UDim2.fromScale(math.clamp(self._keys / self._keysNeed, 0, 1), 1)
+			meter.label.Text = string.format("Keys %.1f / %.0f s", self._keys, self._keysNeed)
+			meter.label.TextColor3 = Color3.fromRGB(255, 248, 232)
+		end
 	else
-		self._overlay:setKeys(nil)
+		meter.gui.Enabled = false
 	end
+
 	self._overlay:setFootDash(if self._footLeft then self._footLeft / RunConfig.FOOT_DASH_TIME else nil)
 	self._overlay:setHint(self._t < 6)
+	self._overlay:setLevel(self._session.level, self._session.revives)
+	refreshLevel(self)
 end
 
 local function step(self: any, dt: number)
+	local carLength = if self._ridden then (self._ridden :: Car).length else 4
+	local speed01 = (RunConfig.speedAt(self._t) - RunConfig.START_SPEED) / (RunConfig.TOP_SPEED - RunConfig.START_SPEED)
 	if self._mode == "Ended" then
 		if self._camera then
-			self._camera:step(dt, self._along, self._lateral, self._up, 12)
+			self._camera:step(dt, self._along, self._lateral, self._up, carLength, 0)
+			self._fx:setSpeedLines(self._camera:getCFrame(), 0)
 		end
 		return
 	end
@@ -798,15 +1053,16 @@ local function step(self: any, dt: number)
 	local metres = RunConfig.toMetres(self._along)
 	if metres >= self._nextMilestone then
 		self._overlay:banner(string.format("%d m!", self._nextMilestone))
+		self._fx:sound("claim", 0.4, 0.8)
 		self._nextMilestone += RunConfig.MILESTONE_METRES
 	end
 
 	self._road:update(self._along)
 	render(self)
 	placeRider(self)
-	local carLength = if self._ridden then (self._ridden :: Car).family.length else 4
-	self._camera:step(dt, self._along, self._lateral, self._up, carLength)
-	updateHud(self)
+	self._camera:step(dt, self._along, self._lateral, self._up, carLength, speed01)
+	self._fx:setSpeedLines(self._camera:getCFrame(), 0.3 + speed01 * 0.7)
+	updateUi(self)
 	self._report:step(self._t)
 end
 
@@ -831,28 +1087,20 @@ function RunController.start(self: any)
 		if controls then
 			controls:Enable()
 		end
-		local character = self._player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if root and root:IsA("BasePart") then
-			root.Anchored = false
+		local _, root, humanoid = riderParts(self)
+		if humanoid then
+			humanoid.Sit = false
 		end
-		if character then
-			for _, d in character:GetDescendants() do
-				if d:IsA("BasePart") or d:IsA("Decal") then
-					(d :: any).LocalTransparencyModifier = 0
-				end
-			end
+		if root then
+			root.Anchored = false
 		end
 	end)
 
-	local loaner = addCar(self, nil, Families.LOANER, "Common", 1)
+	local loaner = addCar(self, nil, Families.LOANER, "Common", "Normal", 1)
 	loaner.along = 0
 	loaner.lateral = RunConfig.laneCenter(2)
-	self._owned[loaner.modelId] = true
-	self._ridden = loaner
-	self._along = 0
-	self._lateral = loaner.lateral
-	self._up = loaner.family.height * SEAT_UP
+	self._session.owned[loaner.modelId] = true
+	boardCar(self, loaner)
 
 	self._camera = ChaseCamera.new()
 	self._trove:Add(function()
@@ -874,11 +1122,8 @@ function RunController.getDebugState(self: any): DebugState
 	local aheadGap: number? = nil
 	if ridden then
 		for _, car in self._cars do
-			if
-				car ~= ridden
-				and math.abs(car.lateral - ridden.lateral) < (car.family.width + ridden.family.width) / 2
-			then
-				local gap = car.along - ridden.along - (car.family.length + ridden.family.length) / 2
+			if car ~= ridden and math.abs(car.lateral - ridden.lateral) < (car.width + ridden.width) / 2 then
+				local gap = car.along - ridden.along - (car.length + ridden.length) / 2
 				if gap >= -1 and (aheadGap == nil or gap < (aheadGap :: number)) then
 					aheadGap = gap
 				end
@@ -896,11 +1141,16 @@ function RunController.getDebugState(self: any): DebugState
 		lateral = self._lateral,
 		family = if ridden then ridden.family.name else nil,
 		rarity = if ridden then ridden.rarity else nil,
+		size = if ridden then ridden.size else nil,
+		needs = if ridden then ridden.needs else nil,
+		level = self._session.level,
+		revives = self._session.revives,
 		heat = self._heat,
 		stage = stageFor(self._heat, self._meltdownLeft ~= nil),
 		meltdownLeft = self._meltdownLeft,
 		keys = self._keys,
 		keysNeed = self._keysNeed,
+		tooStrong = if ridden then tooStrong(self, ridden) else false,
 		footDashLeft = self._footLeft,
 		target = if target then target.index else nil,
 		targetDistance = if target

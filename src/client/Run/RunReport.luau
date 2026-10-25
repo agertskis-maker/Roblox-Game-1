@@ -10,7 +10,7 @@ local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-export type EventKind = "Hop" | "KeysComplete" | "RunEnd"
+export type EventKind = "Hop" | "KeysComplete" | "RunEnd" | "Revive"
 
 export type Event = {
 	kind: EventKind,
@@ -20,6 +20,7 @@ export type Event = {
 	target: number?, -- Hop: spawn index landed on, 0 = the road
 	index: number?, -- KeysComplete: spawn index
 	cause: string?, -- RunEnd: Meltdown | FootDash | Quit
+	-- Revive (proposed addition to the run report): t, d, and the spawn index landed on in `target`.
 }
 
 export type RunReport = {

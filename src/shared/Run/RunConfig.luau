@@ -29,8 +29,8 @@ RunConfig.LANE_SPEED = table.freeze({ 0.56, 0.64, 0.72, 0.8 })
 RunConfig.FIRST_CAR = 80
 RunConfig.SPAWN_AHEAD = 700
 RunConfig.DESPAWN_BEHIND = 160
-RunConfig.GAP_START = 75
-RunConfig.GAP_END = 32
+RunConfig.GAP_START = 50
+RunConfig.GAP_END = 24
 RunConfig.GAP_RAMP_DISTANCE = 4000
 
 -- The Hop.
@@ -70,11 +70,46 @@ RunConfig.KEYS_TIME = table.freeze({
 RunConfig.HEAT_TO_SPARE = 3
 RunConfig.KEYS_CARD_TIME = 1.2
 
--- Chase camera (outline section 06).
-RunConfig.CAMERA_BACK = 12
-RunConfig.CAMERA_UP = 6
-RunConfig.CAMERA_LOOK_AHEAD = 30
+-- Sizes (a stampede-style herd mixes small and huge animals; here, cars). Rolled from the seed.
+export type Size = "Tiny" | "Normal" | "Big" | "Giant"
+RunConfig.SIZE_ORDER = table.freeze({ "Giant", "Big", "Tiny", "Normal" } :: { Size })
+RunConfig.SIZE_CHANCE = table.freeze({ Giant = 0.03, Big = 0.12, Tiny = 0.12, Normal = 1 } :: { [Size]: number })
+RunConfig.SIZE_SCALE = table.freeze({ Tiny = 0.72, Normal = 1, Big = 1.3, Giant = 1.6 } :: { [Size]: number })
+RunConfig.SIZE_LABEL =
+	table.freeze({ Tiny = "TINY ", Normal = "", Big = "BIG ", Giant = "GIANT " } :: { [Size]: string })
+
+-- Rider Level gate (PROPOSED, session-only in the prototype): every car shows "Needs N". Below
+-- that level you can still ride it, but the Keys meter will not fill and it overheats faster.
+-- Each new model claimed raises the level, like filling a collection book. Real progression
+-- (where the level comes from and what raises it) belongs to Lane 2 and needs team agreement.
+RunConfig.START_RIDER_LEVEL = 10
+RunConfig.LEVEL_PER_NEW_MODEL = 6
+RunConfig.NEEDS_BASE = table.freeze({ Common = 4, Rare = 18, Epic = 40, Legendary = 80 } :: { [Rarity]: number })
+RunConfig.NEEDS_SIZE = table.freeze({ Tiny = 0.5, Normal = 1, Big = 1.6, Giant = 2.6 } :: { [Size]: number })
+RunConfig.TOO_STRONG_HEAT = 1.6
+
+-- Revives: free retries of the same run, landing back on traffic with fresh Heat.
+RunConfig.FREE_REVIVES = 3
+
+-- Variants (outline section 07, Decided): only for models the player already owns.
+export type Variant = "None" | "Gold" | "Chrome" | "Rainbow"
+RunConfig.VARIANT_CHANCE = table.freeze({ Rainbow = 0.004, Chrome = 0.02, Gold = 0.05 } :: { [string]: number })
+
+-- Herd motion: every car weaves gently inside its lane on a seeded rhythm.
+RunConfig.SWAY_AMPLITUDE = 1.6
+RunConfig.SWAY_RATE = 0.9
+
+-- Rare-spawn alert: a banner when one of these appears ahead.
+RunConfig.ALERT_RARITY = "Legendary"
+
+-- Chase camera (outline section 06), pulled a little higher and wider so the rider on the roof
+-- and the herd around them read like a stampede.
+RunConfig.CAMERA_BACK = 15
+RunConfig.CAMERA_UP = 8.5
+RunConfig.CAMERA_LOOK_AHEAD = 34
 RunConfig.CAMERA_FOV = 70
+RunConfig.CAMERA_FOV_FAST = 80
+RunConfig.CAMERA_HOP_PUNCH = 6
 RunConfig.CAMERA_FOLLOW = 9
 
 -- Display.
@@ -107,6 +142,16 @@ end
 
 function RunConfig.toMetres(studs: number): number
 	return studs * RunConfig.METRES_PER_STUD
+end
+
+-- Rider Level a car of this rarity and size needs before its Keys meter will fill.
+function RunConfig.needsFor(rarity: Rarity, size: Size): number
+	return math.ceil(RunConfig.NEEDS_BASE[rarity] * RunConfig.NEEDS_SIZE[size])
+end
+
+-- Sideways weave of a traffic car at run time t (seeded phase, so the server gets the same).
+function RunConfig.swayAt(phase: number, t: number): number
+	return math.sin(t * RunConfig.SWAY_RATE + phase) * RunConfig.SWAY_AMPLITUDE
 end
 
 return table.freeze(RunConfig)
