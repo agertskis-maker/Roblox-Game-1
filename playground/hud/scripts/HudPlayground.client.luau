@@ -540,6 +540,7 @@ do
 	if hopCue and hopCue.bind then
 		hopCue:bind({ ring = components.hopRing, arc = components.hopArc, reticle = components.hopReticle })
 		hopCue:setTargetModel(backdrop.target)
+		hopCue:setRideModel(backdrop.ride)
 	end
 	local lap = components.lapPay
 	if lap and lap.setCars then
@@ -825,7 +826,7 @@ function api.setSpeed(metresPerSecond: number?)
 end
 -- Round 2 Hop cues: the ONE selected target, by traffic index (2 = the Puglet ahead). Retargeting sends the new id
 -- through the run state (what Lane 1 would do) and points every cue model at the same car.
--- Round 2 haptics (best effort, off by default; never claimed felt on hardware)
+-- Haptics (best effort; ON by default since Round 3, switched in Settings; never claimed felt on hardware)
 function api.setHaptics(on: boolean)
 	local settings = table.clone(store:get().settings) :: any
 	settings.haptics = on

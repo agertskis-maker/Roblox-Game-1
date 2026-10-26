@@ -16,6 +16,8 @@
 --   local cue = HopCue.new(ctx)
 --   cue:bind({ ring = ring?, arc = arc?, reticle = reticle? })   -- the world cues it drives
 --   cue:setTargetModel(model?)                                    -- the model every cue points at
+--   cue:setRideModel(model?)                                      -- the ridden car the arc starts on (R3-L3); set it
+--                                                                  -- again whenever the ridden car changes
 --   cue:display() -> HopState.Display          cue:refresh()
 --   cue.Changed (display, previous)   cue.Accent (targetId?)   cue.LockOn (targetId)
 --   cue:layout(), cue:setVisible(on), cue:destroy(), cue:getDebugState()
@@ -58,6 +60,7 @@ function HopCue.new(ctx: RunLayout.Ctx)
 	self._lastAccent = -math.huge
 	self._lastLock = -math.huge
 	self._model = nil :: Instance?
+	self._rideModel = nil :: Instance?
 	self._world = {} :: World
 	self._step = nil :: RBXScriptConnection?
 	self._changes = 0
@@ -202,7 +205,19 @@ function HopCue.bind(self: HopCue, world: World)
 	if self._model then
 		self:setTargetModel(self._model)
 	end
+	if self._rideModel then
+		self:setRideModel(self._rideModel)
+	end
 	self:_applyWorld()
+end
+
+-- The ridden car: the arc starts on its roof. Only the arc has an origin; the ring and the reticle sit on the target.
+function HopCue.setRideModel(self: HopCue, model: Instance?)
+	self._rideModel = model
+	local arc = self._world.arc
+	if arc and arc.setRide then
+		arc:setRide(model)
+	end
 end
 
 function HopCue.setTargetModel(self: HopCue, model: Instance?)
@@ -266,6 +281,7 @@ function HopCue.getDebugState(self: HopCue): { [string]: any }
 		locksSuppressed = self._locksSuppressed,
 		targetChanges = self._targetChanges,
 		pending = self._step ~= nil,
+		rideModel = self._rideModel and self._rideModel.Name,
 		targets = targets,
 		shownCues = #named,
 		oneTarget = one,
