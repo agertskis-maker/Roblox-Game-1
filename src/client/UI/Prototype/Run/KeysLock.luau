@@ -170,6 +170,7 @@ type Capture = {
 	shown: number, -- the fill currently drawn, 0..progress
 	shownFrom: number, -- where the current ease started
 	shownAt: number, -- os.clock() when the current ease started
+	easeTo: number, -- the supplied value the current ease is heading for (a repeat of it never restarts the ease)
 	complete: boolean, -- the closed ring has been reached (the pulse plays once)
 	step: number, -- eighths of progress passed (progress clicks)
 	almost: boolean,
@@ -654,7 +655,8 @@ function KeysLock._paint(self: KeysLock, snap: boolean)
 		self:_retarget()
 	end
 	v.percent.Text = string.format("%d%%", math.floor(c.progress * 100 + 1e-6))
-	v.percent.Visible = true
+	-- the percentage is secondary (the ring says it): on the smallest phone frame it would sit under the Hop button, so it is not shown
+	v.percent.Visible = self._ctx.screen:profile().name ~= "PhoneSmall"
 	v.instr.Text = if c.phase == "Pending" then "SECURING…" elseif c.almost then "ALMOST!" else "HOLD ON"
 	v.underline.Visible = true
 end
@@ -768,6 +770,10 @@ function KeysLock._retarget(self: KeysLock)
 		self:_setShown(c.progress, false)
 		return
 	end
+	if self._fill and c.easeTo == c.progress then
+		return -- the same supplied value again (every store update calls this): the ease keeps its own timeline
+	end
+	c.easeTo = c.progress
 	c.shownFrom = c.shown
 	c.shownAt = os.clock()
 	if self._fill then
@@ -864,6 +870,7 @@ function KeysLock._start(self: KeysLock, id: string, car: Store.CarRef?)
 		shown = 0,
 		shownFrom = 0,
 		shownAt = 0,
+		easeTo = 0,
 		complete = false,
 		step = 0,
 		almost = false,
@@ -1504,7 +1511,10 @@ function KeysLock.layout(self: KeysLock)
 		self._showing = false
 		self:_stopFollow()
 		self:_build(R)
-		if wasShowing and self._cap then
+		-- only a capture that is still live comes back: an ended one (dimming before its hide) must not be re-shown, because
+		-- _show() replaces the token its pending hide checks, and the ring would then stay on screen for good
+		local live = self._cap ~= nil and RANK[(self._cap :: Capture).phase] < 3
+		if wasShowing and live then
 			self:_show()
 		end
 	end
@@ -1621,7 +1631,10 @@ function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 		bodyMotion = "none: a vehicle shudder is deferred; the ridden vehicle, seat, character root and camera are never moved",
 		silver = cap and cap.silver,
 		instruction = v and v.instr.Text,
-		percent = v and v.percent.Visible and v.percent.Text or nil,
+		percent = if v and (v.percent.Visible or self._ctx.screen:profile().name == "PhoneSmall")
+			then v.percent.Text
+			else nil, -- the text is kept on PhoneSmall, where it is not shown
+		percentShown = if v then v.percent.Visible else false,
 		ringSize = v and v.size,
 		tracking = self._track,
 		following = self._follow ~= nil,

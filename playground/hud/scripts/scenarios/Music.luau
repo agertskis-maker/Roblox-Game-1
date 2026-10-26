@@ -365,6 +365,10 @@ S["Music: fades and mute during a fade"] = function(host: Host)
 		up <= Music.FADE_IN + 0.15 and st().baseLevel >= 0.99,
 		string.format("%.2f s (limit %.2f s + 0.15 s of frame slack)", up, Music.FADE_IN)
 	)
+	-- the level crosses 0.99 a frame or two before the tween reports completion: give it a short moment to clean up
+	timeUntil(host, 0.5, function()
+		return st().tweens == 0
+	end)
 	verdict(host, "the fade-in cleaned up its tween", st().tweens == 0, fmt(st()))
 	-- fade-out: stop
 	Music.stop()

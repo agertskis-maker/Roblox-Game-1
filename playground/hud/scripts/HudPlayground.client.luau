@@ -240,6 +240,10 @@ api.goRun = goRun
 -- client (EditableMesh kit; labelled proxies for anything missing), hides the neutral road, and
 -- moves the backdrop traffic and chase camera along the city route. Preview only.
 local city: any = nil
+api.uploadedKit = true -- Downtown only; `Invoke("useUploadedKit", false)` returns to the session-only EditableMesh preview
+function api.useUploadedKit(on: boolean)
+	api.uploadedKit = on
+end
 function api.useCity(on: boolean, seed: number?, world: string?): string
 	if city then
 		backdrop.setPath(nil)
@@ -262,12 +266,21 @@ function api.useCity(on: boolean, seed: number?, world: string?): string
 	local Route = require((module :: Instance):WaitForChild("Route") :: ModuleScript) :: any
 	-- Round 2: a World ("DustyHighway" / "SummitPass") builds from the same planner and finds its own kit and swatches
 	local worldId = if world and world ~= "Downtown" then world else nil
+	-- Round 3: the Downtown B2 kit meshes are uploaded (src/lookdev/Downtown/KitIds.luau); the Dusty Highway and Summit Pass kits are not
+	local kitIdsModule = lookDev:FindFirstChild("Downtown") and lookDev.Downtown:FindFirstChild("KitIds")
+	local kitIds: any = if api.uploadedKit
+			and not worldId
+			and kitIdsModule
+		then require(kitIdsModule :: ModuleScript)
+		else nil
 	local ok, err = pcall(function()
 		city = City.new({
 			parent = backdrop.folder,
 			kit = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2"),
 			kitData = if worldId then nil else ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2Data"),
 			world = worldId,
+			meshIds = if kitIds then kitIds.meshes else nil,
+			textureId = if kitIds then kitIds.palettes.MainStreet else nil,
 			seed = seed or 2207,
 			preview = true,
 			lighting = true,
@@ -764,6 +777,36 @@ function api.patchRun(patch: { [string]: any })
 		store:set("run", merged)
 	end
 end
+-- Review-capture helpers (lead, Round 3): enter or leave Run, hold a Keys state, set the Stamina value, a landing.
+function api.setMode(mode: string)
+	if mode == "Run" and store:get().mode ~= "Run" then
+		store:setMode("Run")
+		scenarios:startRunState()
+	elseif mode ~= "Run" then
+		store:setMode(mode :: any)
+	end
+	applyMode(store:get().mode)
+end
+function api.setKeysState(progress: number, status: string?, carId: string?)
+	local car = table.clone(Fixtures.byId(carId or "rev6") or Fixtures.Cars[1]) :: any
+	car.owned = false
+	api.patchRun({ keys = { id = "cap-review", target = car, progress = progress, status = status or "Holding" } })
+end
+function api.clearKeysState()
+	local run = store:get().run
+	if run then
+		local merged = table.clone(run) :: any
+		merged.keys = nil
+		store:set("run", merged)
+	end
+end
+function api.setStaminaValue(n: number)
+	staminaFixture:setValue(n)
+end
+function api.setRide(carId: string, instanceId: string?)
+	local car = Fixtures.byId(carId) or Fixtures.Cars[1]
+	api.patchRun({ ride = car, rideInstanceId = instanceId or ("ride-" .. carId) })
+end
 -- Round 2 route line fixtures (all default to the Downtown route, no prior best, the fixture speed):
 -- the World whose route the run shows (also switches the current run), the pre-run record (nil = none) with its
 -- verified flag, and the fixture speed in metres per second (0 holds the distance still for captures).
@@ -896,6 +939,11 @@ local function relayout()
 	end
 end
 trove:Connect(screen.Changed, relayout)
+-- Debug-only (Round 3): the Heat panel's text floor in real device px (16 = the project minimum; lower = a smaller panel).
+function api.setHeatFloor(px: number)
+	RunLayout.HeatTextFloor = px
+	relayout()
+end
 
 -- A fixed capture camera held by this script (MCP resets a camera type set from execute_luau).
 local captureCam: RBXScriptConnection? = nil

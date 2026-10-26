@@ -303,9 +303,9 @@ local function frameReport(host: Host, panel: any, name: string)
 	local label: any = parts.label
 	verdict(
 		host,
-		name .. ": text at least 16 px real",
-		titlePx >= 15.95
-			and labelPx >= 15.95
+		name .. ": text at least the Heat floor (" .. tostring(RunLayout.HeatTextFloor) .. " px real)",
+		titlePx >= RunLayout.HeatTextFloor - 0.05
+			and labelPx >= RunLayout.HeatTextFloor - 0.05
 			and title ~= nil
 			and title.TextSize == RunLayout.HeatSmallestText
 			and label ~= nil

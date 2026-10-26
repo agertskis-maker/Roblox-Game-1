@@ -800,4 +800,54 @@ S["Keys: repeated start and cancel"] = function(host: Host)
 	host.api.setSpeed(nil)
 end
 
+-- Found by looking at a frame (a resize during the dim-out left the ring on screen for good, with a live connection).
+S["Keys: resize while a capture ends"] = function(host: Host)
+	host.api.setProfile("Desktop")
+	host.api.setSpeed(0)
+	freshRun(host)
+	host.api.backdrop.hold(0)
+	local car = ownedFalse(host, "rev6")
+	local id = startCapture(host, car)
+	setKeys(host, id, car, 0.4, "Holding")
+	host.wait(0.5)
+	send(host, "KeysCanceled", { captureId = id, reason = "HoppedOff" })
+	clearKeys(host)
+	host.wait(0.15)
+	host.api.setProfile("PhoneSmall") -- the ring is rebuilt while its end is still dimming out
+	host.wait(2.5)
+	local d = dbg(host, "keys")
+	verdict(
+		host,
+		"A resize while a capture is ending does not leave the ring on screen",
+		d.groupVisible == false and d.connections == 0 and d.timers == 0,
+		string.format(
+			"visible %s, connections %s, timers %s",
+			tostring(d.groupVisible),
+			tostring(d.connections),
+			tostring(d.timers)
+		)
+	)
+	-- a resize while a capture is still LIVE keeps the ring (it is rebuilt and shown again)
+	local id2 = startCapture(host, car)
+	setKeys(host, id2, car, 0.6, "Holding")
+	host.wait(0.4)
+	host.api.setProfile("Desktop")
+	host.wait(0.5)
+	local live = dbg(host, "keys")
+	verdict(
+		host,
+		"A resize while a capture is live keeps the ring and its progress",
+		live.groupVisible == true and live.phase == "Progress" and near((live.ring or {}).shown or 0, 0.6, 0.002),
+		string.format(
+			"visible %s, phase %s, shown %s",
+			tostring(live.groupVisible),
+			tostring(live.phase),
+			tostring((live.ring or {}).shown)
+		)
+	)
+	send(host, "KeysCanceled", { captureId = id2, reason = "HoppedOff" })
+	clearKeys(host)
+	host.wait(1.8)
+end
+
 return S

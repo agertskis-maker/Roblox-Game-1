@@ -622,8 +622,8 @@ end
 --           fractional shift is not rounded to whole px), written when the layout changes and never per frame.
 --   Scale   The SMALLEST scale at which the smallest Heat text (the ENGINE HEAT title tab, 16 design px) still reads at
 --           HeatTextFloor real px: k = HeatTextFloor / (HeatSmallestText x HudScale), never above 1 (the approved size)
---           and never above what fits the safe width. HudScale 1.5 (Desktop, Tablet) gives 0.667. Every phone frame has
---           HudScale 1.0, so k = 1.0 there: the title is exactly 16 px and cannot shrink.
+--           and never above what fits the safe width. With the floor at 13 (provisional): HudScale 1.5 (Desktop, Tablet) gives
+--           0.667 (the 16 px minimum would be 1.0 / 0.667); every phone frame has HudScale 1.0, so k = 0.8125 there.
 --   Bottom  HeatBottomGap (8 design px, unchanged since Round 2) between the card and the safe-area bottom.
 --   Growth  HeatGauge's own stage growth (1.05 / 1.10 / 1.12 about the bottom centre) is kept. The cap passed to
 --           gauge:setLayout keeps the card and its outline HeatHopClear clear of Hop and SafeMargin inside the safe edge.
@@ -638,8 +638,10 @@ end
 
 RunLayout.HeatFull = Vector2.new(320, 92) -- HeatGauge.Size (kept in step by HeatPanel's debug check)
 RunLayout.HeatBottomGap = 8 -- unchanged since Round 2
--- TOKEN CANDIDATE: real (device) px that the smallest Heat text may not go below (Tokens.TextSize.Minimum; Adam, Round 3).
-RunLayout.HeatTextFloor = 16
+-- TOKEN CANDIDATE, PROVISIONAL (Adam to confirm): real (device) px that the smallest Heat text (the title tab) may not go below.
+-- 16 = the project's general minimum (Tokens.TextSize.Minimum) gives scale 1.0 on phones, which covers 39-49% of the protected road
+-- rectangle (measured); 13 gives scale 0.81 and the title at 13 px, the stage label at 14.6 px. Round 2 shipped 0.89 / 0.92.
+RunLayout.HeatTextFloor = 13
 -- TOKEN CANDIDATE: the smallest Heat text at scale 1 (the title tab: Tokens.TextSize.Minimum) and the stage label and
 -- HOP NOW! (Tokens.TextSize.Label). HeatPanel's debug state compares them with the live labels.
 RunLayout.HeatSmallestText = 16
