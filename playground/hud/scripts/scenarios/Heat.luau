@@ -281,7 +281,8 @@ local function frameReport(host: Host, panel: any, name: string)
 	)
 
 	-- 2. scale: the stated rule, and the live panel really has it
-	local floorK = RunLayout.HeatTextFloor / (RunLayout.HeatSmallestText * s)
+	local floorPx = if profile.kind == "Phone" then RunLayout.HeatTextFloor else RunLayout.HeatTextFloorLarge
+	local floorK = floorPx / (RunLayout.HeatSmallestText * s)
 	verdict(
 		host,
 		name .. ": scale in range",
@@ -303,9 +304,9 @@ local function frameReport(host: Host, panel: any, name: string)
 	local label: any = parts.label
 	verdict(
 		host,
-		name .. ": text at least the Heat floor (" .. tostring(RunLayout.HeatTextFloor) .. " px real)",
-		titlePx >= RunLayout.HeatTextFloor - 0.05
-			and labelPx >= RunLayout.HeatTextFloor - 0.05
+		name .. ": text at least the Heat floor (" .. tostring(floorPx) .. " px real)",
+		titlePx >= floorPx - 0.05
+			and labelPx >= floorPx - 0.05
 			and title ~= nil
 			and title.TextSize == RunLayout.HeatSmallestText
 			and label ~= nil
