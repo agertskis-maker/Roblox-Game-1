@@ -4,7 +4,7 @@ tags: [decision, lane3, ui, audio, assets]
 status: accepted for this task (preview; not a production approval). Several items await Adam's confirmation, listed below.
 date: 2026-10-26
 ---
-# 0021 Round 3 (preview)
+# 0023 Round 3 (preview)
 
 Ledger [[hud-round3]]; spec `vault/design/ui/hud-round3.md`; follows [[0020-hud-round2-presentation]].
 
