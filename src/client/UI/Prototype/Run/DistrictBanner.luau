@@ -1,9 +1,12 @@
 --!strict
--- District entry banner (Lane 3 preview, HUD rebuild worker HR; U-04). On an explicit store
--- event { kind = "DistrictEnter", district = District.id, cycle = n } it shows one district
--- icon and the district name in a slim dark band below the route line: 0.2 s in (a short
--- drop + fade), about 1.6 s hold, 0.25 s out. Reduced motion: fade only. It never decides that a
--- district was entered; it only presents the supplied event.
+-- District entry banner: the orange arrival popup (Lane 3 preview, HUD rebuild worker HR; U-04). On an
+-- explicit store event { kind = "DistrictEnter", district = District.id, cycle = n } it shows one district
+-- icon and the district name on a bold orange arcade surface below the distance pill (Round 3, R3-D: it
+-- is KEPT; the route line above it was removed): 0.2 s in (a short drop + fade), about 1.6 s hold, 0.25 s out.
+-- Reduced motion: fade only. It never decides that a district was entered; it only presents the supplied event.
+-- The popup is placed by RunLayout.bannerRect, BannerGap below the pill; its entry drop is never larger than
+-- that gap minus 2 px, so it cannot touch the pill while it settles, and it stays clear of Cash, Heat and the
+-- protected road view (RunLayout.protected) on every frame.
 --
 -- Arbitration (ctx.priority, Prototype/Priority.luau): requests the "Upper" slot at "District"
 -- and waits up to 4 s. A Safety warning suppresses "Upper" (RunEnd / warning chip), so the
@@ -37,7 +40,7 @@ local IN = 0.2
 local HOLD = 1.6
 local OUT = 0.25
 local WAIT = 4 -- seconds a banner may wait for the slot before it is stale
-local DROP = 8 -- design px drop on entry (none in reduced motion)
+local DROP = math.min(8, RunLayout.BannerGap - 2) -- design px drop on entry (none in reduced motion); never reaches the pill
 
 local RouteMath = require(script.Parent.RouteMath)
 
@@ -329,6 +332,7 @@ function DistrictBanner.getDebugState(self: DistrictBanner): { [string]: any }
 		seen += 1
 	end
 	local rect = RunLayout.bannerRect(self._ctx)
+	local pill = RunLayout.routeRect(self._ctx)
 	return {
 		visible = self._visible,
 		showing = self._showing,
@@ -341,6 +345,14 @@ function DistrictBanner.getDebugState(self: DistrictBanner): { [string]: any }
 		text = self._name.Text,
 		box = RunLayout.describe(rect),
 		overlapsProtected = RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),
+		overlapsPill = RunLayout.overlaps(rect, pill),
+		overlapsCash = RunLayout.overlaps(rect, RunLayout.cashRect(self._ctx)),
+		overlapsHeat = RunLayout.overlaps(rect, (RunLayout.heatRect(self._ctx))),
+		-- the highest the popup ever is (the start of its entry drop) against the bottom of the pill
+		topWithDrop = rect.pos.Y - DROP,
+		pillBottom = pill.pos.Y + pill.size.Y,
+		-- the popup draws in one CanvasGroup: no tween is left once it has faded out
+		groupVisible = self._group.Visible,
 	}
 end
 

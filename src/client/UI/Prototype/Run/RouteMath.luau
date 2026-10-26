@@ -7,9 +7,14 @@
 -- district; only the local progress inside the cycle resets. A route cycle is a district-route cycle: it
 -- is NOT a Speedway income lap.
 --
--- The line is schematic like a subway map: station i sits at visual position (i - 1) / N and the line
--- ends at 1.0 (where the record badge is), so each district owns one equal visual stretch while its
--- real length (unequal) decides how fast the marker crosses it.
+-- Round 3 (R3-D): the run overlay is one distance pill (RouteLine) and the arrival popup (DistrictBanner). They
+-- use total, locate, remaining and upcoming. visualT, record and crossed served the removed progress line, marker
+-- and BEST badge; they are KEPT as pure domain functions (the personal best, run.recordM, is still supplied by the
+-- store and a Results or NEW BEST moment may want them) and are covered by the "Route: record maths" scenario, but
+-- no run overlay calls them any more.
+--
+-- Schematic position (visualT): station i sits at (i - 1) / N and the line ends at 1.0, so each district owns
+-- one equal visual stretch while its real length (unequal) decides how fast a marker would cross it.
 --
 --   RouteMath.locate(plan, distance) -> Location?
 --   RouteMath.visualT(plan, within) -> number            -- 0..1 along the line for a metre offset in the cycle

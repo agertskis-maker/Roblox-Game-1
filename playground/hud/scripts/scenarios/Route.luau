@@ -1,12 +1,13 @@
 --!strict
--- PLAYGROUND ONLY (Lane 3 Round 2, R2-R1 / R2-R2): route line scenarios. Every value is a synthetic fixture
--- played through the preview store (explicit unequal district lengths from WorldRoutes; the personal best is a
--- supplied number, never saved). The fixture speed is set to 0 so each scenario owns the distance, and the
--- scenario sends the DistrictEnter events that Lane 1 would send at each boundary crossing.
+-- PLAYGROUND ONLY (Lane 3 Round 2 R2-R1, revised for Round 3 R3-D): distance pill and district scenarios. Every value
+-- is a synthetic fixture played through the preview store (explicit unequal district lengths from WorldRoutes). The
+-- fixture speed is set to 0 so each scenario owns the distance, and the scenario sends the DistrictEnter events that
+-- Lane 1 would send at each boundary crossing.
 --
--- Per World: a full cycle into the second one (lap tag, sweep back, total distance continues), a record
--- crossing (NEW BEST once, also across later oscillation and a second cycle), then the static record cases and
--- the reordered / repeated update case. Each logs the debug numbers it checks and a PASS / FAIL line.
+-- Round 3: the route line (stations, marker, LAP tag, BEST badge, NEW BEST) was removed, so its scenarios are gone. What
+-- stays true, per World: the pill names the area AHEAD and the metres to it, the shown distance only grows, an area is
+-- entered once per (cycle, district) however often a boundary is crossed, and the arrival popup never replays. The
+-- personal-best maths (RouteMath.record / crossed) is kept as pure domain code and is tested here without any overlay.
 
 local Players = game:GetService("Players")
 
@@ -16,6 +17,7 @@ local Prototype = Players.LocalPlayer
 	:WaitForChild("UI")
 	:WaitForChild("Prototype")
 local Motion = require(Prototype:WaitForChild("Motion"))
+local RouteLine = require(Prototype:WaitForChild("Run"):WaitForChild("RouteLine"))
 local RouteMath = require(Prototype:WaitForChild("Run"):WaitForChild("RouteMath"))
 local WorldRoutes = require(script.Parent.Parent:WaitForChild("WorldRoutes"))
 
@@ -78,8 +80,9 @@ local S: { [string]: (Host) -> () } = {}
 for _, id in WorldRoutes.ids do
 	local world = WorldRoutes.worlds[id]
 
-	-- A full cycle into the second one: stations, arrivals, lap tag, total distance continues.
-	S["Route: full cycle and lap (" .. world.name .. ")"] = function(host: Host)
+	-- A full cycle into the second one: the pill names the area ahead (never the current one), the distance
+	-- continues, an area is entered once.
+	S["Route: full cycle (" .. world.name .. ")"] = function(host: Host)
 		local plan = WorldRoutes.plan(id)
 		local sum = total(plan)
 		host.api.setSpeed(0)
@@ -89,30 +92,55 @@ for _, id in WorldRoutes.ids do
 		host.api.setWorld(id)
 		host.wait(0.3)
 		local first = state(host)
-		verdict(host, id .. " stations", #first.stations == 5, "stations " .. tostring(#first.stations))
+		verdict(
+			host,
+			id .. " names the area ahead",
+			first.kind == "Upcoming" and first.areaText == plan.districts[2].name and first.nameFits == true,
+			string.format(
+				"kind %s, area %q (expected %q)",
+				tostring(first.kind),
+				tostring(first.areaText),
+				plan.districts[2].name
+			)
+		)
+		verdict(
+			host,
+			id .. " says how far",
+			string.find(tostring(first.hintText), "^Next in ") ~= nil,
+			tostring(first.hintText)
+		)
 		advance(host, plan, 0, sum * 0.999, 14, 0.05)
 		local late = state(host)
-		verdict(host, id .. " last district", late.index == 5 and late.cycle == 1, "index " .. tostring(late.index))
+		verdict(
+			host,
+			id .. " last district looks ahead to the first (never shows itself as next)",
+			late.index == 5
+				and late.cycle == 1
+				and late.areaId == plan.districts[1].id
+				and late.areaId ~= plan.districts[5].id,
+			string.format("index %s, ahead %s", tostring(late.index), tostring(late.areaId))
+		)
 		host.wait(0.5)
 		advance(host, plan, sum * 0.999, sum * 1.35, 10, 0.05)
-		host.wait(0.8)
+		host.wait(0.4)
 		local after = state(host)
 		verdict(
 			host,
 			id .. " second cycle",
-			after.cycle == 2 and after.lap == "LAP 2" and after.lapWraps - first.lapWraps == 1,
+			after.cycle == 2,
 			string.format(
-				"cycle %s, tag %s, wraps %s",
+				"cycle %s, index %s, ahead %s",
 				tostring(after.cycle),
-				tostring(after.lap),
-				tostring(after.lapWraps - first.lapWraps)
+				tostring(after.index),
+				tostring(after.areaText)
 			)
 		)
 		verdict(
 			host,
 			id .. " total distance continues",
-			after.distance >= sum * 1.35 - 1e-6,
-			string.format("callout distance %.0f of total %.0f", after.distance, sum)
+			after.distance >= sum * 1.35 - 1e-6
+				and after.distanceText == RouteLine.distanceText(math.floor(after.distance)),
+			string.format("shown %q for %.0f of cycle length %.0f", tostring(after.distanceText), after.distance, sum)
 		)
 		local endLoc = RouteMath.locate(plan, sum * 1.35) :: any
 		local expected = (endLoc.cycle - 1) * #plan.districts + endLoc.index - 1
@@ -128,112 +156,48 @@ for _, id in WorldRoutes.ids do
 		)
 		host.api.setSpeed(nil)
 	end
-
-	-- Record inside the cycle: crossing fires NEW BEST once, even across oscillation and a second cycle.
-	S["Route: record crossing (" .. world.name .. ")"] = function(host: Host)
-		local plan = WorldRoutes.plan(id)
-		local sum = total(plan)
-		local record = math.floor(sum * 0.55)
-		host.api.setSpeed(0)
-		host.api.setRecord(record, true)
-		host.api.setWorld(id)
-		freshRun(host)
-		host.api.setWorld(id)
-		host.wait(0.3)
-		local s0 = state(host)
-		local base = s0.newBestCount
-		verdict(host, id .. " marker at its distance", s0.record == "Inside" and s0.recordMarker == true, s0.record)
-		advance(host, plan, 0, record - 6, 12, 0.05)
-		verdict(
-			host,
-			id .. " before the record",
-			state(host).newBestCount == base,
-			"NEW BEST count " .. tostring(state(host).newBestCount - base)
-		)
-		advance(host, plan, record - 6, record + 30, 6, 0.08)
-		host.wait(0.4)
-		local crossed = state(host)
-		verdict(
-			host,
-			id .. " NEW BEST once",
-			crossed.newBestCount - base == 1 and crossed.newBest == true,
-			"count " .. tostring(crossed.newBestCount - base)
-		)
-		-- the same crossing again from below (an oscillating update stream) must not fire again
-		for _ = 1, 3 do
-			setDistance(host, record - 20)
-			host.wait(0.15)
-			setDistance(host, record + 20)
-			host.wait(0.15)
-		end
-		verdict(
-			host,
-			id .. " no replay on oscillation",
-			state(host).newBestCount - base == 1,
-			"count " .. tostring(state(host).newBestCount - base)
-		)
-		advance(host, plan, record + 20, sum * 1.3, 14, 0.05)
-		host.wait(0.4)
-		verdict(
-			host,
-			id .. " no replay in the second cycle",
-			state(host).newBestCount - base == 1,
-			"count " .. tostring(state(host).newBestCount - base)
-		)
-		host.api.setSpeed(nil)
-		host.api.setRecord(nil, nil)
-	end
 end
 
--- Static record cases (Downtown): none, inside, ahead, behind, below the start, unverified.
-S["Route: record cases"] = function(host: Host)
+-- The personal-best maths is domain code with no overlay caller any more: tested as pure functions (none, inside
+-- the cycle, ahead, behind, the first stretch, and the once-per-crossing edge).
+S["Route: record maths (pure)"] = function(host: Host)
 	local plan = WorldRoutes.plan("Downtown")
 	local sum = total(plan)
-	host.api.setSpeed(0)
-	host.api.setWorld("Downtown")
-	local function hold(name: string, distance: number, record: number?, verified: boolean?, expect: string)
-		host.api.setRecord(record, verified)
-		freshRun(host) -- the run keeps its furthest distance, so each case is its own run
-		setDistance(host, distance)
-		host.wait(1.2)
-		local s = state(host)
-		verdict(
-			host,
-			name,
-			s.record == expect,
-			string.format(
-				"record %s, label %q, marker %s, delta %s",
-				tostring(s.record),
-				tostring(s.recordText),
-				tostring(s.recordMarker),
-				tostring(s.recordDelta)
-			)
-		)
+	local function kind(record: number?, distance: number): string
+		return RouteMath.record(plan, record, distance).kind
 	end
-	hold("No prior best", 120, nil, nil, "None")
-	hold("Record inside the cycle (ahead of you)", 120, math.floor(sum * 0.6), true, "Inside")
-	hold("Record inside the cycle (behind you)", math.floor(sum * 0.8), math.floor(sum * 0.3), true, "Inside")
-	hold("Record beyond this cycle", 120, math.floor(sum * 2.4), true, "Ahead")
-	hold("Record below this cycle (second cycle)", sum + 140, math.floor(sum * 0.3), true, "Behind")
-	hold("Record in the first stretch", 400, 25, true, "Inside")
-	-- an unverified record is still shown, but no NEW BEST moment fires
-	host.api.setRecord(math.floor(sum * 0.5), false)
-	freshRun(host)
-	local base = state(host).newBestCount
-	setDistance(host, math.floor(sum * 0.45))
-	host.wait(0.6)
-	advance(host, plan, math.floor(sum * 0.45), math.floor(sum * 0.65), 8, 0.05)
+	verdict(host, "No prior best", kind(nil, 120) == "None" and kind(0, 120) == "None", kind(nil, 120))
 	verdict(
 		host,
-		"Unverified record: no NEW BEST",
-		state(host).newBestCount == base,
-		"count " .. tostring(state(host).newBestCount - base)
+		"Record inside the cycle",
+		kind(math.floor(sum * 0.6), 120) == "Inside",
+		kind(math.floor(sum * 0.6), 120)
 	)
-	host.api.setSpeed(nil)
-	host.api.setRecord(nil, nil)
+	verdict(
+		host,
+		"Record beyond this cycle",
+		kind(math.floor(sum * 2.4), 120) == "Ahead",
+		kind(math.floor(sum * 2.4), 120)
+	)
+	verdict(
+		host,
+		"Record below the second cycle",
+		kind(math.floor(sum * 0.3), sum + 140) == "Behind",
+		kind(math.floor(sum * 0.3), sum + 140)
+	)
+	verdict(host, "Record in the first stretch", kind(25, 400) == "Inside", kind(25, 400))
+	verdict(
+		host,
+		"Crossing edge",
+		RouteMath.crossed(99, 101, 100)
+			and not RouteMath.crossed(101, 150, 100)
+			and not RouteMath.crossed(99, 99.5, 100),
+		"crossed(99,101,100) true, crossed(101,150,100) false"
+	)
+	verdict(host, "NaN is not a record", not RouteMath.crossed(0 / 0, 5, 0 / 0), "no crossing")
 end
 
--- Reordered and repeated updates: no banner replay, no arrival replay, the marker never moves back.
+-- Reordered and repeated updates: no popup replay, no arrival replay, the shown distance never moves back.
 S["Route: reordered and repeated updates"] = function(host: Host)
 	local plan = WorldRoutes.plan("Downtown")
 	host.api.setSpeed(0)
@@ -270,15 +234,15 @@ S["Route: reordered and repeated updates"] = function(host: Host)
 	)
 	verdict(
 		host,
-		"Banners do not replay",
+		"Popups do not replay",
 		shown() == bannersBefore,
 		string.format("%s -> %s", tostring(bannersBefore), tostring(shown()))
 	)
 	verdict(
 		host,
-		"Marker never moved back",
-		after.distance >= 345 - 1e-6 and after.shownT >= before.shownT - 1e-3,
-		string.format("distance %s, shown %.3f -> %.3f", tostring(after.distance), before.shownT, after.shownT)
+		"Distance never moved back",
+		after.distance >= 345 - 1e-6,
+		string.format("distance %s after a drop to 318", tostring(after.distance))
 	)
 	host.api.setSpeed(nil)
 end

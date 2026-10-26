@@ -6,20 +6,22 @@
 --
 --   RunLayout.canvas(ctx, name) -> Frame (root with HudScale); RunLayout.fit(ctx, root)
 --   RunLayout.design(ctx)       -> Vector2 canvas size in design px
---   RunLayout.compact(ctx)      -> true on phones (compact strip, tray, Heat)
+--   RunLayout.compact(ctx)      -> true on phones (compact tray, Stamina, Heat)
 --   RunLayout.protectedRect(profile) -> Rect in DEVICE px (relative to the device frame)
 --   RunLayout.protected(ctx)    -> Rect in design px (same region; landingBand is an alias)
 --   RunLayout.worldToCanvas(ctx, worldPos) -> (Vector2 design px, onScreen, depth)
 --   RunLayout.routeRect (alias stripRect) / cashRect / trayRect / bannerRect / sideRect / heatRect / hopRect /
 --     keysRect / dashRect(ctx) -> Rect (placement, shared so siblings avoid each other without
 --     seeing each other; the solver reports any leftover conflict as a second return)
+--   RunLayout.landingRect (alias chipRect)(ctx) -> Rect  (Round 3: where the transient landing label shows;
+--     the permanent riding chip is gone)
 --   RunLayout.upperY(ctx)       -> design y of the "Upper" message row (banner, milestones)
 --
 -- PROTECTED ROAD-AHEAD REGION (L-05; a reversible PROPOSAL from the preview chase camera, not a
 -- camera measurement): the ridden car, the next Hop target and the landing trajectory stay in
 -- the middle of the screen, so no run component may sit in it. Fractions of the safe area:
 --   Desktop / Tablet   x 30%..70%, y 40%..85%   (the overnight band)
---   PhoneLandscape     x 28%..72%, y 42%..84%   (the strip and banner fit above it)
+--   PhoneLandscape     x 28%..72%, y 42%..84%   (the distance pill and the arrival popup fit above it)
 --   PhoneSmall / PhoneLandscapeLeft / PhoneLandscapeRight   the PhoneLandscape fractions
 -- Diagnostics (RunLayer:setDiagnostics) draw it as "PROTECTED ROAD AHEAD".
 
@@ -190,100 +192,67 @@ local function centred(cx: number, cy: number, size: Vector2, name: string): Rec
 end
 
 ----------------------------------------------------------------------------------------------
--- Route line (top centre; Round 2, R2-R1). A subway-style line with five stations and the record
--- badge at its right end. Geometry lives here so siblings can place themselves under it without the
--- line being mounted. Design px, block-local: callout row on top, the station tiles (current one
--- larger), the track row (nodes + avatar marker + record markers) and the station names under it.
+-- Distance pill (top centre; Round 3, R3-D). ONE small pill: the run distance on the left and, in two compact
+-- lines on the right, the next area and how far away it is. The Round 2 route line (landmark tiles, progress
+-- line, avatar marker, BEST badge) is gone, and so is the height it reserved: the pill is the whole block, so the
+-- banner row, the side column and the Keys/SECURED candidates start where the pill ends. Geometry lives here so
+-- siblings can place themselves under it without the pill being mounted. Design px, block-local, the same on
+-- every frame (the sizes are fixed boxes: the distance is right-aligned in its own box and the area text is
+-- left-aligned in its own box, so ticking digits never move anything else).
+--
+-- TOKEN CANDIDATEs (all of these): the widths come from measured text (Fredoka One advance widths at 18 px for
+-- the longest known area name, "Red Rock Arches" = 144 px; the kit's tabular Nunito digits for the distance).
 
 RunLayout.Route = table.freeze({
-	Top = 8,
-	Stations = 5,
-	-- full (desktop, tablet)
-	Pitch = 82,
-	Icon = 50,
-	IconCurrent = 58,
-	TrackH = 8,
-	Marker = 30,
-	CalloutH = 28,
-	NameH = 36, -- two lines of the 16 px minimum
-	Badge = 40,
-	Width = 600,
-	-- compact (phones)
-	CPitch = 60,
-	CIcon = 34,
-	CIconCurrent = 38,
-	CTrackH = 6,
-	CMarker = 22,
-	CCalloutH = 20,
-	CNameH = 18, -- one short label
-	CBadge = 28,
-	CWidth = 430,
+	Top = 12, -- level with the run Cash line and the Settings button (RunLayout.Margin)
+	Height = 52, -- PadY + name row + hint row + PadY
+	PadX = 12,
+	PadY = 5,
+	DistanceW = 120, -- "99,999 m" at 22 px (the kit's italic number face) with outline room
+	AreaW = 160, -- the longest name at 18 px (144) plus the label padding and some slack
+	Gap = 10,
+	Divider = 3,
+	NameRow = 22, -- one 18 px line (1.21 x the font size)
+	HintRow = 20, -- one 16 px line
 })
 
 export type RouteGeometry = {
-	compact: boolean,
-	size: Vector2, -- the whole block
-	pitch: number, -- distance between station centres
-	icon: number, -- station tile side (upcoming / visited)
-	iconCurrent: number, -- station tile side while current
-	calloutY: number,
-	calloutH: number,
-	iconBottom: number, -- bottom edge of every station tile (the current one grows upward)
-	trackY: number, -- centre of the track
-	trackH: number,
-	marker: number, -- avatar marker diameter
+	size: Vector2, -- the whole pill
+	distanceX: number, -- left edge of the distance box
+	distanceW: number,
+	dividerX: number,
+	areaX: number, -- left edge of the area box
+	areaW: number,
 	nameY: number,
 	nameH: number,
-	badge: number, -- record badge side
-	x1: number, -- centre x of station 1 (start of the cycle)
-	xEnd: number, -- right end of the line: the cycle end (the record badge follows it)
-	badgeX: number, -- centre x of the record badge
+	hintY: number,
+	hintH: number,
 }
 
-function RunLayout.routeGeometry(compact: boolean): RouteGeometry
+function RunLayout.routeGeometry(): RouteGeometry
 	local R = RunLayout.Route
-	local pitch = if compact then R.CPitch else R.Pitch
-	local icon = if compact then R.CIcon else R.Icon
-	local iconCurrent = if compact then R.CIconCurrent else R.IconCurrent
-	local trackH = if compact then R.CTrackH else R.TrackH
-	local marker = if compact then R.CMarker else R.Marker
-	local calloutH = if compact then R.CCalloutH else R.CalloutH
-	local nameH = if compact then R.CNameH else R.NameH
-	local badge = if compact then R.CBadge else R.Badge
-	local width = if compact then R.CWidth else R.Width
-	local gap = if compact then 2 else 4
-	local iconBottom = calloutH + gap + iconCurrent
-	local trackY = iconBottom + gap + marker / 2
-	local nameY = trackY + marker / 2 + 1
-	local content = iconCurrent / 2 + R.Stations * pitch + (if compact then 6 else 8) + badge + 4
-	local x1 = (width - content) / 2 + iconCurrent / 2
-	local xEnd = x1 + R.Stations * pitch
+	local distanceX = R.PadX
+	local dividerX = distanceX + R.DistanceW + R.Gap
+	local areaX = dividerX + R.Divider + R.Gap
 	return {
-		compact = compact,
-		size = Vector2.new(width, nameY + nameH),
-		pitch = pitch,
-		icon = icon,
-		iconCurrent = iconCurrent,
-		calloutY = 0,
-		calloutH = calloutH,
-		iconBottom = iconBottom,
-		trackY = trackY,
-		trackH = trackH,
-		marker = marker,
-		nameY = nameY,
-		nameH = nameH,
-		badge = badge,
-		x1 = x1,
-		xEnd = xEnd,
-		badgeX = xEnd + (if compact then 6 else 8) + badge / 2,
+		size = Vector2.new(areaX + R.AreaW + R.PadX, R.Height),
+		distanceX = distanceX,
+		distanceW = R.DistanceW,
+		dividerX = dividerX,
+		areaX = areaX,
+		areaW = R.AreaW,
+		nameY = R.PadY,
+		nameH = R.NameRow,
+		hintY = R.PadY + R.NameRow,
+		hintH = R.HintRow,
 	}
 end
 
--- The route block. Centred; shifted right when a narrow screen would put its callout row over the
--- run Cash line (top-left), never past the right edge.
+-- The pill. Centred; shifted right when a narrow screen would put it over the run Cash line (top-left), never
+-- past the right edge.
 function RunLayout.routeRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
-	local size = RunLayout.routeGeometry(RunLayout.compact(ctx)).size
+	local size = RunLayout.routeGeometry().size
 	local x = d.X / 2 - size.X / 2
 	local cash = RunLayout.cashRect(ctx)
 	local clear = cash.pos.X + cash.size.X + 8
@@ -292,7 +261,7 @@ function RunLayout.routeRect(ctx: Ctx): Rect
 	end
 	return RunLayout.rect(x, RunLayout.Route.Top, size.X, size.Y, "RouteLine")
 end
-RunLayout.stripRect = RunLayout.routeRect -- legacy name (gear, chip, banner and Keys placement read it)
+RunLayout.stripRect = RunLayout.routeRect -- legacy name (gear, landing label, banner and Keys placement read it)
 
 ----------------------------------------------------------------------------------------------
 -- Run-time Cash (Round 2, R2-C1): the compact Cash line, top-left of the safe area below the core UI
@@ -390,15 +359,17 @@ function RunLayout.trayRect(ctx: Ctx): Rect
 end
 
 ----------------------------------------------------------------------------------------------
--- Upper message row (district banner, milestones): under the strip, and under a run-time tutorial
--- banner if one is shown.
+-- Upper message row (arrival popup, milestones): under the distance pill, and under a run-time tutorial
+-- banner if one is shown. The gap is wider than the popup's entry drop (DistrictBanner DROP, 8 px) so the popup
+-- never touches the pill while it settles.
 
 RunLayout.BannerH = 44
 RunLayout.BannerHCompact = 36
+RunLayout.BannerGap = 10
 
 function RunLayout.upperY(ctx: Ctx): number
 	local strip = RunLayout.stripRect(ctx)
-	local y = strip.pos.Y + strip.size.Y + 4
+	local y = strip.pos.Y + strip.size.Y + RunLayout.BannerGap
 	-- Assumption: a run-time tutorial banner (Home worker's component) sits directly under the
 	-- top of the safe area; the banner never stacks with it (DistrictBanner defers instead).
 	return y
@@ -444,9 +415,9 @@ end
 -- is full) it is a small STACK (thumbnail, SECURED!, name, Lap Pay) in the column right of the protected road view, the
 -- very place the Keys ring just occupied: the lock opens and the ring hands over to the stack. That place was already
 -- chosen clear of the protected rectangle, the top block, Heat, Hop and the touch zones, so the stack never covers the
--- road, the next target, the route line or the tray count it is about to feed.
+-- road, the next target, the distance pill or the tray count it is about to feed.
 -- The stack tries the full size, then a mini (150 x 66: thumbnail, SECURED!, Lap Pay line and the name, all at the 16 px
--- minimum), in every candidate place. The riding chip steps aside on EVERY layout that shows the stack, so it is never an
+-- minimum), in every candidate place. The landing label steps aside on EVERY layout that shows the stack, so it is never an
 -- obstacle. The very tightest layout (PhoneSmall with the Stamina meter) has no clear place at all: the last resort is the
 -- spot level with the Settings button, covering only that button (the ribbon takes no input, so it stays tappable); the third
 -- result names it ("Options"), and "Unresolved" would mean even that failed.
@@ -464,13 +435,13 @@ function RunLayout.ribbonPlacement(ctx: Ctx): (string, Rect, string?)
 	local prot = RunLayout.protected(ctx)
 	local m = RunLayout.Margin
 	local right = prot.pos.X + prot.size.X
-	-- the column right of the road view, just under Settings and the route line. On a phone that is where the riding
-	-- chip sits: it steps aside while the stack shows (RunBus flag secured), so the chip is not an obstacle there.
+	-- the column right of the road view, just under Settings and the distance pill. That is where the landing
+	-- label shows: it steps aside while the stack shows (RunBus flag secured), so the label is not an obstacle there.
 	local gear = RunLayout.gearRect(ctx)
 	local strip = RunLayout.routeRect(ctx)
 	local top = gear.pos.Y + gear.size.Y + 6
 	if right + m < strip.pos.X + strip.size.X then
-		top = math.max(top, strip.pos.Y + strip.size.Y + 6) -- under the route line where they share columns
+		top = math.max(top, strip.pos.Y + strip.size.Y + 6) -- under the distance pill where they share columns
 	end
 	local function candidatesFor(size: Vector2): { Rect }
 		return {
@@ -518,11 +489,11 @@ function RunLayout.ribbonPlacement(ctx: Ctx): (string, Rect, string?)
 end
 
 ----------------------------------------------------------------------------------------------
--- Top stack publishing (legacy: RideChip reads it). RouteLine publishes the route block.
+-- Top stack publishing (legacy: FootDash listens to it). RouteLine publishes the distance pill.
 
 export type Top = {
 	row: number,
-	distance: Rect, -- the strip block (its head + distance live inside it)
+	distance: Rect, -- the distance pill
 	cash: Rect,
 	stackBottom: number,
 	leftBottom: number,
@@ -552,9 +523,9 @@ function RunLayout.top(screen: any): Top
 	end
 	return {
 		row = 1,
-		distance = RunLayout.rect(0, 8, 0, 122),
+		distance = RunLayout.rect(0, RunLayout.Route.Top, 0, RunLayout.Route.Height),
 		cash = RunLayout.rect(12, 12, 150, 32),
-		stackBottom = 130,
+		stackBottom = RunLayout.Route.Top + RunLayout.Route.Height,
 		leftBottom = 44,
 	}
 end
@@ -562,7 +533,12 @@ end
 ----------------------------------------------------------------------------------------------
 -- Placement of the run pieces
 
-RunLayout.ChipSize = Vector2.new(220, 44)
+-- The transient landing label (Round 3, R3-L) replaced the permanent riding chip. It keeps the chip's place, the
+-- right column under Settings, which Round 2 already proved clear of the Hop, Heat, tray and Keys placements.
+-- The footprint is two name lines at 16 px under the rarity word (4 + 20 + 39 + 4: 68 design px tall); the width is cut so the
+-- label never reaches into the protected road view or the arrival popup.
+RunLayout.LandingSize = Vector2.new(200, 68)
+RunLayout.ChipSize = RunLayout.LandingSize -- legacy name
 function RunLayout.gearRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
 	-- the labelled red Settings rectangle (Arcade Small) replaced the 48 px gear
@@ -577,22 +553,27 @@ function RunLayout.gearRect(ctx: Ctx): Rect
 	return r
 end
 
--- The ride chip (legacy RideChip) under the gear; moved below the strip when they would touch.
-function RunLayout.chipRect(ctx: Ctx): Rect
+-- The landing label's place: under the gear, right-aligned, narrower where the protected road view or the arrival
+-- popup would otherwise be reached; moved below the pill when they would touch.
+function RunLayout.landingRect(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
 	local m = RunLayout.Margin
-	local s = RunLayout.ChipSize
+	local s = RunLayout.LandingSize
+	local prot = RunLayout.protected(ctx)
+	local banner = RunLayout.bannerRect(ctx)
+	local left = math.max(prot.pos.X + prot.size.X, banner.pos.X + banner.size.X) + 4
+	local w = math.clamp(d.X - m - left, 120, s.X)
 	local gear = RunLayout.gearRect(ctx)
-	local w = math.min(s.X, d.X - 2 * m)
-	local r = RunLayout.rect(d.X - m - w, gear.pos.Y + gear.size.Y + 8, w, s.Y, "RideChip")
+	local r = RunLayout.rect(d.X - m - w, gear.pos.Y + gear.size.Y + 8, w, s.Y, "Landing")
 	local strip = RunLayout.stripRect(ctx)
 	if RunLayout.overlaps(r, strip) then
-		r = RunLayout.rect(d.X - m - w, strip.pos.Y + strip.size.Y + 6, w, s.Y, "RideChip")
+		r = RunLayout.rect(d.X - m - w, strip.pos.Y + strip.size.Y + 6, w, s.Y, "Landing")
 	end
 	return r
 end
+RunLayout.chipRect = RunLayout.landingRect -- legacy name (Keys, ribbon and nameplate blockers read it)
 
--- Everything at the top of the screen (Cash, strip, options, ride chip).
+-- Everything at the top of the screen (Cash, pill, options, landing label).
 function RunLayout.topBlock(ctx: Ctx): Rect
 	local d = RunLayout.design(ctx)
 	local strip = RunLayout.stripRect(ctx)
@@ -628,53 +609,224 @@ RunLayout.hintRect = function(ctx: Ctx): Rect
 	return (RunLayout.hopRect(ctx))
 end
 
--- Heat (bottom centre; Round 2): the ORIGINAL ENGINE HEAT panel (RunHud.HeatGauge, 320 x 92 design px),
--- scaled to fit. Placement keeps it bottom-centre when it can: centred if clear; else shifted clear of
--- the thumbstick zone; else centred in the gap between the thumbstick zone and Hop; each tried at the
--- scales in HeatScales (1.0, then 0.92, then 0.89: the stage label stays at least 16.0 design px, the approved minimum). If even the
--- smallest scale does not fit clear of the (conservative, assumed) thumbstick zone, it is placed against
--- Hop with its left edge allowed to reach up to HeatSoftOverlap px into that zone and the rect reports the
--- conflict "ThumbstickSoft" (phone sizes only; recorded in the ledger). It never overlaps Hop.
+----------------------------------------------------------------------------------------------
+-- HEAT PANEL REGION (Round 3, R3-H). All Heat placement in this file lives here.
+-- The ORIGINAL ENGINE HEAT panel (RunHud.HeatGauge, 320 x 92 design px) is not edited, redrawn or reshaped: it is only
+-- scaled uniformly and anchored. Rectangles are design px on the run canvas (the safe area under HudScale) unless a
+-- name or a comment says device or real px.
+--   Centre  On the FULL VIEWPORT (the device frame's centre), not on the safe area's own centre. On the notch frames the
+--           two differ by (right inset - left inset) / 2 device px, carried as `shift` (design px, canvas centre to
+--           viewport centre: 0 on four frames, -13 and +13 on PhoneLandscapeLeft and Right). Only if the panel with its
+--           effect margin would leave the safe area is the centre pulled inward (`pulled`; 0 on every frame today).
+--           It is one static anchor, AnchorPoint (0.5, 1) at Position (0.5 + shift / width, 0, 1, -gap) (a scale, so a
+--           fractional shift is not rounded to whole px), written when the layout changes and never per frame.
+--   Scale   The SMALLEST scale at which the smallest Heat text (the ENGINE HEAT title tab, 16 design px) still reads at
+--           HeatTextFloor real px: k = HeatTextFloor / (HeatSmallestText x HudScale), never above 1 (the approved size)
+--           and never above what fits the safe width. HudScale 1.5 (Desktop, Tablet) gives 0.667. Every phone frame has
+--           HudScale 1.0, so k = 1.0 there: the title is exactly 16 px and cannot shrink.
+--   Bottom  HeatBottomGap (8 design px, unchanged since Round 2) between the card and the safe-area bottom.
+--   Growth  HeatGauge's own stage growth (1.05 / 1.10 / 1.12 about the bottom centre) is kept. The cap passed to
+--           gauge:setLayout keeps the card and its outline HeatHopClear clear of Hop and SafeMargin inside the safe edge.
+--   Shape   HeatShape and heatShape mirror what HeatGauge draws on and outside its card (outline, shadow, title tab,
+--           alarm halo, sirens, Meltdown smoke) so coverage can be measured; scenarios/Heat.luau checks them against
+--           the live instances.
+--   RunLayout.heatPlan(ctx, scaleOverride?) -> HeatPlan   the one source of truth (scaleOverride is for what-if tables)
+--   RunLayout.heatRect(ctx) -> (card Rect, conflict)      the card, as before (siblings avoid it)
+--   RunLayout.heatBounds(ctx) -> Rect                     the panel as drawn at rest, title tab included
+--   RunLayout.heatRects(ctx, stage, plan?) -> { Rect }    everything drawn in a stage, with that stage's growth
+--   RunLayout.heatShape(stage) -> { Rect }                panel-local, relative to the card's bottom centre
+
 RunLayout.HeatFull = Vector2.new(320, 92) -- HeatGauge.Size (kept in step by HeatPanel's debug check)
-RunLayout.HeatScales = table.freeze({ 1, 0.92, 0.89 })
-RunLayout.HeatSoftOverlap = 60
-RunLayout.HeatCompact = Vector2.new(320 * 0.89, 92 * 0.89)
-RunLayout.HeatBottomGap = 8
-function RunLayout.heatRect(ctx: Ctx): (Rect, string?)
-	local d = RunLayout.design(ctx)
-	local hop = RunLayout.hopRect(ctx)
-	local thumb = zone(ctx, "Thumbstick")
-	local leftLimit = if thumb then thumb.pos.X + thumb.size.X + 6 else RunLayout.Margin
-	local gapL, gapR = leftLimit, hop.pos.X - 6
-	local candidates: { Rect } = {}
-	for _, k in RunLayout.HeatScales do
-		local size = RunLayout.HeatFull * k
-		local y = d.Y - RunLayout.HeatBottomGap - size.Y
-		table.insert(candidates, RunLayout.rect(d.X / 2 - size.X / 2, y, size.X, size.Y, "Heat"))
-		table.insert(candidates, RunLayout.rect(math.max(leftLimit, d.X / 2 - size.X / 2), y, size.X, size.Y, "Heat"))
-		if gapR - gapL >= size.X then
-			table.insert(candidates, RunLayout.rect((gapL + gapR) / 2 - size.X / 2, y, size.X, size.Y, "Heat"))
+RunLayout.HeatBottomGap = 8 -- unchanged since Round 2
+-- TOKEN CANDIDATE: real (device) px that the smallest Heat text may not go below (Tokens.TextSize.Minimum; Adam, Round 3).
+RunLayout.HeatTextFloor = 16
+-- TOKEN CANDIDATE: the smallest Heat text at scale 1 (the title tab: Tokens.TextSize.Minimum) and the stage label and
+-- HOP NOW! (Tokens.TextSize.Label). HeatPanel's debug state compares them with the live labels.
+RunLayout.HeatSmallestText = 16
+RunLayout.HeatLabelText = 18
+-- TOKEN CANDIDATE: clear gap between the card's outline and the Hop button, design px.
+RunLayout.HeatHopClear = 4
+-- HeatGauge's stage emphasis (its STAGE_SCALE), mirrored for the shape model; the Heat scenario reads the live value.
+RunLayout.HeatStageScale =
+	table.freeze({ Calm = 1, Warning = 1.05, Critical = 1.1, Meltdown = 1.12 } :: { [string]: number })
+-- What HeatGauge draws outside its card at scale 1, mirrored from its constants (see the comments on each line).
+RunLayout.HeatShape = table.freeze({
+	Outline = 3, -- Tokens.Stroke.Regular: the card and tab outline is drawn outside the frame
+	TabW = 140, -- HeatGauge TAB_SIZE: the title tab, centred on the card's top edge
+	TabH = 26,
+	Shadow = 4, -- Tokens.Shadow.OffsetY: the soft shadow below the card
+	Halo = 10, -- HeatGauge.EffectMargin: the alarm halo beyond the card (Critical, Meltdown)
+	SirenX = 91, -- siren centre from the panel centre: TAB_SIZE.X / 2 + SIREN_GAP + SIREN_SIZE.X / 2
+	SirenGlow = 30, -- siren glow circle diameter, centred on the card's top border
+	SmokeL = -13, -- Meltdown smoke plume at worst-case reach, from the card's top-left corner (negative: left, above)
+	SmokeR = 36,
+	SmokeT = -47,
+	SmokeB = 17,
+})
+
+export type HeatPlan = {
+	scale: number, -- uniform scale of the whole panel
+	card: Rect, -- the card at that scale (outline, title tab and effects not included)
+	bounds: Rect, -- box round the panel as drawn at rest (Calm): card, outline, shadow and title tab
+	centre: number, -- chosen centre x
+	shift: number, -- centre minus the canvas centre: the viewport / safe-area difference
+	pulled: number, -- how far the safe area forced the centre away from the viewport centre (0 normally)
+	gap: number, -- between the card and the canvas bottom
+	maxGrowth: number, -- stage growth limit for gauge:setLayout
+	smoke: number, -- smoke drift scale for gauge:setLayout (1 = the original)
+	title: number, -- the title tab's text size in real (device) px at rest
+	label: number, -- the stage label's text size in real px at rest
+	zone: string?, -- the reserved touch zone the panel is drawn over (visual only: the panel takes no input)
+	conflict: string?, -- "Hop", "Edge" or "TextFloor" when the panel cannot be placed cleanly
+}
+
+-- Panel-local rectangles at scale 1 and growth 1 (x right, y down) relative to the card's bottom centre: the card spans
+-- x -160..160, y -92..0. Calm and Warning draw the card, its outline and shadow and the title tab; Critical adds the
+-- alarm halo and both sirens; Meltdown adds the smoke plume at its worst-case reach (the top puffs are faint).
+function RunLayout.heatShape(stage: string): { Rect }
+	local S = RunLayout.HeatShape
+	local w, h = RunLayout.HeatFull.X, RunLayout.HeatFull.Y
+	local below = math.max(S.Outline, S.Shadow)
+	local rects: { Rect } = {
+		RunLayout.rect(-w / 2 - S.Outline, -h - S.Outline, w + 2 * S.Outline, h + S.Outline + below, "Card"),
+		RunLayout.rect(
+			-S.TabW / 2 - S.Outline,
+			-h - S.TabH / 2 - S.Outline,
+			S.TabW + 2 * S.Outline,
+			S.TabH + 2 * S.Outline,
+			"Tab"
+		),
+	}
+	if stage == "Critical" or stage == "Meltdown" then
+		table.insert(rects, RunLayout.rect(-w / 2 - S.Halo, -h - S.Halo, w + 2 * S.Halo, h + 2 * S.Halo, "Halo"))
+		for _, side in { -1, 1 } do
+			table.insert(
+				rects,
+				RunLayout.rect(
+					side * S.SirenX - S.SirenGlow / 2,
+					-h - 2 - S.SirenGlow / 2,
+					S.SirenGlow,
+					S.SirenGlow,
+					"Siren"
+				)
+			)
 		end
 	end
-	local found, conflict = RunLayout.solve(ctx, candidates, { hop })
-	if conflict == nil then
-		return found, nil
+	if stage == "Meltdown" then
+		table.insert(
+			rects,
+			RunLayout.rect(-w / 2 + S.SmokeL, -h + S.SmokeT, S.SmokeR - S.SmokeL, S.SmokeB - S.SmokeT, "Smoke")
+		)
 	end
-	-- soft fallback (phone sizes): the smallest scale, right-aligned against Hop, reaching at most
-	-- HeatSoftOverlap into the thumbstick zone
-	local k = RunLayout.HeatScales[#RunLayout.HeatScales]
-	local size = RunLayout.HeatFull * k
-	local y = d.Y - RunLayout.HeatBottomGap - size.Y
-	local x = math.max(gapR - size.X, leftLimit - RunLayout.HeatSoftOverlap)
-	local r = RunLayout.rect(x, y, size.X, size.Y, "Heat")
-	if RunLayout.overlaps(r, hop) then
-		return r, "Hop"
+	return rects
+end
+
+function RunLayout.heatPlan(ctx: Ctx, scaleOverride: number?): HeatPlan
+	local d = RunLayout.design(ctx)
+	local profile = ctx.screen:profile()
+	local s = ctx.screen:uiScale()
+	local full = RunLayout.HeatFull
+	local S = RunLayout.HeatShape
+	local conflict: string? = nil
+
+	-- scale: the smallest that keeps the smallest text at the floor, never above 1 or what fits the safe width
+	local fitK = (d.X - 2 * RunLayout.SafeMargin) / (full.X + 2 * S.Halo)
+	local k = math.ceil(RunLayout.HeatTextFloor / (RunLayout.HeatSmallestText * s) * 1000) / 1000
+	if scaleOverride ~= nil then
+		k = scaleOverride
+	elseif k > math.min(1, fitK) then
+		k = math.min(1, fitK)
+		conflict = "TextFloor"
 	end
-	return r, "ThumbstickSoft"
+
+	-- centre: the full viewport's centre on the canvas; pulled inward only if the panel and its halo would leave it
+	local viewport = (profile.size.X / 2 - profile.insets.left) / s
+	local reach = (full.X / 2 + S.Halo) * k
+	local centre = viewport
+	if reach <= d.X / 2 then
+		centre = math.clamp(viewport, reach, d.X - reach)
+	else
+		centre = d.X / 2
+		conflict = conflict or "Edge"
+	end
+
+	local gap = RunLayout.HeatBottomGap
+	local w, h = full.X * k, full.Y * k
+	local bottom = d.Y - gap
+	local card = RunLayout.rect(centre - w / 2, bottom - h, w, h, "Heat")
+
+	-- the panel as drawn at rest: the box round the Calm shape
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, r in RunLayout.heatShape("Calm") do
+		x0, y0 = math.min(x0, r.pos.X), math.min(y0, r.pos.Y)
+		x1, y1 = math.max(x1, r.pos.X + r.size.X), math.max(y1, r.pos.Y + r.size.Y)
+	end
+	local bounds = RunLayout.rect(centre + x0 * k, bottom + y0 * k, (x1 - x0) * k, (y1 - y0) * k, "HeatBounds")
+
+	-- stage growth: about the bottom centre, so it never moves the centre; capped for the safe edge and for Hop
+	local hop = RunLayout.hopRect(ctx)
+	local cardHalf = (full.X / 2 + S.Outline) * k
+	local edgeCap = (math.min(centre, d.X - centre) - RunLayout.SafeMargin) / reach
+	local hopCap = if hop.pos.X > centre then (hop.pos.X - RunLayout.HeatHopClear - centre) / cardHalf else math.huge
+	if hopCap < 1 then
+		conflict = conflict or "Hop"
+	end
+	local topGrowth = RunLayout.HeatStageScale.Meltdown
+	local maxGrowth = math.clamp(math.min(topGrowth, edgeCap, hopCap), 1, topGrowth)
+
+	local zoneName: string? = nil
+	for _, z in RunLayout.zones(ctx) do
+		if RunLayout.overlaps(bounds, z) then
+			zoneName = z.name
+			break
+		end
+	end
+
+	return {
+		scale = k,
+		card = card,
+		bounds = bounds,
+		centre = centre,
+		shift = if math.abs(centre - d.X / 2) < 1e-6 then 0 else centre - d.X / 2, -- exactly 0 when they coincide
+		pulled = math.abs(centre - viewport),
+		gap = gap,
+		maxGrowth = maxGrowth,
+		smoke = 1,
+		title = RunLayout.HeatSmallestText * s * k,
+		label = RunLayout.HeatLabelText * s * k,
+		zone = zoneName,
+		conflict = conflict,
+	}
+end
+
+-- The card (what siblings avoid) and why it could not be placed cleanly, if so.
+function RunLayout.heatRect(ctx: Ctx): (Rect, string?)
+	local plan = RunLayout.heatPlan(ctx)
+	return plan.card, plan.conflict
 end
 
 RunLayout.heatPanelRect = function(ctx: Ctx): Rect
 	return (RunLayout.heatRect(ctx))
+end
+
+-- The panel as drawn at rest, title tab included (heatRect is the card alone).
+function RunLayout.heatBounds(ctx: Ctx): Rect
+	return RunLayout.heatPlan(ctx).bounds
+end
+
+-- Everything the panel draws in `stage`, on the canvas, with that stage's growth (capped by the plan).
+function RunLayout.heatRects(ctx: Ctx, stage: string, plan: HeatPlan?): { Rect }
+	local pl = plan or RunLayout.heatPlan(ctx)
+	local bottom = RunLayout.design(ctx).Y - pl.gap
+	local m = pl.scale * math.min(RunLayout.HeatStageScale[stage] or 1, pl.maxGrowth)
+	local out: { Rect } = {}
+	for _, r in RunLayout.heatShape(stage) do
+		table.insert(
+			out,
+			RunLayout.rect(pl.centre + r.pos.X * m, bottom + r.pos.Y * m, r.size.X * m, r.size.Y * m, r.name)
+		)
+	end
+	return out
 end
 
 -- SECURED reveal card (Round 2, R2-V1): the full reward card on wide screens, ONLY where it clears the protected
