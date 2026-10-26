@@ -71,3 +71,21 @@ nearest folk and country items, not a twang-and-clap match. A real match may nee
 | Track | Heard? | Verdict |
 |---|---|---|
 | all eight | not yet | pending Adam |
+
+## Round 3 (R3-A, 2026-10-26): approved tracks, event-driven fades, quieter bed
+- **Adam approved the eight tracks above.** They are unchanged (same ids, same order). The A/B controls (`Music.useCandidate`)
+  stay in the private audition harness only; the Settings panel has Music On/Off and a level, nothing else.
+- **No per-frame work.** The controller has no Heartbeat connection and no polling thread. Every change (World, mute, enable,
+  tension, duck, candidate) starts a finite `TweenService` tween that removes itself; the duck release is one cancellable
+  `task.delay` per duck id. A steady loop writes no property.
+- **Short smooth fades:** at most 0.4 s out and 0.3 s in everywhere (World change, first start from 0, Music Off/On, enable, tension
+  start, confirm, cancel, an overflowing voice). A voice still fading out when its track is wanted again is revived (same Sound,
+  no loop restart). No voice is destroyed in one frame any more.
+- **Duck restores the player's level:** the duck is its own group under the player's level and nothing writes the player's level but
+  the Settings controls, so a duck always releases to whatever the player set (also if they moved the slider during the duck) and
+  Music Off stays Off through any sting.
+- **Quieter bed:** every track plays at `Sounds.MIX.musicBed` (Volume 0.143, was 0.5), about -8 dB under Cash in effective terms.
+  This is a proposal, not a listening result: raise it in `Sounds.MIX` if it is too quiet.
+- Checks: `scenarios/Music.luau` (the 32 Round 2 assertions plus the Round 3 ones) and `scenarios/Mix.luau`. Property checks only.
+- Review media: the licensed tracks and the chime / fanfare samples must stay out of exported review videos until the video rights
+  are established (unchanged rule).
