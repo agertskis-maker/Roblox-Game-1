@@ -11,6 +11,7 @@
 --   local shell = Style.panel(parent, { name = "Panel", z = 3 })  -- { root, body, lip }
 --   Style.header(shell.body, { fill = "Garage", title = "GARAGE", icon = "Garage" })
 --   Style.well(parent, "Row", z)                -- a dark inset row with a dark outline
+--   Style.plate(parent, "Row", z, fill?)        -- a bright arcade plate (kit fill, one outline, gloss)
 --   Style.chip(parent, "Chip", z)                -- a small floating HUD chip (Stunt)
 --   Style.text(parent, text, role, opts?)        -- kit text, left aligned, shrinks to fit (>= 16)
 --   Style.paragraph(parent, text, size?, soft?)  -- wrapped outlined copy that grows downward
@@ -250,6 +251,21 @@ function Style.well(parent: Instance, name: string, z: number?): Frame
 	})
 	Arcade.corner(f, 8)
 	Arcade.outline(f, "Minor")
+	return f
+end
+
+-- Round 3 (R2-HM3): a bright arcade plate for a row inside a panel (the Results rows and the Cash tally), the
+-- same recipe as the card's Lap Pay plate: a kit fill, ONE dark outline (Minor, because it sits inside a panel
+-- that already has the heavy one) and the narrow gloss band. Style.well stays for the screens that still use it.
+function Style.plate(parent: Instance, name: string, z: number?, fill: Arcade.FillName?): Frame
+	local f: Frame = make("Frame", {
+		Name = name,
+		BorderSizePixel = 0,
+		ZIndex = z or 5,
+		Parent = parent,
+	})
+	Arcade.corner(f, 8)
+	Arcade.surface(f, fill or "Garage", { outline = "Minor" })
 	return f
 end
 

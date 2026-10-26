@@ -4,8 +4,10 @@
 --
 --   * Kit look: wide compact rectangles with limited rounding, the thick dark boundary, a strong
 --     fill per tone with the narrow gloss band, white outlined text. Tones (colour is never the
---     only signal; each has an icon): Success = "Green" fill + tick, Info = ink-navy body + "i"
---     disc, Unlock = "Gold" fill + star.
+--     only signal; each has an icon): Success = "Green" fill + tick, Info = "Garage" blue + "i"
+--     disc, Unlock = "Gold" fill + star. Round 3 (R2-HM3): the body is an Arcade.surface (fill, ONE
+--     dark outline, gloss), Info is no longer a dark navy body, and the "x2" count is a white tag
+--     with a thin dark outline instead of a dark block with a white border.
 --   * At most PreviewTokens.Motion.ToastMaxVisible (2) visible, each for ToastSeconds (2.5 s).
 --   * Bounded queue of ToastQueue (6); when full, the oldest waiting toast is dropped (a toast is
 --     time-bound information, not a claim).
@@ -19,6 +21,11 @@
 --     with no arbiter, it shows directly.
 -- Placement (Home/Layout) keeps it under the banner and away from the menu, the stats and the
 -- reserved touch zones. Nothing is interactive.
+-- Round 3 (R2-HM3), run view only: the Home spot sits across the protected road rectangle on the tablet and the
+-- phone frames, so while the arbiter gates the stack (the Run mode) it uses the Upper row it asks for, centred
+-- under the distance pill where the district popup and the milestone band also sit (RunLayout.upperY). Only as
+-- many toasts show as fit between that row and the protected rectangle (one on the phone frames, two elsewhere);
+-- the rest wait in the bounded queue. Set RUN_UPPER_ROW = false to go back to the Home spot in the run view.
 --
 -- Store wiring: store.Event kind "Toast" (event.text, event.tone); store.ModeChanged.
 -- API: ToastStack.new(ctx) -> ToastStack
@@ -34,6 +41,7 @@ local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
 local Priority = require(script.Parent.Parent.Priority)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local RunLayout = require(script.Parent.Parent.Run.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -50,8 +58,14 @@ local POOL = 3 -- two visible plus one leaving
 local SLOT: Priority.Slot = "Upper"
 local LEVEL: Priority.Level = "Reward"
 local SLOT_ID = "home-toasts"
--- TOKEN CANDIDATE: the Info toast body (ink navy, a calm neutral on bright scenery).
-local INFO_FILL = ColorSequence.new(Color3.fromRGB(52, 66, 112), Color3.fromRGB(26, 34, 66))
+-- Round 3: the run view places the stack in the Upper row (see the header); false = the Home spot everywhere.
+local RUN_UPPER_ROW = true
+-- TOKEN CANDIDATE: the stack width in the run view (the widest Home width).
+local RUN_WIDTH = 360
+-- TOKEN CANDIDATE: the count tag ("x2") size; the wide one is for two-digit counts.
+local COUNT_W = 38
+local COUNT_W_WIDE = 50
+local COUNT_H = 26
 
 export type Tone = "Success" | "Info" | "Unlock"
 
@@ -85,6 +99,7 @@ type Toast = {
 	visual: Visual?,
 	token: number,
 	height: number,
+	timer: thread?, -- the pending dismissal (cancelled when the toast goes or restarts)
 }
 
 local ToastStack = {}
@@ -125,14 +140,12 @@ local function buildVisual(parent: Instance, index: number): Visual
 	local body = make("Frame", {
 		Name = "Body",
 		Size = UDim2.new(1, 0, 1, -B.DepthOffset),
-		BackgroundColor3 = Color3.new(1, 1, 1),
 		ZIndex = 6,
 		Parent = container,
 	})
-	Arcade.corner(body)
-	Arcade.outline(body, "Button")
-	local gradient = make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = body })
-	Arcade.gloss(body)
+	-- Round 3 (R2-HM3): the arcade surface (fill, ONE dark outline, gloss); _style swaps the fill per tone
+	Arcade.surface(body, "Green")
+	local gradient = body:FindFirstChildOfClass("UIGradient") :: UIGradient
 	local icons: { [string]: Frame } = {}
 	for _, tone in { "Success", "Info", "Unlock" } do
 		local holder = make("Frame", {
@@ -169,19 +182,28 @@ local function buildVisual(parent: Instance, index: number): Visual
 	})
 	text.Position = UDim2.fromOffset(PAD + ICON + 8, 0)
 	text.TextWrapped = true
+	-- only used while TextScaled is on (the run view where the rows are fixed height): never below the 16 minimum
+	make("UITextSizeConstraint", { MaxTextSize = TEXT, MinTextSize = A.Text.Small, Parent = text })
 	local count = make("Frame", {
 		Name = "Count",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -PAD + 4, 0.5, 0),
-		Size = UDim2.fromOffset(38, 26),
-		BackgroundColor3 = A.Ink,
+		Size = UDim2.fromOffset(COUNT_W, COUNT_H),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Visible = false,
 		ZIndex = 9,
 		Parent = body,
 	})
 	Arcade.corner(count, 6)
-	Arcade.outline(count, 2, Color3.new(1, 1, 1))
-	local countText = Arcade.text(count, { text = "×2", role = "Small", name = "Text", italic = true, z = 10 })
+	Arcade.outline(count, "Minor")
+	local countText = Arcade.text(count, {
+		text = "×2",
+		role = "Small",
+		name = "Text",
+		italic = true,
+		colour = A.Ink,
+		z = 10,
+	})
 	countText.Size = UDim2.fromScale(1, 1)
 	local v: Visual = {
 		container = container,
@@ -210,6 +232,11 @@ function ToastStack.new(ctx: Types.Ctx): ToastStack
 	self._queue = {} :: { Toast }
 	self._dropped = 0
 	self._revoked = 0
+	self._maxVisible = M.ToastMaxVisible -- fewer in the run view on the frames with little room (layout)
+	self._fixed = false -- fixed-height rows with shrinking text (the run view when two-line rows would not fit)
+	self._place = "Home" :: string -- "Home" or "Upper" (the run view row)
+	self._timers = {} :: { [thread]: boolean } -- pending dismissals (cancelled on destroy)
+	self._conns = {} :: { [RBXScriptConnection]: boolean } -- tween completions in flight (disconnected on destroy)
 	self._handle = nil :: Priority.Handle?
 	self._granted = false
 	local root = trove:Add(Arcade.make("Frame", {
@@ -232,6 +259,14 @@ function ToastStack.new(ctx: Types.Ctx): ToastStack
 		for _, t in self._shown do
 			t.token += 1
 		end
+		for thread in self._timers do
+			pcall(task.cancel, thread)
+		end
+		table.clear(self._timers)
+		for conn in self._conns do
+			conn:Disconnect()
+		end
+		table.clear(self._conns)
 		for _, v in self._visuals do
 			Motion.cancelAll(v.container)
 			v.fade:destroy()
@@ -315,6 +350,7 @@ function ToastStack._requestSlot(self: any)
 end
 
 function ToastStack._onMode(self: any)
+	self:layout() -- the run view and the Home view place the stack differently
 	if self:_gated() then
 		if #self._shown > 0 or #self._queue > 0 then
 			self:_requestSlot()
@@ -327,7 +363,7 @@ end
 
 -- Shows waiting toasts while there is room and permission.
 function ToastStack._drain(self: any)
-	while #self._queue > 0 and #self._shown < M.ToastMaxVisible and self:_canShow() do
+	while #self._queue > 0 and #self._shown < self._maxVisible and self:_canShow() do
 		if not self:_show(table.remove(self._queue, 1) :: Toast) then
 			break
 		end
@@ -339,15 +375,20 @@ end
 
 -- VISUALS ------------------------------------------------------------------------------------
 
+-- the count tag is wider once it shows two digits ("x10" and up) so the number never spills out of it
+local function countWidth(count: number): number
+	return if count >= 10 then COUNT_W_WIDE else COUNT_W
+end
+
 function ToastStack._contentWidth(self: any, count: number): number
-	local countW = if count > 1 then 38 + 8 else 0
+	local countW = if count > 1 then countWidth(count) + 8 else 0
 	return self._width - (PAD + ICON + 8) - PAD - countW
 end
 
 function ToastStack._style(self: any, toast: Toast)
 	local v = toast.visual :: Visual
 	local tone = toast.tone
-	v.gradient.Color = if tone == "Success" then A.Fill.Green elseif tone == "Unlock" then A.Fill.Gold else INFO_FILL
+	v.gradient.Color = if tone == "Success" then A.Fill.Green elseif tone == "Unlock" then A.Fill.Gold else A.Fill.Garage
 	for name, holder in v.icons do
 		holder.Visible = name == tone
 	end
@@ -358,9 +399,16 @@ function ToastStack._fill(self: any, toast: Toast)
 	local v = toast.visual :: Visual
 	v.text.Text = toast.text
 	v.count.Visible = toast.count > 1
+	v.count.Size = UDim2.fromOffset(countWidth(toast.count), COUNT_H)
 	v.countText.Text = "×" .. tostring(math.min(toast.count, 99))
 	local w = self:_contentWidth(toast.count)
-	local h = math.max(Layout.ToastHeight, math.ceil(measure(toast.text, TEXT, w - 8).Y) + 20 + B.DepthOffset)
+	-- Round 3: where the run view has too little room for two-line toasts the rows keep the base height and the
+	-- text shrinks to fit (18 down to the 16 minimum, wrapping to two lines); elsewhere a long text grows the row
+	local fixed: boolean = self._fixed
+	v.text.TextScaled = fixed
+	local h = if fixed
+		then Layout.ToastHeight
+		else math.max(Layout.ToastHeight, math.ceil(measure(toast.text, TEXT, w - 8).Y) + 20 + B.DepthOffset)
 	toast.height = h
 	v.text.Size = UDim2.fromOffset(w, h - B.DepthOffset)
 	v.container.Size = UDim2.fromOffset(self._width, h)
@@ -381,15 +429,34 @@ function ToastStack._restack(self: any, animate: boolean)
 	end
 end
 
+-- Cancels the toast's pending dismissal (it goes, or its timer restarts).
+function ToastStack._disarm(self: any, toast: Toast)
+	local pending = toast.timer
+	toast.timer = nil
+	if pending then
+		self._timers[pending] = nil
+		pcall(task.cancel, pending)
+	end
+end
+
 function ToastStack._arm(self: any, toast: Toast)
+	self:_disarm(toast)
 	toast.token += 1
 	local token = toast.token
-	task.delay(M.ToastSeconds, function()
+	local timers: { [thread]: boolean } = self._timers
+	local thread: thread
+	thread = task.delay(M.ToastSeconds, function()
+		timers[thread] = nil
+		if toast.timer == thread then
+			toast.timer = nil
+		end
 		if self._destroyed or token ~= toast.token then
 			return
 		end
 		self:_dismiss(toast)
 	end)
+	toast.timer = thread
+	timers[thread] = true
 end
 
 function ToastStack._freeVisual(self: any): Visual?
@@ -442,18 +509,23 @@ function ToastStack._show(self: any, toast: Toast): boolean
 	return true
 end
 
-function ToastStack._hideVisual(_self: any, v: Visual, seconds: number)
+function ToastStack._hideVisual(self: any, v: Visual, seconds: number)
 	local tw = v.fade:tween(1, seconds)
 	local function done()
 		v.container.Visible = false
 		v.busy = false
 	end
 	if tw then
-		tw.Completed:Connect(function(state)
+		local conns: { [RBXScriptConnection]: boolean } = self._conns
+		local conn: RBXScriptConnection
+		conn = tw.Completed:Connect(function(state)
+			conns[conn] = nil
+			conn:Disconnect()
 			if state == Enum.PlaybackState.Completed then
 				done()
 			end
 		end)
+		conns[conn] = true
 	else
 		done()
 	end
@@ -462,6 +534,7 @@ end
 function ToastStack._hideShown(self: any)
 	for _, toast in self._shown do
 		toast.token += 1
+		self:_disarm(toast)
 		local v = toast.visual
 		toast.visual = nil
 		if v then
@@ -479,6 +552,7 @@ function ToastStack._dismiss(self: any, toast: Toast)
 	end
 	table.remove(self._shown, index)
 	toast.token += 1
+	self:_disarm(toast)
 	local v = toast.visual :: Visual
 	toast.visual = nil
 	self:_hideVisual(v, if Motion.reduced() then 0.12 else 0.2)
@@ -507,7 +581,15 @@ function ToastStack.push(self: any, text: string, tone: string?)
 			return
 		end
 	end
-	local toast: Toast = { text = text, tone = t, count = 1, visual = nil, token = 0, height = Layout.ToastHeight }
+	local toast: Toast = {
+		text = text,
+		tone = t,
+		count = 1,
+		visual = nil,
+		token = 0,
+		height = Layout.ToastHeight,
+		timer = nil,
+	}
 	if #self._queue >= M.ToastQueue then
 		table.remove(self._queue, 1)
 		self._dropped += 1
@@ -523,6 +605,7 @@ function ToastStack.clear(self: any)
 	table.clear(self._queue)
 	for _, toast in table.clone(self._shown) do
 		toast.token += 1
+		self:_disarm(toast)
 	end
 	table.clear(self._shown)
 	for _, v in self._visuals do
@@ -539,10 +622,33 @@ function ToastStack.layout(self: any)
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local t = Layout.forProfile(ctx.screen:profile(), scale).toasts
-	self._width = t.width
+	local x, y, width = t.x, t.y, t.width
+	local maxVisible = M.ToastMaxVisible
+	local fixed = false
+	local stackH = 2 * 64 + Layout.ToastGap
+	self._place = "Home"
+	if RUN_UPPER_ROW and self:_gated() then
+		-- the run view: the Upper row under the distance pill, as many toasts as fit above the protected rectangle
+		local rl: RunLayout.Ctx = ctx :: any
+		local d = RunLayout.design(rl)
+		local top = RunLayout.upperY(rl)
+		local room = RunLayout.protected(rl).pos.Y - top
+		width = math.min(RUN_WIDTH, d.X - 2 * RunLayout.Margin)
+		x, y = d.X / 2, top
+		maxVisible =
+			math.clamp(math.floor((room + Layout.ToastGap) / (Layout.ToastHeight + Layout.ToastGap)), 1, maxVisible)
+		-- a two-line row is taller than the base row: when that many of them would not fit, rows stay at the base height
+		local tall = math.ceil(measure("A\nA", TEXT).Y) + 20 + B.DepthOffset
+		fixed = room < maxVisible * tall + (maxVisible - 1) * Layout.ToastGap
+		stackH = maxVisible * (if fixed then Layout.ToastHeight else tall) + (maxVisible - 1) * Layout.ToastGap
+		self._place = "Upper"
+	end
+	self._maxVisible = maxVisible
+	self._fixed = fixed
+	self._width = width
 	self.root.AnchorPoint = Vector2.new(t.anchorX, 0)
-	self.root.Position = UDim2.fromOffset(t.x * scale, t.y * scale) -- layer px
-	self.root.Size = UDim2.fromOffset(t.width, 2 * 64 + Layout.ToastGap)
+	self.root.Position = UDim2.fromOffset(x * scale, y * scale) -- layer px
+	self.root.Size = UDim2.fromOffset(width, stackH)
 	for _, toast in self._shown do
 		self:_fill(toast)
 	end
@@ -582,10 +688,41 @@ function ToastStack.getDebugState(self: any): { [string]: any }
 		end
 	end
 	local rpos, rsize = ctx.screen:rectOf(self.root)
+	-- every toast body is one arcade surface: ONE UIStroke on the frame itself, one fill gradient, the gloss band
+	local surfaces = {}
+	for _, v in self._visuals do
+		local outlines, gradients = 0, 0
+		for _, child in v.body:GetChildren() do
+			if child:IsA("UIStroke") then
+				outlines += 1
+			elseif child:IsA("UIGradient") then
+				gradients += 1
+			end
+		end
+		table.insert(surfaces, {
+			name = v.container.Name,
+			outlines = outlines,
+			gradients = gradients,
+			gloss = v.body:FindFirstChild("Gloss") ~= nil,
+		})
+	end
+	local timers, conns = 0, 0
+	for _ in self._timers do
+		timers += 1
+	end
+	for _ in self._conns do
+		conns += 1
+	end
 	return {
 		visible = self.root.Visible,
+		surfaces = surfaces,
+		timers = timers, -- pending dismissals (0 after destroy)
+		connections = conns, -- tween completions in flight (0 after destroy)
+		instances = if self._destroyed then 0 else #self.root:GetDescendants(),
 		shownCount = #self._shown,
-		maxVisible = M.ToastMaxVisible,
+		maxVisible = self._maxVisible,
+		placement = self._place,
+		fixedHeight = self._fixed,
 		queueCount = #self._queue,
 		queueLimit = M.ToastQueue,
 		dropped = self._dropped,

@@ -37,6 +37,9 @@
 -- on a run-end banner, then hold it and suppress Side and Upper below Safety while open (no
 -- ribbon or banner on top of them); everything is released on hide.
 -- Reduced motion: no slide, no pops, no count (the final value is shown at once).
+-- Round 3 (R2-HM3): the rows and the Cash tally are bright arcade plates (Style.plate: a kit fill, one outline,
+-- gloss) instead of dark navy wells, and the footer band uses the panel's own deep cobalt. Behaviour, sizes,
+-- positions and text are unchanged.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -117,6 +120,10 @@ export type Options = {
 
 export type CardDebug = { id: string, shownName: string, nameFit: string, late: boolean }
 
+-- One arcade surface on the card: how many UIStroke borders sit on the frame itself (must be 1), whether it has a
+-- colour gradient and the gloss band.
+export type SurfaceDebug = { name: string, outlines: number, gradients: number, gloss: boolean }
+
 export type DebugState = {
 	open: boolean,
 	waitingForSlot: boolean,
@@ -144,6 +151,7 @@ export type DebugState = {
 	footerTop: number,
 	separated: boolean,
 	cards: { CardDebug },
+	surfaces: { SurfaceDebug },
 	instances: number,
 }
 
@@ -254,7 +262,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	})
 
 	local function statRow(order: number, name: string, icon: string, label: string, face: Arcade.FaceName): Row
-		local f = Style.well(body, "Row_" .. name, 6)
+		local f = Style.plate(body, "Row_" .. name, 6)
 		f.Size = UDim2.new(1, 0, 0, ROW_H)
 		f.LayoutOrder = order
 		local holder: Frame = make("Frame", {
@@ -315,7 +323,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	bestWas.Size = UDim2.new(0.5, -12, 0, 22)
 
 	-- Cash tally
-	local cashFrame = Style.well(body, "Cash", 6)
+	local cashFrame = Style.plate(body, "Cash", 6)
 	cashFrame.Size = UDim2.new(1, 0, 0, CASH_H)
 	cashFrame.LayoutOrder = 6
 	local cashLabel = Style.text(cashFrame, "Cash earned", "Label", {
@@ -388,7 +396,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local footer: Frame = make("Frame", {
 		Name = "Footer",
 		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = Style.Well,
+		BackgroundColor3 = Style.PanelBottom, -- Round 3 (R2-HM3): the panel's own deep cobalt, not a navy block
 		BorderSizePixel = 0,
 		ZIndex = 9,
 		Parent = panel,
@@ -809,6 +817,19 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		updateClaimsFrame()
 	end
 
+	-- the borders, fill and gloss of one surface (the debug state proves ONE outline per surface)
+	local function surfaceOf(name: string, frame: Frame): SurfaceDebug
+		local outlines, gradients = 0, 0
+		for _, child in frame:GetChildren() do
+			if child:IsA("UIStroke") then
+				outlines += 1
+			elseif child:IsA("UIGradient") then
+				gradients += 1
+			end
+		end
+		return { name = name, outlines = outlines, gradients = gradients, gloss = frame:FindFirstChild("Gloss") ~= nil }
+	end
+
 	-- OPEN / SLOT -------------------------------------------------------------------------------
 	local function releaseSlot()
 		local arb = ctx.priority
@@ -1034,6 +1055,11 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 			end
 			local contentBottom = body.AbsolutePosition.Y + body.AbsoluteSize.Y
 			local footerTop = footer.AbsolutePosition.Y
+			local surfaces: { SurfaceDebug } = { surfaceOf("Panel", shell.body) }
+			for _, row in { distanceRow, roadRow, bestRow, joyrideRow, milestonesRow } do
+				table.insert(surfaces, surfaceOf(row.frame.Name, row.frame))
+			end
+			table.insert(surfaces, surfaceOf("Cash", cashFrame))
 			return {
 				open = overlay:isOpen(),
 				waitingForSlot = waitingForSlot,
@@ -1061,6 +1087,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 				footerTop = footerTop,
 				separated = contentBottom <= footerTop + 0.5,
 				cards = cardsOut,
+				surfaces = surfaces,
 				instances = if destroyed then 0 else #overlay.root:GetDescendants(),
 			}
 		end,
