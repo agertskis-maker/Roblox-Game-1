@@ -23,6 +23,7 @@ Shown only when the ridden car's nameplate is not (nameplate wins: while a captu
 ## 3. Keys ring (`Run/KeysLock.luau`)
 One continuous ring replaces the eight segments. Fill origin **12 o'clock, clockwise**. Slate track, yellow-gold fill; key-in-lock icon centred; HOLD ON / ALMOST! / SECURING above; percentage below. Built from `Frame` + `UICorner` + `UIStroke` + `UIGradient` (two clipped half rings, no uploaded art); a separate closed ring at exactly 100%.
 The shown fill eases to the supplied progress in 0.07 s and never passes it; one bounded pulse (x1.07, 0.18 s) at the first close, then a steady brighter ring 2 px thicker; reduced motion skips the pulse. Full-but-unconfirmed holds a calm pending state (a quiet note, never SECURED). Capture time is **not** changed.
+On the smallest phone frame (PhoneSmall) the percentage is not shown: the Keys cluster sits between Settings and Hop there and the number would be hidden under the Hop button (found in a real Studio frame); its text is still reported in the debug state.
 
 ## 4. Stamina (`Run/StaminaMeter.luau`, `Run/StaminaBolt.luau`)
 Sharp zigzag bolt hero icon with a thick dark edge, number kept, ten simple pips. Thresholds: 6-10 yellow, 4-5 orange, 1-3 red with a restrained pulse, 0 depleted (grey broken bolt, OUT OF STAMINA, Hop unavailable). No new forced run end; empty taps throttled; reduced motion steady strong glow.

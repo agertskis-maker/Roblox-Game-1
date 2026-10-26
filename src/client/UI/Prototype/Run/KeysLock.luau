@@ -41,8 +41,8 @@
 --                                                                  (brief scale/fade), HOLD ON;
 --                                                                  the ring fills with progress,
 --                                                                  the key turns with it, glow
---                                                                  grows a little, riser pitch
---                                                                  follows progress;
+--                                                                  grows a little, the chime ladder (Sounds.rise,
+--                                                                  at most four discrete notes) follows progress;
 --                                                                  ALMOST! once at AlmostAt
 --   Pending       2    keys{Pending} (or keys{Confirmed} before    ring full and steady, key poised,
 --                      the event: the store status alone is NOT    SECURING…; no ownership, no
@@ -78,7 +78,7 @@
 --
 -- ROUND 2 ESCALATION (R2-K1), three tiers by supplied progress:
 --   0-50%    HOLD ON: stable ring, restrained outline and glow;
---   50-75%   brighter glow, subtle progress clicks (Sounds KeysTick, one per eighth), the riser keeps rising;
+--   50-75%   brighter glow, the chime ladder keeps climbing in discrete notes (Round 3: KeysTick is silent and there is no continuous riser);
 --   75-100%  a larger ALMOST! (it appears deliberately ONCE, pops once and settles at its bigger size), a bounded
 --            rhythmic pulse of the glow and the transparent rarity edges at ONE cycle per second (capped, never
 --            faster, never a strobe; with the Heat alarm at most 1.25 a second the two stay under 2.5 peaks a
@@ -906,7 +906,7 @@ function KeysLock._progress(self: KeysLock, p: number)
 	if step > c.step then
 		self._ticks += step - c.step
 		if c.tier >= 2 then
-			Sounds.play("KeysTick") -- subtle progress clicks from 50% (throttled by the hook)
+			Sounds.play("KeysTick") -- retired in Round 3 (the hook is silent: it would stack on the chime ladder); kept as a no-op call
 		end
 	end
 	c.step = step

@@ -4,6 +4,8 @@ tags: [design, spec, audit, lane3, assets]
 status: proposal only, nothing moved
 date: 2026-10-26
 ---
+> **Update 2026-10-26 (after the audit was written):** the Downtown B2 kit is no longer un-uploaded. 180 meshes and 5 palette images were uploaded under Adam's user account; their ids are in the repo (`src/lookdev/Downtown/KitIds.luau`, `vault/design/assets.md`) and the city loads them in Play. Statements below that say no uploaded ids exist (row R-09 and top risk 2) describe the state when the audit was written. Dusty Highway and Summit Pass art is still not uploaded, and the group-ownership question is open.
+
 # Round 3: external art-folder dependency audit (R3-F7)
 
 Ledger row R3-F7 in [[hud-round3]]. Worker D1, read-only. **PROPOSAL ONLY: nothing was moved, uploaded, deleted, renamed or
