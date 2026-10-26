@@ -1040,6 +1040,23 @@ S["Collection: six facts detail"] = function(host: Host)
 				local c = car("d" .. i, names[(i - 1) % #names + 1], rarity, true)
 				detail:open(c, info)
 				host.wait(0.55)
+				-- fact 1, the car image: an owned car shows a model in the detail (the models load a moment after opening)
+				local modelSeen = false
+				for _ = 1, 20 do
+					for _, vf in detail.root:GetDescendants() do
+						if vf:IsA("ViewportFrame") and vf:FindFirstChildWhichIsA("BasePart", true) then
+							modelSeen = true
+							break
+						end
+					end
+					if modelSeen then
+						break
+					end
+					host.wait(0.15)
+				end
+				if not modelSeen then
+					table.insert(problems, rarity .. ": fact 1 (the car image) shows no model within 3 s")
+				end
 				local ds = detail:getDebugState()
 				for _, p in factProblems(ds, c, info, { "Owned", "NotOwned", "Unknown" }) do
 					table.insert(problems, rarity .. ": " .. p)
