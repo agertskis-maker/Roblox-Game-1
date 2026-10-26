@@ -3,24 +3,24 @@
 -- label and pips, name fitting, ViewportFrame stage, unowned silhouette, variant ring) rather than rebuilding it,
 -- and adds the collectible layer: a family icon, a World scene behind the car, a NEW flag, the Epic / Legendary
 -- foil sheen, a controlled metallic inner edge, the SECURED stamp and the reward plate with the supplied Lap Pay.
--- The fine print (stats, quirk, variants, flavour, footer) belongs to the landscape detail view
--- (Screens/CardDetail), never to a grid cell: TradingCard.fineRows builds those rows from the same data.
+-- The detail view (Screens/CardDetail) shows SIX facts only, built by TradingCard.detailFacts from the same data.
 --
 --   local card = TradingCard.new(parent, car, info?, { variant = "Compact" | "Reward", stamp = "SECURED"? })
 --   card:setInfo(info)   card:setCar(car)   card:setVisible(on)   card:setStamp(text?)
 --   card.root            -- Frame (Reward = the card plus its plate underneath)
 --   card:getDebugState()   card:destroy()
 --   TradingCard.familyIcon(car, info?) -> (iconName, mapped: boolean)
+--   TradingCard.detailFacts(car, info?) -> Facts   -- the six player facts of the detail view (pure)
 --
--- VARIANTS. Compact (grids, tray detail): image, name, rarity, NEW; no fine print. Reward (the secured reveal and
--- Results): the full portrait card, a family icon, the World badge, the NEW flag, the stamp and a plate with Lap Pay.
+-- VARIANTS. Reward (the secured reveal and Results): the full portrait card, a family icon, the World badge, the
+-- NEW flag, the stamp and a plate with Lap Pay. Compact (image, name, rarity, NEW) is kept for a small preview; the
+-- collection sheet no longer lists compact copies of cards (Round 3).
 --
--- TRUTH (R2-T2). Every number comes from `info` or the car as supplied. Lap Pay shows only when supplied. A
--- per-second equivalent is shown only with a DEFINED lap duration (info.lapSeconds); otherwise that row reads
--- "unavailable (proposed)": the HUD never divides by an invented duration. NEW shows only on info.isNew == true.
--- A claimed date shows only when supplied; the collection number and total only when supplied. Variants:
--- true = owned, false = not owned, nil = unknown (a different look: a dash, never a lock). Rarity and variant
--- finishes stay separate dimensions. Family "Bus" (a fixture name) maps to the Truck icon and is flagged.
+-- TRUTH (R2-T2, R3). Every number comes from `info` or the car as supplied. Lap Pay shows only when supplied; an
+-- unknown value reads "?". NEW shows only on info.isNew == true. Variants: true = owned, false = not owned, nil =
+-- unknown ("?"). Rarity and variant finishes stay separate dimensions. Family "Bus" (a fixture name) maps to the Truck
+-- icon and is flagged. `fineRows` / `lapRows` (the Round 2 fine print, with its per-second row) are no longer drawn
+-- by any screen; they stay only because the Round 2 truth scenario still reads them (see the Round 3 notes).
 --
 -- FOIL (Epic, Legendary). One slow masked sheen across the art window only, restrained spectral colour (pale
 -- cyan, white, pale rose), under no text: names, pips and rows sit outside the mask on their own dark panels.
@@ -57,6 +57,7 @@ export type Info = {
 	collectionNo: number?,
 	collectionTotal: number?,
 	claimedAt: string?, -- a preformatted date, ONLY when it exists
+	acquiredAt: number?, -- when the player got the car, as a supplied number (larger = newer); NEWEST sorts on this only
 	isNew: boolean?,
 }
 export type Options = { variant: string?, stamp: string?, name: string? }
@@ -185,7 +186,7 @@ function TradingCard.new(parent: Instance, car: CarCard.CarRef, info: Info?, opt
 	self._iconMapped = false
 
 	local compact = self._variant == "Compact"
-	local size = if compact then Vector2.new(128, 176) else CarCard.BaseSize
+	local size = if compact then CarCard.MinSize else CarCard.BaseSize -- the smallest card (132 x 160)
 	self._size = size
 	local plateH = if compact then 0 else 52
 	self._plateH = plateH
@@ -263,11 +264,13 @@ function TradingCard.new(parent: Instance, car: CarCard.CarRef, info: Info?, opt
 		})
 		self._familyBadge = icon
 		-- the World badge (bottom-left of the art)
+		-- the badge is as wide as its text ("Dusty Highway" is wider than the old fixed 100 px)
 		local world = make("Frame", {
 			Name = "WorldBadge",
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 4, 1, -4),
-			Size = UDim2.fromOffset(100, 22),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 22),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			Visible = false,
 			ZIndex = 13,
@@ -275,9 +278,10 @@ function TradingCard.new(parent: Instance, car: CarCard.CarRef, info: Info?, opt
 		})
 		Arcade.corner(world, 11)
 		Arcade.outline(world, "Minor")
+		make("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), Parent = world })
 		self._worldBadge = world
-		self._worldText = Arcade.text(world, { text = "", role = "Small", name = "Text", z = 14 })
-		self._worldText.Size = UDim2.fromScale(1, 1)
+		self._worldText = Arcade.text(world, { text = "", role = "Small", name = "Text", autoWidth = true, z = 14 })
+		self._worldText.Size = UDim2.fromOffset(0, 22)
 		-- the NEW flag (top-right), only on an explicit supplied flag
 		local new = make("Frame", {
 			Name = "NewFlag",
@@ -420,7 +424,7 @@ function TradingCard._apply(self: TradingCard)
 		newFlag.Visible = info.isNew == true
 	end
 	if self._lapValue then
-		self._lapValue.Text = if info.lapPay ~= nil then "$" .. Format.group(math.floor(info.lapPay)) else "\u{2014}"
+		self._lapValue.Text = if info.lapPay ~= nil then "$" .. Format.group(math.floor(info.lapPay)) else "?"
 	end
 	self:_applySheen()
 end
@@ -470,6 +474,7 @@ function TradingCard.getDebugState(self: TradingCard): { [string]: any }
 		family = self._iconName,
 		familyMapped = self._iconMapped,
 		world = self._info.world,
+		worldText = if self._worldText then self._worldText.Text else nil,
 		newShown = self._newFlag ~= nil and (self._newFlag :: Frame).Visible,
 		lapPayText = if self._lapValue then self._lapValue.Text else nil,
 		hasPlate = self._plate ~= nil,
@@ -482,7 +487,53 @@ function TradingCard.destroy(self: TradingCard)
 end
 
 ----------------------------------------------------------------------------------------------
--- The fine print rows (the landscape detail view): built from the same data, never invented.
+-- The six detail facts (Round 3): car image, full name, full rarity word, World, Lap Pay per lap, and the three
+-- finishes as OWNED / NOT OWNED. Pure (so the scenarios can test it). Nothing else about a car is a detail fact:
+-- no per-second figure, Heat, family, quirk, race stat, flavour, number or date.
+
+export type FinishState = "Owned" | "NotOwned" | "Unknown"
+export type DetailFacts = {
+	name: string, -- the full car name
+	rarity: string, -- the full rarity word (COMMON .. LEGENDARY)
+	world: string, -- the World name, or "?" when not supplied
+	lapPay: string, -- "$220 / lap", or "?" when not supplied (and for a car the player does not own)
+	lapPayValue: number?, -- the supplied number, nil when unknown or hidden (sorting reads this, never the text)
+	finishes: { { finish: string, state: FinishState } }, -- Gold, Chrome, Rainbow, always in this order
+	hidden: boolean, -- the car is not owned: Lap Pay is "?" and no finish is owned
+}
+
+TradingCard.Finishes = table.freeze({ "Gold", "Chrome", "Rainbow" })
+
+function TradingCard.detailFacts(car: CarCard.CarRef, info: Info?): DetailFacts
+	local data: Info = info or {}
+	local hidden = car.owned == false
+	local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
+	local world = WORLDS[data.world or ""]
+	local pay = if hidden then nil else data.lapPay
+	local finishes: { { finish: string, state: FinishState } } = {}
+	for _, finish in TradingCard.Finishes do
+		local flag = if data.variants then (data.variants :: any)[finish] else nil
+		local state: FinishState = if hidden or flag == false
+			then "NotOwned"
+			elseif flag == true then "Owned"
+			else "Unknown"
+		table.insert(finishes, { finish = finish, state = state })
+	end
+	return {
+		name = car.name,
+		rarity = rarity.label,
+		world = if world then world.name else "?",
+		lapPay = if pay ~= nil then Format.cash(math.floor(pay)) .. " / lap" else "?",
+		lapPayValue = pay,
+		finishes = finishes,
+		hidden = hidden,
+	}
+end
+
+----------------------------------------------------------------------------------------------
+-- The Round 2 fine print rows. NO SCREEN DRAWS THESE ANY MORE (Round 3: the detail view shows six facts). They stay
+-- as pure functions only because the Round 2 truth scenario ("Cards: fine print truth") still reads them; retire
+-- both together.
 
 -- A one-line description of what the supplied data says, for the lap pay rows.
 function TradingCard.lapRows(info: Info): { { label: string, value: string, note: string? } }

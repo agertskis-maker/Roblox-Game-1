@@ -13,6 +13,7 @@
 --   card:setVisible(false)    -- hidden cards never spin
 --   card:setStamp(text?)      -- a small tilted gold stamp inside the stage (e.g. "SECURED"); nil
 --                                removes it
+--   card:setNameLines(n)      -- the header lines a grid reserves for every card (2..4), see the name rule
 --   card:destroy()
 --   card:getDebugState()      -- numbers for automated checks
 --
@@ -24,16 +25,22 @@
 -- * Unowned: the model is a near-black silhouette (recoloured once at build time); the rarity
 --   frame, label, pips and the NAME stay visible; the quirk line becomes a lock + "Not owned yet".
 -- * car.model == nil: a neutral placeholder; "Loading..." when options.loading is true or the
---   card is lazy and not built yet, otherwise "Unavailable".
+--   card is lazy and not built yet, otherwise "Not ready yet".
 -- * car.model == "Proxy": an original part-built scale proxy (ProxyCar). Its "PROXY" tag is a
 --   HARNESS CAPTION (attribute PreviewCaption = true): the card only shows or hides the tag's
 --   holder; the tag's own Visible is left to the harness caption switch, so selecting or
 --   rebuilding a card can never bring it back in a player-facing capture.
--- * Name rule: never truncated in a way that loses the model number. The name fits on one line
---   at 22..16, else wraps to two lines at 22..16 (no word is split); only a name that cannot fit
---   two lines at 16 is shortened, and then the LAST word is always kept ("Supercalifr… Deluxe").
---   Measured with TextService; until the measurement returns, TextScaled + TextWrapped (16..22)
---   keeps the name inside its box.
+-- * Name rule (Round 3): a name is NEVER cut and never carries an ellipsis. The header is a fixed box of up to
+--   2 lines (full cards 46 px, compact cards 42 px). Order of choice: one line at 22, 20, 18 or 16 px; else wrapped
+--   inside the box with no word split at 22 .. 16 px (the font steps down inside the bound first); else, only when
+--   16 px still needs more than two lines, the header GROWS to 3 or 4 lines. A grid gives EVERY card the largest
+--   line count its cars need (CardGrid), so one long name never makes one card taller than its neighbours: the
+--   stage takes the difference. Only a single word wider than the box is broken inside the word, at 16 px.
+--   All sizes are design px (never below 16; a real device has a UI scale of 1.0 or more). Measured with
+--   TextService; until the measurement returns the name shows wrapped at 16 px inside its box.
+-- * The rarity word is always the FULL word (COMMON, UNCOMMON, RARE, EPIC, LEGENDARY) at 16 px. A card is never
+--   narrower than MinSize (132 px wide), so the longest word fits; below CompactBelow the pips sit under the name instead
+--   of beside the word. `plain = true` is the six-fact detail card: image, name, rarity word and pips, nothing else.
 --
 -- Viewport stage: a back gradient (UI), a floor disc and a darker contact disc (parts inside the
 -- viewport, so they line up with the wheels at every angle), explicit Ambient / LightColor /
@@ -69,16 +76,20 @@ local make = Arcade.make
 local CarCard = {}
 
 CarCard.BaseSize = Vector2.new(200, 280)
-CarCard.MinSize = Vector2.new(112, 150)
-CarCard.CompactBelow = 180 -- narrower cards drop the family / quirk rows (pips move down)
+-- Round 3: 132 px is the narrowest card on which LEGENDARY fits at 16 px (it was 112 x 150 before).
+CarCard.MinSize = Vector2.new(132, 160)
+-- Narrower cards drop the family / quirk rows and put the pips under the name. 196 (was 180) keeps the rarity word
+-- clear of the pips on every full card.
+CarCard.CompactBelow = 196
 CarCard.SpinDegreesPerSecond = 20
 CarCard.StaticYawDegrees = 35 -- front three-quarter
 CarCard.ElevationDegrees = 15
 CarCard.FieldOfView = 30
 CarCard.Fill = 0.7
-CarCard.Ellipsis = "\u{2026}"
 CarCard.NameMax = 22
 CarCard.NameMin = 16 -- the approved minimum
+CarCard.NameSizes = table.freeze({ 22, 20, 18, 16 }) -- the bounded steps (design px)
+CarCard.MaxNameLines = 4
 
 -- TOKEN CANDIDATE: card corner radius (limited rounding).
 local R = 8
@@ -86,15 +97,19 @@ local R = 8
 local LIP = 4
 -- TOKEN CANDIDATE: dark inner panel of the card.
 local INNER = Color3.fromRGB(22, 32, 68)
--- TOKEN CANDIDATE: name area heights (two lines) for full / compact cards.
-local NAME_H = 46
-local NAME_H_COMPACT = 40
--- TOKEN CANDIDATE: three-line name area (narrow cards that must keep long names whole).
-local NAME_H_3 = 60
+-- TOKEN CANDIDATE: name box height by line count (index 2, 3, 4) for full / compact cards. A line at 16 px needs about
+-- 19 to 21 px, so the boxes keep a little air; the two-line box is the standard header.
+local NAME_BOX_FULL = table.freeze({ [2] = 46, [3] = 66, [4] = 86 })
+local NAME_BOX_COMPACT = table.freeze({ [2] = 42, [3] = 64, [4] = 84 })
+-- TOKEN CANDIDATE: the rarity word size (design px, the approved minimum) and the label padding Arcade.text adds.
+local RARITY_SIZE = 16
+local RARITY_PAD = 6
 
 export type CarRef = Fixtures.CarRef
 export type Status = "Owned" | "Unowned" | "Loading" | "Unavailable"
-export type NameFit = "Pending" | "OneLine" | "TwoLines" | "Shortened"
+-- Broken: one word is wider than the box and is split inside the word at 16 px. Overflow: nothing fits (reported).
+export type NameFit = "Pending" | "OneLine" | "TwoLines" | "ThreeLines" | "FourLines" | "Broken" | "Overflow"
+export type NameSolution = { lines: number, size: number, fit: NameFit }
 
 export type Options = {
 	size: Vector2?,
@@ -106,18 +121,25 @@ export type Options = {
 	lazy: boolean?, -- build the model only when :loadModel() is called
 	loading: boolean?, -- car.model == nil shows "Loading..." instead of "Unavailable"
 	name: string?,
-	nameLines: number?, -- 2 (default) or 3: lines reserved for the name before it is shortened
+	nameLines: number?, -- 2 (default) to 4: header lines reserved for the name (it grows past this when it must)
+	plain: boolean?, -- the six-fact detail card: image, name, rarity word and pips only (no family, quirk, NEW or ribbon)
 }
 
 export type DebugState = {
 	id: string,
 	name: string,
 	shownName: string,
-	truncated: boolean,
+	truncated: boolean, -- always false since Round 3 (a name is never cut)
 	nameFit: NameFit,
 	nameSize: number,
+	nameLines: number, -- header lines in this layout (2 unless the name or a grid asks for more)
+	nameHeight: number, -- header box height (design px); equal on every card of a grid
+	nameWidth: number,
+	nameText: string, -- the text the name label really shows
 	rarity: string,
 	rarityLabel: string,
+	rarityWord: string,
+	rarityFits: boolean, -- the full word fits its box at 16 px (measured)
 	pips: number,
 	variant: string,
 	variantLabel: string?,
@@ -129,6 +151,7 @@ export type DebugState = {
 	shown: boolean,
 	reduced: boolean,
 	compact: boolean,
+	plain: boolean,
 	hasModel: boolean,
 	proxy: boolean,
 	proxyHolderVisible: boolean,
@@ -152,6 +175,7 @@ export type Card = {
 	setSize: (self: Card, size: Vector2) -> (),
 	setVisible: (self: Card, on: boolean) -> (),
 	setStamp: (self: Card, text: string?) -> (),
+	setNameLines: (self: Card, lines: number) -> (),
 	loadModel: (self: Card) -> (),
 	car: (self: Card) -> CarRef,
 	destroy: (self: Card) -> (),
@@ -334,8 +358,19 @@ end
 -- Text fitting (the name rule)
 ---------------------------------------------------------------------------------------------
 
--- Bounds of `text` at `size`, wrapped inside `width` (single line when width is huge).
+-- Measurements are repeated for every card on every relayout, so they are remembered (bounded; cleared when full).
+local measureCache: { [string]: Vector2 } = {}
+local measureCacheCount = 0
+local MEASURE_CACHE_LIMIT = 800
+
+-- Bounds of `text` at `size`, wrapped inside `width` (single line when width is huge). Design px: TextService does
+-- not see UIScale. Yields on a cache miss; nil when the engine could not measure.
 local function measure(text: string, size: number, width: number): Vector2?
+	local key = string.format("%d|%.1f|%s", size, width, text)
+	local hit = measureCache[key]
+	if hit then
+		return hit
+	end
 	local params = Instance.new("GetTextBoundsParams")
 	params.Text = text
 	params.Font = Tokens.font()
@@ -346,6 +381,12 @@ local function measure(text: string, size: number, width: number): Vector2?
 	end)
 	params:Destroy()
 	if ok and typeof(result) == "Vector2" then
+		if measureCacheCount >= MEASURE_CACHE_LIMIT then
+			table.clear(measureCache)
+			measureCacheCount = 0
+		end
+		measureCache[key] = result
+		measureCacheCount += 1
 		return result
 	end
 	return nil
@@ -357,18 +398,6 @@ local function words(text: string): { string }
 		table.insert(out, w)
 	end
 	return out
-end
-
-local function prefix(text: string, count: number): string
-	local stop = utf8.offset(text, count + 1)
-	if stop then
-		return string.sub(text, 1, stop - 1)
-	end
-	return text
-end
-
-local function trimRight(text: string): string
-	return (string.gsub(text, "%s+$", ""))
 end
 
 -- Fits within `width` x `height`: every word on one line by itself, the wrapped block within
@@ -388,6 +417,64 @@ local function fits(text: string, size: number, width: number, height: number): 
 		return nil
 	end
 	return block.Y <= height + 0.5
+end
+
+local function nameBoxHeight(lines: number, compact: boolean): number
+	local boxes = if compact then NAME_BOX_COMPACT else NAME_BOX_FULL
+	return boxes[math.clamp(lines, 2, CarCard.MaxNameLines)]
+end
+
+local LINE_FIT: { [number]: NameFit } = { [2] = "TwoLines", [3] = "ThreeLines", [4] = "FourLines" }
+
+-- The name rule as one decision: how many header lines and which font size show `text` whole inside `width`
+-- (design px). `floorLines` is the least the header may have (2 by default; a grid raises it). nil when the engine
+-- could not measure. Yields: call it from a task.
+local function solveName(text: string, width: number, compact: boolean, floorLines: number): NameSolution?
+	local floorN = math.clamp(floorLines, 2, CarCard.MaxNameLines)
+	-- 1. one line, the largest size that fits
+	for _, s in CarCard.NameSizes do
+		local one = measure(text, s, 100000)
+		if one == nil then
+			return nil
+		end
+		if one.X <= width then
+			return { lines = floorN, size = s, fit = "OneLine" }
+		end
+	end
+	-- 2. wrapped with every word whole: the font steps down to 16 inside two lines before the header grows
+	for lines = floorN, CarCard.MaxNameLines do
+		for _, s in CarCard.NameSizes do
+			local ok = fits(text, s, width, nameBoxHeight(lines, compact))
+			if ok == nil then
+				return nil
+			end
+			if ok then
+				return { lines = lines, size = s, fit = LINE_FIT[lines] }
+			end
+		end
+	end
+	-- 3. a single word is wider than the box: it breaks inside the word, at the smallest size
+	local last = CarCard.NameSizes[#CarCard.NameSizes]
+	local block = measure(text, last, width)
+	if block == nil then
+		return nil
+	end
+	for lines = floorN, CarCard.MaxNameLines do
+		if block.Y <= nameBoxHeight(lines, compact) + 0.5 then
+			return { lines = lines, size = last, fit = "Broken" }
+		end
+	end
+	return { lines = CarCard.MaxNameLines, size = last, fit = "Overflow" }
+end
+
+-- The name width inside a card of `cardWidth` (design px): the stage width less a margin for the outline.
+function CarCard.nameWidthFor(cardWidth: number): number
+	return cardWidth - 24
+end
+
+-- What a card of `cardWidth` needs to show `name` whole (a grid takes the largest `lines` over its cars). Yields.
+function CarCard.solveName(name: string, cardWidth: number, floorLines: number?): NameSolution?
+	return solveName(name, CarCard.nameWidthFor(cardWidth), cardWidth < CarCard.CompactBelow, floorLines or 2)
 end
 
 ---------------------------------------------------------------------------------------------
@@ -441,12 +528,19 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	local shownName = car.name
 	local truncated = false
 	local nameFit: NameFit = "Pending"
-	local nameSize = CarCard.NameMax
+	local nameSize = CarCard.NameMin
 	local nameToken = 0
+	local plain = opts.plain == true
 	local compact = false
 	local stageSize = Vector2.new(1, 1)
 	local nameWidth = 100
-	local nameHeight = NAME_H
+	local nameLines = 2
+	local nameHeight = NAME_BOX_FULL[2]
+	local gridLines = 2 -- header lines a grid reserves for every card (setNameLines)
+	local autoLines = 0 -- lines this card's own name needs beyond the reserved ones
+	local rarityBoxW = 100
+	local rarityFitsNow = true
+	local rarityToken = 0
 	local stampText: string? = nil
 
 	local root: Frame = trove:Add(make("Frame", {
@@ -565,7 +659,8 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		xAlign = Enum.TextXAlignment.Left,
 		z = 7,
 	})
-	make("UITextSizeConstraint", { MaxTextSize = 16, MinTextSize = Tokens.TextSize.Minimum, Parent = rarityLabel })
+	-- the full rarity word at a fixed 16 design px: never scaled, never shortened (the box is sized for it)
+	rarityLabel.TextSize = RARITY_SIZE
 
 	local pips: Frame = make("Frame", {
 		Name = "Pips",
@@ -661,7 +756,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 	Arcade.icon(placeholderIcon, "Car")
 	local placeholderText = Arcade.text(placeholder, {
-		text = "Loading" .. CarCard.Ellipsis,
+		text = "Loading",
 		role = "Small",
 		name = "Status",
 		z = 8,
@@ -703,22 +798,16 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		BackgroundTransparency = 1,
 		FontFace = Tokens.font(),
 		Text = car.name,
-		TextScaled = true,
+		TextSize = CarCard.NameMin,
+		TextScaled = false, -- fixed design-px steps (fitName), never the engine's scaling
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
 		TextColor3 = Color3.new(1, 1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextYAlignment = Enum.TextYAlignment.Center,
-		LineHeight = 0.95,
 		ZIndex = 6,
 		Parent = inner,
 	})
-	local nameConstraint: UITextSizeConstraint = make("UITextSizeConstraint", {
-		MinTextSize = CarCard.NameMin,
-		MaxTextSize = CarCard.NameMax,
-		Parent = nameLabel,
-	})
-	local _ = nameConstraint
 	Arcade.outline(nameLabel, "Minor")
 
 	local familyRow: Frame =
@@ -742,7 +831,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 	familyLabel.Position = UDim2.fromOffset(22, 0)
 	familyLabel.Size = UDim2.new(1, -22, 1, 0)
-	familyLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 	local quirkRow: Frame = make("Frame", { Name = "QuirkRow", BackgroundTransparency = 1, ZIndex = 5, Parent = inner })
 	local quirkIcon: Frame = make("Frame", {
@@ -763,7 +851,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	})
 	quirkLabel.Position = UDim2.fromOffset(22, 0)
 	quirkLabel.Size = UDim2.new(1, -22, 1, 0)
-	quirkLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
 	-------------------------------------------------------------------------------------------
 	-- camera
@@ -799,83 +886,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 	end
 
 	-------------------------------------------------------------------------------------------
-	-- name rule
-	-------------------------------------------------------------------------------------------
-
-	local function fitName()
-		nameToken += 1
-		local token = nameToken
-		local text = car.name
-		local width, height = nameWidth, nameHeight
-		-- provisional: the engine keeps it inside the box (wraps, 16..22) until measured
-		nameLabel.Text = text
-		nameLabel.TextScaled = true
-		shownName = text
-		truncated = false
-		nameFit = "Pending"
-		task.spawn(function()
-			local function stale(): boolean
-				return destroyed or token ~= nameToken
-			end
-			-- one line, largest size first
-			for s = CarCard.NameMax, CarCard.NameMin, -1 do
-				local one = measure(text, s, 100000)
-				if stale() or one == nil then
-					return
-				end
-				if one.X <= width then
-					nameLabel.TextScaled = false
-					nameLabel.TextSize = s
-					nameSize, nameFit = s, "OneLine"
-					return
-				end
-			end
-			-- two lines, no word split
-			for s = CarCard.NameMax, CarCard.NameMin, -1 do
-				local ok = fits(text, s, width, height)
-				if stale() or ok == nil then
-					return
-				end
-				if ok then
-					nameLabel.TextScaled = false
-					nameLabel.TextSize = s
-					nameSize, nameFit = s, "TwoLines"
-					return
-				end
-			end
-			-- shortened at 16, always keeping the last word (the model number / word)
-			local list = words(text)
-			local last = list[#list] or text
-			local head = trimRight(string.sub(text, 1, #text - #last))
-			local count = utf8.len(head) or #head
-			local lo, hi, best = 1, math.max(count - 1, 1), 0
-			while lo <= hi do
-				local mid = (lo + hi) // 2
-				local candidate = trimRight(prefix(head, mid)) .. CarCard.Ellipsis .. " " .. last
-				local ok = fits(candidate, CarCard.NameMin, width, height)
-				if stale() or ok == nil then
-					return
-				end
-				if ok then
-					best = mid
-					lo = mid + 1
-				else
-					hi = mid - 1
-				end
-			end
-			local cut = if best > 0
-				then trimRight(prefix(head, best)) .. CarCard.Ellipsis .. " " .. last
-				else CarCard.Ellipsis .. " " .. last
-			nameLabel.TextScaled = false
-			nameLabel.TextSize = CarCard.NameMin
-			nameLabel.Text = cut
-			shownName = cut
-			truncated = true
-			nameSize, nameFit = CarCard.NameMin, "Shortened"
-		end)
-	end
-
-	-------------------------------------------------------------------------------------------
 	-- layout
 	-------------------------------------------------------------------------------------------
 
@@ -884,7 +894,32 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		newTag.Position = UDim2.fromOffset(4, if compact and ribbon.Visible then 30 else 4)
 	end
 
-	local function applyLayout()
+	-- header lines now: the options, the grid's reservation and what this card's own name needs (never more than 4)
+	local function linesNow(): number
+		return math.min(math.max(opts.nameLines or 2, gridLines, autoLines, 2), CarCard.MaxNameLines)
+	end
+
+	-- The full rarity word must fit its box at 16 px. Measured once per layout (design px, TextService); the
+	-- result is reported in the debug state and asserted by the scenarios. The word itself is never shortened.
+	local rarityFull = ""
+	local function checkRarity()
+		rarityToken += 1
+		local token = rarityToken
+		local word = rarityFull
+		if word == "" then
+			return
+		end
+		task.spawn(function()
+			local m = measure(word, RARITY_SIZE, 100000)
+			if destroyed or token ~= rarityToken or m == nil then
+				return
+			end
+			rarityFitsNow = m.X + RARITY_PAD <= rarityBoxW + 0.5
+		end)
+	end
+
+	-- Positions and sizes only (no name measurement): the name fit may call it again when it needs a taller header.
+	local function layoutBoxes()
 		local W, H = size.X, size.Y
 		compact = W < CarCard.CompactBelow
 		root.Size = UDim2.fromOffset(W, H)
@@ -895,8 +930,11 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		strip.Position = UDim2.fromOffset(x, y)
 		strip.Size = UDim2.fromOffset(w, 24)
 		y += 24 + 4
-		nameHeight = if (opts.nameLines or 2) >= 3 then NAME_H_3 elseif compact then NAME_H_COMPACT else NAME_H
-		local bottom = nameHeight + 2 + (if compact then 16 + 4 else 20 + 2 + 20 + 4)
+		nameLines = linesNow()
+		nameHeight = nameBoxHeight(nameLines, compact)
+		-- below the name: compact = the pips row; full = family and quirk rows (none on the plain detail card)
+		local below = if compact then 16 + 4 elseif plain then 4 else 20 + 2 + 20 + 4
+		local bottom = nameHeight + 2 + below
 		local stageH = math.max(ih - y - 4 - bottom, 40)
 		stage.Position = UDim2.fromOffset(x, y)
 		stage.Size = UDim2.fromOffset(w, stageH)
@@ -904,28 +942,28 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		y += stageH + 2
 		nameLabel.Position = UDim2.fromOffset(x, y)
 		nameLabel.Size = UDim2.fromOffset(w, nameHeight)
-		nameWidth = w - 4
+		nameWidth = CarCard.nameWidthFor(W)
 		y += nameHeight + 2
 		if compact then
+			rarityBoxW = w - 8
 			rarityLabel.Position = UDim2.fromOffset(4, 0)
 			rarityLabel.Size = UDim2.new(1, -8, 1, 0)
 			rarityLabel.TextXAlignment = Enum.TextXAlignment.Center
-			rarityLabel.TextScaled = true
 			pips.Parent = inner
 			pips.AnchorPoint = Vector2.new(0.5, 0)
 			pips.Position = UDim2.new(0.5, 0, 0, y)
 			familyRow.Visible = false
 			quirkRow.Visible = false
 		else
+			rarityBoxW = w - 8 - 52
 			rarityLabel.Position = UDim2.fromOffset(4, 0)
 			rarityLabel.Size = UDim2.new(1, -8 - 52, 1, 0) -- room for LEGENDARY / UNCOMMON at 16 px
 			rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-			rarityLabel.TextScaled = true
 			pips.Parent = strip
 			pips.AnchorPoint = Vector2.new(1, 0.5)
 			pips.Position = UDim2.new(1, -4, 0.5, 0)
-			familyRow.Visible = true
-			quirkRow.Visible = true
+			familyRow.Visible = not plain
+			quirkRow.Visible = not plain
 			familyRow.Position = UDim2.fromOffset(x + 2, y)
 			familyRow.Size = UDim2.fromOffset(w - 4, 20)
 			y += 22
@@ -935,6 +973,42 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		pips.ZIndex = 7
 		placeTags()
 		fitCamera()
+		checkRarity()
+	end
+
+	-------------------------------------------------------------------------------------------
+	-- name rule
+	-------------------------------------------------------------------------------------------
+
+	local function fitName()
+		nameToken += 1
+		local token = nameToken
+		local text = car.name
+		-- provisional until measured: the whole name, wrapped at 16 px inside its box
+		nameLabel.Text = text
+		nameLabel.TextWrapped = true
+		nameLabel.TextSize = CarCard.NameMin
+		shownName = text
+		truncated = false
+		nameFit = "Pending"
+		nameSize = CarCard.NameMin
+		task.spawn(function()
+			local solved = solveName(text, nameWidth, compact, linesNow())
+			if destroyed or token ~= nameToken or solved == nil then
+				return
+			end
+			-- the name needs a taller header than reserved: grow this card (a grid raises all of them instead)
+			if solved.lines > linesNow() then
+				autoLines = solved.lines
+				layoutBoxes()
+			end
+			nameLabel.TextSize = solved.size
+			nameSize, nameFit = solved.size, solved.fit
+		end)
+	end
+
+	local function applyLayout()
+		layoutBoxes()
 		fitName()
 	end
 
@@ -947,7 +1021,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		viewport.Visible = hasModel
 		-- only the holder: the PROXY tag's own Visible is the harness caption switch
 		proxyHolder.Visible = hasModel and isProxy
-		placeholderText.Text = if status == "Unavailable" then "Unavailable" else "Loading" .. CarCard.Ellipsis
+		placeholderText.Text = if status == "Unavailable" then "Not ready yet" else "Loading"
 	end
 
 	local function buildModel()
@@ -1023,23 +1097,6 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		fitCamera()
 	end
 
-	-- The rarity word must never be cut ("UNCOM" / "LEGENDA" showed in a real render of a compact card at a small HUD scale: the
-	-- 16 px minimum is in real pixels, so a card scaled down leaves too little room). The full word is used whenever it fits;
-	-- only when it cannot fit does a short form ("UNCOM.", "LEGEND.") take its place. The word is never dropped.
-	local RARITY_SHORT: { [string]: string } = { UNCOMMON = "UNCOM.", LEGENDARY = "LEGEND." }
-	local rarityFull = ""
-	local function fitRarity()
-		if rarityFull == "" then
-			return
-		end
-		rarityLabel.TextWrapped = false
-		rarityLabel.Text = rarityFull
-		if rarityLabel.TextBounds.X > rarityLabel.AbsoluteSize.X + 0.5 then
-			rarityLabel.Text = RARITY_SHORT[rarityFull] or rarityFull
-		end
-	end
-	trove:Connect(rarityLabel:GetPropertyChangedSignal("AbsoluteSize"), fitRarity)
-
 	local function applyCar()
 		local rarity = (PreviewTokens.Rarity :: any)[car.rarity] or PreviewTokens.Rarity.Common
 		root.Name = opts.name or ("CarCard_" .. car.id)
@@ -1047,8 +1104,11 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		stripGradient.Color = ColorSequence.new(rarity.light:Lerp(rarity.deep, 0.35), rarity.deep)
 		stageGradient.Color =
 			ColorSequence.new(rarity.deep:Lerp(Color3.new(1, 1, 1), 0.4), rarity.light:Lerp(Color3.new(1, 1, 1), 0.78))
+		-- always the full word (Round 3: no short forms); the box is sized for it and the fit is measured
 		rarityFull = rarity.label
-		fitRarity()
+		rarityLabel.TextWrapped = false
+		rarityLabel.Text = rarityFull
+		checkRarity()
 		for i, p in pipFrames do
 			local filled = i <= rarity.pips
 			p.BackgroundColor3 = if filled then Color3.new(1, 1, 1) else A.Ink
@@ -1056,13 +1116,14 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		end
 		local finish = VARIANT[car.variant]
 		variantRing.Visible = finish ~= nil
-		ribbon.Visible = finish ~= nil
+		-- the six-fact detail card shows no ribbon and no NEW flag: its Finishes row says which finishes are owned
+		ribbon.Visible = finish ~= nil and not plain
 		if finish then
 			variantGradient.Color = finish.sequence
 			ribbonGradient.Color = finish.sequence
 			ribbonText.Text = finish.label
 		end
-		newTag.Visible = car.unseen == true and car.owned == true
+		newTag.Visible = car.unseen == true and car.owned == true and not plain
 		placeTags()
 		familyIcon:ClearAllChildren()
 		Icons.draw(familyIcon, "Car", Style.TextSoft)
@@ -1190,7 +1251,9 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		body = body,
 		setCar = function(_self: Card, newCar: CarRef)
 			car = newCar
+			autoLines = 0 -- the new name decides again
 			snapStatic()
+			layoutBoxes()
 			applyCar()
 			wake()
 		end,
@@ -1217,6 +1280,15 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				return
 			end
 			size = s
+			autoLines = 0 -- a new width may need fewer or more lines
+			applyLayout()
+		end,
+		setNameLines = function(_self: Card, lines: number)
+			local n = math.clamp(math.floor(lines), 2, CarCard.MaxNameLines)
+			if n == gridLines then
+				return
+			end
+			gridLines = n
 			applyLayout()
 		end,
 		setVisible = function(_self: Card, on: boolean)
@@ -1257,10 +1329,14 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				truncated = truncated,
 				nameFit = nameFit,
 				nameSize = nameSize,
+				nameLines = nameLines,
+				nameHeight = nameHeight,
+				nameWidth = nameWidth,
+				nameText = nameLabel.Text,
 				rarity = car.rarity,
 				rarityLabel = rarityLabel.Text,
 				rarityWord = rarityFull,
-				rarityFits = rarityLabel.TextBounds.X <= rarityLabel.AbsoluteSize.X + 0.5,
+				rarityFits = rarityFitsNow,
 				pips = rarity.pips,
 				variant = car.variant,
 				variantLabel = if finish then finish.label else nil,
@@ -1272,6 +1348,7 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				shown = shownNow,
 				reduced = reducedNow,
 				compact = compact,
+				plain = plain,
 				hasModel = hasModel,
 				proxy = isProxy,
 				proxyHolderVisible = proxyHolder.Visible,

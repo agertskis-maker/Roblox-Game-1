@@ -1,20 +1,31 @@
 --!strict
--- CardDetail: the landscape detail view of one collectible card (Lane 3 preview, Round 2, R2-T2). Presentation
--- only: it shows the supplied car and card data (TradingCard.fineRows) and never grants, buys or equips anything.
+-- CardDetail: the landscape detail view of one collectible card (Lane 3 preview, Round 3). Presentation only: it shows
+-- the supplied car and card data and never grants, buys or equips anything.
 --
 --   local detail = CardDetail.new(ctx, { onDrive = function(car) end? })
 --   detail:open(car, info?, returnTo?)   detail:close()   detail:isOpen()
 --   detail:layout()   detail:setVisible(on)   detail:destroy()   detail:getDebugState()
 --
--- Layout: the card on the left (the full reward card on wide screens, the compact card on short phone landscape),
--- the fine print on the right in a SCROLLING area (stats, quirk, finishes, flavour, footer), and a FIXED action
--- bar underneath (BACK, DRIVE). The scrolling area ends above the bar and clips its content, so nothing can scroll
--- behind the buttons (the earlier Revolution 6 clipping case); the debug state reports the gap. Back (Escape or
--- gamepad B) and CLOSE close it; the gamepad selection starts on BACK and returns to where it was.
--- An unowned card shows "?" for stats and quirk and leaks no finishes, number or date (TradingCard.fineRows).
+--   local facts = CardDetail.Facts.new(parent, name?)       -- the six facts as a reusable panel (the Garage uses it)
+--   facts:setCar(car, info?)   facts:layout(width, cardSize) -> contentHeight   facts:setSpinning(on)   facts:setVisible(on)
+--   facts:card()   facts:getDebugState()   facts:destroy()
+--
+-- ROUND 3: THE SIX FACTS. The detail shows these and nothing else: (1) the car image, (2) its full name, (3) its full
+-- rarity word (name and word are on the card, with the rarity pips), (4) the World where it is found, (5) its Lap Pay
+-- per lap, (6) Gold, Chrome and Rainbow finishes, each clearly OWNED or NOT OWNED. No per-second figure, no Heat
+-- capacity, no family or quirk words, no race stats, no flavour line, no number or date. The facts come from
+-- TradingCard.detailFacts, so the same data gives the same words everywhere. An unowned car keeps its silhouette,
+-- shows "?" for Lap Pay and NOT OWNED for every finish (nothing leaks). A finish whose state was not supplied shows "?".
+-- A finish chip is a label and an icon, not a button: nothing here offers a purchase or an unlock.
+--
+-- Layout: the plain card (image, name, rarity word) on the left and the three rows on the right when the width allows
+-- (stacked below the card otherwise), inside a SCROLLING area; a FIXED action bar underneath (BACK, DRIVE). The scrolling
+-- area ends above the bar and clips its content, so nothing can scroll behind the buttons; the debug state reports the
+-- gap. Back (Escape or gamepad B) and CLOSE close it; the gamepad selection starts on BACK and returns to where it was.
 
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
+local CarCard = require(Prototype.Cards.CarCard)
 local Overlay = require(script.Parent.Overlay)
 local Style = require(script.Parent.Style)
 local TradingCard = require(Prototype.Cards.TradingCard)
@@ -25,7 +36,392 @@ local CardDetail = {}
 
 export type Options = { onDrive: ((TradingCard.CarRef) -> ())? }
 
-local ROW_H = 46
+-- TOKEN CANDIDATE: the facts rows (design px).
+local FINISH_LABEL_H = 24
+local STACK_CHIP_H = 36 -- a chip when the three are stacked: the name left, the state right
+local COLUMN_GAP = 16 -- card to rows when side by side
+local STACK_GAP = 12 -- card to rows when stacked
+local SIDE_COLUMN = 300 -- the least width the rows need beside the card
+local MIN_COLUMN = 318 -- three chips side by side need about 100 px each for NOT OWNED at 16 px; narrower, they stack
+
+-- row height, chip height and the gap between rows (design px); `compact` is for a short phone frame
+local function metrics(compact: boolean): (number, number, number)
+	if compact then
+		return 42, 50, 4
+	end
+	return 46, 54, 6
+end
+-- TOKEN CANDIDATE: finish chip fills (OWNED), the dark NOT OWNED fill and the "?" fill.
+local FINISH_FILL: { [string]: ColorSequence } = {
+	Gold = ColorSequence.new(Color3.fromRGB(255, 226, 120), Color3.fromRGB(214, 150, 20)),
+	Chrome = ColorSequence.new(Color3.fromRGB(236, 241, 248), Color3.fromRGB(122, 136, 158)),
+	Rainbow = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 96, 96)),
+		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 200, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(96, 214, 120)),
+		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(80, 156, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(186, 110, 255)),
+	}),
+}
+local NOT_OWNED_FILL = Color3.fromRGB(26, 36, 78)
+local UNKNOWN_FILL = Color3.fromRGB(52, 66, 116)
+local WORLD_UNKNOWN_FILL = Color3.fromRGB(70, 82, 120)
+
+CardDetail.FactKeys = table.freeze({ "Image", "Name", "Rarity", "World", "LapPay", "Finishes" })
+CardDetail.RowLabels = table.freeze({ "WORLD", "LAP PAY", "FINISHES" })
+
+local STATE_WORD: { [string]: string } = { Owned = "OWNED", NotOwned = "NOT OWNED", Unknown = "?" }
+
+----------------------------------------------------------------------------------------------
+-- The six-fact panel
+
+local Facts = {}
+Facts.__index = Facts
+CardDetail.Facts = Facts
+
+type Chip = { frame: Frame, fill: UIGradient, finish: TextLabel, state: TextLabel, check: Frame }
+
+function Facts.new(parent: Instance, name: string?)
+	local self = setmetatable({}, Facts)
+	self._car = nil :: any
+	self._info = nil :: any
+	self._card = nil :: any
+	self._spinning = false
+	self._side = false
+	self._across = true
+	self._height = 0
+	self._cardSize = Vector2.new(200, 280)
+	self._width = 0
+	local root: Frame = make("Frame", {
+		Name = name or "SixFacts",
+		BackgroundTransparency = 1,
+		ZIndex = 4,
+		Parent = parent,
+	})
+	self.root = root
+	local rows: Frame = make("Frame", { Name = "Rows", BackgroundTransparency = 1, ZIndex = 5, Parent = root })
+	self._rows = rows
+
+	-- WORLD: a label on the left, the World name in a tag on the right
+	local worldRow = Style.well(rows, "WorldRow", 6)
+	self._worldRow = worldRow
+	local worldCaption = Arcade.text(worldRow, {
+		text = CardDetail.RowLabels[1],
+		role = "Small",
+		name = "Label",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	worldCaption.AnchorPoint = Vector2.new(0, 0.5)
+	worldCaption.Position = UDim2.new(0, 8, 0.5, 0)
+	worldCaption.Size = UDim2.fromOffset(110, 24)
+	local worldTag: Frame = make("Frame", {
+		Name = "WorldTag",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 30),
+		BackgroundColor3 = WORLD_UNKNOWN_FILL,
+		BorderSizePixel = 0,
+		ZIndex = 7,
+		Parent = worldRow,
+	})
+	Arcade.corner(worldTag, 15)
+	Arcade.outline(worldTag, "Minor")
+	make("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), Parent = worldTag })
+	local worldValue = Arcade.text(
+		worldTag,
+		{ text = "?", role = "Label", name = "Value", autoWidth = true, z = 9, outline = "Minor" }
+	)
+	worldValue.Size = UDim2.fromOffset(0, 30)
+	self._worldTag, self._worldValue, self._worldCaption = worldTag, worldValue, worldCaption
+
+	-- LAP PAY: a label on the left, "$220 / lap" (or "?") on the right
+	local payRow = Style.well(rows, "LapPayRow", 6)
+	self._payRow = payRow
+	local payCaption = Arcade.text(payRow, {
+		text = CardDetail.RowLabels[2],
+		role = "Small",
+		name = "Label",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	payCaption.AnchorPoint = Vector2.new(0, 0.5)
+	payCaption.Position = UDim2.new(0, 8, 0.5, 0)
+	payCaption.Size = UDim2.fromOffset(110, 24)
+	local payValue = Arcade.text(payRow, {
+		text = "?",
+		role = "Value",
+		name = "Value",
+		size = 22,
+		face = "Cash",
+		italic = true,
+		xAlign = Enum.TextXAlignment.Right,
+		z = 8,
+	})
+	payValue.AnchorPoint = Vector2.new(1, 0.5)
+	payValue.Position = UDim2.new(1, -6, 0.5, 0)
+	self._payValue, self._payCaption = payValue, payCaption
+
+	-- FINISHES: a label, then Gold, Chrome and Rainbow chips side by side
+	local finishRow: Frame =
+		make("Frame", { Name = "FinishRow", BackgroundTransparency = 1, ZIndex = 6, Parent = rows })
+	self._finishRow = finishRow
+	local finishCaption = Arcade.text(finishRow, {
+		text = CardDetail.RowLabels[3],
+		role = "Small",
+		name = "Label",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	finishCaption.Position = UDim2.fromOffset(4, 0)
+	finishCaption.Size = UDim2.new(1, -8, 0, FINISH_LABEL_H)
+	self._finishCaption = finishCaption
+	local chips: { Chip } = {}
+	for _, finish in TradingCard.Finishes do
+		local frame: Frame = make("Frame", {
+			Name = "Chip_" .. finish,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			ZIndex = 7,
+			Parent = finishRow,
+		})
+		Arcade.corner(frame, 6)
+		Arcade.outline(frame, "Minor")
+		local fill: UIGradient = make("UIGradient", { Rotation = 90, Parent = frame })
+		local finishLabel = Arcade.text(frame, {
+			text = string.upper(finish),
+			role = "Small",
+			name = "Finish",
+			xAlign = Enum.TextXAlignment.Left,
+			z = 8,
+		})
+		finishLabel.Position = UDim2.fromOffset(4, 3)
+		finishLabel.Size = UDim2.new(1, -8, 0, 22)
+		local stateLabel = Arcade.text(frame, {
+			text = "?",
+			role = "Small",
+			name = "State",
+			xAlign = Enum.TextXAlignment.Left,
+			z = 8,
+		})
+		stateLabel.Position = UDim2.fromOffset(4, 28)
+		stateLabel.Size = UDim2.new(1, -8, 0, 22)
+		local check: Frame = make("Frame", {
+			Name = "Check",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -5, 0, 29),
+			Size = UDim2.fromOffset(20, 20),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 9,
+			Parent = frame,
+		})
+		Arcade.icon(check, "Check")
+		table.insert(chips, { frame = frame, fill = fill, finish = finishLabel, state = stateLabel, check = check })
+	end
+	self._chips = chips
+	self._states = { "Unknown", "Unknown", "Unknown" } :: { string }
+	return self
+end
+
+export type FactsPanel = typeof(Facts.new(Instance.new("Folder")))
+
+function Facts.card(self: FactsPanel): CarCard.Card?
+	return self._card
+end
+
+function Facts.setCar(self: FactsPanel, car: TradingCard.CarRef, info: TradingCard.Info?)
+	self._car = car
+	self._info = info or {}
+	local size = self._cardSize
+	if self._card then
+		-- the same car again (a sort, a relayout): keep the model and its turn
+		if self._card:car() ~= car then
+			self._card:setCar(car)
+		end
+	else
+		self._card =
+			CarCard.new(self.root, car, { plain = true, size = size, spinning = self._spinning, name = "DetailCar" })
+	end
+	local facts = TradingCard.detailFacts(car, self._info)
+	-- World
+	local world = TradingCard.Worlds[(self._info :: TradingCard.Info).world or ""]
+	self._worldValue.Text = facts.world
+	self._worldTag.BackgroundColor3 = if world then world.tag else WORLD_UNKNOWN_FILL
+	-- Lap Pay
+	self._payValue.Text = facts.lapPay
+	-- Finishes
+	for i, entry in facts.finishes do
+		local chip = self._chips[i]
+		local state: string = entry.state
+		self._states[i] = state
+		chip.state.Text = STATE_WORD[state]
+		chip.check.Visible = state == "Owned"
+		if state == "Owned" then
+			chip.fill.Color = FINISH_FILL[entry.finish]
+			chip.frame.BackgroundColor3 = Color3.new(1, 1, 1)
+			chip.state.TextColor3 = Color3.new(1, 1, 1)
+			chip.finish.TextColor3 = Color3.new(1, 1, 1)
+		else
+			local flat = if state == "NotOwned" then NOT_OWNED_FILL else UNKNOWN_FILL
+			chip.fill.Color = ColorSequence.new(flat, flat)
+			chip.state.TextColor3 = Style.TextSoft
+			chip.finish.TextColor3 = Style.TextSoft
+		end
+	end
+end
+
+-- The height of the three rows for a rows column `colW` wide (the caller sizes the card from what is left).
+function Facts.rowsHeight(colW: number, compact: boolean?): number
+	local rowH, chipH, gap = metrics(compact == true)
+	local chipsH = if colW >= MIN_COLUMN then chipH else 3 * STACK_CHIP_H + 2 * gap
+	return rowH + gap + rowH + gap + FINISH_LABEL_H + chipsH
+end
+
+-- The card size and the row density for a scrolling area `innerW` wide and `scrollH` tall (design px): beside the card
+-- when the rows keep their width (the card then takes the height there is), above the rows otherwise (the card takes
+-- what the rows leave). Never smaller than the smallest card. Compact rows when the area is short (a phone frame).
+function Facts.fit(innerW: number, scrollH: number): (Vector2, boolean)
+	local compact = scrollH < 300
+	local sideH = math.clamp(scrollH, CarCard.MinSize.Y, 340)
+	local sideW = math.max(CarCard.MinSize.X, math.floor(sideH * 200 / 280))
+	if innerW >= sideW + COLUMN_GAP + SIDE_COLUMN then
+		return Vector2.new(sideW, sideH), compact
+	end
+	local stackH = math.clamp(scrollH - STACK_GAP - Facts.rowsHeight(innerW, compact), CarCard.MinSize.Y, 280)
+	return Vector2.new(math.max(CarCard.MinSize.X, math.floor(stackH * 200 / 280)), stackH), compact
+end
+
+-- Places the card and the three rows for `width` (design px) and a card of `cardSize`; returns the content height.
+-- Side by side when the rows keep SIDE_COLUMN beside the card, stacked (card centred, rows below) otherwise. The three
+-- finish chips sit side by side in a column of MIN_COLUMN or more, stacked one above the other in a narrower one.
+function Facts.layout(self: FactsPanel, width: number, cardSize: Vector2, compact: boolean?): number
+	self._cardSize = cardSize
+	self._width = width
+	local card = self._card :: CarCard.Card?
+	local side = width >= cardSize.X + COLUMN_GAP + SIDE_COLUMN
+	self._side = side
+	local rowH, chipH, gap = metrics(compact == true)
+	local colX, colW
+	if side then
+		colX = cardSize.X + COLUMN_GAP
+		colW = width - colX
+	else
+		colX, colW = 0, width
+	end
+	local rowsH = Facts.rowsHeight(colW, compact)
+	local colY = if side then math.max(0, math.floor((cardSize.Y - rowsH) / 2)) else cardSize.Y + STACK_GAP
+	if card then
+		card:setSize(cardSize)
+		card.root.AnchorPoint = Vector2.zero
+		card.root.Position = UDim2.fromOffset(if side then 0 else math.floor((width - cardSize.X) / 2), 0)
+	end
+	local rows = self._rows :: Frame
+	rows.Position = UDim2.fromOffset(colX, colY)
+	rows.Size = UDim2.fromOffset(colW, rowsH)
+	local worldRow, payRow, finishRow = self._worldRow :: Frame, self._payRow :: Frame, self._finishRow :: Frame
+	local y = 0
+	worldRow.Position = UDim2.fromOffset(0, y)
+	worldRow.Size = UDim2.fromOffset(colW, rowH)
+	y += rowH + gap
+	payRow.Position = UDim2.fromOffset(0, y)
+	payRow.Size = UDim2.fromOffset(colW, rowH)
+	y += rowH + gap
+	finishRow.Position = UDim2.fromOffset(0, y)
+	finishRow.Size = UDim2.fromOffset(colW, rowsH - y)
+	local across = colW >= MIN_COLUMN
+	self._across = across
+	local chipW = math.floor((colW - 12) / 3)
+	for i, chip in self._chips do
+		if across then
+			chip.frame.Position = UDim2.fromOffset((i - 1) * (chipW + 6), FINISH_LABEL_H)
+			chip.frame.Size = UDim2.fromOffset(chipW, chipH)
+			chip.finish.Position = UDim2.fromOffset(4, 3)
+			chip.finish.Size = UDim2.new(1, -8, 0, 22)
+			chip.state.AnchorPoint = Vector2.zero
+			chip.state.Position = UDim2.fromOffset(4, chipH - 26)
+			chip.state.Size = UDim2.new(1, -8, 0, 22)
+			chip.state.TextXAlignment = Enum.TextXAlignment.Left
+			chip.check.Position = UDim2.new(1, -5, 0, chipH - 25)
+		else
+			chip.frame.Position = UDim2.fromOffset(0, FINISH_LABEL_H + (i - 1) * (STACK_CHIP_H + gap))
+			chip.frame.Size = UDim2.fromOffset(colW, STACK_CHIP_H)
+			chip.finish.Position = UDim2.fromOffset(8, 7)
+			chip.finish.Size = UDim2.new(0.5, -8, 0, 22)
+			chip.state.AnchorPoint = Vector2.new(1, 0)
+			chip.state.Position = UDim2.new(1, -30, 0, 7)
+			chip.state.Size = UDim2.new(0.5, -30, 0, 22)
+			chip.state.TextXAlignment = Enum.TextXAlignment.Right
+			chip.check.Position = UDim2.new(1, -5, 0, 8)
+		end
+	end
+	local height = if side then math.max(cardSize.Y, colY + rowsH) else colY + rowsH
+	self._height = height
+	self.root.Size = UDim2.fromOffset(width, height)
+	return height
+end
+
+function Facts.setSpinning(self: FactsPanel, on: boolean)
+	self._spinning = on
+	if self._card then
+		self._card:setSpinning(on)
+	end
+end
+
+function Facts.setVisible(self: FactsPanel, on: boolean)
+	if self._card then
+		self._card:setVisible(on)
+		if not on then
+			self._card:setSpinning(false)
+		end
+	end
+end
+
+function Facts.destroy(self: FactsPanel)
+	if self._card then
+		self._card:destroy()
+		self._card = nil
+	end
+	self.root:Destroy()
+end
+
+function Facts.getDebugState(self: FactsPanel): { [string]: any }
+	local cardState = if self._card then self._card:getDebugState() else nil
+	local finishes = {}
+	for i, chip in self._chips do
+		table.insert(finishes, { finish = chip.finish.Text, state = chip.state.Text, kind = self._states[i] })
+	end
+	return {
+		carId = if self._car then self._car.id else nil,
+		side = self._side,
+		across = self._across,
+		width = self._width,
+		height = self._height,
+		-- the six facts, as the screen really shows them
+		facts = {
+			{ key = "Image", shown = if cardState then cardState.status else "none" },
+			{ key = "Name", shown = if cardState then cardState.nameText else "" },
+			{ key = "Rarity", shown = if cardState then cardState.rarityLabel else "" },
+			{ key = "World", shown = self._worldValue.Text },
+			{ key = "LapPay", shown = self._payValue.Text },
+			{ key = "Finishes", shown = finishes },
+		},
+		rowLabels = {
+			(self._worldCaption :: TextLabel).Text,
+			(self._payCaption :: TextLabel).Text,
+			(self._finishCaption :: TextLabel).Text,
+		},
+		card = cardState,
+		instances = #self.root:GetDescendants(),
+	}
+end
+
+----------------------------------------------------------------------------------------------
+-- The full-screen detail
 
 function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	local opts: Options = options or {}
@@ -36,29 +432,22 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	local panel = shell.body
 	local header =
 		Style.header(panel, { fill = "Garage", title = "COLLECTIBLE CARD", icon = "GarageBook", height = 60 })
-	local closeButton = Overlay.closeButton(panel, function() end)
+	local self: any = { root = overlay.root }
+	local closeButton = Overlay.closeButton(panel, function()
+		self:close()
+	end)
 	trove:Add(closeButton.trove)
 	closeButton.root.AnchorPoint = Vector2.new(1, 0.5)
 	closeButton.root.ZIndex = 12
 
-	local self: any = {}
 	self._open = false
 	self._car = nil :: any
 	self._info = {} :: any
 	self._drives = 0
-	self._card = nil :: any
-	self._rows = {} :: { any }
-	self._bars = 0
+	self._facts = nil :: any
 
-	local cardArea: Frame = make("Frame", { Name = "CardArea", BackgroundTransparency = 1, ZIndex = 4, Parent = panel })
-	local rightWell = Style.well(panel, "Details", 4)
-	local scroll = Style.scroll(rightWell, "Scroll", 5)
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Vertical,
-		Padding = UDim.new(0, 8),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = scroll,
-	})
+	local well = Style.well(panel, "Details", 4)
+	local scroll = Style.scroll(well, "Scroll", 5)
 	make("UIPadding", {
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 12),
@@ -66,6 +455,11 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 		PaddingBottom = UDim.new(0, 12),
 		Parent = scroll,
 	})
+	local facts = Facts.new(scroll, "SixFacts")
+	self._facts = facts
+	trove:Add(function()
+		facts:destroy()
+	end)
 	-- the FIXED action bar
 	local bar: Frame = make("Frame", { Name = "Actions", BackgroundTransparency = 1, ZIndex = 8, Parent = panel })
 	local backButton = Arcade.button(bar, {
@@ -107,141 +501,6 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	driveButton.root.Position = UDim2.fromScale(1, 0.5)
 	driveButton.root.ZIndex = 12
 
-	local function clearRows()
-		for _, r in self._rows do
-			r:Destroy()
-		end
-		table.clear(self._rows)
-	end
-
-	local function addRow(height: number?, order: number): Frame
-		local row = Style.well(scroll, "Row" .. order, 6)
-		row.LayoutOrder = order
-		row.Size = UDim2.new(1, 0, 0, height or ROW_H)
-		table.insert(self._rows, row)
-		return row
-	end
-
-	local function renderRows()
-		clearRows()
-		self._bars = 0
-		local car, info = self._car, self._info
-		if not car then
-			return
-		end
-		local rows = TradingCard.fineRows(car, info)
-		for i, r in rows do
-			if r.kind == "Stat" then
-				local hasBar = r.bar ~= nil
-				local row = addRow(if hasBar or r.note then 64 else ROW_H, i)
-				local title = Style.text(row, r.title or "", "Label", { size = 18, z = 7, name = "Title" })
-				title.Position = UDim2.fromOffset(8, 4)
-				title.Size = UDim2.new(0.5, -8, 0, 26)
-				local value = Style.text(
-					row,
-					r.value or "",
-					"Label",
-					{ size = 18, z = 7, name = "Value", xAlign = Enum.TextXAlignment.Right }
-				)
-				value.Position = UDim2.new(0.45, 0, 0, 4)
-				value.Size = UDim2.new(0.55, -8, 0, 26)
-				if hasBar then
-					self._bars += 1
-					local track = make("Frame", {
-						Name = "Bar",
-						Position = UDim2.fromOffset(10, 32),
-						Size = UDim2.new(1, -20, 0, 8),
-						BackgroundColor3 = Style.Ink,
-						ZIndex = 7,
-						Parent = row,
-					})
-					Arcade.corner(track, 4)
-					local fill = make("Frame", {
-						Name = "Fill",
-						Size = UDim2.fromScale(math.clamp(r.bar :: number, 0, 1), 1),
-						BackgroundColor3 = Color3.fromRGB(84, 220, 120),
-						ZIndex = 8,
-						Parent = track,
-					})
-					Arcade.corner(fill, 4)
-				end
-				if r.note then
-					local note = Style.text(row, r.note, "Small", { z = 7, name = "Note", colour = Style.TextSoft })
-					note.Position = UDim2.new(0, 8, 1, -24)
-					note.Size = UDim2.new(1, -16, 0, 20)
-				end
-			elseif r.kind == "Quirk" then
-				local row = addRow(66, i)
-				local icon: Frame = make("Frame", {
-					Name = "Icon",
-					Position = UDim2.fromOffset(8, 12),
-					Size = UDim2.fromOffset(40, 40),
-					BackgroundTransparency = 1,
-					ZIndex = 7,
-					Parent = row,
-				})
-				Arcade.icon(icon, "Star")
-				local title = Style.text(row, r.title or "", "Label", { size = 20, z = 7, name = "Quirk" })
-				title.Position = UDim2.fromOffset(56, 6)
-				title.Size = UDim2.new(1, -64, 0, 28)
-				local line = Style.text(row, r.text or "", "Small", { z = 7, name = "Line", colour = Style.TextSoft })
-				line.Position = UDim2.fromOffset(56, 36)
-				line.Size = UDim2.new(1, -64, 0, 24)
-			elseif r.kind == "Variants" then
-				local row = addRow(58, i)
-				local label = Style.text(row, "Finishes", "Small", { z = 7, name = "Label", colour = Style.TextSoft })
-				label.Position = UDim2.fromOffset(8, 2)
-				label.Size = UDim2.new(1, -16, 0, 20)
-				local chips = r.chips or {}
-				for k, chip in chips do
-					local c = make("Frame", {
-						Name = "Chip" .. chip.label,
-						Position = UDim2.new((k - 1) / #chips, 6, 0, 24),
-						Size = UDim2.new(1 / #chips, -8, 0, 28),
-						BackgroundColor3 = if chip.state == "Owned"
-							then Color3.fromRGB(244, 196, 60)
-							elseif chip.state == "Unknown" then Color3.fromRGB(52, 66, 116)
-							else Color3.fromRGB(26, 36, 78),
-						ZIndex = 7,
-						Parent = row,
-					})
-					Arcade.corner(c, 6)
-					Arcade.outline(c, "Minor")
-					local text = chip.label
-						.. (if chip.state == "Owned" then "" elseif chip.state == "Unknown" then " ?" else " -")
-					local t =
-						Style.text(c, text, "Small", { z = 8, name = "Text", xAlign = Enum.TextXAlignment.Center })
-					t.Size = UDim2.fromScale(1, 1)
-				end
-			elseif r.kind == "Flavour" then
-				local row = addRow(nil, i)
-				row.AutomaticSize = Enum.AutomaticSize.Y
-				row.Size = UDim2.fromScale(1, 0)
-				make("UIPadding", {
-					PaddingLeft = UDim.new(0, 8),
-					PaddingRight = UDim.new(0, 8),
-					PaddingTop = UDim.new(0, 6),
-					PaddingBottom = UDim.new(0, 6),
-					Parent = row,
-				})
-				local p = Style.paragraph(row, r.text or "", 16, true, 7)
-				p.Name = "Flavour"
-			elseif r.kind == "Footer" then
-				local row = addRow(44, i)
-				local text = r.text
-				local number = r.value
-				local world = TradingCard.Worlds[r.world or ""]
-				local worldName = if world then world.name else "World unknown"
-				local line = worldName
-					.. (if number then "   " .. number else "")
-					.. (if text then "   " .. text else "")
-				local t = Style.text(row, line, "Small", { z = 7, name = "Footer", colour = Style.TextSoft })
-				t.Size = UDim2.new(1, -16, 1, 0)
-				t.Position = UDim2.fromOffset(8, 0)
-			end
-		end
-	end
-
 	local function layoutNow()
 		overlay:applyScale()
 		local ds = overlay:designSize()
@@ -267,31 +526,13 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 		local bodyY = headH + 10
 		local barY = ph - barH - 6
 		local bodyH = barY - bodyY - 6
-		-- the card (left): the full reward card when it fits, else the compact card
-		local reward = bodyH >= 330
-		local card = self._card
-		if card and card._variant ~= (if reward then "Reward" else "Compact") then
-			card:destroy()
-			self._card = nil
-			card = nil
-		end
-		if not card and self._car then
-			local made =
-				TradingCard.new(cardArea, self._car, self._info, { variant = if reward then "Reward" else "Compact" })
-			self._card = made
-			card = made
-		end
-		local cardW = if reward then 200 else 128
-		local leftW = cardW + 28
-		cardArea.Position = UDim2.fromOffset(10, bodyY)
-		cardArea.Size = UDim2.fromOffset(leftW, bodyH)
-		if card then
-			card.root.AnchorPoint = Vector2.new(0.5, 0)
-			card.root.Position = UDim2.fromScale(0.5, 0)
-		end
-		rightWell.Position = UDim2.fromOffset(10 + leftW + 6, bodyY)
-		rightWell.Size = UDim2.fromOffset(pw - leftW - 36, bodyH)
+		well.Position = UDim2.fromOffset(10, bodyY)
+		well.Size = UDim2.fromOffset(pw - 20, bodyH)
 		scroll.Size = UDim2.fromScale(1, 1)
+		-- the card takes the height the body allows (never narrower than the smallest card), the rows take the rest
+		local innerW = pw - 20 - 8 - 12 - 8 -- the well, the scroll padding and the scroll bar
+		local cardSize, compact = Facts.fit(innerW, bodyH - 20)
+		facts:layout(innerW, cardSize, compact)
 		bar.Position = UDim2.fromOffset(14, barY)
 		bar.Size = UDim2.fromOffset(pw - 28, barH)
 		backButton.root.Size = UDim2.fromOffset(if short then 140 else 160, 56)
@@ -307,16 +548,9 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	function self.open(me: any, car: TradingCard.CarRef, info: TradingCard.Info?, returnTo: GuiObject?)
 		me._car = car
 		me._info = info or {}
-		if me._card then
-			me._card:setCar(car)
-			me._card:setInfo(me._info)
-		end
-		renderRows()
+		facts:setCar(car, me._info)
 		layoutNow()
-		if me._card then
-			me._card:setCar(car)
-			me._card:setInfo(me._info)
-		end
+		facts:setSpinning(true)
 		driveButton.setEnabled(car.owned ~= false)
 		scroll.CanvasPosition = Vector2.zero
 		overlay:open(backButton.body, returnTo)
@@ -326,6 +560,7 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 		if not overlay:isOpen() then
 			return
 		end
+		facts:setSpinning(false)
 		overlay:close()
 		me._open = false
 	end
@@ -337,23 +572,26 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	end
 	function self.setVisible(_me: any, on: boolean)
 		overlay.root.Visible = on and overlay:isOpen()
+		facts:setVisible(on and overlay:isOpen())
 	end
-	function self.destroy(me: any)
-		if me._card then
-			me._card:destroy()
-		end
+	function self.destroy(_me: any)
 		overlay:destroy()
 	end
 	function self.getDebugState(me: any): { [string]: any }
 		local scrollBottom = scroll.AbsolutePosition.Y + scroll.AbsoluteSize.Y
 		local barTop = bar.AbsolutePosition.Y
+		local factsState = facts:getDebugState()
 		return {
 			open = overlay:isOpen(),
 			kind = overlay:kind(),
 			carId = me._car and me._car.id,
-			variant = me._card and me._card._variant,
-			rows = #me._rows,
-			bars = me._bars,
+			variant = "SixFacts",
+			-- the labelled rows on screen: Name and Rarity (on the card), World, Lap Pay, Finishes
+			rows = 2 + #factsState.rowLabels,
+			rowLabels = factsState.rowLabels,
+			facts = factsState.facts,
+			side = factsState.side,
+			bars = 0,
 			canvasHeight = scroll.AbsoluteCanvasSize.Y,
 			scrollHeight = scroll.AbsoluteSize.Y,
 			-- the scrolling area must end above the fixed bar: nothing scrolls behind the buttons
@@ -361,7 +599,7 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 			scrollsBehindBar = scrollBottom > barTop + 0.5,
 			drives = me._drives,
 			driveEnabled = me._car ~= nil and me._car.owned ~= false,
-			card = me._card and me._card:getDebugState(),
+			card = factsState.card,
 			instances = #overlay.root:GetDescendants(),
 		}
 	end

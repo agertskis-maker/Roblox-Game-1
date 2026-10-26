@@ -1,23 +1,37 @@
 --!strict
--- GarageMock: a navigable Garage / Index mock drawn over gameplay (Lane 3 HUD prototype,
--- PREVIEW only; no ownership, purchase or save logic). HUD rebuild (2026-10-22, H-15): restyled
--- into the arcade family (Style.luau + the kit): deep panel, Garage-blue header band, kit tabs
--- and buttons, white outlined text; no cream.
+-- GarageMock: a navigable Garage / Index mock drawn over gameplay (Lane 3 HUD prototype, PREVIEW only; no ownership,
+-- purchase or save logic). HUD rebuild (2026-10-22, H-15): restyled into the arcade family (Style.luau + the kit): deep
+-- panel, Garage-blue header band, kit tabs and buttons, white outlined text; no cream.
 --
---   local garage = GarageMock.new(ctx, { onDrive = function(car) end, onClose = fn? })
+--   local garage = GarageMock.new(ctx, { onDrive = function(car) end, onClose = fn?, cars = list?, infoOf = fn?, acquired = map? })
 --   garage:open(returnTo?)  garage:close()  garage:isOpen()
 --   garage:selectTab("Downtown" | "Dusty" | "Summit")
 --   garage:selectCar(id)    -- also opens the detail view on phones
+--   garage:setSort("Rarest" | "LapPay" | "Newest" | nil)   garage:getSort()   -- nil = the collection order
+--   garage:setSource(cars?, infoOf?, acquired?)   -- replace the listed collection (nil = the preview fixtures)
 --   garage:setLoading(on)   -- the loading case for the current tab
 --   garage:layout()  garage:setVisible(on)  garage:destroy()  garage:getDebugState()
 --
--- Content (synthetic): Downtown lists Fixtures.Cars, the three Variant examples, the long-name
--- and missing-asset cases; Dusty Highway is the EMPTY case; Summit Pass is the LOADING case
--- (it stays loading in this mock). The collection total comes from store.garage
--- ("3 / 12", synthetic). "Drive" only calls options.onDrive(car) for an owned car; an unowned
--- car shows how to get it instead of a greyed button.
+-- Content (synthetic): Downtown lists Fixtures.Cars, the three Variant examples, the long-name and missing-asset cases;
+-- Dusty Highway is the EMPTY case; Summit Pass is the LOADING case (it stays loading in this mock). The collection total
+-- comes from store.garage ("3 / 12", synthetic). "Drive" only calls options.onDrive(car) for an owned car.
 -- Back (Escape / gamepad B): closes the phone detail view first, then the Garage.
--- Quirk sentences paraphrase outline v2.2 section 07 (delegated, tunable), not final copy.
+--
+-- ROUND 3 (R3-GA): the large cards and the World tabs are the browsing system. No small copy of a card is drawn here.
+-- * SORT (R3 sort controls): RAREST (Legendary, Epic, Rare, Uncommon, Common; then name A to Z, then id), LAP PAY
+--   (the supplied per-lap number, highest first) and NEWEST (the supplied acquisition number, newest first). A car with
+--   no supplied number is always last, in the collection order; ties keep the collection order. The sort works on a COPY:
+--   the collection array and the catalog are never touched. The active sort is shown by text AND shape: its button turns
+--   into the selected tab (fill and thick boundary), gets an underline and a check mark, and the row says
+--   which order is active ("Rarest first", ... or "Collection order" when none is). Tap the active sort again to go back to the collection order.
+--   On a short phone frame the three buttons become one button that steps through them. The sort is local preview state:
+--   it is not saved, and it survives closing and reopening the Garage only while the screen stays built.
+-- * Lap Pay and the acquisition number of a car the player does not own are unknown (nothing about an unowned car leaks,
+--   not even through the sort order): LAP_SORT_HIDES_UNOWNED below.
+-- * The detail is the six-fact panel (Screens/CardDetail.Facts): image, full name, full rarity word, World, Lap Pay, the
+--   three finishes owned or not. No quirk words, no family, no Heat, no per-second figure, no how-to-get line.
+-- * Finishes come from the collection itself: a finish is OWNED when the collection lists an owned car of that base id
+--   with that finish, NOT OWNED otherwise (a car the player does not own owns no finish).
 
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
@@ -25,22 +39,47 @@ local CarCard = require(Prototype.Cards.CarCard)
 local CardGrid = require(Prototype.Cards.CardGrid)
 local Fixtures = require(Prototype.Fixtures)
 local Overlay = require(script.Parent.Overlay)
+local CardDetail = require(script.Parent.CardDetail)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Style = require(script.Parent.Style)
+local TradingCard = require(Prototype.Cards.TradingCard)
 
 local make = Arcade.make
+local Facts = CardDetail.Facts
 
 local GarageMock = {}
 
 -- TOKEN CANDIDATE: collection chip width in the header.
 local CHIP_W = 124
+-- TOKEN CANDIDATE: sort buttons (design px): the row height is the touch minimum; the width is clamped around the free room.
+local SORT_H = 48
+local SORT_MIN_W = 104
+local SORT_MAX_W = 168
+local SORT_GAP = 8
+-- TOKEN CANDIDATE: the room the fixed DRIVE / BACK bar takes at the bottom of the detail (button 58 + gaps).
+local BAR_H = 76
+-- A car the player does not own has no Lap Pay and no acquisition number for the sort (see the header). One switch.
+local LAP_SORT_HIDES_UNOWNED = true
 
 export type CarRef = CarCard.CarRef
 export type Tab = "Downtown" | "Dusty" | "Summit"
+export type SortMode = CardGrid.SortMode
 
 export type Options = {
 	onDrive: ((CarRef) -> ())?,
 	onClose: (() -> ())?,
+	cars: { CarRef }?, -- the collection to list (default: the synthetic Downtown fixtures); read only, never sorted in place
+	infoOf: ((CarRef) -> TradingCard.Info?)?, -- supplied per-car data: Lap Pay, World, finishes (default: the preview data)
+	acquired: { [string]: number }?, -- supplied acquisition number per car id, larger = newer (for NEWEST)
+}
+
+export type SortButtonState = {
+	id: string,
+	active: boolean,
+	checkVisible: boolean,
+	underlineVisible: boolean,
+	text: string,
+	visible: boolean,
 }
 
 export type DebugState = {
@@ -52,10 +91,19 @@ export type DebugState = {
 	collection: string,
 	driveEnabled: boolean,
 	driveVisible: boolean,
-	howToGetVisible: boolean,
 	driveCalls: number,
+	sort: string, -- "Rarest" | "LapPay" | "Newest" | "None"
+	sortStatus: string,
+	sortForm: string, -- "Row" (three buttons) | "Cycle" (one button, short phone frame)
+	sortButtons: { SortButtonState },
+	sortCycle: SortButtonState,
+	order: { string }, -- the car ids in the order the cards are laid out
+	sourceCount: number,
 	grid: CardGrid.DebugState,
 	detailCard: CarCard.DebugState?,
+	facts: { [string]: any }?,
+	detailGapToBar: number, -- the facts scroll area's bottom to the top of the fixed bar (never negative)
+	detailScrolls: boolean, -- the facts content is taller than its scroll area
 	instances: number,
 }
 
@@ -68,29 +116,41 @@ export type Garage = {
 	isOpen: (self: Garage) -> boolean,
 	selectTab: (self: Garage, tab: Tab) -> (),
 	selectCar: (self: Garage, id: string) -> (),
+	setSort: (self: Garage, mode: SortMode?) -> (),
+	getSort: (self: Garage) -> SortMode?,
+	setSource: (
+		self: Garage,
+		cars: { CarRef }?,
+		infoOf: ((CarRef) -> TradingCard.Info?)?,
+		acquired: { [string]: number }?
+	) -> (),
 	setLoading: (self: Garage, on: boolean) -> (),
 	destroy: (self: Garage) -> (),
 	getDebugState: (self: Garage) -> DebugState,
 }
-
-GarageMock.QuirkText = {
-	Nimble = "Quickest lane changes, and it shakes off oil slicks fast.",
-	Steady = "Easy to drive and the easiest car to claim.",
-	Rugged = "Potholes can't hurt this truck!",
-	["Cool Runner"] = "Stays cool the longest: the car to rest in.",
-	["Long Jump"] = "Hops much farther, even across gaps.",
-	Slipstream = "Slim enough to ride between two cars.",
-	Plow = "Smashes through construction barriers.",
-	Magnet = "Pulls in road coins from nearby lanes.",
-} :: { [string]: string }
-
-GarageMock.HowToGet = "Hop on one during a run and hold on to claim it!"
 
 local TABS: { { id: Tab, long: string, short: string } } = {
 	{ id = "Downtown", long = "Downtown", short = "Downtown" },
 	{ id = "Dusty", long = "Dusty Highway", short = "Dusty Hwy" },
 	{ id = "Summit", long = "Summit Pass", short = "Summit" },
 }
+
+local SORTS: { { id: SortMode, label: string, status: string } } = {
+	{ id = "Rarest", label = "RAREST", status = "Rarest first" },
+	{ id = "LapPay", label = "LAP PAY", status = "Highest Lap Pay first" },
+	{ id = "Newest", label = "NEWEST", status = "Newest first" },
+}
+local NO_SORT_STATUS = "Collection order"
+
+-- SYNTHETIC preview acquisition numbers (larger = newer), for NEWEST in the playground. The real number is the player's own
+-- collection data; NEWEST never reads the array position or an asset time. Cars without an entry have no date.
+GarageMock.PreviewAcquired = table.freeze({
+	fishbowl = 1,
+	puglet = 2,
+	waffle = 3,
+	["puglet-gold"] = 4,
+	["rev6-chrome"] = 6,
+}) :: { [string]: number }
 
 -- The Downtown list for the mock (synthetic; one Variant marked unseen for the NEW tag).
 function GarageMock.downtownCars(): { CarRef }
@@ -108,15 +168,26 @@ function GarageMock.downtownCars(): { CarRef }
 	return list
 end
 
+-- "puglet-gold" -> "puglet" (the id convention the fixtures use for a finish of the same car)
+local function baseOf(id: string): string
+	return (string.gsub(id, "%-.*$", ""))
+end
+
 function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	local opts: Options = options or {}
 	local tab: Tab = "Downtown"
 	local selected: CarRef? = nil
+	local downtownSelection: CarRef? = nil -- what Downtown had selected before another World tab was opened
 	local detailOpen = false
 	local driveCalls = 0
 	local driveEnabled = false
 	local loadingOverride = false
-	local downtown = GarageMock.downtownCars()
+	local source: { CarRef } = opts.cars or GarageMock.downtownCars()
+	local customInfo = opts.infoOf
+	local acquired: { [string]: number } = opts.acquired
+		or (if opts.cars == nil then GarageMock.PreviewAcquired else {})
+	local sortMode: SortMode? = nil
+	local sortForm = "Row"
 	local garage: Garage
 
 	local overlay = Overlay.new(ctx, { name = "GarageMock" })
@@ -174,6 +245,84 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		table.insert(tabs, { id = def.id, tab = t })
 	end
 
+	-- sort controls: a row of three buttons, or one button that steps through them (short phone frame)
+	local sortRow: Frame = make("Frame", { Name = "SortRow", BackgroundTransparency = 1, ZIndex = 6, Parent = panel })
+	local sortCaption = Arcade.text(sortRow, {
+		text = "SORT",
+		role = "Small",
+		name = "Caption",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	local sortStatus = Arcade.text(sortRow, {
+		text = NO_SORT_STATUS,
+		role = "Small",
+		name = "Status",
+		colour = Style.TextSoft,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+
+	-- the selected mark: a check at the corner and an underline under the word (text and shape, not colour alone)
+	local function marks(t: Style.Tab): (Frame, Frame)
+		local check: Frame = make("Frame", {
+			Name = "Check",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -12, 0, 4),
+			Size = UDim2.fromOffset(22, 22),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 14,
+			Parent = t.root,
+		})
+		Arcade.icon(check, "Check")
+		local underline: Frame = make("Frame", {
+			Name = "Underline",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 35),
+			Size = UDim2.new(0.6, 0, 0, 4),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 13,
+			Parent = t.root,
+		})
+		Arcade.corner(underline, 2)
+		return check, underline
+	end
+
+	type SortEntry = { id: SortMode, label: string, tab: Style.Tab, check: Frame, underline: Frame }
+	local sortButtons: { SortEntry } = {}
+	for _, def in SORTS do
+		local t = Style.tab(sortRow, {
+			name = "Sort_" .. def.id,
+			label = def.label,
+			onActivate = function()
+				garage:setSort(if sortMode == def.id then nil else def.id)
+			end,
+		})
+		trove:Add(t.trove)
+		local check, underline = marks(t)
+		table.insert(sortButtons, { id = def.id, label = def.label, tab = t, check = check, underline = underline })
+	end
+	local cycleTab = Style.tab(panel, {
+		name = "Sort_Cycle",
+		label = "SORT",
+		onActivate = function()
+			-- none -> Rarest -> Lap Pay -> Newest -> none
+			local nextIndex = 1
+			for i, def in SORTS do
+				if def.id == sortMode then
+					nextIndex = i + 1
+				end
+			end
+			garage:setSort(if nextIndex > #SORTS then nil else SORTS[nextIndex].id)
+		end,
+	})
+	trove:Add(cycleTab.trove)
+	local cycleCheck, cycleUnderline = marks(cycleTab)
+
 	-- grid
 	local gridHolder = Style.well(panel, "GridHolder", 4)
 	gridHolder.ClipsDescendants = true
@@ -187,31 +336,22 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		grid:destroy()
 	end)
 
-	-- detail
+	-- detail: the six facts in a scrolling area that ends above the fixed DRIVE / BACK bar
 	local detail = Style.well(panel, "Detail", 6)
-	local detailCard = CarCard.new(detail, Fixtures.Cars[1], { size = Vector2.new(200, 280), spinning = false })
-	trove:Add(function()
-		detailCard:destroy()
-	end)
 	local detailEmpty =
 		Overlay.text(detail, "Pick a car to see it here", 18, Style.TextSoft, Enum.TextXAlignment.Center, 7)
-	local info: Frame = make("Frame", { Name = "Info", BackgroundTransparency = 1, ZIndex = 7, Parent = detail })
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Vertical,
-		Padding = UDim.new(0, 4),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = info,
+	local detailScroll = Style.scroll(detail, "FactsScroll", 7)
+	make("UIPadding", {
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 8),
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 8),
+		Parent = detailScroll,
 	})
-	local quirkTitle = Overlay.text(info, "", 22, nil, nil, 7)
-	quirkTitle.LayoutOrder = 1
-	local quirkLine = Style.paragraph(info, "", 16, true, 7)
-	quirkLine.LayoutOrder = 2
-	local finishLine = Overlay.text(info, "", 16, Style.TextSoft, nil, 7)
-	finishLine.LayoutOrder = 3
-	local howToGet = Style.paragraph(info, GarageMock.HowToGet, 18, false, 7)
-	howToGet.Name = "HowToGet"
-	howToGet.LayoutOrder = 4
-	howToGet.Visible = false
+	local facts = Facts.new(detailScroll, "SixFacts")
+	trove:Add(function()
+		facts:destroy()
+	end)
 
 	local driveButton = Arcade.button(detail, {
 		name = "Drive",
@@ -247,6 +387,55 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	trove:Add(backButton.trove)
 	backButton.root.ZIndex = 12
 
+	---------------------------------------------------------------------------------------------
+	-- data: the supplied per-car info, the finishes from the collection, the sort keys
+	---------------------------------------------------------------------------------------------
+
+	local function infoFor(car: CarRef): TradingCard.Info
+		local info: TradingCard.Info
+		if customInfo then
+			info = customInfo(car) or {}
+		else
+			local base = baseOf(car.id)
+			info = table.clone(Fixtures.cardInfo(base) or {}) :: TradingCard.Info
+			-- a finish is owned when the collection lists an owned car of this base with that finish
+			local flags = { Gold = false, Chrome = false, Rainbow = false } :: { [string]: boolean }
+			for _, c in source do
+				if baseOf(c.id) == base and c.owned == true and c.variant ~= "None" then
+					flags[c.variant] = true
+				end
+			end
+			info.variants = flags :: any
+		end
+		return info
+	end
+
+	local function lapPayOf(car: CarRef): number?
+		if LAP_SORT_HIDES_UNOWNED and car.owned == false then
+			return nil
+		end
+		return infoFor(car).lapPay
+	end
+
+	local function acquiredOf(car: CarRef): number?
+		if LAP_SORT_HIDES_UNOWNED and car.owned == false then
+			return nil
+		end
+		local number = acquired[car.id]
+		if number ~= nil then
+			return number
+		end
+		return infoFor(car).acquiredAt
+	end
+
+	local function displayed(): { CarRef }
+		return CardGrid.sortCars(source, sortMode, { lapPay = lapPayOf, acquired = acquiredOf })
+	end
+
+	---------------------------------------------------------------------------------------------
+	-- state to screen
+	---------------------------------------------------------------------------------------------
+
 	local function updateCollection()
 		local g = ctx.store:get().garage
 		-- an unknown total is shown as the owned count alone, never an invented total
@@ -259,40 +448,51 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	end))
 	updateCollection()
 
+	local function applySortUI()
+		local statusText = NO_SORT_STATUS
+		local activeLabel = "SORT"
+		for _, s in sortButtons do
+			local on = s.id == sortMode
+			s.tab.set(on)
+			s.check.Visible = on
+			s.underline.Visible = on
+		end
+		for _, def in SORTS do
+			if def.id == sortMode then
+				statusText = def.status
+				activeLabel = def.label
+			end
+		end
+		cycleTab.set(sortMode ~= nil)
+		cycleTab.setText(activeLabel)
+		cycleCheck.Visible = sortMode ~= nil
+		cycleUnderline.Visible = sortMode ~= nil
+		sortStatus.Text = statusText
+	end
+
 	local function updateDetail()
 		local car = selected
-		detailCard.root.Visible = car ~= nil
-		detailCard:setVisible(car ~= nil)
-		info.Visible = car ~= nil
+		facts.root.Visible = car ~= nil
+		detailScroll.Visible = car ~= nil
 		detailEmpty.Visible = car == nil
 		if not car then
+			facts:setVisible(false)
 			driveEnabled = false
 			driveButton.root.Visible = false
-			howToGet.Visible = false
 			return
 		end
-		if detailCard:car() ~= car then
-			detailCard:setCar(car)
-		end
-		local rarity = (PreviewTokens.Rarity :: any)[car.rarity]
-		quirkTitle.Text = car.quirk .. "  \u{00B7}  " .. car.family
-		quirkLine.Text = GarageMock.QuirkText[car.quirk] or ""
-		-- rarity and finish are separate fields: both are named when a finish exists
-		local finish = if car.variant ~= "None"
-			then rarity.label .. "  \u{00B7}  " .. car.variant .. " finish"
-			else rarity.label
-		if not car.owned then
-			finishLine.Text = finish .. "  \u{00B7}  not owned yet"
-		elseif car.model == nil then
-			finishLine.Text = finish .. "  \u{00B7}  not ready yet"
-		else
-			finishLine.Text = finish
-		end
-		-- an unowned car explains how to get it (no greyed DRIVE)
-		howToGet.Visible = not car.owned
+		facts:setCar(car, infoFor(car))
+		facts:setVisible(overlay:isOpen())
 		driveButton.root.Visible = car.owned
 		driveEnabled = car.owned and car.model ~= nil
 		driveButton.setEnabled(driveEnabled)
+	end
+
+	local function setSelected(car: CarRef?)
+		selected = car
+		if tab == "Downtown" and car ~= nil then
+			downtownSelection = car
+		end
 	end
 
 	local function applyTab()
@@ -300,18 +500,20 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			t.tab.set(t.id == tab)
 		end
 		if tab == "Downtown" and not loadingOverride then
-			grid:setCars(downtown)
-			local keep = selected
-			if not keep or not table.find(downtown, keep) then
+			grid:setCars(displayed())
+			local keep = selected or downtownSelection
+			if keep and not table.find(source, keep) then
 				keep = nil
-				for _, c in downtown do
+			end
+			if not keep then
+				for _, c in source do
 					if c.owned then
 						keep = c
 						break
 					end
 				end
 			end
-			selected = keep
+			setSelected(keep)
 			grid:select(if keep then keep.id else nil)
 		elseif tab == "Dusty" and not loadingOverride then
 			grid:setEmptyText("No Dusty Highway cars yet. Open the Dusty Highway portal to start collecting!")
@@ -323,6 +525,41 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		end
 		detailOpen = false
 		updateDetail()
+	end
+
+	---------------------------------------------------------------------------------------------
+	-- layout
+	---------------------------------------------------------------------------------------------
+
+	local function placeSortRow(x: number, y: number, w: number)
+		sortRow.Position = UDim2.fromOffset(x, y)
+		sortRow.Size = UDim2.fromOffset(w, SORT_H)
+		local captionW = if w >= 460 then 56 else 0
+		local statusW = if w >= 700 then 220 else 0
+		local free = w - captionW - statusW - SORT_GAP * 2 - (if statusW > 0 then SORT_GAP else 0)
+		local bw = math.clamp(math.floor(free / 3), SORT_MIN_W, SORT_MAX_W)
+		sortCaption.Visible = captionW > 0
+		sortCaption.Position = UDim2.fromOffset(0, 0)
+		sortCaption.Size = UDim2.fromOffset(math.max(captionW, 1), SORT_H)
+		for i, s in sortButtons do
+			s.tab.root.Position = UDim2.fromOffset(captionW + (i - 1) * (bw + SORT_GAP), 0)
+			s.tab.root.Size = UDim2.fromOffset(bw, SORT_H)
+		end
+		sortStatus.Visible = statusW > 0
+		local statusX = captionW + 3 * bw + 2 * SORT_GAP + SORT_GAP
+		sortStatus.Position = UDim2.fromOffset(statusX, 0)
+		sortStatus.Size = UDim2.fromOffset(math.max(w - statusX, 1), SORT_H)
+	end
+
+	-- the facts scroll area inside a detail well of `w` x `h` design px (the bar takes BAR_H at the bottom)
+	local function layoutDetail(w: number, h: number)
+		local scrollH = h - 8 - BAR_H
+		detailScroll.Position = UDim2.fromOffset(4, 4)
+		detailScroll.Size = UDim2.fromOffset(w - 8, math.max(scrollH, 40))
+		local innerW = w - 8 - 8 - 4 - 8 -- the scroll frame, its bar and its padding
+		local cardSize, compact = Facts.fit(innerW, scrollH - 14)
+		facts:layout(innerW, cardSize, compact)
+		detailEmpty.Position = UDim2.new(0, 0, 0.5, -12)
 	end
 
 	local function layoutNow()
@@ -359,18 +596,34 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		local tabsY = headH + 10 + (if tall then 48 else 0)
 		local bodyX, bodyY, bodyW, bodyH
 		local wide = kind == "Wide"
+		local desktop = wide and pw >= 1000
+		sortForm = if short then "Cycle" else "Row"
+		sortRow.Visible = not short
+		cycleTab.root.Visible = short
 		if wide then
 			for i, t in tabs do
 				t.tab.root.Position = UDim2.fromOffset(14 + (i - 1) * 178, tabsY)
 				t.tab.root.Size = UDim2.fromOffset(168, 48)
 			end
-			bodyX, bodyY = 12, tabsY + 48 + 10
+			if desktop then
+				-- beside the tabs
+				local sortX = 14 + 3 * 178 + 8
+				placeSortRow(sortX, tabsY, pw - sortX - 14)
+				bodyX, bodyY = 12, tabsY + 48 + 10
+			else
+				-- a row of its own under the tabs
+				placeSortRow(14, tabsY + 48 + 8, pw - 28)
+				bodyX, bodyY = 12, tabsY + 48 + 8 + SORT_H + 10
+			end
 			bodyW, bodyH = pw - 24, ph - bodyY - 12
 		elseif short then
 			for i, t in tabs do
 				t.tab.root.Position = UDim2.fromOffset(12, tabsY + (i - 1) * 56)
 				t.tab.root.Size = UDim2.fromOffset(136, 48)
 			end
+			-- the one sort button sits under the tabs (a row would take 56 px from the cards)
+			cycleTab.root.Position = UDim2.fromOffset(12, tabsY + 3 * 56)
+			cycleTab.root.Size = UDim2.fromOffset(136, SORT_H)
 			bodyX, bodyY = 156, headH + 10
 			bodyW, bodyH = pw - 168, ph - bodyY - 10
 		else
@@ -379,12 +632,12 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				t.tab.root.Position = UDim2.fromOffset(12 + (i - 1) * (tw + 8), tabsY)
 				t.tab.root.Size = UDim2.fromOffset(tw, 48)
 			end
-			bodyX, bodyY = 8, tabsY + 48 + 10
+			placeSortRow(12, tabsY + 48 + 8, pw - 24)
+			bodyX, bodyY = 8, tabsY + 48 + 8 + SORT_H + 10
 			bodyW, bodyH = pw - 16, ph - bodyY - 10
 		end
-		-- grid cell per layout (CarCard switches to its compact layout below 180 wide); widths
+		-- grid cell per layout (CarCard switches to its compact layout below 196 wide); widths
 		-- leave room for the 8 px scroll bar so the column count never drops
-		local desktop = wide and pw >= 1000
 		local cell = if wide
 			then (if desktop then Vector2.new(200, 280) else Vector2.new(170, 238))
 			elseif short then Vector2.new(140, 196)
@@ -401,22 +654,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			backButton.root.Visible = false
 			driveButton.root.AnchorPoint = Vector2.new(0.5, 1)
 			driveButton.root.Position = UDim2.new(0.5, 0, 1, -12)
-			if desktop then
-				local cardSize = Vector2.new(200, 280)
-				detailCard:setSize(cardSize)
-				detailCard.root.AnchorPoint = Vector2.new(0.5, 0)
-				detailCard.root.Position = UDim2.new(0.5, 0, 0, 16)
-				info.Position = UDim2.fromOffset(16, 16 + cardSize.Y + 14)
-				info.Size = UDim2.new(1, -32, 0, 120)
-			else
-				local cardSize = Vector2.new(150, 210)
-				detailCard:setSize(cardSize)
-				detailCard.root.AnchorPoint = Vector2.zero
-				detailCard.root.Position = UDim2.fromOffset(14, 14)
-				info.Position = UDim2.fromOffset(14 + cardSize.X + 14, 14)
-				info.Size = UDim2.new(1, -(14 + cardSize.X + 14 + 12), 0, cardSize.Y)
-			end
-			detailEmpty.Position = UDim2.new(0, 0, 0.5, -12)
+			layoutDetail(dw, bodyH)
 		else
 			gridHolder.Visible = not detailOpen
 			gridHolder.Position = UDim2.fromOffset(bodyX, bodyY)
@@ -425,30 +663,11 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			detail.Position = UDim2.fromOffset(bodyX, bodyY)
 			detail.Size = UDim2.fromOffset(bodyW, bodyH)
 			backButton.root.Visible = true
-			if short then
-				local cardSize = Vector2.new(150, 210)
-				detailCard:setSize(cardSize)
-				detailCard.root.AnchorPoint = Vector2.zero
-				detailCard.root.Position = UDim2.fromOffset(14, math.max(math.floor((bodyH - cardSize.Y) / 2), 8))
-				info.Position = UDim2.fromOffset(14 + cardSize.X + 20, 14)
-				info.Size = UDim2.new(1, -(14 + cardSize.X + 20 + 14), 0, 110)
-				driveButton.root.AnchorPoint = Vector2.new(1, 1)
-				driveButton.root.Position = UDim2.new(1, -14, 1, -10)
-				backButton.root.AnchorPoint = Vector2.new(1, 1)
-				backButton.root.Position = UDim2.new(1, -14 - 180 - 16, 1, -10)
-			else
-				local cardSize = Vector2.new(200, 280)
-				detailCard:setSize(cardSize)
-				detailCard.root.AnchorPoint = Vector2.new(0.5, 0)
-				detailCard.root.Position = UDim2.new(0.5, 0, 0, 18)
-				info.Position = UDim2.fromOffset(16, 18 + cardSize.Y + 16)
-				info.Size = UDim2.new(1, -32, 0, 120)
-				driveButton.root.AnchorPoint = Vector2.new(1, 1)
-				driveButton.root.Position = UDim2.new(1, -14, 1, -12)
-				backButton.root.AnchorPoint = Vector2.new(0, 1)
-				backButton.root.Position = UDim2.new(0, 14, 1, -12)
-			end
-			detailEmpty.Position = UDim2.new(0, 0, 0.5, -12)
+			driveButton.root.AnchorPoint = Vector2.new(1, 1)
+			driveButton.root.Position = UDim2.new(1, -14, 1, -10)
+			backButton.root.AnchorPoint = Vector2.new(1, 1)
+			backButton.root.Position = UDim2.new(1, -14 - 180 - 16, 1, -10)
+			layoutDetail(bodyW, bodyH)
 		end
 		grid:refresh()
 	end
@@ -469,6 +688,17 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		layoutNow()
 	end)
 
+	local function sortState(s: SortEntry): SortButtonState
+		return {
+			id = s.id,
+			active = s.id == sortMode,
+			checkVisible = s.check.Visible,
+			underlineVisible = s.underline.Visible,
+			text = s.tab.label.Text,
+			visible = sortRow.Visible,
+		}
+	end
+
 	garage = {
 		root = overlay.root,
 		layout = function(_self: Garage)
@@ -476,13 +706,14 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		end,
 		setVisible = function(_self: Garage, on: boolean)
 			overlay.root.Visible = on and overlay:isOpen()
-			detailCard:setVisible(on and selected ~= nil)
+			facts:setVisible(on and overlay:isOpen() and selected ~= nil)
 			grid:refresh()
 		end,
 		open = function(_self: Garage, returnTo: GuiObject?)
 			layoutNow()
 			overlay:open(grid:firstBody() or tabs[1].tab.root, returnTo)
-			detailCard:setSpinning(true)
+			facts:setVisible(selected ~= nil)
+			facts:setSpinning(true)
 			task.defer(function()
 				grid:refresh()
 			end)
@@ -494,7 +725,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			detailOpen = false
 			overlay:close()
 			-- stop every turntable once the panel is hidden (the grid re-checks visibility)
-			detailCard:setSpinning(false)
+			facts:setSpinning(false)
 			task.delay(PreviewTokens.Motion.PanelOut + 0.05, function()
 				grid:refresh()
 			end)
@@ -506,15 +737,18 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			return overlay:isOpen()
 		end,
 		selectTab = function(_self: Garage, t: Tab)
+			if tab == "Downtown" and selected ~= nil then
+				downtownSelection = selected
+			end
 			tab = t
 			loadingOverride = false
 			applyTab()
 			layoutNow()
 		end,
 		selectCar = function(_self: Garage, id: string)
-			for _, c in downtown do
+			for _, c in source do
 				if c.id == id then
-					selected = c
+					setSelected(c)
 				end
 			end
 			if selected and selected.id == id then
@@ -527,6 +761,30 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				overlay:focus(if driveEnabled then driveButton.body else backButton.body)
 			end
 		end,
+		setSort = function(_self: Garage, mode: SortMode?)
+			sortMode = mode
+			applySortUI()
+			-- the same cars in a new order: the selection, the World tab and an open detail stay as they are
+			if tab == "Downtown" and not loadingOverride then
+				grid:setCars(displayed())
+				grid:select(if selected then selected.id else nil)
+			end
+		end,
+		getSort = function(_self: Garage): SortMode?
+			return sortMode
+		end,
+		setSource = function(
+			_self: Garage,
+			cars: { CarRef }?,
+			infoOf: ((CarRef) -> TradingCard.Info?)?,
+			newAcquired: { [string]: number }?
+		)
+			source = cars or GarageMock.downtownCars()
+			customInfo = infoOf
+			acquired = newAcquired or (if cars == nil then GarageMock.PreviewAcquired else {})
+			applyTab()
+			layoutNow()
+		end,
 		setLoading = function(_self: Garage, on: boolean)
 			loadingOverride = on
 			applyTab()
@@ -536,6 +794,14 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			overlay:destroy()
 		end,
 		getDebugState = function(_self: Garage): DebugState
+			local gridState = grid:getDebugState()
+			local buttons: { SortButtonState } = {}
+			for _, s in sortButtons do
+				table.insert(buttons, sortState(s))
+			end
+			local factsState = facts:getDebugState()
+			local scrollBottom = detailScroll.AbsolutePosition.Y + detailScroll.AbsoluteSize.Y
+			local barTop = driveButton.root.AbsolutePosition.Y
 			return {
 				open = overlay:isOpen(),
 				kind = overlay:kind(),
@@ -545,15 +811,32 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				collection = countText.Text,
 				driveEnabled = driveEnabled,
 				driveVisible = driveButton.root.Visible,
-				howToGetVisible = howToGet.Visible,
 				driveCalls = driveCalls,
-				grid = grid:getDebugState(),
-				detailCard = if selected then detailCard:getDebugState() else nil,
+				sort = if sortMode then sortMode else "None",
+				sortStatus = sortStatus.Text,
+				sortForm = sortForm,
+				sortButtons = buttons,
+				sortCycle = {
+					id = "Cycle",
+					active = sortMode ~= nil,
+					checkVisible = cycleCheck.Visible,
+					underlineVisible = cycleUnderline.Visible,
+					text = cycleTab.label.Text,
+					visible = cycleTab.root.Visible,
+				},
+				order = gridState.order,
+				sourceCount = #source,
+				grid = gridState,
+				detailCard = if selected then factsState.card else nil,
+				facts = if selected then factsState else nil,
+				detailGapToBar = barTop - scrollBottom,
+				detailScrolls = detailScroll.AbsoluteCanvasSize.Y > detailScroll.AbsoluteSize.Y + 0.5,
 				instances = #overlay.root:GetDescendants(),
 			}
 		end,
 	}
 
+	applySortUI()
 	applyTab()
 	layoutNow()
 	return garage

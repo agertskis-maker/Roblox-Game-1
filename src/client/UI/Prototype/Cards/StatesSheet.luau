@@ -9,10 +9,11 @@
 -- Cells (synthetic fixtures): owned, unowned (silhouette), selected, loading, unavailable, the
 -- three finishes (Gold / Chrome / Rainbow, separate from rarity), earned-unseen NEW, the
 -- SECURED stamp (a late-confirmed claim), every rarity from Common to Legendary, the long-name
--- rule ("Revolution 6" in a narrow card, "Citrine Waffle Van Deluxe Edition", and a name too
--- long for two lines that keeps its last word) and the 112 x 150 minimum size. The state labels
--- under the cards are harness captions (PreviewCaption). At most 6 cards spin; reduced motion
--- keeps all of them static (the shared CarCard ticker).
+-- rule (Round 3: names are never cut; "Revolution 6" in a narrow card, "Citrine Waffle Van Deluxe Edition",
+-- and a name too long for two lines, which grows the header instead) and the smallest card (132 x 160),
+-- where the full words UNCOMMON and LEGENDARY still fit. The state labels under the cards are harness
+-- captions (PreviewCaption). At most 6 cards spin; reduced motion keeps all of them static (the shared
+-- CarCard ticker).
 
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
@@ -107,7 +108,7 @@ function StatesSheet.specs(): { Spec }
 		{
 			label = "Long name, narrow card",
 			car = variant(rev6, "narrow", { owned = true }),
-			size = Vector2.new(124, 172),
+			size = Vector2.new(132, 188),
 			nameLines = 3,
 		},
 		{
@@ -115,8 +116,18 @@ function StatesSheet.specs(): { Spec }
 			car = variant(waffle, "deluxe", { name = "Citrine Waffle Van Deluxe Edition" }),
 			size = Vector2.new(176, 236),
 		},
-		{ label = "Too long: last word kept", car = Fixtures.LongName },
-		{ label = "Minimum 112 x 150", car = byId("zoomurai"), size = Vector2.new(112, 150) },
+		{ label = "Very long name: every word shown", car = Fixtures.LongName },
+		{ label = "Smallest card 132 x 160", car = byId("zoomurai"), size = CarCard.MinSize },
+		{
+			label = "UNCOMMON, smallest card",
+			car = variant(waffle, "small", { owned = true }),
+			size = CarCard.MinSize,
+		},
+		{
+			label = "LEGENDARY, smallest card",
+			car = variant(byId("hyperion"), "small", { owned = true }),
+			size = CarCard.MinSize,
+		},
 	}
 end
 

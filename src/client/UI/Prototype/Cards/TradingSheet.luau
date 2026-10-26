@@ -1,9 +1,10 @@
 --!strict
--- TradingSheet: a review sheet of the collectible card variants (Lane 3 Round 2, R2-T2; PREVIEW / harness only, not a
+-- TradingSheet: a review sheet of the collectible reward cards (Lane 3 Round 2, R2-T2; PREVIEW / harness only, not a
 -- player screen). Drawn over gameplay like StatesSheet. Cells (synthetic fixtures; the art is a labelled proxy
--- model, no finished car models exist yet):
---   Compact cards, one per family (the eight family icons are on the Reward cards), Reward cards across rarities
---   (Common to Legendary), the three Worlds, NEW, unowned (silhouette), the Epic and Legendary FOIL, a long name.
+-- model, no finished car models exist yet): Reward cards across rarities (Common to Legendary), the three Worlds, NEW,
+-- unowned (silhouette), the Epic and Legendary FOIL, a long name, no Lap Pay supplied.
+-- Round 3 (R3-GA-1): the row of SMALL compact cards that sat above the large cards (one per family, each a smaller copy
+-- of a car shown again below) is removed. Only the large cards remain (two foil cards now, not four).
 -- The cell captions are harness captions (PreviewCaption), so player-facing captures omit them.
 --
 --   local sheet = TradingSheet.new(ctx)
@@ -22,7 +23,6 @@ local make = Arcade.make
 local TradingSheet = {}
 
 local CELL = Vector2.new(210, 372)
-local COMPACT_CELL = Vector2.new(150, 222) -- compact cards need far less room than the reward cards: two grids, not one big cell size
 
 type Spec = { label: string, car: TradingCard.CarRef, info: TradingCard.Info?, variant: string, stamp: string? }
 
@@ -51,16 +51,7 @@ end
 
 function TradingSheet.specs(): { Spec }
 	local specs: { Spec } = {}
-	-- Compact: one per family (fixture family Bus maps to the Truck icon and is flagged)
-	for _, car in Fixtures.Cars do
-		table.insert(specs, {
-			label = "Compact: " .. car.family .. " (" .. car.rarity .. ")",
-			car = with(car, { owned = true }),
-			info = infoFor(car.id, { isNew = car.id == "zoomurai" }),
-			variant = "Compact",
-		})
-	end
-	-- Reward: rarities, Worlds, states
+	-- Reward: rarities, Worlds, states (large cards only)
 	table.insert(specs, {
 		label = "Reward: Common, Downtown",
 		car = with(byId("puglet"), { owned = true }),
@@ -115,6 +106,7 @@ end
 function TradingSheet.new(ctx: Overlay.Ctx)
 	local sheet: any = {}
 	local overlay = Overlay.new(ctx, { name = "TradingSheet" })
+	sheet.root = overlay.root
 	local trove = overlay.trove
 	local content = overlay.content
 	local shell = Style.panel(content, { name = "Panel", z = 3 })
@@ -128,32 +120,20 @@ function TradingSheet.new(ctx: Overlay.Ctx)
 	closeButton.root.ZIndex = 12
 
 	local scroll = Style.scroll(panel, "Cells", 5)
-	make("UIListLayout", {
-		Padding = UDim.new(0, 16),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	local rewardGrid: Frame = make("Frame", {
+		Name = "RewardCards",
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.fromScale(1, 0),
 		Parent = scroll,
 	})
-	local function grid(name: string, order: number, cell: Vector2): Frame
-		local f: Frame = make("Frame", {
-			Name = name,
-			BackgroundTransparency = 1,
-			LayoutOrder = order,
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Size = UDim2.fromScale(1, 0),
-			Parent = scroll,
-		})
-		make("UIGridLayout", {
-			CellSize = UDim2.fromOffset(cell.X, cell.Y),
-			CellPadding = UDim2.fromOffset(14, 14),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			Parent = f,
-		})
-		return f
-	end
-	local compactGrid = grid("CompactCards", 1, COMPACT_CELL)
-	local rewardGrid = grid("RewardCards", 2, CELL)
+	make("UIGridLayout", {
+		CellSize = UDim2.fromOffset(CELL.X, CELL.Y),
+		CellPadding = UDim2.fromOffset(14, 14),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Parent = rewardGrid,
+	})
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 12),
 		PaddingBottom = UDim.new(0, 12),
@@ -169,7 +149,7 @@ function TradingSheet.new(ctx: Overlay.Ctx)
 			BackgroundTransparency = 1,
 			LayoutOrder = i,
 			ZIndex = 6,
-			Parent = if spec.variant == "Compact" then compactGrid else rewardGrid,
+			Parent = rewardGrid,
 		})
 		local card = TradingCard.new(cell, spec.car, spec.info, { variant = spec.variant, stamp = spec.stamp })
 		card.root.AnchorPoint = Vector2.new(0.5, 0)
