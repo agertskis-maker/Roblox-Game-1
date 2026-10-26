@@ -640,10 +640,11 @@ RunLayout.HeatFull = Vector2.new(320, 92) -- HeatGauge.Size (kept in step by Hea
 RunLayout.HeatBottomGap = 8 -- unchanged since Round 2
 -- TOKEN CANDIDATE, PROVISIONAL (Adam to confirm): real (device) px that the smallest Heat text (the title tab) may not go below.
 -- 16 = the project's general minimum (Tokens.TextSize.Minimum) gives scale 1.0 on phones, which covers 39-49% of the protected road
--- rectangle (measured); 13 gives scale 0.81 and the title at 13 px, the stage label at 14.6 px. Round 2 shipped 0.89 / 0.92.
-RunLayout.HeatTextFloor = 13 -- phone frames
--- Desktop and Tablet: the project's 16 px minimum (scale 0.667, measured 0.0% / 0.8% of the protected road).
-RunLayout.HeatTextFloorLarge = 16
+-- rectangle (measured); 13 gave scale 0.81 (22%/31%); Adam then asked for it slightly bigger: 14 gives scale 0.875, the title at 14 px.
+-- Round 2 shipped 0.89 / 0.92.
+RunLayout.HeatTextFloor = 14 -- phone frames (Adam asked for it slightly bigger than 13: scale 0.875)
+-- Desktop and Tablet: slightly above the project's 16 px minimum (17 px = scale 0.708; at 0.667 it measured 0.0% / 0.8% of the protected road).
+RunLayout.HeatTextFloorLarge = 17 -- Desktop and Tablet: slightly bigger than 16 (scale 0.708)
 -- TOKEN CANDIDATE: the smallest Heat text at scale 1 (the title tab: Tokens.TextSize.Minimum) and the stage label and
 -- HOP NOW! (Tokens.TextSize.Label). HeatPanel's debug state compares them with the live labels.
 RunLayout.HeatSmallestText = 16

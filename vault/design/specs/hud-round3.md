@@ -71,10 +71,17 @@ Blender render, code-read, virtual frame, physical device, untested.
 | R3-W3 | Summit Pass plan (same template) | P2 | done: plan only, 15 approval questions |
 | R3-X1 | Reproducible fixtures and matched before/after captures per changed item; combined HUD sequences; six frames | lead | done for every changed item on six virtual frames (Studio Play); combined HUD runs 21 of 21; video: one muted real-time Keys clip |
 | R3-X2 | Accepted Round 2 fixes regression + `./scripts/check.ps1` + targeted checks | lead | done: `./scripts/check.ps1` passes; 129-scenario regression 1,005 PASS (first run 7 FAIL on a small viewport, re-run clean) |
-| R3-X3 | One fresh Sonnet reviewer on a compact evidence packet; fix material findings | lead | open |
-| R3-X4 | Review page (before/after per complaint, B2 table, Heat table, sound list, audit, plans, reviewer, decisions, waiting) | lead | open |
-| R3-X5 | Draft forwardable messages (capture time, hop targeting, run id, held proposals) — **not sent** | lead | open |
-| R3-X6 | Board, log, manifest, decision note, final scoped commit, push, PR #2 refresh; release the lock; stop owned helpers | lead | open |
+| R3-X3 | One fresh Sonnet reviewer on a compact evidence packet; fix material findings | lead | done: one fresh Sonnet reviewer (read-only, no implementation work): no blockers, ten material points all answered (see the review page section 10); one reviewer pass only, no second pass |
+| R3-X4 | Review page (before/after per complaint, B2 table, Heat table, sound list, audit, plans, reviewer, decisions, waiting) | lead | done: `Car-Hop-Art/review/hud-round3/index.html` + `REVIEW-ROUND3.md` (local, with stills, four muted real-time clips and the saved regression logs); a private Artifact page is not published unless Adam asks |
+| R3-X5 | Draft forwardable messages (capture time, hop targeting, run id, held proposals) — **not sent** | lead | done: drafts written in `hud-round3-forwardable-messages.md`, **not sent** to anyone |
+| R3-X6 | Board, log, manifest, decision note, final scoped commit, push, PR #2 refresh; release the lock; stop owned helpers | lead | done at the end: board (claim + status), log, manifest `vault/design/assets.md`, decision 0021, scoped commits, normal push, PR #2 refreshed; Studio lock released; Studio window closed; no merge, no publish |
+
+## Corrections after the independent review
+- The first full regression (129 scenarios, 1,005 PASS, 7 FAIL) had 6 Desktop text-fit failures caused by a too-small Studio viewport (808 x 565; harness frame scale 0.41) and 1 timing race in a music test (assertion edited; product code unchanged). The final build was re-run in full on a maximized viewport; its log is Car-Hop-Art/review/hud-round3/results/regression-final.txt.
+- B2: 88 of 180 meshes were seen loading in Play (a whole-route walk of Downtown seed 2207); the other 92 are uploaded and size-checked only. See ault/design/assets.md.
+- Several 'zero connections/threads after destroy' values are counters the component keeps itself; instance counts and tree walks are the stronger checks.
+- Heat: the phone floor of 13 px is the lead's choice under the brief's delegation and is **Adam's decision**; the panel still partly hides the ridden car's roof at every scale because it is centred at the bottom.
+- Figma-first waiver recorded in decision 0021.
 
 ## Contradictions found while reading the brief
 - The brief says "Opus lead… no Opus subagents"; this session's lead model is Sonnet. All workers were explicitly started as Sonnet; no Opus agent was used.

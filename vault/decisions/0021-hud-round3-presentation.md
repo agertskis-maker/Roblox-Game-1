@@ -9,7 +9,7 @@ date: 2026-10-26
 Ledger [[hud-round3]]; spec `vault/design/ui/hud-round3.md`; follows [[0020-hud-round2-presentation]].
 
 ## Decisions made by the lead (all reversible)
-1. **Figma skipped, again.** Figma is signed in (handle `agertskis`) but on a **View** seat of a Starter plan and no "Car Hop UI" file link is recorded in the repo, so no mock could be written. The changed pieces are specified in the repo and drawn in Studio; they are *awaiting final visual acceptance*, not approved mocks. [[0012-figma-ui-workflow]] is unchanged.
+1. **Figma skipped, again.** Figma is signed in (handle `agertskis`) but on a **View** seat of a Starter plan and no "Car Hop UI" file link is recorded in the repo, so no mock could be written. The changed pieces are specified in the repo and drawn in Studio; they are *awaiting final visual acceptance*, not approved mocks. [[0012-figma-ui-workflow]] is unchanged. Basis: Adam's Round 3 brief (section 4) allows Studio mocks and specs when Figma cannot be used and says not to start a sign-in loop; the independent reviewer noted that this is a waiver of a Figma-first rule, so it is recorded here. If Adam wants these redone in Figma first, say so.
 2. **One pill, two lines.** "821 m | Cactus Flats / Next in 73 m" instead of one line (one line needs about 440 px). "You are here" when nothing lies ahead, so a current area is never shown as the next one.
 3. **Keys ring** fills clockwise from 12 o'clock, drawn from frames and strokes (no upload), eases to the supplied progress in 0.07 s and never changes capture time.
 4. **Landing label replaces the permanent Riding chip** and yields to the capture nameplate: the nameplate wins.
