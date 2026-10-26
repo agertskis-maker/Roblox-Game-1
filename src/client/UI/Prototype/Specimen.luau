@@ -31,6 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Arcade = require(script.Parent.Arcade)
 local Fixtures = require(script.Parent.Fixtures)
 local Icons2 = require(script.Parent.Icons2)
+local KeysLock = require(script.Parent.Run.KeysLock)
 local PreviewTokens = require(script.Parent.PreviewTokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -47,10 +48,8 @@ local HEAT_W, HEAT_H = 300, 30 -- Heat frame (design px)
 local HEAT_FRAME = rgb(24, 32, 58) -- dark Heat frame (inside the ink outline)
 local HEAT_EMPTY = rgb(48, 58, 90) -- unlit Heat segment
 local KEYS_SEG_THICK = 14 -- Keys ring segment thickness (design px)
-local KEYS_EMPTY = rgb(52, 62, 96) -- unlit Keys segment
 local KEYS_INNER_TOP = rgb(20, 28, 54) -- restrained inner shadow (top) ...
 local KEYS_INNER_BOTTOM = rgb(44, 58, 98) -- ... to the lighter bottom
-local KEYS_GOLD = rgb(255, 206, 50) -- lit Keys segment
 local CARD_W, CARD_H = 150, 196 -- specimen car card (design px)
 local TILE = 56 -- district tile in the composed sheet (design px)
 local TILE_GAP = 8
@@ -542,49 +541,8 @@ function Specimen._buildKeys(_self: Specimen, content: Frame, cx: number, cy: nu
 		Rotation = 90,
 		Parent = inner,
 	})
-	local n = A.Keys.Segments
-	local r = rs / 2 - KEYS_SEG_THICK / 2 - 3
-	local segLen = 2 * math.pi * r / n * 0.74
-	local litExact = KEYS_PROGRESS * n
-	for k = 1, n do
-		local theta = -90 + (360 / n) * (k - 1) + (180 / n)
-		local a = math.rad(theta)
-		local seg = make("Frame", {
-			Name = "Segment" .. k,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, r * math.cos(a), 0.5, r * math.sin(a)),
-			Size = UDim2.fromOffset(segLen, KEYS_SEG_THICK),
-			Rotation = theta + 90,
-			BackgroundColor3 = KEYS_EMPTY,
-			ZIndex = 4,
-			Parent = box,
-		})
-		Arcade.corner(seg, 4)
-		Arcade.outline(seg, 1.5)
-		local amount = math.clamp(litExact - (k - 1), 0, 1)
-		if amount > 0 then
-			local fill = make("Frame", {
-				Name = "Lit",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundColor3 = KEYS_GOLD,
-				ZIndex = 5,
-				Parent = seg,
-			})
-			Arcade.corner(fill, 4)
-			if amount < 1 then
-				-- clockwise partial fill along the segment (local +x is clockwise)
-				make("UIGradient", {
-					Transparency = NumberSequence.new({
-						NumberSequenceKeypoint.new(0, 0),
-						NumberSequenceKeypoint.new(amount, 0),
-						NumberSequenceKeypoint.new(math.min(amount + 0.001, 0.999), 1),
-						NumberSequenceKeypoint.new(1, 1),
-					}),
-					Parent = fill,
-				})
-			end
-		end
-	end
+	-- Round 3: one continuous ring (the same builder the live Keys uses), not eight segments
+	KeysLock.drawRing(box, rs, rs / 2 - 4, KEYS_SEG_THICK, KEYS_PROGRESS)
 	local lockSize = math.floor(rs * 0.52)
 	local lock = holder(box, lockSize, "KeyLock")
 	lock.AnchorPoint = Vector2.new(0.5, 0.5)

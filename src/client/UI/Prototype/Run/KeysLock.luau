@@ -1,12 +1,34 @@
 --!strict
--- KEYS LOCK: the signature capture sequence (Lane 3 preview, HUD rebuild worker HR; K-01..K-07).
--- A full redesign of the overnight KeysRing (retired): a bold gold SEGMENTED ring
--- (PreviewTokens.Arcade.Keys.Segments, 8) on a deep dark boundary with a restrained inner
--- shadow, a readable key-in-lock centre (HA's Icons2.keyLock, else a kit-built padlock and key),
--- the percentage secondary under the ring, and one short instruction above it with a thin rarity
--- underline. Gold = capture, teal = Hop; rarity colour is only a supporting accent (the thin
--- inner accent ring and the underline). An already-owned car (authoritative owned == true, or an
--- AlreadyOwned event) shows the SILVER variant, only as part of the Joyride presentation.
+-- KEYS LOCK: the signature capture sequence (Lane 3 preview, HUD rebuild worker HR; K-01..K-07; Round 3 R3-K1, R3-K2).
+-- ROUND 3: ONE continuous yellow progress ring replaces the eight segmented boxes. The ring is our own design: a
+-- bold gold ring on a readable slate track, inside a deep dark boundary with a restrained inner shadow. The centre
+-- is unchanged: the original key-in-lock icon (HA's Icons2.keyLock, else a kit-built padlock and key), the
+-- percentage secondary under the ring, and one short instruction ABOVE it ("HOLD ON", "ALMOST!", "SECURING…") with a
+-- thin rarity underline. Gold = capture, teal = Hop; rarity colour is only a supporting accent (the thin inner
+-- accent ring and the underline). An already-owned car (authoritative owned == true, or an AlreadyOwned event)
+-- shows the SILVER variant, only as part of the Joyride presentation.
+--
+-- RING ORIGIN AND DIRECTION (one, everywhere): the fill starts at 12 o'clock (straight up) and grows CLOCKWISE through
+-- the full circumference to 360 degrees. fill 0.25 = 3 o'clock, 0.5 = 6 o'clock, 0.75 = 9 o'clock, 1 = closed.
+-- RING TECHNIQUE (no uploaded image): the classic two-half method. A transparent circle Frame (UICorner) with a
+-- UIStroke draws the ring, so both edges are anti-aliased. Two copies sit inside two ClipsDescendants frames that
+-- split the ring on the vertical centre line (the right half is 12 -> 6 o'clock, the left half 6 -> 12; the left
+-- clip reaches 1 design px past the line, so rounding can never open a hairline at 6 o'clock). Each copy
+-- carries ONE UIGradient on its stroke with a hard transparency stop at 0.5 (about 1.5 px soft, for an
+-- anti-aliased cut), so its visible area is a half-plane through the ring centre; UIGradient.Rotation turns that
+-- half-plane about the centre. With degrees = fill x 360 measured clockwise from 12 o'clock: right half Rotation =
+-- clamp(degrees, 0, 180); left half Rotation = clamp(degrees, 180, 360). A half is hidden while empty and the right
+-- gradient is off once the right half is complete, so there is no sliver at 0 or 180 degrees. A third copy (the
+-- CLOSED ring: no gradient, no clip) replaces both halves at exactly 100%, so nothing seams or flashes at 360.
+-- Cost: 18 instances for the whole ring (track, two halves, closed ring); one Heartbeat connection only while the
+-- shown value differs from the supplied one; while it runs, three property writes a frame (two UIGradient.Rotation
+-- and the key's Rotation). Visible and Enabled are written only when they change.
+--
+-- FOLLOWING THE REAL PROGRESS: the shown fill follows the supplied keys.progress (the real claim-time source; this
+-- module has no duration of its own) with a straight ease of FILL_SECONDS (0.07 s) from the value shown when the
+-- new progress arrived. It never passes the supplied value (progress only rises and the ease ends exactly on it),
+-- is never early, and lags by at most FILL_SECONDS plus a frame. The connection stops as soon as the shown value
+-- equals the supplied one. Reduced motion shows each supplied value at once.
 --
 -- Display only. Progress comes from store.run.keys as supplied; ownership comes ONLY from the
 -- explicit KeysConfirmed event for that capture id. 100% is never ownership.
@@ -17,25 +39,26 @@
 --   Idle          0    nothing (no ring for irrelevant cars)       nothing
 --   Progress      1    KeysStart or keys{id, Holding}              ring + key appear together
 --                                                                  (brief scale/fade), HOLD ON;
---                                                                  segments light with progress,
---                                                                  the key turns a step per
---                                                                  segment, a small highlight
---                                                                  runs over each new segment,
---                                                                  glow grows a little, riser
---                                                                  pitch follows progress;
+--                                                                  the ring fills with progress,
+--                                                                  the key turns with it, glow
+--                                                                  grows a little, riser pitch
+--                                                                  follows progress;
 --                                                                  ALMOST! once at AlmostAt
---   Pending       2    keys{Pending} (or keys{Confirmed} before    ring full, key poised,
---                      the event: the store status alone is NOT    SECURING…, slow restrained
---                      a confirmation)                             highlight; no ownership,
---                                                                  no fanfare, no count
+--   Pending       2    keys{Pending} (or keys{Confirmed} before    ring full and steady, key poised,
+--                      the event: the store status alone is NOT    SECURING…; no ownership, no
+--                      a confirmation)                             fanfare, no count
 --   Confirmed     3    KeysConfirmed{captureId}                    shackle opens (~150 ms), then
 --                                                                  hand-off to CaptureRibbon
 --   Joyride       3    AlreadyOwned{captureId}                     silver lock opens; the ribbon
 --                                                                  says JOYRIDE BONUS
---   Canceled      3    KeysCanceled / keys{Lost|Canceled}          ring gently fractures, short
+--   Canceled      3    KeysCanceled / keys{Lost|Canceled}          the ring dims and settles, short
 --                                                                  truthful reason ("You hopped
 --                                                                  off"); nothing is lost
---   Unconfirmed   3    Pending with no answer for 8 s (proposal)   fracture + "Not confirmed"
+--   Unconfirmed   3    Pending with no answer for 8 s (proposal)   the same dim + "Not confirmed"
+-- COMPLETION (R3-K2): the first time the shown fill reaches 100% the closed ring gets ONE bounded pulse (a 1.07 scale
+-- pop of about 0.18 s) and settles as a steady, brighter, 2 px thicker ring. Reduced motion skips the pulse and shows
+-- the steady emphasis at once. A full ring that arrives before the confirmation just holds (SECURING…): this module
+-- never shows SECURED and never touches the tray; only the explicit confirmation hands off to the ribbon.
 -- Late truth: Canceled/Unconfirmed + a late KeysConfirmed -> recorded Confirmed, NO ring replay
 -- (the ribbon presents it). Confirmed never returns to Pending; a late KeysCanceled after
 -- Confirmed is ignored and counted in getDebugState().ignored. A new capture id replaces an
@@ -51,10 +74,11 @@
 -- the short canvas side. Kept inside the safe area. Off screen or behind the camera: pinned to
 -- the nearest edge with a small arrow toward the rider. No part / despawned: the static
 -- fallback (RunLayout.keysRect). The per-frame follow is connected only while the lock shows.
+-- (Round 3 changed none of this: the widget box, the ring diameter and every placement rule are the Round 2 ones.)
 --
 -- ROUND 2 ESCALATION (R2-K1), three tiers by supplied progress:
---   0-50%    HOLD ON: stable segmented ring, restrained outline and glow;
---   50-75%   brighter segments and glow, subtle progress clicks (Sounds KeysTick), the riser keeps rising;
+--   0-50%    HOLD ON: stable ring, restrained outline and glow;
+--   50-75%   brighter glow, subtle progress clicks (Sounds KeysTick, one per eighth), the riser keeps rising;
 --   75-100%  a larger ALMOST! (it appears deliberately ONCE, pops once and settles at its bigger size), a bounded
 --            rhythmic pulse of the glow and the transparent rarity edges at ONE cycle per second (capped, never
 --            faster, never a strobe; with the Heat alarm at most 1.25 a second the two stay under 2.5 peaks a
@@ -68,9 +92,9 @@
 -- (its body is the model the player drives), so no vehicle, seat, character root or camera is ever moved here;
 -- the capture outline and sparkles on the car (World/CaptureFx) carry the tension instead. Debug: bodyMotion.
 --
--- Reduced motion: stable outline and segments, key-state changes as swaps, short fades, calm
--- confirmation; no spinning, flight, bounce, pulse, sparks, edges, fracture movement or moving highlight; ALMOST!
--- stays as steady bigger text.
+-- Reduced motion: stable outline and ring (each supplied value shown at once), key-state changes as swaps, short
+-- fades, calm confirmation; no spinning, flight, bounce, pulse, sparks, edges or settling movement; ALMOST! stays as
+-- steady bigger text; completion is a steady brighter, thicker ring.
 --
 --   local keys = KeysLock.new(ctx, { anchor = rideModelOrPart? })
 --   keys:setAnchor(instance?)
@@ -108,6 +132,17 @@ local PULSE_HZ = 1.0 -- the one pulse rate (capped): at most one peak a second
 local SPARK_EVERY = 0.34 -- at most 3 sparks a second
 local SPARKS = 8
 local EDGE_WIDTH = 96 -- design px of the transparent rarity edge on each side
+-- Round 3 ring (TOKEN CANDIDATES)
+local FILL_SECONDS = 0.07 -- the shown fill reaches each supplied progress this fast (never early, never lagging past ~100 ms)
+local TICK_STEPS = 8 -- progress clicks come at every eighth of the progress; the ring itself is continuous
+local COMPLETE_EXTRA = 2 -- design px the closed ring grows outward at completion (steady emphasis)
+local COMPLETE_POP = 1.07 -- the one bounded pulse at completion (skipped in reduced motion)
+local KEY_TURN = 90 -- degrees the key turns between empty and full
+local EDGE_SOFT_PX = 1.5 -- design px of anti-aliasing on the cut edge of the wedge
+local SEAM_OVERLAP = 1 -- design px the left clip reaches past the centre line, so no hairline can open at 6 o'clock
+local TRACK = Color3.fromRGB(74, 88, 124) -- the unfilled track: slate, lighter than the dark boundary so it reads
+local ORIGIN = "12 o'clock (top)"
+local DIRECTION = "clockwise"
 
 local RANK = table.freeze({
 	Idle = 0,
@@ -131,12 +166,35 @@ type Capture = {
 	id: string,
 	car: Store.CarRef?,
 	phase: string,
-	progress: number,
-	lit: number,
+	progress: number, -- the supplied progress (the target of the shown fill)
+	shown: number, -- the fill currently drawn, 0..progress
+	shownFrom: number, -- where the current ease started
+	shownAt: number, -- os.clock() when the current ease started
+	complete: boolean, -- the closed ring has been reached (the pulse plays once)
+	step: number, -- eighths of progress passed (progress clicks)
 	almost: boolean,
 	tier: number,
 	silver: boolean,
 	pendingToken: number,
+}
+
+-- The continuous ring (see the header). Every half is a clipped copy of the same circle.
+type RingParts = {
+	holder: Frame,
+	thick: number,
+	outerRadius: number,
+	trackStroke: UIStroke,
+	rightClip: Frame,
+	rightArc: Frame,
+	rightStroke: UIStroke,
+	rightGrad: UIGradient,
+	leftClip: Frame,
+	leftArc: Frame,
+	leftStroke: UIStroke,
+	leftGrad: UIGradient,
+	closed: Frame,
+	closedStroke: UIStroke,
+	closedPop: UIScale,
 }
 
 type Visual = {
@@ -146,11 +204,9 @@ type Visual = {
 	pop: UIScale,
 	glow: Frame,
 	accent: UIStroke,
-	segments: { Frame },
-	segGrads: { UIGradient },
-	shines: { Frame },
-	basePos: { UDim2 },
-	angles: { number },
+	fill: RingParts,
+	plate: Frame,
+	keyHolder: Frame,
 	lock: RunKit.KeyLockParts,
 	shackleBase: UDim2,
 	keyBase: number,
@@ -183,7 +239,9 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 	self._showing = false
 	self._token = 0
 	self._follow = nil :: RBXScriptConnection?
-	self._pendingLoop = nil :: RBXScriptConnection?
+	self._fill = nil :: RBXScriptConnection? -- the ring's ease; connected only while the shown fill differs from the supplied
+	self._timers = {} :: { [thread]: boolean } -- delayed work (Pending time-out, hand-off hide); cancelled on any end
+	self._pulses = 0
 	self._pos = nil :: Vector2?
 	self._vel = Vector2.zero
 	self._track = "None"
@@ -210,16 +268,25 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 		if mode ~= "Run" then
 			self:_hide(true)
 			self._cap = nil
+			self:_cancelTimers()
 			self:_stopRise()
 			Music.cancel()
 		end
 	end)
 	self._trove:Add(Motion.onReducedChanged(function()
 		local v = self._visual
+		local c = self._cap
 		if v then
 			v.pop.Scale = 1
+			Motion.cancelAll(v.fill.closedPop)
+			v.fill.closedPop.Scale = 1
 		end
-		self:_applyPendingLoop()
+		if v and c and self._showing and Motion.reduced() then
+			-- steady: the ring shows the supplied value at once, with the completion emphasis if it is complete
+			self:_stopFill()
+			self:_setShown(c.progress, false)
+			self:_ringColours(true)
+		end
 		self:_applyDrive()
 	end))
 	self._trove:Add(function()
@@ -227,7 +294,8 @@ function KeysLock.new(ctx: RunLayout.Ctx, options: Options?)
 		Music.cancel()
 		self:_stopRise()
 		self:_stopFollow()
-		self:_stopPendingLoop()
+		self:_stopFill()
+		self:_cancelTimers()
 		self:_stopDrive()
 		if self._visual then
 			self._visual.trove:Destroy()
@@ -250,12 +318,112 @@ local function ringSize(ctx: RunLayout.Ctx): number
 	return math.floor(math.clamp(K.RingSize, 64, math.max(64, math.min(d.X, d.Y) * cap)))
 end
 
+-- The continuous ring (one UIStroke circle drawn three ways: the slate track, two clipped half copies with a
+-- rotating half-plane gradient, and the closed ring). `outer` is the outer radius, `thick` the ring width, both in
+-- design px. The stroke grows OUTWARD from its Frame, so each circle Frame is the ring's inner circle.
+local function buildRing(parent: Frame, area: number, outer: number, thick: number): RingParts
+	local innerD = 2 * (outer - thick)
+	local halfArea = area / 2
+	local base = A.Fill.Gold.Keypoints[2].Value
+	local holder = make("Frame", {
+		Name = "RingFill",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(area, area),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 7,
+		Parent = parent,
+	})
+	local function circle(name: string, into: Instance, pos: UDim2, z: number, colour: Color3): (Frame, UIStroke)
+		local frame = make("Frame", {
+			Name = name,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = pos,
+			Size = UDim2.fromOffset(innerD, innerD),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = z,
+			Parent = into,
+		})
+		make("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = frame })
+		local stroke = make("UIStroke", {
+			Thickness = thick,
+			Color = colour,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = frame,
+		})
+		return frame, stroke
+	end
+	local centre = UDim2.fromOffset(halfArea, halfArea)
+	local _, trackStroke = circle("Track", holder, centre, 7, TRACK)
+	-- a hard stop at the middle of the gradient: the visible area is the half-plane on the gradient's start side
+	local soft = math.clamp(EDGE_SOFT_PX / innerD, 0.002, 0.2)
+	local wedge = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.5 - soft / 2, 0),
+		NumberSequenceKeypoint.new(0.5 + soft / 2, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	local function half(name: string, clipX: number, arcX: number, clipW: number): (Frame, Frame, UIStroke, UIGradient)
+		local clip = make("Frame", {
+			Name = name,
+			Position = UDim2.fromOffset(clipX, 0),
+			Size = UDim2.fromOffset(clipW, area),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ClipsDescendants = true,
+			Visible = false,
+			ZIndex = 8,
+			Parent = holder,
+		})
+		local arc, stroke = circle(name .. "Arc", clip, UDim2.fromOffset(arcX, halfArea), 8, base)
+		local grad = make("UIGradient", { Transparency = wedge, Rotation = 0, Parent = stroke })
+		return clip, arc, stroke, grad
+	end
+	local rightClip, rightArc, rightStroke, rightGrad = half("RightHalf", halfArea, 0, halfArea)
+	local leftClip, leftArc, leftStroke, leftGrad = half("LeftHalf", 0, halfArea, halfArea + SEAM_OVERLAP)
+	local closed, closedStroke = circle("Closed", holder, centre, 8, base)
+	closed.Visible = false
+	local closedPop = make("UIScale", { Name = "Pop", Parent = closed })
+	return {
+		holder = holder,
+		thick = thick,
+		outerRadius = outer,
+		trackStroke = trackStroke,
+		rightClip = rightClip,
+		rightArc = rightArc,
+		rightStroke = rightStroke,
+		rightGrad = rightGrad,
+		leftClip = leftClip,
+		leftArc = leftArc,
+		leftStroke = leftStroke,
+		leftGrad = leftGrad,
+		closed = closed,
+		closedStroke = closedStroke,
+		closedPop = closedPop,
+	}
+end
+
+-- A static ring at one fraction for the review specimens (no tween, no connection, nothing animates).
+function KeysLock.drawRing(parent: Frame, area: number, outer: number, thick: number, fraction: number): Frame
+	local ring = buildRing(parent, area, outer, thick)
+	local degrees = math.clamp(fraction, 0, 1) * 360
+	local closed = degrees >= 360
+	ring.rightClip.Visible = not closed and degrees > 0
+	ring.leftClip.Visible = not closed and degrees > 180
+	ring.closed.Visible = closed
+	ring.rightGrad.Enabled = degrees < 180
+	ring.rightGrad.Rotation = math.clamp(degrees, 0, 180)
+	ring.leftGrad.Rotation = math.clamp(degrees, 180, 360)
+	return ring.holder
+end
+
 function KeysLock._build(self: KeysLock, R: number)
 	if self._visual then
 		self._visual.trove:Destroy()
 	end
 	local trove = Trove.new()
-	local N = K.Segments
 	local area = R + 2 * PAD
 	local width = math.max(area, 170)
 	local height = INSTR_H + 2 + area + PERCENT_H
@@ -310,50 +478,10 @@ function KeysLock._build(self: KeysLock, R: number)
 	local boundary = RunKit.disc(ring, "Boundary", R, A.Ink, 6)
 	boundary.BackgroundTransparency = 0.04
 	Arcade.outline(boundary, "Major", Color3.fromRGB(4, 8, 18))
-	-- segments on a circle, each a short bar tangent to it
+	-- the continuous ring: outer radius 4 px inside the boundary disc, as the segments' outer edge was
 	local thick = math.max(10, math.floor(R * 0.15))
-	local rs = R / 2 - 4 - thick / 2
-	local circ = 2 * math.pi * rs
-	local segLen = circ / N - math.max(4, R * 0.055)
-	local segments, grads, shines, basePos, angles = {}, {}, {}, {}, {}
-	for i = 1, N do
-		local theta = (i - 0.5) / N * math.pi * 2
-		local pos = UDim2.fromOffset(area / 2 + rs * math.sin(theta), area / 2 - rs * math.cos(theta))
-		local seg = make("Frame", {
-			Name = "Seg" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = pos,
-			Size = UDim2.fromOffset(segLen, thick),
-			Rotation = math.deg(theta),
-			BackgroundColor3 = RunKit.Slot,
-			ClipsDescendants = true,
-			ZIndex = 8,
-			Parent = ring,
-		})
-		Arcade.corner(seg, 3)
-		Arcade.outline(seg, "Minor")
-		local grad = make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Enabled = false, Parent = seg })
-		local shine = make("Frame", {
-			Name = "Shine",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 9,
-			Parent = seg,
-		})
-		make("UIGradient", {
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.45, 0.2),
-				NumberSequenceKeypoint.new(0.55, 0.2),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Parent = shine,
-		})
-		segments[i], grads[i], shines[i], basePos[i], angles[i] = seg, grad, shine, pos, theta
-	end
-	-- thin rarity accent ring between the segments and the plate
+	local fill = buildRing(ring, area, R / 2 - 4, thick)
+	-- thin rarity accent ring between the ring and the plate
 	local plateSize = math.floor(R * 0.56)
 	local accentHolder = RunKit.disc(ring, "Accent", plateSize + 8, Color3.new(), 9)
 	accentHolder.BackgroundTransparency = 1
@@ -462,11 +590,9 @@ function KeysLock._build(self: KeysLock, R: number)
 		pop = pop,
 		glow = glow,
 		accent = accent,
-		segments = segments,
-		segGrads = grads,
-		shines = shines,
-		basePos = basePos,
-		angles = angles,
+		fill = fill,
+		plate = plate,
+		keyHolder = lockHolder,
 		lock = lock,
 		shackleBase = lock.shackle.Position,
 		keyBase = lock.key.Rotation,
@@ -484,11 +610,18 @@ function KeysLock._build(self: KeysLock, R: number)
 	trove:Add(function()
 		Motion.cancelAll(group)
 		Motion.cancelAll(pop)
+		Motion.cancelAll(fill.closedPop)
+		Motion.cancelAll(fill.closedStroke)
+		Motion.cancelAll(fill.rightStroke)
+		Motion.cancelAll(fill.leftStroke)
+		Motion.cancelAll(lock.key)
+		Motion.cancelAll(lock.shackle)
 	end)
 end
 
--- Puts the visual in the state of the current capture (used after a rebuild and on start).
-function KeysLock._paint(self: KeysLock)
+-- Puts the visual in the state of the current capture. `snap` = a fresh start or a rebuild (the ring shows the
+-- supplied value at once and any earlier cancel dimming is undone); otherwise the ring eases to the supplied value.
+function KeysLock._paint(self: KeysLock, snap: boolean)
 	local v = self._visual
 	local cap = self._cap
 	if not v or not cap then
@@ -498,17 +631,15 @@ function KeysLock._paint(self: KeysLock)
 	local r = RunKit.rarity(c.car)
 	v.accent.Color = r.light
 	v.underline.BackgroundColor3 = r.light
-	for i, seg in v.segments do
-		Motion.cancelAll(seg)
-		seg.Position = v.basePos[i]
-		seg.Rotation = math.deg(v.angles[i])
-		seg.BackgroundTransparency = 0
-		local on = i <= c.lit
-		v.segGrads[i].Enabled = on
-		v.segGrads[i].Color = if c.silver then RunKit.SilverFill else A.Fill.Gold
-		seg.BackgroundColor3 = if on then Color3.new(1, 1, 1) else RunKit.Slot
-		v.shines[i].BackgroundTransparency = 1
+	if snap then
+		self:_stopFill()
+		c.complete = false
+		Motion.cancelAll(v.pop)
+		v.pop.Scale = 1
+		Motion.cancelAll(v.fill.closedPop)
+		v.fill.closedPop.Scale = 1
 	end
+	self:_ringColours(snap)
 	v.glow.BackgroundColor3 = if c.silver then RunKit.SilverFill.Keypoints[2].Value else A.Fill.Gold.Keypoints[2].Value
 	v.glow.BackgroundTransparency = KeysLock._glowAlpha(c.progress, c.tier)
 	v.accent.Thickness = if c.tier >= 3 then 3.5 else 2
@@ -517,11 +648,166 @@ function KeysLock._paint(self: KeysLock)
 		edge.BackgroundColor3 = r.light
 	end
 	v.lock.shackle.Position = v.shackleBase
-	v.lock.key.Rotation = v.keyBase + 90 * (c.lit / K.Segments)
+	if snap then
+		self:_setShown(c.progress, false)
+	else
+		self:_retarget()
+	end
 	v.percent.Text = string.format("%d%%", math.floor(c.progress * 100 + 1e-6))
 	v.percent.Visible = true
 	v.instr.Text = if c.phase == "Pending" then "SECURING…" elseif c.almost then "ALMOST!" else "HOLD ON"
 	v.underline.Visible = true
+end
+
+----------------------------------------------------------------------------------------------
+-- The ring
+
+-- The ring colours for the current capture: gold (silver for an owned car) on the halves; the closed ring is
+-- brighter and a little thicker once complete (the steady completion emphasis). `settle` also ends any running
+-- emphasis tween on the closed ring and sets its final look (a rebuild, a fresh start, reduced motion); without it a
+-- running completion tween is left to finish.
+function KeysLock._ringColours(self: KeysLock, settle: boolean)
+	local v = self._visual
+	local c = self._cap
+	if not v or not c then
+		return
+	end
+	local palette = if c.silver then RunKit.SilverFill else A.Fill.Gold
+	local base = palette.Keypoints[2].Value
+	local ring = v.fill
+	for _, stroke in { ring.rightStroke, ring.leftStroke } do
+		Motion.cancelAll(stroke)
+		stroke.Color = base
+	end
+	if settle or not c.complete then
+		Motion.cancelAll(ring.closedStroke)
+		ring.closedStroke.Color = if c.complete then palette.Keypoints[1].Value else base
+		ring.closedStroke.Thickness = ring.thick + (if c.complete then COMPLETE_EXTRA else 0)
+	end
+end
+
+-- Draws the ring at `fraction` (0..1 of the circumference, from 12 o'clock, clockwise). Empty and closed are handled
+-- explicitly: nothing is shown at 0, and at exactly 1 the closed ring replaces both halves. `animate` = the pulse
+-- may play when the ring first closes.
+function KeysLock._setShown(self: KeysLock, fraction: number, animate: boolean)
+	local v = self._visual
+	local c = self._cap
+	if not v or not c then
+		return
+	end
+	local f = math.clamp(if fraction ~= fraction then 0 else fraction, 0, 1)
+	c.shown = f
+	local ring = v.fill
+	local degrees = f * 360
+	local closed = f >= 1
+	local rightOn = not closed and degrees > 0
+	local leftOn = not closed and degrees > 180
+	if ring.rightClip.Visible ~= rightOn then
+		ring.rightClip.Visible = rightOn
+	end
+	if ring.leftClip.Visible ~= leftOn then
+		ring.leftClip.Visible = leftOn
+	end
+	if ring.closed.Visible ~= closed then
+		ring.closed.Visible = closed
+	end
+	local rightFull = degrees >= 180
+	if ring.rightGrad.Enabled == rightFull then
+		ring.rightGrad.Enabled = not rightFull
+	end
+	ring.rightGrad.Rotation = math.clamp(degrees, 0, 180)
+	ring.leftGrad.Rotation = math.clamp(degrees, 180, 360)
+	v.lock.key.Rotation = v.keyBase + KEY_TURN * f
+	if closed and not c.complete then
+		c.complete = true
+		self:_complete(animate)
+	end
+end
+
+-- The ring has just closed: one bounded pulse then steady (a steady brighter, thicker ring in reduced motion).
+function KeysLock._complete(self: KeysLock, animate: boolean)
+	local v = self._visual
+	local c = self._cap
+	if not v or not c then
+		return
+	end
+	local ring = v.fill
+	local palette = if c.silver then RunKit.SilverFill else A.Fill.Gold
+	local goal = { Thickness = ring.thick + COMPLETE_EXTRA, Color = palette.Keypoints[1].Value }
+	if animate and not Motion.reduced() then
+		Motion.tween(ring.closedStroke, "complete", Motion.info(0.14), goal)
+		Motion.pop(ring.closed, COMPLETE_POP)
+		self._pulses += 1
+	else
+		Motion.cancelAll(ring.closedStroke)
+		ring.closedStroke.Thickness = goal.Thickness
+		ring.closedStroke.Color = goal.Color
+	end
+end
+
+function KeysLock._stopFill(self: KeysLock)
+	if self._fill then
+		self._fill:Disconnect()
+		self._fill = nil
+	end
+end
+
+-- The supplied progress changed: ease the shown fill to it (at once in reduced motion or while hidden). The
+-- connection exists only while shown and supplied differ.
+function KeysLock._retarget(self: KeysLock)
+	local v = self._visual
+	local c = self._cap
+	if not v or not c then
+		return
+	end
+	if c.shown >= c.progress - 1e-6 then
+		return
+	end
+	if Motion.reduced() or not self._showing then
+		self:_stopFill()
+		self:_setShown(c.progress, false)
+		return
+	end
+	c.shownFrom = c.shown
+	c.shownAt = os.clock()
+	if self._fill then
+		return
+	end
+	self._fill = RunService.Heartbeat:Connect(function()
+		local cap = self._cap
+		if not cap or not self._visual then
+			self:_stopFill()
+			return
+		end
+		local a = math.min((os.clock() - cap.shownAt) / FILL_SECONDS, 1)
+		local f = math.min(cap.shownFrom + (cap.progress - cap.shownFrom) * a, cap.progress)
+		if a >= 1 then
+			f = cap.progress
+			self:_stopFill()
+		end
+		self:_setShown(f, true)
+	end)
+end
+
+-- Delayed work with a handle, so any end (cancel, lose, reset, destroy) can cancel it.
+function KeysLock._later(self: KeysLock, seconds: number, fn: () -> ())
+	local handle: thread? = nil
+	handle = task.delay(seconds, function()
+		if handle then
+			self._timers[handle] = nil
+		end
+		fn()
+	end)
+	if handle then
+		self._timers[handle] = true
+	end
+end
+
+function KeysLock._cancelTimers(self: KeysLock)
+	for handle in self._timers do
+		task.cancel(handle)
+	end
+	table.clear(self._timers)
 end
 
 ----------------------------------------------------------------------------------------------
@@ -569,12 +855,17 @@ function KeysLock._start(self: KeysLock, id: string, car: Store.CarRef?)
 		self:_logLine(old.id .. ": replaced by " .. id)
 	end
 	self:_stopRise()
+	self:_cancelTimers() -- an earlier capture's time-out or hand-off hide never touches this one
 	self._cap = {
 		id = id,
 		car = car,
 		phase = "Progress",
 		progress = 0,
-		lit = 0,
+		shown = 0,
+		shownFrom = 0,
+		shownAt = 0,
+		complete = false,
+		step = 0,
 		almost = false,
 		tier = 1,
 		silver = car ~= nil and car.owned == true,
@@ -592,8 +883,7 @@ function KeysLock._progress(self: KeysLock, p: number)
 	local c = cap :: Capture
 	local progress = math.max(c.progress, math.clamp(if p ~= p then 0 else p, 0, 1))
 	c.progress = progress
-	local N = K.Segments
-	local lit = math.floor(progress * N + 1e-6)
+	local step = math.floor(progress * TICK_STEPS + 1e-6)
 	local v = self._visual
 	local reduced = Motion.reduced()
 	local tier = if progress >= K.AlmostAt then 3 elseif progress >= TIER2_AT then 2 else 1
@@ -604,36 +894,15 @@ function KeysLock._progress(self: KeysLock, p: number)
 	if v then
 		v.percent.Text = string.format("%d%%", math.floor(progress * 100 + 1e-6))
 		v.glow.BackgroundTransparency = KeysLock._glowAlpha(progress, c.tier)
-		for i = c.lit + 1, lit do
-			local seg = v.segments[i]
-			v.segGrads[i].Enabled = true
-			seg.BackgroundColor3 = Color3.new(1, 1, 1)
-			if not reduced then
-				-- a small highlight runs over the new segment
-				local shine = v.shines[i]
-				local g = shine:FindFirstChildOfClass("UIGradient") :: UIGradient
-				shine.BackgroundTransparency = 0
-				g.Offset = Vector2.new(-1, 0)
-				Motion.tween(g, "shine", Motion.info(0.3), { Offset = Vector2.new(1, 0) })
-				Motion.tween(shine, "shine", Motion.info(0.3), { BackgroundTransparency = 1 })
-			end
-		end
-		if lit > c.lit then
-			local rot = v.keyBase + 90 * (lit / N)
-			if reduced then
-				v.lock.key.Rotation = rot
-			else
-				Motion.tween(v.lock.key, "turn", Motion.info(0.12), { Rotation = rot })
-			end
-		end
+		self:_retarget() -- the ring (and the key with it) eases to the supplied progress
 	end
-	if lit > c.lit then
-		self._ticks += lit - c.lit
+	if step > c.step then
+		self._ticks += step - c.step
 		if c.tier >= 2 then
 			Sounds.play("KeysTick") -- subtle progress clicks from 50% (throttled by the hook)
 		end
 	end
-	c.lit = lit
+	c.step = step
 	if progress > 0 then
 		self._rising = true
 		Sounds.rise("KeysRise", progress)
@@ -763,21 +1032,21 @@ function KeysLock._pending(self: KeysLock)
 	local c = cap :: Capture
 	c.phase = "Pending"
 	c.progress = 1
-	c.lit = K.Segments
+	c.step = TICK_STEPS
 	self._countdownShown = false
 	Music.tension(1, "Securing") -- holds at its peak until the confirmation (or a cancel) arrives
+	Sounds.play("KeysPending") -- one quiet note: the ring is full but nothing is confirmed (never the fanfare)
 	self:_stopRise()
 	self:_stopDrive()
 	self:_logLine(c.id .. ": Progress -> Pending")
-	self:_paint()
+	self:_paint(false) -- the ring eases to full and then holds, steady (no moving highlight)
 	c.pendingToken += 1
 	local token = c.pendingToken
-	task.delay(PENDING_TIMEOUT, function()
+	self:_later(PENDING_TIMEOUT, function()
 		if self._cap == c and c.phase == "Pending" and c.pendingToken == token then
 			self:_end("Unconfirmed", "NotConfirmed")
 		end
 	end)
-	self:_applyPendingLoop()
 end
 
 -- Terminal phases. `reason` is a code or a supplied sentence (RunKit.keysReason).
@@ -799,22 +1068,27 @@ function KeysLock._end(self: KeysLock, phase: string, reason: string?)
 		Music.cancel()
 	end
 	self:_stopRise()
-	self:_stopPendingLoop()
+	self:_cancelTimers() -- the Pending time-out (and any earlier hide) is over
 	self:_stopDrive()
 	self:_logLine(c.id .. ": " .. from .. " -> " .. phase)
 	local v = self._visual
+	local claimed = phase == "Confirmed" or phase == "Joyride"
+	if not claimed or not v or not self._showing then
+		self:_stopFill() -- a cancelled ring stops where it is; a claimed one that is hidden has nothing to ease
+	end
 	if not v or not self._showing then
 		return
 	end
 	self._token += 1
 	local token = self._token
 	local reduced = Motion.reduced()
-	if phase == "Confirmed" or phase == "Joyride" then
+	if claimed then
 		if phase == "Joyride" then
 			c.silver = true
+			self:_ringColours(true) -- the closed ring turns silver-bright
 		end
-		c.progress, c.lit = 1, K.Segments
-		self:_paint()
+		c.progress = 1
+		self:_paint(false)
 		v.instr.Text = ""
 		v.underline.Visible = false
 		v.percent.Visible = false
@@ -826,31 +1100,32 @@ function KeysLock._end(self: KeysLock, phase: string, reason: string?)
 				Position = up,
 			})
 		end
-		task.delay(if reduced then 0.35 else 0.55, function()
+		self:_later(if reduced then 0.35 else 0.55, function()
 			if token == self._token then
 				self:_hide(false)
 			end
 		end)
 		return
 	end
-	-- Canceled / Unconfirmed: a gentle fracture with a short truthful reason
+	-- Canceled / Unconfirmed: the ring dims where it stands and settles a little, with a short truthful reason
 	local text = RunKit.keysReason(reason)
 	v.instr.Text = text or ""
 	v.underline.Visible = false
 	v.percent.Visible = false
-	if not reduced then
-		for i, seg in v.segments do
-			local theta = v.angles[i]
-			local out = Vector2.new(math.sin(theta), -math.cos(theta)) * 12
-			local base = v.basePos[i]
-			Motion.tween(seg, "fracture", Motion.info(0.45), {
-				Position = base + UDim2.fromOffset(out.X, out.Y),
-				Rotation = math.deg(theta) + (if i % 2 == 0 then 10 else -10),
-				BackgroundTransparency = 0.6,
-			})
+	local ring = v.fill
+	local dim = A.Fill.Disabled.Keypoints[2].Value
+	for _, stroke in { ring.rightStroke, ring.leftStroke, ring.closedStroke } do
+		Motion.cancelAll(stroke)
+		if reduced then
+			stroke.Color = dim
+		else
+			Motion.tween(stroke, "dim", Motion.info(0.35), { Color = dim })
 		end
 	end
-	task.delay(if text then 1.2 else 0.5, function()
+	if not reduced then
+		Motion.tween(v.pop, "settle", Motion.info(0.4), { Scale = 0.93 })
+	end
+	self:_later(if text then 1.2 else 0.5, function()
 		if token == self._token then
 			self:_hide(false)
 		end
@@ -968,7 +1243,7 @@ function KeysLock._show(self: KeysLock)
 		return
 	end
 	self._token += 1
-	self:_paint()
+	self:_paint(true)
 	local group = v.group
 	local reduced = Motion.reduced()
 	if not self._showing then
@@ -988,7 +1263,7 @@ function KeysLock._show(self: KeysLock)
 end
 
 function KeysLock._hide(self: KeysLock, immediate: boolean)
-	self:_stopPendingLoop()
+	self:_stopFill()
 	self:_stopDrive()
 	local v = self._visual
 	if not self._showing or not v then
@@ -1032,56 +1307,6 @@ function KeysLock._startFollow(self: KeysLock)
 	self:_place(0)
 	self._follow = RunService.Heartbeat:Connect(function(dt)
 		self:_place(dt)
-	end)
-end
-
-function KeysLock._stopPendingLoop(self: KeysLock)
-	if self._pendingLoop then
-		self._pendingLoop:Disconnect()
-		self._pendingLoop = nil
-	end
-	local v = self._visual
-	if v then
-		for _, s in v.shines do
-			if not Motion.reduced() then
-				s.BackgroundTransparency = 1
-			end
-		end
-	end
-end
-
--- Pending: one slow highlight lap per 1.6 s over the full ring (none in reduced motion).
-function KeysLock._applyPendingLoop(self: KeysLock)
-	if self._pendingLoop then
-		self._pendingLoop:Disconnect()
-		self._pendingLoop = nil
-	end
-	local cap = self._cap
-	local v = self._visual
-	if not cap or cap.phase ~= "Pending" or not v or not self._showing then
-		return
-	end
-	for _, s in v.shines do
-		s.BackgroundTransparency = 1
-	end
-	if Motion.reduced() then
-		return
-	end
-	local t = 0
-	local last = 0
-	self._pendingLoop = RunService.Heartbeat:Connect(function(dt)
-		t += dt
-		local idx = math.floor(t / 0.2) % K.Segments + 1
-		if idx ~= last then
-			if last > 0 then
-				v.shines[last].BackgroundTransparency = 1
-			end
-			last = idx
-			local s = v.shines[idx]
-			local g = s:FindFirstChildOfClass("UIGradient") :: UIGradient
-			g.Offset = Vector2.zero
-			s.BackgroundTransparency = 0.55
-		end
 	end)
 end
 
@@ -1281,7 +1506,6 @@ function KeysLock.layout(self: KeysLock)
 		self:_build(R)
 		if wasShowing and self._cap then
 			self:_show()
-			self:_applyPendingLoop()
 		end
 	end
 	self._pos = nil
@@ -1299,6 +1523,68 @@ function KeysLock.setVisible(self: KeysLock, on: boolean)
 	end
 end
 
+-- Ring numbers read back from the real instances (not from what the code meant to set), for the scenarios.
+function KeysLock._ringDebug(self: KeysLock): { [string]: any }
+	local v = self._visual :: Visual
+	local c = self._cap
+	local ring = v.fill
+	local shown = if c then c.shown else 0
+	local degrees = shown * 360
+	local holderPos, holderSize = ring.holder.AbsolutePosition, ring.holder.AbsoluteSize
+	local function centreOf(g: GuiObject): Vector2
+		return g.AbsolutePosition + g.AbsoluteSize / 2
+	end
+	local plateCentre = centreOf(v.plate)
+	local offset = math.max(
+		(centreOf(ring.rightArc) - plateCentre).Magnitude,
+		(centreOf(ring.leftArc) - plateCentre).Magnitude,
+		(centreOf(ring.closed) - plateCentre).Magnitude
+	)
+	local fillsCentre = false
+	for _, g in { ring.holder, ring.rightClip, ring.rightArc, ring.leftClip, ring.leftArc, ring.closed } do
+		if g.BackgroundTransparency < 1 then
+			fillsCentre = true
+		end
+	end
+	local side = math.max(holderSize.X, 1)
+	return {
+		technique = "two ClipsDescendants halves, UIStroke circles, hard-stop UIGradient half-plane (Rotation) + a closed ring",
+		origin = ORIGIN,
+		direction = DIRECTION,
+		target = if c then c.progress else 0,
+		shown = shown,
+		degrees = degrees,
+		expectedRightRotation = math.clamp(degrees, 0, 180),
+		expectedLeftRotation = math.clamp(degrees, 180, 360),
+		rightRotation = ring.rightGrad.Rotation,
+		leftRotation = ring.leftGrad.Rotation,
+		rightGradientOn = ring.rightGrad.Enabled,
+		rightVisible = ring.rightClip.Visible,
+		leftVisible = ring.leftClip.Visible,
+		closedVisible = ring.closed.Visible,
+		stepping = self._fill ~= nil,
+		followSeconds = FILL_SECONDS,
+		complete = c ~= nil and c.complete,
+		pulses = self._pulses,
+		popScale = ring.closedPop.Scale,
+		thickness = ring.thick,
+		outerDiameter = ring.outerRadius * 2,
+		closedThickness = ring.closedStroke.Thickness,
+		fillColour = ring.rightStroke.Color:ToHex(),
+		closedColour = ring.closedStroke.Color:ToHex(),
+		trackColour = ring.trackStroke.Color:ToHex(),
+		splitX = (ring.rightClip.AbsolutePosition.X - holderPos.X) / side,
+		leftEdgeX = (ring.leftClip.AbsolutePosition.X + ring.leftClip.AbsoluteSize.X - holderPos.X) / side,
+		centreOffsetPx = offset,
+		keyHolderOffsetPx = (centreOf(v.keyHolder) - plateCentre).Magnitude,
+		fillsCentre = fillsCentre,
+		segmented = false,
+		instances = #ring.holder:GetDescendants() + 1,
+		keyRotation = v.lock.key.Rotation,
+		expectedKeyRotation = v.keyBase + KEY_TURN * shown,
+	}
+end
+
 function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 	local cap = self._cap
 	local v = self._visual
@@ -1307,6 +1593,11 @@ function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 		finals += 1
 	end
 	local box = if v and self._pos then self:_box(self._pos :: Vector2) else nil
+	local timers = 0
+	for _ in self._timers do
+		timers += 1
+	end
+	local connections = (if self._follow then 1 else 0) + (if self._drive then 1 else 0) + (if self._fill then 1 else 0)
 	return {
 		visible = self._visible,
 		showing = self._showing,
@@ -1314,8 +1605,11 @@ function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 		phase = if cap then cap.phase else "Idle",
 		rank = if cap then RANK[cap.phase] else 0,
 		progress = cap and cap.progress,
-		lit = cap and cap.lit,
-		segments = K.Segments,
+		ring = if v then self:_ringDebug() else nil,
+		connections = connections,
+		timers = timers,
+		instances = #self.root:GetDescendants(),
+		groupVisible = v ~= nil and v.group.Visible,
 		almostShown = cap and cap.almost,
 		tier = cap and cap.tier,
 		pulsing = self._drive ~= nil and not self._suppressed,
@@ -1331,7 +1625,6 @@ function KeysLock.getDebugState(self: KeysLock): { [string]: any }
 		ringSize = v and v.size,
 		tracking = self._track,
 		following = self._follow ~= nil,
-		pendingLoop = self._pendingLoop ~= nil,
 		rising = self._rising,
 		ticks = self._ticks,
 		finals = finals,
