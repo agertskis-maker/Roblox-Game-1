@@ -10,6 +10,12 @@
 --   Reduce motion  three choices -> Motion.setOverride(nil | true | false):
 --                  "Use Roblox setting" (default, follows GuiService.ReducedMotionEnabled),
 --                  "On", "Off". The line under the label shows the effective state.
+--   Haptics        (Round 3, R3-F5) the kit's ON / OFF switch (the same Arcade.toggle as the Home Music row) ->
+--                  store.settings.haptics through Run/Haptics.setEnabled, ON by default, local preview state only. The
+--                  line beside the switch says what it does: "Buzz when you get a car" / "Buzz is off". On a device that
+--                  cannot vibrate (Haptics.isSupported() false: no controller motor and no touch screen) the row is still
+--                  shown, the switch is dimmed, disabled and OFF, and the line says "Not available on this device";
+--                  nothing is requested and nothing errors. Turning it OFF stops a cue that is running.
 --
 -- Look (Arcade kit family): a deep navy card with the thick dark boundary and a shallow lip, a
 -- big white outlined "Settings" title, a red labelled "Close" button (kit Small, the same family
@@ -25,12 +31,15 @@
 -- the selection to the opener (the Home Settings button) when it is still on screen, otherwise
 -- clears it. Gamepad selection is kept inside the card (SelectionGroup with Stop behaviours).
 --
--- Layout: centred card with wide rows on every (landscape) profile. Hit targets are 48 px or larger.
+-- Layout: centred card with wide rows on every (landscape) profile. Hit targets are 48 px or larger. With four rows the
+-- card no longer fits the short phone frames (safe height under COMPACT_BELOW design px: 300 and 325), so those use the
+-- tighter COMPACT metrics (shorter title and rows, the harness caption moved into the title row); taller frames keep the
+-- NORMAL metrics.
 --
 -- API: SettingsPanel.new(ctx, { onClosed: (() -> ())? }?) -> SettingsPanel
 --   :open(opener: GuiObject?)  :close()  :isOpen() -> boolean
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()
---   :getControls() -> { music, sfx, motionRoblox, motionOn, motionOff, close }  (test hook)
+--   :getControls() -> { music, sfx, motionRoblox, motionOn, motionOff, haptics, close }  (test hook)
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -41,6 +50,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Arcade = require(script.Parent.Parent.Arcade)
 local Fade = require(script.Parent.Fade)
+local Haptics = require(script.Parent.Parent.Run.Haptics)
 local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
@@ -63,10 +73,57 @@ local PAD = 20
 local KNOB = 30
 local LABEL = Tokens.TextSize.Value
 local VALUE = Tokens.TextSize.Minimum
-local TITLE_H = 64
 -- TOKEN CANDIDATE: the settings card body (deep navy) and an unchosen segment.
 local CARD_FILL = ColorSequence.new(Color3.fromRGB(58, 74, 126), Color3.fromRGB(28, 36, 72))
 local SEGMENT_OFF = Color3.fromRGB(70, 86, 140)
+-- Haptics row text (child-facing)
+local HAPTICS_ON_LINE = "Buzz when you get a car"
+local HAPTICS_OFF_LINE = "Buzz is off"
+local HAPTICS_UNAVAILABLE_LINE = "Not available on this device"
+
+-- TOKEN CANDIDATE: card metrics. COMPACT is used when the safe height is under COMPACT_BELOW design px (the phone frames),
+-- so four rows still fit: 52 + 4 x 52 + 3 x 4 + 10 = 282 px against the smallest safe height of 300. NORMAL is the
+-- earlier look with a fourth row (388 px, against 495 on the tablet).
+local COMPACT_BELOW = 400
+type Metrics = {
+	titleY: number, -- the "Settings" title top
+	titleBoxH: number,
+	closeY: number, -- the Close button top
+	rowsTop: number, -- where the first row starts
+	rowH: number,
+	gap: number, -- between rows
+	labelH: number,
+	valueY: number, -- the small line under the row label
+	controlY: number,
+	footer: number, -- space under the last row (NORMAL: the harness caption line sits there)
+	noteInTitle: boolean, -- the harness caption goes on the title row (COMPACT)
+}
+local NORMAL: Metrics = {
+	titleY = 12,
+	titleBoxH = 44,
+	closeY = 10,
+	rowsTop = 70,
+	rowH = 60,
+	gap = 10,
+	labelH = 34,
+	valueY = 34,
+	controlY = 6,
+	footer = 48,
+	noteInTitle = false,
+}
+local COMPACT: Metrics = {
+	titleY = 4,
+	titleBoxH = 40,
+	closeY = 2,
+	rowsTop = 52,
+	rowH = 52,
+	gap = 4,
+	labelH = 30,
+	valueY = 30,
+	controlY = 2,
+	footer = 10,
+	noteInTitle = true,
+}
 
 export type Options = { onClosed: (() -> ())? }
 
@@ -147,6 +204,10 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	self._dragging = nil :: InputObject?
 	self._dragSlider = nil :: Slider?
 	self._closeToken = 0
+	self._haptics = nil :: Arcade.Toggle? -- the Haptics switch (rebuilt with the card)
+	self._hapticsDim = nil :: Frame? -- the "not available" shade over the switch
+	self._hapticsLabel = nil :: TextLabel? -- the state line beside the switch
+	self._hapticsSupported = true -- the device capability, read when the card is built and each time it opens
 
 	local root = self._trove:Add(make("Frame", {
 		Name = "SettingsPanel",
@@ -196,6 +257,7 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	end))
 	self._trove:Add(ctx.store:subscribe("settings", function()
 		self:_refreshSound()
+		self:_refreshHaptics(false)
 	end))
 	self._trove:Add(function()
 		ContextActionService:UnbindAction(BACK_ACTION)
@@ -379,6 +441,53 @@ function SettingsPanel._refreshSound(self: any)
 	end
 end
 
+-- The Haptics row follows the preference (ON unless false) and the device: unsupported = shown but OFF, dimmed, disabled, with
+-- its reason. `recheck` re-reads the device capability (when the card is built and when it opens); a settings change
+-- (a slider drag) reuses the last answer.
+function SettingsPanel._refreshHaptics(self: any, recheck: boolean)
+	local toggle: Arcade.Toggle? = self._haptics
+	if not toggle then
+		return
+	end
+	if recheck then
+		self._hapticsSupported = Haptics.isSupported()
+	end
+	local supported: boolean = self._hapticsSupported
+	local on = supported and Haptics.isOn(self._ctx.store:get().settings)
+	toggle.set(on)
+	local hit = toggle.root:FindFirstChild("Hit") :: TextButton?
+	if hit then
+		hit.Active = supported
+		hit.Selectable = supported
+	end
+	-- gamepad order: the motion choices lead to the switch only when it can be selected, otherwise straight to Close
+	local close: GuiObject? = self._closeButton
+	if close then
+		local below: GuiObject = if supported and hit then hit else close
+		for _, seg in self._segments do
+			seg.button.NextSelectionDown = below
+		end
+		close.NextSelectionUp = below
+	end
+	local dim: Frame? = self._hapticsDim
+	if dim then
+		dim.Visible = not supported
+	end
+	local line: TextLabel? = self._hapticsLabel
+	if line then
+		line.Text = if not supported then HAPTICS_UNAVAILABLE_LINE elseif on then HAPTICS_ON_LINE else HAPTICS_OFF_LINE
+	end
+end
+
+-- The switch was pressed. A device that cannot vibrate never gets a preference change: the switch snaps back to OFF.
+function SettingsPanel._setHaptics(self: any, on: boolean)
+	if not self._hapticsSupported then
+		self:_refreshHaptics(false)
+		return
+	end
+	Haptics.setEnabled(self._ctx.store, on) -- writes settings.haptics, stops a running cue when OFF; the subscriber refreshes
+end
+
 -- One labelled row; returns the control frame, the value label and the row height.
 function SettingsPanel._row(
 	_self: any,
@@ -386,9 +495,10 @@ function SettingsPanel._row(
 	order: number,
 	icons: { string },
 	text: string,
-	cardInner: number
+	cardInner: number,
+	m: Metrics
 ): (Frame, TextLabel, number)
-	local rowH = 60
+	local rowH = m.rowH
 	local row = make("Frame", {
 		Name = "Row" .. order,
 		BackgroundTransparency = 1,
@@ -415,7 +525,7 @@ function SettingsPanel._row(
 		z = 43,
 	})
 	label.Position = UDim2.fromOffset(38, 0)
-	label.Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 12, 34)
+	label.Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 12, m.labelH)
 	local value = Arcade.text(row, {
 		text = "",
 		role = "Small",
@@ -425,13 +535,13 @@ function SettingsPanel._row(
 		z = 43,
 	})
 	local labelColumn = 210
-	value.Position = UDim2.fromOffset(38, 34)
+	value.Position = UDim2.fromOffset(38, m.valueY)
 	value.Size = UDim2.fromOffset(labelColumn - 40, 22)
 	value.TextXAlignment = Enum.TextXAlignment.Left
 	local control = make("Frame", {
 		Name = "Control",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(labelColumn, 6),
+		Position = UDim2.fromOffset(labelColumn, m.controlY),
 		Size = UDim2.fromOffset(cardInner - labelColumn, 48),
 		ZIndex = 43,
 		Parent = row,
@@ -439,8 +549,9 @@ function SettingsPanel._row(
 	return control, value, rowH
 end
 
-function SettingsPanel._build(self: any, cardWidth: number)
+function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	local ctx: Types.Ctx = self._ctx
+	local m: Metrics = if compact then COMPACT else NORMAL
 	local selected = GuiService.SelectedObject
 	local hadSelection = selected ~= nil and selected:IsDescendantOf(self.root)
 	self._content:Clean()
@@ -495,15 +606,15 @@ function SettingsPanel._build(self: any, cardWidth: number)
 		xAlign = Enum.TextXAlignment.Left,
 		z = 42,
 	})
-	title.Position = UDim2.fromOffset(PAD, 12)
-	title.Size = UDim2.new(1, -2 * PAD - B.SmallW - 8, 0, 44)
+	title.Position = UDim2.fromOffset(PAD, m.titleY)
+	title.Size = UDim2.new(1, -2 * PAD - B.SmallW - 8, 0, m.titleBoxH)
 	local close = Arcade.button(card, {
 		name = "Close",
 		label = "Close",
 		fill = "Settings",
 		size = "Small",
 		sound = "Tap",
-		position = UDim2.new(1, -14, 0, 10),
+		position = UDim2.new(1, -14, 0, m.closeY),
 		anchor = Vector2.new(1, 0),
 		onActivate = function()
 			self:close()
@@ -516,12 +627,12 @@ function SettingsPanel._build(self: any, cardWidth: number)
 	local list = make("Frame", {
 		Name = "Rows",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(PAD, TITLE_H + 6),
+		Position = UDim2.fromOffset(PAD, m.rowsTop),
 		Size = UDim2.fromOffset(inner, 100),
 		ZIndex = 42,
 		Parent = card,
 	})
-	local gap = 10
+	local gap = m.gap
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -531,7 +642,7 @@ function SettingsPanel._build(self: any, cardWidth: number)
 	local total = 0
 	local settings = ctx.store:get().settings
 
-	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", inner)
+	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", inner, m)
 	self._musicValue = musicValue
 	local music = self:_makeSlider(musicControl, "Music", musicControl.Size.X.Offset, settings.music, function(v)
 		MusicSetting.setLevel(ctx.store, v)
@@ -539,7 +650,7 @@ function SettingsPanel._build(self: any, cardWidth: number)
 	self._sliders.music = music
 	total += h1 + gap
 
-	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", inner)
+	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", inner, m)
 	self._sfxValue = sfxValue
 	local sfx = self:_makeSlider(sfxControl, "Sfx", sfxControl.Size.X.Offset, settings.sfx, function(v)
 		MusicSetting.setSfx(ctx.store, v)
@@ -547,7 +658,7 @@ function SettingsPanel._build(self: any, cardWidth: number)
 	self._sliders.sfx = sfx
 	total += h2 + gap
 
-	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", inner)
+	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", inner, m)
 	self._motionValue = motionValue
 	local choices = { { "Roblox", "Use Roblox setting" }, { "On", "On" }, { "Off", "Off" } }
 	local x = 0
@@ -591,7 +702,47 @@ function SettingsPanel._build(self: any, cardWidth: number)
 		table.insert(self._segments, { button = b, choice = choice, tick = tick, text = t, gradient = g })
 		x += w + 8
 	end
-	total += h3
+	total += h3 + gap
+
+	-- Haptics (R3-F5): the kit's ON / OFF switch, the state line beside it. The switch fills the control so its label
+	-- (the state line) has the control's whole width after the 92 px track.
+	local hapticsControl, hapticsValue, h4 = self:_row(list, 4, { "Haptics", "Motion" }, "Haptics", inner, m)
+	hapticsValue.Visible = false -- the line sits beside the switch instead (it needs more than the label column)
+	local toggle = Arcade.toggle(hapticsControl, {
+		name = "HapticsSwitch",
+		label = HAPTICS_ON_LINE,
+		value = true,
+		onChanged = function(on: boolean)
+			self:_setHaptics(on)
+		end,
+	})
+	self._content:Add(toggle.trove)
+	toggle.root.Size = UDim2.fromScale(1, 1)
+	local hit = toggle.root:FindFirstChild("Hit") :: TextButton
+	hit.SelectionImageObject = selectionRing(hit)
+	hit.NextSelectionLeft = hit
+	hit.NextSelectionRight = hit
+	local line = toggle.root:FindFirstChild("Label") :: TextLabel
+	line.TextSize = VALUE -- the 16 px minimum: "Not available on this device" must fit the control beside the track
+	line.TextXAlignment = Enum.TextXAlignment.Left
+	line.TextTruncate = Enum.TextTruncate.AtEnd
+	-- "not available": a shade over the track (the switch is also disabled and OFF)
+	local dim = make("Frame", {
+		Name = "Unavailable",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(92, 40), -- the kit switch's track
+		BackgroundColor3 = A.Ink,
+		BackgroundTransparency = 0.4,
+		Visible = false,
+		ZIndex = 8,
+		Parent = toggle.root,
+	})
+	Arcade.corner(dim, 8)
+	self._haptics = toggle
+	self._hapticsDim = dim
+	self._hapticsLabel = line
+	total += h4
 
 	local footer = Arcade.text(card, {
 		text = "Preview: not saved",
@@ -599,18 +750,26 @@ function SettingsPanel._build(self: any, cardWidth: number)
 		name = "PreviewNote", -- harness caption (hidden in player-facing captures)
 		size = VALUE,
 		colour = Color3.fromRGB(255, 236, 140),
-		xAlign = Enum.TextXAlignment.Left,
+		xAlign = if m.noteInTitle then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 		z = 42,
 	})
 	footer:SetAttribute("PreviewCaption", true)
-	footer.Position = UDim2.fromOffset(PAD, TITLE_H + 6 + total + 10)
-	footer.Size = UDim2.new(1, -2 * PAD, 0, 22)
+	if m.noteInTitle then
+		-- short phone frames: the caption shares the title row, left of the Close button
+		footer.AnchorPoint = Vector2.new(1, 0)
+		footer.Position = UDim2.new(1, -(B.SmallW + 28), 0, m.titleY + 10)
+		footer.Size = UDim2.fromOffset(220, 22)
+	else
+		footer.Position = UDim2.fromOffset(PAD, m.rowsTop + total + 10)
+		footer.Size = UDim2.new(1, -2 * PAD, 0, 22)
+	end
 	list.Size = UDim2.fromOffset(inner, total)
-	local cardH = TITLE_H + 6 + total + 10 + 22 + 16
+	local cardH = m.rowsTop + total + m.footer
 	holder.Size = UDim2.fromOffset(cardWidth, cardH)
 	self._cardHeight = cardH
 
-	-- Selection order: music -> sfx -> motion choices -> close.
+	-- Selection order: music -> sfx -> motion choices -> haptics (only when the device can vibrate: _refreshHaptics sets
+	-- the two links around it) -> close.
 	music.hit.NextSelectionDown = sfx.hit
 	sfx.hit.NextSelectionUp = music.hit
 	sfx.hit.NextSelectionDown = self._segments[1].button
@@ -620,9 +779,12 @@ function SettingsPanel._build(self: any, cardWidth: number)
 		seg.button.NextSelectionLeft = if i > 1 then self._segments[i - 1].button else seg.button
 		seg.button.NextSelectionRight = if i < #self._segments then self._segments[i + 1].button else seg.button
 	end
+	hit.NextSelectionUp = self._segments[1].button
+	hit.NextSelectionDown = close.body
 	close.body.NextSelectionDown = music.hit
 	close.body.NextSelectionUp = self._segments[1].button
 	music.hit.NextSelectionUp = close.body
+	self:_refreshHaptics(true) -- reads the device capability, then links the motion choices and Close around the switch
 
 	self._fade = Fade.capture(self.root)
 	self:_refreshMotion()
@@ -640,10 +802,11 @@ function SettingsPanel.layout(self: any)
 	-- the root is the safe area in design px, so after HudScale it fills the layer exactly
 	self.root.Size = UDim2.fromOffset(L.safeW, L.safeH)
 	local width = math.min(620, L.safeW - 24)
-	local kind = string.format("Wide:%d", width)
+	local compact = L.safeH < COMPACT_BELOW
+	local kind = string.format("Wide:%d:%s", width, if compact then "compact" else "normal")
 	if kind ~= self._kind then
 		self._kind = kind
-		self:_build(width)
+		self:_build(width, compact)
 		if self._fade then
 			self._fade:set(if self._open then 0 else 1)
 		end
@@ -664,6 +827,7 @@ function SettingsPanel.open(self: any, opener: GuiObject?)
 	local useSelection = lastInputIsGamepad() or GuiService.SelectedObject ~= nil
 	self:_refreshSound()
 	self:_refreshMotion()
+	self:_refreshHaptics(true) -- a controller may have been plugged in or removed since the card was built
 	self.root.Visible = true
 	Sounds.play("Open")
 	self._fade:set(1)
@@ -743,6 +907,11 @@ function SettingsPanel.getControls(self: any): { [string]: GuiObject }
 		sfx = self._sliders.sfx.hit,
 		close = self._closeButton,
 	}
+	local switch: Arcade.Toggle? = self._haptics
+	local hapticsHit = if switch then switch.root:FindFirstChild("Hit") else nil
+	if hapticsHit then
+		controls.haptics = hapticsHit :: GuiObject
+	end
 	for _, seg in self._segments do
 		controls["motion" .. seg.choice] = seg.button
 	end
@@ -755,7 +924,27 @@ function SettingsPanel.getDebugState(self: any): { [string]: any }
 	local pos, size = ctx.screen:rectOf(self._card)
 	local player = Players.LocalPlayer
 	local s = ctx.store:get().settings
+	-- the Haptics row as the player sees it: the switch word, the line beside it, and whether it can be pressed
+	local switch: Arcade.Toggle? = self._haptics
+	local track = if switch then switch.root:FindFirstChild("Track") else nil
+	local word = if track then track:FindFirstChild("State") :: TextLabel? else nil
+	local hitButton = if switch then switch.root:FindFirstChild("Hit") :: TextButton? else nil
+	local stateLine: TextLabel? = self._hapticsLabel
+	local dim: Frame? = self._hapticsDim
 	return {
+		haptics = {
+			supported = self._hapticsSupported,
+			preferenceOn = Haptics.isOn(s), -- the stored preference (kept even when the device cannot vibrate)
+			switchOn = if switch then switch.get() else nil,
+			switchWord = if word then word.Text else nil, -- "ON" / "OFF" inside the switch
+			stateLine = if stateLine then stateLine.Text else nil,
+			stateLineFits = if stateLine then stateLine.TextBounds.X <= stateLine.AbsoluteSize.X - 6 else nil,
+			switchEnabled = if hitButton then hitButton.Active and hitButton.Selectable else nil,
+			dimmed = if dim then dim.Visible else nil,
+			hitHeight = if switch then (switch.root.Parent :: Frame).Size.Y.Offset else nil, -- design px (the control)
+			compact = string.find(self._kind, "compact", 1, true) ~= nil,
+			cue = Haptics.counts(),
+		},
 		open = self._open,
 		visible = self.root.Visible,
 		layout = self._kind,
@@ -776,6 +965,7 @@ function SettingsPanel.getDebugState(self: any): { [string]: any }
 		cardDevicePos = pos,
 		cardDeviceSize = size,
 		cardHeight = self._cardHeight,
+		safeHeight = self.root.Size.Y.Offset, -- design px: the card must fit inside it
 	}
 end
 

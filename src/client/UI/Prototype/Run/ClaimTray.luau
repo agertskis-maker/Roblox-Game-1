@@ -27,6 +27,13 @@
 --   tray:layout(), tray:setVisible(on), tray:destroy(), tray:getDebugState()
 -- Registered on RunBus as "tray" (CaptureRibbon finds it there).
 --
+-- ROUND 3 (R3-F9): identity is RUN-SCOPED and the memory lives in the store (store:remember("tray", event)), not in this
+-- widget. A repeat of a capture already counted in THIS run is ignored; a late KeysConfirmed of an EARLIER run (its runId is
+-- not the active run's, or it was issued before the run began) never counts here. That is presentation only: the store
+-- still records the confirmation (store:confirmations()), so a permanent reward owned by another lane is never discarded.
+-- A tray destroyed and re-mounted mid-run restores its count from the store's memory (no stamp, no replay) and keeps the
+-- identity memory. Run-local state is cleared ONLY at a run start (store.RunChanged), never by a widget being re-created.
+--
 -- Round 2 (R2-T1): each tile is a small STATIC thumbnail of the car (RunKit.thumb: one ViewportFrame per visible tile,
 -- never more than the tray’s four slots, no spin and no render loop; the icon stays when there is no model), the
 -- car name (truncated at a readable 16 px, in full in the review rows and the card detail), a thin rarity edge and a NEW
@@ -108,6 +115,8 @@ function ClaimTray.new(ctx: RunLayout.Ctx, options: Options?)
 	self._waiting = {} :: { [string]: boolean } -- confirmed, waiting for the ribbon's arrive
 	self._settling = {} :: { [string]: boolean }
 	self._dead = false
+	self._runSeq = 0 -- bumped at each run start: delayed work scheduled for an earlier run checks it and does nothing
+	self._restored = 0 -- claims restored from the store's run memory when this tray was created mid-run
 	self._reviewCount = -1
 	self._stamps = 0
 	self._reviewOpen = false
@@ -259,14 +268,21 @@ function ClaimTray.new(ctx: RunLayout.Ctx, options: Options?)
 	end))
 	self._trove:Connect(ctx.store.Event, function(event: Store.Event)
 		if event.kind == "KeysConfirmed" and event.car then
+			-- run-scoped identity: Fresh = the first time this capture is seen in THIS run; a repeat or an earlier run's
+			-- late event is ignored here (the store keeps its record either way)
+			if ctx.store:remember("tray", event) ~= "Fresh" then
+				return
+			end
 			local id = event.captureId or event.id
 			self:_confirmed(id, event.car :: Store.CarRef)
 		end
 	end)
-	self._trove:Connect(ctx.store.ModeChanged, function(mode: string, from: string?)
-		if mode == "Run" and from ~= "Run" then
-			self:_resetRun()
-		end
+	-- a run START clears the run-local state (the only place it is cleared)
+	self._trove:Connect(ctx.store.RunChanged, function()
+		self:_resetRun()
+		self:_render()
+	end)
+	self._trove:Connect(ctx.store.ModeChanged, function()
 		self:_render()
 	end)
 	self._trove:Add(function()
@@ -277,6 +293,7 @@ function ClaimTray.new(ctx: RunLayout.Ctx, options: Options?)
 		RunBus.unregister(ctx, "tray", self)
 	end)
 	RunBus.register(ctx, "tray", self)
+	self:_restore()
 	self:layout()
 	self:_sync()
 	return self
@@ -284,7 +301,22 @@ end
 
 export type ClaimTray = typeof(ClaimTray.new((nil :: any) :: RunLayout.Ctx))
 
+-- A tray created in the middle of a run (a destroyed and re-mounted widget) picks up what this run already confirmed from the
+-- store's run memory: the count is right at once, with no stamp and no replay.
+function ClaimTray._restore(self: ClaimTray)
+	for _, memo in self._ctx.store:remembered("tray") do
+		if memo.car and not self._arrivedSet[memo.id] then
+			self._cars[memo.id] = memo.car
+			self._arrivedSet[memo.id] = true
+			table.insert(self._arrived, memo.id)
+			self._restored += 1
+		end
+	end
+end
+
 function ClaimTray._resetRun(self: ClaimTray)
+	self._runSeq += 1
+	self._restored = 0
 	table.clear(self._arrived)
 	table.clear(self._arrivedSet)
 	table.clear(self._cars)
@@ -303,7 +335,11 @@ function ClaimTray._confirmed(self: ClaimTray, id: string, car: Store.CarRef)
 	end
 	self._cars[id] = self._cars[id] or car
 	self._settling[id] = true
+	local seq = self._runSeq
 	task.delay(SETTLE, function()
+		if seq ~= self._runSeq then
+			return -- a new run began meanwhile: this id belonged to the earlier one (its state was cleared with it)
+		end
 		self._settling[id] = nil
 		if self._dead or self._arrivedSet[id] then
 			return
@@ -313,7 +349,7 @@ function ClaimTray._confirmed(self: ClaimTray, id: string, car: Store.CarRef)
 		if age < EXPECT_TIMEOUT then
 			self._waiting[id] = true
 			task.delay(EXPECT_TIMEOUT - age, function()
-				if not self._dead and self._waiting[id] then
+				if not self._dead and seq == self._runSeq and self._waiting[id] then
 					self:arrive(id) -- the ribbon never came back: count it anyway
 				end
 			end)
@@ -833,6 +869,8 @@ function ClaimTray.getDebugState(self: ClaimTray): { [string]: any }
 		end
 	end
 	return {
+		runKey = self._ctx.store:runScope().key, -- the active run's identity (the run id, or a synthetic key)
+		restoredFromRun = self._restored, -- claims this tray took back from the store's run memory when it was created
 		newChips = chips,
 		newChipsFit = chipsFit,
 		newChipTextWidth = widest,

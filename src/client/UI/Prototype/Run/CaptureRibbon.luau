@@ -29,6 +29,16 @@
 -- protected road/target rectangle (RunLayout.revealRect), Run/SecuredReveal plays the full collectible card instead of
 -- the band: same identity, same sound, same side-slot arbitration.
 --
+-- ROUND 3 (R3-F9): identity is RUN-SCOPED and lives in the store, not in this widget (store:remember("ribbon", event),
+-- store:runBucket). A repeated callback of the same capture in the same run is ignored; a late event of an EARLIER run (its
+-- runId is not the active run's, or it was issued before the run began) is ignored: no SECURED card, no tray +1, nothing
+-- kept for Results. Presentation only: the store still records every confirmation (store:confirmations(), stale ones
+-- flagged), so a permanent reward owned by another lane is never discarded here. An event with no runId belongs to the
+-- active run. A ribbon destroyed and re-mounted mid-run finds the same memory and never replays a capture. A new run
+-- (store.RunChanged) drops whatever the old run still showed or queued, without landing it in the new run's tray.
+-- Haptics (R3-F5): one cue per confirmed claim through Run/Haptics (its single gate), allowed unless the Settings switch is
+-- off; turning the switch off stops a cue that is running.
+--
 --   local ribbon = CaptureRibbon.new(ctx)
 --   ribbon:pendingCards() -> { CarRef }, ribbon:takePendingCards() -> { CarRef }
 --   ribbon:dismiss(), ribbon:layout(), ribbon:setVisible(on), ribbon:destroy(),
@@ -56,7 +66,6 @@ local OUT = 0.25
 local FLY = 0.45
 local BURST = 12 -- hard cap on burst pieces
 local QUEUE = 3
-local PRESENTED_MEMORY = 64
 
 local CaptureRibbon = {}
 CaptureRibbon.__index = CaptureRibbon
@@ -75,15 +84,14 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 	self._ctx = ctx
 	self._trove = Trove.new()
 	self._visible = true
-	self._presented = {} :: { [string]: boolean }
-	self._presentedOrder = {} :: { string }
 	self._queue = {} :: { Item }
 	self._current = nil :: Item?
 	self._handle = nil :: any
-	self._pending = {} :: { Store.CarRef }
 	self._token = 0
 	self._shown = 0
 	self._suppressed = 0
+	self._ignoredStale = 0 -- events of an earlier run, ignored (R3-F9)
+	self._ignoredDuplicates = 0 -- a repeat of a capture already seen in this run, ignored
 	self._bursts = 0
 	self._pieces = 0
 	self._flights = 0
@@ -246,6 +254,15 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 
 	self._trove:Connect(ctx.store.Event, function(event: Store.Event)
 		if (event.kind == "KeysConfirmed" or event.kind == "AlreadyOwned") and event.car then
+			-- run-scoped identity (R3-F9): the memory is the store's, so a re-mounted ribbon never replays a capture
+			local verdict = ctx.store:remember("ribbon", event)
+			if verdict == "Stale" then
+				self._ignoredStale += 1
+				return -- an earlier run's late event: not shown, not counted, not kept (the store still records it)
+			elseif verdict == "Duplicate" then
+				self._ignoredDuplicates += 1
+				return -- a repeat or a Joyride for an id already celebrated in this run
+			end
 			local item: Item = {
 				id = event.captureId or event.id,
 				kind = if event.kind == "KeysConfirmed" then "Confirmed" else "Joyride",
@@ -265,15 +282,21 @@ function CaptureRibbon.new(ctx: RunLayout.Ctx)
 			self:dismiss()
 		end
 	end)
-	self._trove:Connect(ctx.store.ModeChanged, function(mode: string, from: string?)
+	self._trove:Connect(ctx.store.ModeChanged, function(mode: string)
 		if mode ~= "Run" then
 			self:_flushToResults()
 			self:dismiss()
 		end
-		if mode == "Run" and from ~= "Run" then
-			table.clear(self._pending) -- a new run (Results already took its cards)
-		end
+		-- (a new run starts with an empty Results list: the list is a run-scoped store bucket, see RunChanged)
 	end)
+	-- a run START: what the earlier run still showed or queued is dropped (it must not land in the new run's tray)
+	self._trove:Connect(ctx.store.RunChanged, function()
+		self:_dropRun()
+	end)
+	-- turning Haptics off in Settings stops a cue that is still running
+	self._trove:Add(ctx.store:subscribe("settings", function(_, state: Store.State)
+		Haptics.apply(Haptics.isOn(state.settings))
+	end))
 	self._trove:Add(function()
 		self._token += 1
 		Motion.cancelAll(ribbon)
@@ -294,16 +317,9 @@ end
 
 export type CaptureRibbon = typeof(CaptureRibbon.new((nil :: any) :: RunLayout.Ctx))
 
-function CaptureRibbon._markPresented(self: CaptureRibbon, id: string): boolean
-	if self._presented[id] then
-		return false
-	end
-	self._presented[id] = true
-	table.insert(self._presentedOrder, id)
-	if #self._presentedOrder > PRESENTED_MEMORY then
-		self._presented[table.remove(self._presentedOrder, 1) :: string] = nil
-	end
-	return true
+-- The cars kept for Results this run. A run-scoped list in the store: a re-mounted ribbon still has them, a new run starts empty.
+function CaptureRibbon._pendingList(self: CaptureRibbon): { Store.CarRef }
+	return self._ctx.store:runBucket("ribbon.pending") :: any
 end
 
 function CaptureRibbon._isSuppressed(self: CaptureRibbon): boolean
@@ -320,18 +336,17 @@ function CaptureRibbon._record(self: CaptureRibbon, item: Item)
 	if item.kind ~= "Confirmed" then
 		return
 	end
-	for _, c in self._pending do
+	local pending = self:_pendingList()
+	for _, c in pending do
 		if c == item.car then
 			return
 		end
 	end
-	table.insert(self._pending, item.car)
+	table.insert(pending, item.car)
 end
 
+-- (identity was already settled by store:remember in the event handler: this item is the first of its capture in this run)
 function CaptureRibbon._receive(self: CaptureRibbon, item: Item)
-	if not self:_markPresented(item.id) then
-		return -- duplicate, late repeat or a Joyride for an id already celebrated
-	end
 	if self:_isSuppressed() then
 		self._suppressed += 1
 		self:_record(item)
@@ -431,8 +446,9 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 		if trayNow then
 			trayNow:arrive(item.id, item.car)
 		end
-		-- one best-effort cue per confirmed claim, whichever way it is shown (full card or compact stack), so phones get it too
-		self._haptic = Haptics.confirm(self._ctx.store:get().settings.haptics == true)
+		-- one best-effort cue per confirmed claim, whichever way it is shown (full card or compact stack), so phones get
+		-- it too. Run/Haptics is the ONE gate: the Settings switch (ON by default) and the device decide, not this line.
+		self._haptic = Haptics.confirm(Haptics.isOn(self._ctx.store:get().settings))
 	end
 	-- wide screens with a clear place: the full collectible card instead of the band
 	local reveal = if joy then nil else RunBus.get(self._ctx, "reveal")
@@ -447,7 +463,8 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 		end)
 		if played then
 			self._cards += 1
-			Sounds.play("KeysCapture")
+			-- the short fanfare belongs to a CONFIRMED capture only, once per (run, capture)
+			Sounds.fanfare(self._ctx.store:runScope().key .. ":" .. item.id)
 			return
 		end
 	end
@@ -484,7 +501,7 @@ function CaptureRibbon._present(self: CaptureRibbon, item: Item)
 		self._amount.Text = "+" .. Format.cash(item.amount :: number)
 	end
 	if item.kind == "Confirmed" then
-		Sounds.play("KeysCapture")
+		Sounds.fanfare(self._ctx.store:runScope().key .. ":" .. item.id)
 	else
 		Sounds.play("CashGain")
 	end
@@ -563,6 +580,7 @@ function CaptureRibbon._finish(self: CaptureRibbon, item: Item, token: number)
 		local target = if tray.countPoint then tray:countPoint() else tray:arrivalPoint(item.id)
 		if target then
 			self._flights += 1
+			local runSeq = self._ctx.store:runScope().seq
 			local from =
 				RunLayout.absToCanvas(self.root, self._icon.AbsolutePosition + self._icon.AbsoluteSize / 2, self._ctx)
 			local to = RunLayout.absToCanvas(self.root, target, self._ctx)
@@ -576,7 +594,11 @@ function CaptureRibbon._finish(self: CaptureRibbon, item: Item, token: number)
 			})
 			t.Completed:Connect(function()
 				flyer.Visible = false
-				tray:arrive(item.id, item.car)
+				-- a flight that ends after a NEW run began (it was cancelled) never lands in the new run's tray
+				local current = RunBus.get(self._ctx, "tray")
+				if current and self._ctx.store:runScope().seq == runSeq then
+					current:arrive(item.id, item.car)
+				end
 			end)
 		else
 			tray:arrive(item.id, item.car)
@@ -660,6 +682,17 @@ function CaptureRibbon._next(self: CaptureRibbon)
 end
 
 function CaptureRibbon.dismiss(self: CaptureRibbon)
+	self:_clear(true)
+end
+
+-- A run started: the earlier run's showing and queued claims are dropped WITHOUT settling into the (new) tray.
+function CaptureRibbon._dropRun(self: CaptureRibbon)
+	table.clear(self._queue)
+	self:_clear(false)
+end
+
+-- settle = true: the showing claim lands in the tray without its flight (same run). false: it belonged to an earlier run.
+function CaptureRibbon._clear(self: CaptureRibbon, settle: boolean)
 	local item = self._current
 	self._token += 1
 	self._current = nil
@@ -674,18 +707,19 @@ function CaptureRibbon.dismiss(self: CaptureRibbon)
 	self._ribbon.GroupTransparency = 1
 	self._ribbon.Visible = false
 	self:_setSecured(false)
-	if item then
+	if item and settle then
 		self:_settle(item)
 	end
 end
 
 function CaptureRibbon.pendingCards(self: CaptureRibbon): { Store.CarRef }
-	return table.clone(self._pending)
+	return table.clone(self:_pendingList())
 end
 
 function CaptureRibbon.takePendingCards(self: CaptureRibbon): { Store.CarRef }
-	local out = self._pending
-	self._pending = {}
+	local list = self:_pendingList()
+	local out = table.clone(list)
+	table.clear(list)
 	return out
 end
 
@@ -772,10 +806,16 @@ end
 function CaptureRibbon.getDebugState(self: CaptureRibbon): { [string]: any }
 	local mode, rect, soft = RunLayout.ribbonPlacement(self._ctx)
 	local pending = {}
-	for _, c in self._pending do
+	for _, c in self:_pendingList() do
 		table.insert(pending, c.name)
 	end
+	local scope = self._ctx.store:runScope()
 	return {
+		runKey = scope.key, -- the active run's identity (the run id, or a synthetic key)
+		runKeySynthetic = scope.synthetic,
+		ignoredStale = self._ignoredStale, -- earlier-run events ignored (R3-F9)
+		ignoredDuplicates = self._ignoredDuplicates,
+		rememberedThisRun = #self._ctx.store:remembered("ribbon"),
 		visible = self._visible,
 		showing = self._current and self._current.id,
 		showingKind = self._current and self._current.kind,

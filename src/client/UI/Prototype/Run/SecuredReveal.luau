@@ -3,6 +3,9 @@
 -- card on wide screens. It is a presentation module driven by Run/CaptureRibbon, which owns identity: it plays only for a
 -- confirmed claim id (KeysConfirmed), once per id, with late and out-of-order confirmations, suppression and the
 -- hand-over to Results handled there. Nothing here decides or grants ownership.
+-- Round 3 (R3-F9): that identity is RUN-SCOPED and kept in the store (store:remember), so a late confirmation of an EARLIER run
+-- never reaches this module (no SECURED card for it) and a capture id reused in a later run plays again. This module keeps
+-- no identity memory of its own: it plays what it is handed, and cancels when a run starts or ends.
 --
 -- DRAMA VERSUS DRIVING VISIBILITY. A transparent large card can still hide hazards, so steering input being free is not
 -- a reason to call it safe. RunLayout.revealRect only returns a place where the card CLEARS the protected road/target
@@ -19,8 +22,8 @@
 --
 -- Reduced motion: no zoom, rays, confetti, bloom, shockwave or flight: a stable, steady card for 1.3 s, then it is gone.
 -- Haptics: fired by Run/CaptureRibbon once per confirmed claim (card or compact stack, so phones get it too) through
--- Run/Haptics, best effort, OFF unless store.settings.haptics is true (only the playground sets it: no Settings row yet);
--- never claimed felt on hardware. This module only reports the counts.
+-- Run/Haptics (its single gate), best effort: ON by default, off when the Settings "Haptics" switch (store.settings.haptics)
+-- is off or the device cannot take a cue; never claimed felt on hardware. This module only reports the counts.
 --
 --   local reveal = SecuredReveal.new(ctx)            -- registered on RunBus as "reveal"
 --   reveal:available() -> Rect?                       -- where the card would go, nil = use the compact ribbon
@@ -195,6 +198,10 @@ function SecuredReveal.new(ctx: RunLayout.Ctx)
 		if mode ~= "Run" then
 			self:cancel()
 		end
+	end)
+	-- a new run: a card of the earlier run does not carry over
+	self._trove:Connect(ctx.store.RunChanged, function()
+		self:cancel()
 	end)
 	self._trove:Add(function()
 		self:cancel()
@@ -417,6 +424,7 @@ function SecuredReveal.getDebugState(self: SecuredReveal): { [string]: any }
 		shockwaves = self._shock,
 		legendary = self._legendary,
 		haptics = Haptics.counts(),
+		runKey = self._ctx.store:runScope().key,
 		cardAvailable = rect ~= nil,
 		cardUnavailableBecause = why,
 		box = rect and RunLayout.describe(rect),

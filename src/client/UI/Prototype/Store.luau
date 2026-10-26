@@ -11,6 +11,25 @@
 --   store:subscribe("cash", fn)         -- fn(value, state) on change; returns a disconnect
 --   store:setMode("Run")                -- checked transitions; fires store.ModeChanged
 --   store:emit({ id = "gain-1", kind = "CashGain", amount = 120 })   -- deduplicated by id
+--
+-- ROUND 3 (R3-F9) run-scoped capture identity (VISUAL/EVENT IDENTITY ONLY). The store keeps one "run scope" at a time:
+--   store:runScope()                    -- { key, synthetic, startedAt, seq }; key = run.runId, else a synthetic key
+--   store.RunChanged                    -- fires (scope, previous) at each run START; widgets clear run-local state then
+--   store:classify(event)               -- "Current" | "Stale" (an event of an earlier run)
+--   store:remember(name, event)         -- "Fresh" | "Duplicate" | "Stale": run-scoped dedupe by captureId, per consumer
+--   store:remembered(name)              -- the ids a consumer remembered this run, in order (a re-created widget restores)
+--   store:runBucket(name)               -- a run-scoped table that survives a widget being destroyed and re-mounted
+--   store:confirmations()               -- the record of every confirmation seen (stale ones included, flagged)
+-- Rules (documented once, here):
+--   * Same run + same capture id again: Duplicate, ignored.
+--   * An event whose runId differs from the active run's id, or whose issuedAt is older than the run start: Stale.
+--     A stale event is NOT presented (no SECURED card, no tray +1) but IS still recorded in store:confirmations() and
+--     still reaches every subscriber flagged event.stale = true: the permanent reward belongs to another lane
+--     (Lane 2) and is never discarded here; only its presentation in the wrong run is.
+--   * An event with NO runId belongs to the active run (fallback) and is deduplicated by capture id inside it.
+--   * With no run id anywhere (state.run.runId is nil) the scope is SYNTHETIC: a new key at every run start (the mode
+--     entering Run), so ids are never assumed unique across runs. An id that arrives later is adopted by the same run.
+--   * Memory is cleared ONLY at run start. A widget destroyed and re-mounted mid-run keeps it (it lives here).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -119,7 +138,9 @@ export type RunState = {
 	-- Round 2 route line (FIXTURES; Brian L owns the record, Brian R the distance and district boundaries):
 	recordM: number?, -- the personal-best distance BEFORE this run, metres; nil = no prior best
 	recordVerified: boolean?, -- false = the record is not confirmed: no NEW BEST moment (nil counts as verified)
-	runId: string?, -- identity of this run (NEW BEST fires once per run)
+	-- identity of this run (NEW BEST fires once per run; Round 3: also scopes capture de-duplication, see the header).
+	-- Brian R / Brian L supply the real one; nil = the store uses a synthetic key that changes at every run start.
+	runId: string?,
 	districtPlan: DistrictPlan?, -- explicit boundaries (fixture); nil hides the route line
 	claims: { Claim }?, -- confirmed this run, in arrival order
 	pendingClaim: Claim?, -- shown as a distinct pending slot; never counted
@@ -155,7 +176,8 @@ export type State = {
 	missionsClaimable: number,
 	tutorial: Tutorial?,
 	-- local preview settings; musicOn is the Home toggle row (a real local setting, not saved)
-	-- haptics: Round 2, best-effort and OFF by default (nil = off); never claimed tested on hardware
+	-- haptics: Round 3, the Settings "Haptics" switch: ON by default (nil counts as ON, false = off). Best effort and
+	-- local preview state only; never claimed felt on hardware (Run/Haptics)
 	settings: { music: number, sfx: number, musicOn: boolean?, haptics: boolean? },
 	-- off-by-default proposals shown only in captioned review captures
 	proposals: { timers: boolean }?,
@@ -173,6 +195,14 @@ export type Event = {
 	-- KeysStart / KeysConfirmed / KeysCanceled / AlreadyOwned carry `captureId` (the identity
 	-- of one capture); the event `id` stays unique per delivery for dedupe.
 	captureId: string?,
+	-- Round 3 (PROPOSAL for Brian R / Brian L; fixtures only): the run the event belongs to. An event whose runId is not
+	-- the active run's id is "stale" (a late delivery from an earlier run). nil = belongs to the active run.
+	runId: string?,
+	-- Round 3 (PROPOSAL): when the owning lane issued the event, in the same os.clock() time base as the store. Older than
+	-- the active run's start = stale. nil = unknown. (`at` below is the DELIVERY time the store stamps itself.)
+	issuedAt: number?,
+	-- set by the store at delivery on KeysConfirmed / AlreadyOwned events judged to belong to an earlier run
+	stale: boolean?,
 	reason: string?, -- KeysCanceled, RunWarning, Dismounted, RunEnded
 	district: string?, -- DistrictEnter: District.id
 	cycle: number?, -- DistrictEnter: fixture-local cycle index (1 = first pass)
@@ -185,6 +215,35 @@ export type Event = {
 	worldPosition: Vector3?, -- a world source, only when one really exists
 	at: number?,
 }
+
+-- Round 3 run identity (see the header). A consumer is one named presenter ("ribbon", "tray"): each keeps its own memory.
+export type CaptureVerdict = "Fresh" | "Duplicate" | "Stale"
+export type Standing = "Current" | "Stale"
+export type RunMemo = { id: string, car: CarRef?, kind: string }
+export type RunScope = {
+	key: string, -- the run id (state.run.runId), or a synthetic key while the owner supplies none
+	synthetic: boolean,
+	startedAt: number, -- os.clock() when this run began
+	seq: number, -- 1, 2, 3 ... per run start
+	carried: string?, -- internal: the PREVIOUS run's id still sitting in state.run when this scope began (never adopted)
+	memory: { [string]: { order: { string }, byId: { [string]: RunMemo } } }, -- internal
+	buckets: { [string]: { any } }, -- internal
+}
+-- The record of one confirmation event (stale ones included). Display-side bookkeeping only: the permanent reward record
+-- belongs to Lane 2 and is never decided here.
+export type Confirmation = {
+	captureId: string,
+	kind: string, -- "KeysConfirmed" | "AlreadyOwned"
+	eventId: string,
+	runId: string?, -- the run the event claimed, when it carried one
+	scopeKey: string, -- the active run's key when the event was delivered
+	stale: boolean,
+	car: CarRef?,
+	at: number,
+}
+
+local RUN_MEMORY = 64 -- remembered capture ids per consumer per run (oldest dropped first)
+local CONFIRMATION_MEMORY = 200 -- confirmations kept in the record
 
 local TRANSITIONS: { [string]: { [string]: boolean } } = {
 	Home = { Run = true },
@@ -202,10 +261,22 @@ function Store.baseline(): State
 		shop = { newItem = false },
 		missionsClaimable = 1,
 		tutorial = nil,
-		settings = { music = 0.5, sfx = 0.6, musicOn = true },
+		settings = { music = 0.5, sfx = 0.6, musicOn = true, haptics = true }, -- Round 3: Haptics default ON
 		proposals = { timers = false },
 		run = nil,
 		results = nil,
+	}
+end
+
+local function makeScope(seq: number, key: string?, carried: string?): RunScope
+	return {
+		key = key or ("synthetic-run-" .. tostring(seq)),
+		synthetic = key == nil,
+		startedAt = os.clock(),
+		seq = seq,
+		carried = carried,
+		memory = {},
+		buckets = {},
 	}
 end
 
@@ -215,8 +286,12 @@ function Store.new(initial: State?)
 	self.Changed = Signal.new()
 	self.ModeChanged = Signal.new()
 	self.Event = Signal.new()
+	self.RunChanged = Signal.new() -- (scope: RunScope, previous: RunScope?) at each run START
 	self._seen = {} :: { [string]: boolean }
 	self._seenOrder = {} :: { string }
+	self._runSeq = 1
+	self._scope = makeScope(1, nil, nil) :: RunScope
+	self._confirmations = {} :: { Confirmation }
 	return self
 end
 
@@ -226,9 +301,39 @@ function Store.get(self: StoreObject): State
 	return self._state
 end
 
+-- A new run begins: a fresh scope (empty identity memory) and one RunChanged for the widgets. `key` nil = synthetic;
+-- `carried` is the previous run's id still sitting in state.run (so it is never adopted as this run's own).
+local function beginRun(self: StoreObject, key: string?, carried: string?)
+	local previous = self._scope :: RunScope
+	self._runSeq += 1
+	local scope = makeScope(self._runSeq, key, carried)
+	self._scope = scope
+	self.RunChanged:Fire(scope, previous)
+end
+
+-- The active run scope, refreshed from state.run.runId first: an id that arrives after the run started is ADOPTED by that
+-- run (its memory is kept); a different id after a real one is a new run.
+function Store.runScope(self: StoreObject): RunScope
+	local scope = self._scope :: RunScope
+	local run = self._state.run
+	local id = if run then run.runId else nil
+	if type(id) == "string" and id ~= "" and id ~= scope.key and id ~= scope.carried then
+		if scope.synthetic then
+			scope.key = id
+			scope.synthetic = false
+		else
+			beginRun(self, id, nil)
+		end
+	end
+	return self._scope :: RunScope
+end
+
 function Store.set(self: StoreObject, key: string, value: any)
 	local state = self._state :: any
 	state[key] = value
+	if key == "run" then
+		Store.runScope(self) -- a new run id starts a new scope BEFORE any subscriber sees the new run state
+	end
 	self.Changed:Fire(key, self._state)
 end
 
@@ -251,8 +356,101 @@ function Store.setMode(self: StoreObject, mode: Mode): boolean
 		return false
 	end
 	self._state.mode = mode
+	if mode == "Run" then
+		-- a run STARTS here (only Home or Results lead into Run): run-scoped identity memory begins empty. The run
+		-- state still holds the previous run's id until the owner replaces it, so that id is marked as carried.
+		local run = self._state.run
+		beginRun(self, nil, if run then run.runId else nil)
+	end
 	self.ModeChanged:Fire(mode, from)
 	return true
+end
+
+-- Whether an event of the capture family belongs to the active run (see the header for the rules).
+function Store.classify(self: StoreObject, event: Event): Standing
+	local scope = Store.runScope(self)
+	local runId = event.runId
+	if runId ~= nil and not scope.synthetic and runId ~= scope.key then
+		return "Stale" -- another run's id
+	end
+	local issuedAt = event.issuedAt
+	if issuedAt ~= nil and issuedAt < scope.startedAt then
+		return "Stale" -- issued before this run began
+	end
+	return "Current"
+end
+
+-- Run-scoped de-duplication for one presenter. Fresh = first time in this run (now remembered); Duplicate = this capture
+-- id was already remembered by `name` in this run; Stale = another run's event (not remembered, not to be presented).
+function Store.remember(self: StoreObject, name: string, event: Event): CaptureVerdict
+	if Store.classify(self, event) == "Stale" then
+		return "Stale"
+	end
+	local scope = self._scope :: RunScope
+	local memory = scope.memory[name]
+	if not memory then
+		memory = { order = {}, byId = {} }
+		scope.memory[name] = memory
+	end
+	local id = event.captureId or event.id
+	if memory.byId[id] then
+		return "Duplicate"
+	end
+	memory.byId[id] = { id = id, car = event.car, kind = event.kind }
+	table.insert(memory.order, id)
+	if #memory.order > RUN_MEMORY then
+		memory.byId[table.remove(memory.order, 1) :: string] = nil
+	end
+	return "Fresh"
+end
+
+-- What `name` remembered in the active run, oldest first (a re-created widget restores its count from this).
+function Store.remembered(self: StoreObject, name: string): { RunMemo }
+	local scope = Store.runScope(self)
+	local out: { RunMemo } = {}
+	local memory = scope.memory[name]
+	if memory then
+		for _, id in memory.order do
+			table.insert(out, memory.byId[id])
+		end
+	end
+	return out
+end
+
+-- A run-scoped table by name: empty at every run start, untouched by a widget being destroyed and re-mounted.
+function Store.runBucket(self: StoreObject, name: string): { any }
+	local scope = Store.runScope(self)
+	local bucket = scope.buckets[name]
+	if not bucket then
+		bucket = {}
+		scope.buckets[name] = bucket
+	end
+	return bucket
+end
+
+-- Every KeysConfirmed / AlreadyOwned delivered, stale ones flagged (a copy; the last 200).
+function Store.confirmations(self: StoreObject): { Confirmation }
+	return table.clone(self._confirmations)
+end
+
+local function recordConfirmation(self: StoreObject, event: Event)
+	local stale = Store.classify(self, event) == "Stale"
+	if stale then
+		event.stale = true
+	end
+	table.insert(self._confirmations, {
+		captureId = event.captureId or event.id,
+		kind = event.kind,
+		eventId = event.id,
+		runId = event.runId,
+		scopeKey = (self._scope :: RunScope).key,
+		stale = stale,
+		car = event.car,
+		at = event.at or os.clock(),
+	})
+	if #self._confirmations > CONFIRMATION_MEMORY then
+		table.remove(self._confirmations, 1)
+	end
 end
 
 -- Deduplicated by id (the last 200 ids are remembered). Returns false for a duplicate.
@@ -266,6 +464,11 @@ function Store.emit(self: StoreObject, event: Event): boolean
 		self._seen[table.remove(self._seenOrder, 1) :: string] = nil
 	end
 	event.at = os.clock()
+	if event.kind == "KeysConfirmed" or event.kind == "AlreadyOwned" then
+		-- recorded BEFORE delivery, stale or not: this module never discards a confirmation, it only judges which run
+		-- a presentation belongs to
+		recordConfirmation(self, event)
+	end
 	self.Event:Fire(event)
 	return true
 end
@@ -274,6 +477,9 @@ function Store.reset(self: StoreObject, state: State?)
 	self._state = state or Store.baseline()
 	table.clear(self._seen)
 	table.clear(self._seenOrder)
+	table.clear(self._confirmations)
+	beginRun(self, nil, nil) -- a clean slate is a new run scope too
+	Store.runScope(self) -- the new state may already carry its run id: adopt it
 	for _, key in
 		{
 			"mode",
@@ -298,6 +504,7 @@ function Store.destroy(self: StoreObject)
 	self.Changed:Destroy()
 	self.ModeChanged:Destroy()
 	self.Event:Destroy()
+	self.RunChanged:Destroy()
 end
 
 return Store

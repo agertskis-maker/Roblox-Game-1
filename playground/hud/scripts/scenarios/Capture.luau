@@ -14,8 +14,21 @@
 --   Capture: reveal identity                  duplicate, late and out-of-order confirmations, run end during the reveal
 --   Cards: fine print truth                   Lap Pay, per second, unowned, unknown finishes, dates (pure)
 --   Cards: detail, sheet and thumbnails       the fixed action bar, foil limit, the ViewportFrame budget
+--
+-- ROUND 3 (R3-F5, haptics): a recorder stub replaces the platform (Run/Haptics.useBackend) so nothing is felt or claimed felt;
+-- these check the calls the code makes. Run-scoped capture identity (R3-F9) is in scenarios/RunIdentity.luau; the Capture
+-- scenarios above needed no change for it (each starts its own run, so their ids are scoped to that run).
+--   Haptics: default on and capability        ON by default (nil counts as ON), capability reported honestly, one cue
+--   Haptics: capture cue and the switch       one cue per claim; OFF stops the running cue and blocks the next call; a direct
+--                                             store write behaves the same; ON allows it again
+--   Haptics: unsupported hardware             supported=false, no call, no error, the Settings row disabled with its reason,
+--                                             a controller-only device stops with motor writes of 0
+--   Haptics: Settings row on every frame      the row on all six frames: ON word, state line fits, 48 px hit, the card fits
+--   Haptics: Settings row (reduced motion)    the switch snaps with no tween, word and line follow, the store follows
+--   Haptics: toggling mid-effect and no leak  off then on mid-effect does not resume it, no double stop, nothing left running
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local Prototype = Players.LocalPlayer
 	:WaitForChild("PlayerScripts")
@@ -23,6 +36,8 @@ local Prototype = Players.LocalPlayer
 	:WaitForChild("UI")
 	:WaitForChild("Prototype")
 local Motion = require(Prototype:WaitForChild("Motion"))
+local StoreModule = require(Prototype:WaitForChild("Store"))
+local Haptics = require(Prototype:WaitForChild("Run"):WaitForChild("Haptics"))
 local TradingCard = require(Prototype:WaitForChild("Cards"):WaitForChild("TradingCard"))
 
 type Host = { [string]: any }
@@ -711,9 +726,9 @@ S["Cards: detail, sheet and thumbnails"] = function(host: Host)
 	verdict(
 		host,
 		"Foil is limited and only on Epic and Legendary",
-		foilOnlyHigh and sheet.foilCards == 4 and sheet.foilAnimated <= 4,
+		foilOnlyHigh and sheet.foilCards == 2 and sheet.foilAnimated <= 4,
 		string.format(
-			"foil cards %s (2 compact + 2 reward), animated %s (limit 4), only Epic and Legendary: %s",
+			"foil cards %s (2 reward cards; the small duplicate row was removed in Round 3), animated %s (limit 4), only Epic and Legendary: %s",
 			tostring(sheet.foilCards),
 			tostring(sheet.foilAnimated),
 			tostring(foilOnlyHigh)
@@ -748,6 +763,403 @@ S["Cards: detail, sheet and thumbnails"] = function(host: Host)
 		table.concat(tray.slots, ",")
 	)
 	host.api.setSpeed(nil)
+end
+
+-- HAPTICS (R3-F5) ---------------------------------------------------------------------------------------------------------
+
+-- Installs a recorder as the platform; every haptics scenario starts from the real backend and ON, and ends the same way.
+local function recorderOn(host: Host, support: { gamepad: boolean?, touch: boolean? }): any
+	Haptics.useBackend(nil)
+	Haptics.setEnabled(host.store, true)
+	local rec = Haptics.recorder(support)
+	Haptics.useBackend(rec.backend)
+	return rec
+end
+
+local function hapticsDone(host: Host)
+	Haptics.useBackend(nil)
+	Haptics.setEnabled(host.store, true)
+	Motion.setOverride(nil)
+end
+
+local function goHome(host: Host)
+	if host.store:get().mode ~= "Home" then
+		host.store:setMode("Home")
+	end
+	host.wait(0.3)
+end
+
+S["Haptics: default on and capability"] = function(host: Host)
+	Haptics.useBackend(nil)
+	local fresh = StoreModule.new()
+	local settings = fresh:get().settings
+	verdict(
+		host,
+		"Haptics is ON by default",
+		settings.haptics == true
+			and Haptics.isOn(settings)
+			and Haptics.isOn({})
+			and not Haptics.isOn({ haptics = false }),
+		string.format("fixture setting %s, an unset setting counts as ON", tostring(settings.haptics))
+	)
+	fresh:destroy()
+	-- what THIS machine reports (informational: a desktop Studio has no touch screen and usually no controller)
+	local cap = Haptics.capability()
+	verdict(
+		host,
+		"The capability report is consistent",
+		cap.supported == (cap.gamepad or cap.touch) and Haptics.isSupported() == cap.supported,
+		string.format(
+			"supported %s (controller %s, touch %s) because: %s",
+			tostring(cap.supported),
+			tostring(cap.gamepad),
+			tostring(cap.touch),
+			cap.basis
+		)
+	)
+	-- a touch device with the default preference: exactly one cue is requested, then it is stopped
+	local rec = recorderOn(host, { touch = true })
+	local result = Haptics.confirm(Haptics.isOn(StoreModule.baseline().settings))
+	verdict(
+		host,
+		"A supported device with the default preference requests one cue",
+		result == "requested" and rec.starts == 1 and rec.live == 1 and Haptics.counts().active == 1,
+		string.format("result %s, starts %d, live %d", result, rec.starts, rec.live)
+	)
+	Haptics.stop()
+	verdict(
+		host,
+		"...and stopping it leaves nothing running",
+		rec.live == 0 and rec.stops == 1 and Haptics.counts().active == 0,
+		table.concat(rec.calls, ",")
+	)
+	hapticsDone(host)
+end
+
+S["Haptics: capture cue and the switch"] = function(host: Host)
+	local rec = recorderOn(host, { touch = true })
+	host.api.setProfile("Desktop")
+	host.api.setSpeed(0)
+	freshRun(host)
+	host.api.backdrop.hold(0)
+	-- ON: one cue for one confirmed claim (the same call site serves the card and the phone stack)
+	confirm(host, "hap-1-" .. nonce(), ownedFalse(host, "rev6"), 100)
+	host.wait(0.6)
+	verdict(
+		host,
+		"ON: one confirmed claim, one cue",
+		rec.starts == 1 and rec.live == 1 and dbg(host, "ribbon").haptic == "requested",
+		string.format("starts %d, live %d, ribbon says %s", rec.starts, rec.live, tostring(dbg(host, "ribbon").haptic))
+	)
+	-- the Settings switch turned OFF while that cue is still running
+	Haptics.setEnabled(host.store, false)
+	verdict(
+		host,
+		"OFF stops the cue that is running",
+		rec.stops == 1 and rec.live == 0 and Haptics.counts().active == 0,
+		string.format("stops %d, live %d, calls %s", rec.stops, rec.live, table.concat(rec.calls, ","))
+	)
+	host.wait(2.2) -- the first claim finishes its show
+	local startsBefore = rec.starts
+	confirm(host, "hap-2-" .. nonce(), ownedFalse(host, "zoomurai"), 150)
+	host.wait(0.6)
+	verdict(
+		host,
+		"OFF: the next claim makes no haptic call",
+		rec.starts == startsBefore and dbg(host, "ribbon").haptic == "off",
+		string.format(
+			"starts %d (was %d), ribbon says %s",
+			rec.starts,
+			startsBefore,
+			tostring(dbg(host, "ribbon").haptic)
+		)
+	)
+	host.wait(2.2)
+	-- ON again: the next claim plays one cue
+	Haptics.setEnabled(host.store, true)
+	confirm(host, "hap-3-" .. nonce(), ownedFalse(host, "rangy"), 90)
+	host.wait(0.6)
+	verdict(
+		host,
+		"ON again: the next claim plays one cue",
+		rec.starts == startsBefore + 1 and dbg(host, "ribbon").haptic == "requested",
+		string.format("starts %d (was %d)", rec.starts, startsBefore)
+	)
+	-- a harness that writes the setting directly (not through Haptics.setEnabled) gets the same stop
+	local direct = table.clone(host.store:get().settings) :: any
+	direct.haptics = false
+	host.store:set("settings", direct)
+	verdict(
+		host,
+		"A direct store write of OFF also stops the cue",
+		rec.live == 0 and Haptics.counts().active == 0,
+		string.format("live %d, calls %s", rec.live, table.concat(rec.calls, ","))
+	)
+	host.wait(2.2)
+	hapticsDone(host)
+	host.api.setSpeed(nil)
+end
+
+S["Haptics: unsupported hardware"] = function(host: Host)
+	local rec = recorderOn(host, { gamepad = false, touch = false })
+	local cap = Haptics.capability()
+	verdict(
+		host,
+		"Reports supported = false",
+		cap.supported == false and Haptics.isSupported() == false,
+		string.format("supported %s because: %s", tostring(cap.supported), cap.basis)
+	)
+	local before = Haptics.counts()
+	local ok, result = pcall(Haptics.confirm, true)
+	verdict(
+		host,
+		"No call and no error",
+		ok
+			and result == "unsupported"
+			and rec.starts == 0
+			and #rec.calls == 0
+			and Haptics.counts().unsupported == before.unsupported + 1,
+		string.format("ok %s, result %s, backend calls %d", tostring(ok), tostring(result), #rec.calls)
+	)
+	-- through a real capture
+	host.api.setProfile("Desktop")
+	host.api.setSpeed(0)
+	freshRun(host)
+	host.api.backdrop.hold(0)
+	confirm(host, "hap-u-" .. nonce(), ownedFalse(host, "rev6"), 100)
+	host.wait(0.6)
+	verdict(
+		host,
+		"A confirmed claim on this hardware: shown, no haptic call",
+		dbg(host, "ribbon").haptic == "unsupported" and rec.starts == 0 and dbg(host, "reveal").playing == true,
+		string.format("ribbon says %s, starts %d", tostring(dbg(host, "ribbon").haptic), rec.starts)
+	)
+	host.wait(2.2)
+	host.api.setSpeed(nil)
+	-- the Settings row: still shown, with its reason, and it cannot be turned on
+	goHome(host)
+	host.api.setProfile("Desktop")
+	host.api.open("settings")
+	host.wait(0.5)
+	local d = dbg(host, "settings").haptics
+	verdict(
+		host,
+		"The row is shown, dimmed and disabled, OFF, with a plain reason",
+		d.supported == false
+			and d.switchEnabled == false
+			and d.dimmed == true
+			and d.switchOn == false
+			and d.switchWord == "OFF"
+			and d.stateLine == "Not available on this device"
+			and d.stateLineFits == true,
+		string.format(
+			"supported %s, enabled %s, dimmed %s, word %s, line %q fits %s",
+			tostring(d.supported),
+			tostring(d.switchEnabled),
+			tostring(d.dimmed),
+			tostring(d.switchWord),
+			tostring(d.stateLine),
+			tostring(d.stateLineFits)
+		)
+	)
+	local settings = comp(host, "settings")
+	local preference = host.store:get().settings.haptics
+	settings:_setHaptics(true) -- what a press would do
+	local d2 = dbg(host, "settings").haptics
+	verdict(
+		host,
+		"A press changes nothing: the preference is untouched and the switch stays OFF",
+		host.store:get().settings.haptics == preference and d2.switchWord == "OFF" and rec.starts == 0,
+		string.format(
+			"preference %s -> %s, word %s",
+			tostring(preference),
+			tostring(host.store:get().settings.haptics),
+			tostring(d2.switchWord)
+		)
+	)
+	host.api.close("settings")
+	-- a controller-only device: a cue is requested, and turning it off writes 0 to the motors
+	rec.gamepad = true
+	local result2 = Haptics.confirm(true)
+	local stopped = Haptics.stop()
+	verdict(
+		host,
+		"A controller-only device: one cue, then the motors are written 0 on stop",
+		result2 == "requested" and stopped == 1 and rec.motorOffs == 1 and rec.live == 0,
+		string.format(
+			"result %s, stopped %d, motor writes of 0: %d, calls %s",
+			result2,
+			stopped,
+			rec.motorOffs,
+			table.concat(rec.calls, ",")
+		)
+	)
+	hapticsDone(host)
+end
+
+S["Haptics: Settings row on every frame"] = function(host: Host)
+	recorderOn(host, { touch = true })
+	goHome(host)
+	for _, profile in host.api.profiles do
+		host.api.setProfile(profile)
+		host.wait(0.3)
+		host.api.open("settings")
+		host.wait(0.5)
+		local d = dbg(host, "settings")
+		local h = d.haptics
+		verdict(
+			host,
+			"Haptics row on " .. profile,
+			h.supported == true
+				and h.switchOn == true
+				and h.switchWord == "ON"
+				and h.stateLine == "Buzz when you get a car"
+				and h.stateLineFits == true
+				and h.switchEnabled == true
+				and h.hitHeight >= 48
+				and d.cardHeight <= d.safeHeight,
+			string.format(
+				"word %s, line %q fits %s, hit %s px, card %s of %s px (%s)",
+				tostring(h.switchWord),
+				tostring(h.stateLine),
+				tostring(h.stateLineFits),
+				tostring(h.hitHeight),
+				tostring(d.cardHeight),
+				tostring(d.safeHeight),
+				if h.compact then "compact" else "normal"
+			)
+		)
+		host.api.close("settings")
+		host.wait(0.2)
+	end
+	host.api.setProfile("Desktop")
+	hapticsDone(host)
+end
+
+S["Haptics: Settings row (reduced motion)"] = function(host: Host)
+	recorderOn(host, { touch = true })
+	goHome(host)
+	host.api.setProfile("Desktop")
+	Motion.setOverride(true)
+	host.api.open("settings")
+	host.wait(0.5)
+	local settings = comp(host, "settings")
+	local function knob(): UDim2
+		local track = settings._haptics.root:FindFirstChild("Track") :: Frame
+		return (track:FindFirstChild("Knob") :: Frame).Position
+	end
+	local h = dbg(host, "settings").haptics
+	verdict(
+		host,
+		"Reduced motion is in effect and the row reads ON",
+		Motion.reduced() == true
+			and h.switchOn == true
+			and h.switchWord == "ON"
+			and h.stateLine == "Buzz when you get a car"
+			and knob().X.Scale == 1
+			and knob().X.Offset == -40,
+		string.format("word %s, line %q, knob at %s", tostring(h.switchWord), tostring(h.stateLine), tostring(knob()))
+	)
+	settings:_setHaptics(false) -- what a press does; no waiting: reduced motion snaps at once
+	local off = dbg(host, "settings").haptics
+	verdict(
+		host,
+		"OFF reads OFF at once, and the store follows",
+		off.switchOn == false
+			and off.switchWord == "OFF"
+			and off.stateLine == "Buzz is off"
+			and knob().X.Scale == 0
+			and knob().X.Offset == 4
+			and host.store:get().settings.haptics == false,
+		string.format(
+			"word %s, line %q, knob at %s, store %s",
+			tostring(off.switchWord),
+			tostring(off.stateLine),
+			tostring(knob()),
+			tostring(host.store:get().settings.haptics)
+		)
+	)
+	settings:_setHaptics(true)
+	local on = dbg(host, "settings").haptics
+	verdict(
+		host,
+		"ON again reads ON at once",
+		on.switchOn == true
+			and on.switchWord == "ON"
+			and on.stateLine == "Buzz when you get a car"
+			and host.store:get().settings.haptics == true,
+		string.format("word %s, line %q", tostring(on.switchWord), tostring(on.stateLine))
+	)
+	host.api.close("settings")
+	hapticsDone(host)
+end
+
+S["Haptics: toggling mid-effect and no leak"] = function(host: Host)
+	local rec = recorderOn(host, { touch = true })
+	local first = Haptics.confirm(true)
+	host.wait(0.2)
+	Haptics.setEnabled(host.store, false) -- off in the middle of the effect
+	host.wait(0.2)
+	Haptics.setEnabled(host.store, true) -- on again: it must NOT resume
+	verdict(
+		host,
+		"Off then on mid-effect: the cue stays stopped",
+		first == "requested" and rec.starts == 1 and rec.stops == 1 and rec.live == 0 and Haptics.counts().active == 0,
+		string.format("calls %s, live %d", table.concat(rec.calls, ","), rec.live)
+	)
+	host.wait(1.8) -- past the 1.5 s timer: it was cancelled with the effect, so no second stop
+	verdict(
+		host,
+		"No second stop from the cancelled timer",
+		table.concat(rec.calls, ",") == "start,stop" and rec.stops == 1,
+		table.concat(rec.calls, ",")
+	)
+	-- many cues with the switch flipped between them, then nothing may be left running
+	for i = 1, 20 do
+		Haptics.confirm(true)
+		if i % 2 == 0 then
+			Haptics.setEnabled(host.store, false)
+			Haptics.setEnabled(host.store, true)
+		end
+	end
+	Haptics.confirm(true) -- one last cue left to the timer
+	host.wait(1.8)
+	verdict(
+		host,
+		"After 22 cues and 10 switch flips nothing is left running",
+		Haptics.counts().active == 0 and rec.live == 0 and rec.starts == rec.stops,
+		string.format(
+			"starts %d, stops %d, live %d, active %d",
+			rec.starts,
+			rec.stops,
+			rec.live,
+			Haptics.counts().active
+		)
+	)
+	-- the real backend: no effect instance is left in Workspace (a desktop without haptics makes none at all)
+	Haptics.useBackend(nil)
+	for _ = 1, 5 do
+		Haptics.confirm(true)
+	end
+	host.wait(1.8)
+	local leftovers = 0
+	for _, d in Workspace:GetChildren() do
+		if d:IsA("HapticEffect") then
+			leftovers += 1
+		end
+	end
+	verdict(
+		host,
+		"The real backend leaves no HapticEffect behind",
+		leftovers == 0 and Haptics.counts().active == 0,
+		string.format(
+			"%d left in Workspace, %d active (supported here: %s)",
+			leftovers,
+			Haptics.counts().active,
+			tostring(Haptics.isSupported())
+		)
+	)
+	hapticsDone(host)
 end
 
 return S
