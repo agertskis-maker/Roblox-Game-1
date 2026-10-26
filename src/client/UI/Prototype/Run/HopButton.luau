@@ -1,7 +1,7 @@
 --!strict
 -- Hop control for the rebuilt run view (Lane 3 preview, HUD rebuild worker HR; U-07). A chunky
 -- arcade rectangle (limited rounding, thick dark boundary, teal/white = Hop's colour) with the
--- original CarJump symbol (Icons2) and "HOP", bottom right with clearance (RunLayout.hopRect:
+-- original HopCar symbol (Icons2) and "HOP", bottom right with clearance (RunLayout.hopRect:
 -- beside the Roblox Jump zone on touch, never in a reserved zone or the protected road region).
 -- Presentation only: it shows run.hop and run.hopCooldown01 as supplied; pressing it only calls
 -- the preview intent callback. It never hops, picks a target or judges a landing (Lane 1).
@@ -12,22 +12,30 @@
 --   touch     no key label (the button is the control)
 --   gamepad   the bound button's chip. No real binding exists in the preview: ButtonA is the
 --             documented ASSUMPTION ("A"), overridable with options.gamepadKey.
--- Round 2: the icon is HopFigure (a character leaping between two roofs along a dotted arc; the car does not jump),
--- and the display state follows HopState (precedence OutOfStamina > Cooldown > NoTarget > BestTiming > Ready), filtered
--- by Run/HopCue when one is mounted (best timing is debounced; the gold accent is one event per window).
--- States, never by colour alone:
+-- Round 3 (R3-C2): the icon is HopCar (an original side-view car with ONE bold upward arc and arrowhead). It names
+-- the action only; the production character or car may or may not leave the ground. It supersedes the Round 2
+-- HopFigure (a character between two roofs). The display state still follows HopState (precedence
+-- OutOfStamina > Cooldown > NoTarget > BestTiming > Ready), filtered by Run/HopCue when one is mounted (best timing
+-- is debounced; the gold accent is one event per window).
+-- States, never by colour alone. The three unavailable looks differ in tint, overlay AND a short word (at least 16 px):
 --   Ready        teal, full-strength icon, "HOP"
 --   BestTiming   + a STEADY gold ring around the button, one brief pop when the window opens (none in reduced motion)
---   Cooldown     a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
---   NoTarget     grey fill + dimmed icon + diagonal hatching + "HOP" dimmed; not pressable
---   OutOfStamina grey fill + a slash across the icon + the empty-bolt badge; not pressable; never shows best timing
+--   Cooldown     teal under a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
+--   NoTarget     cool blue-grey fill + dimmed icon + diagonal hatching + "NO CAR"; not pressable
+--   OutOfStamina dusty rose fill + a large grey cracked bolt crossed by a red slash (the car icon steps aside) +
+--                "NO STAMINA" on two lines; not pressable; never shows best timing or the sweep
 --
 --   local hop = HopButton.new(ctx, { onHopIntent = fn?, gamepadKey = "A"? })
 --   hop:setHopIntent(fn)        -- preview: called on press; no gameplay
 --   hop:setInputKind(kind?)     -- "Keyboard" | "Touch" | "Gamepad" | nil (auto) for review
 --   hop:layout(), hop:setVisible(on), hop:destroy(), hop:getDebugState()
+--   HopButton.buildSpecimenFace(parent, display, cooldown01?) -> Frame   -- playground specimen: the SAME face and
+--                                                                         look as the live button, no store, no input
+--   HopButton.measureLabel(display) -> (widestLinePx, fits)            -- design px, Fredoka One, with the outline
+--   HopButton.Size, HopButton.IconSize                                  -- design px
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
 local Arc = require(script.Parent.Arc)
@@ -38,20 +46,299 @@ local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunBus = require(script.Parent.RunBus)
 local RunLayout = require(script.Parent.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
+local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local A = PreviewTokens.Arcade
 local make = Arcade.make
 
 local SIZE = PreviewTokens.Size.HopButton -- 96 design px body
+local ICON_SIZE = SIZE * 0.58
 local KEY_CHIP_H = 26
 local GOLD = Color3.fromRGB(255, 204, 48) -- the one timing accent (Keys gold stays a different, nearby shape)
+
+-- TOKEN CANDIDATES (Round 3, R3-C2): the two unavailable fills (A.Fill.Disabled was one grey for both) and the
+-- Stamina glyph geometry. Preview values; the lead may retune after measuring.
+local function fill(top: Color3, mid: Color3, bottom: Color3): ColorSequence
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, top),
+		ColorSequenceKeypoint.new(0.5, mid),
+		ColorSequenceKeypoint.new(1, bottom),
+	})
+end
+local FILL_NO_TARGET = fill(Color3.fromRGB(176, 190, 212), Color3.fromRGB(132, 150, 180), Color3.fromRGB(98, 116, 148))
+local FILL_NO_STAMINA = fill(Color3.fromRGB(190, 150, 152), Color3.fromRGB(146, 100, 108), Color3.fromRGB(104, 66, 78))
+local BOLT_SIZE = 44 -- the crossed bolt that replaces the car when Stamina is empty
+local BOLT_TOP = 5
+local SLASH_RED = Color3.fromRGB(226, 52, 62)
+local SLASH_LENGTH = 58
+local LABEL_WIDTH = SIZE - 6 -- the label box; it has 3 px of padding each side
+local LABEL_ONE_LINE = 30
+local LABEL_TWO_LINES = 40
 
 export type InputKind = "Keyboard" | "Touch" | "Gamepad"
 export type Options = { onHopIntent: (() -> ())?, gamepadKey: string? }
 
+-- What each display state looks like (everything except the word, which HopState owns).
+type Look = {
+	name: string, -- the fill's name, for the debug state
+	fill: ColorSequence,
+	veil: number, -- BackgroundTransparency of the dark veil over the face (1 = none)
+	hatch: boolean,
+	slash: boolean,
+	bolt: boolean, -- the crossed bolt replaces the car
+	sweep: boolean, -- the cooldown wedge is drawn
+	labelSize: number, -- design px, never below Tokens.TextSize.Minimum
+}
+
+local LOOKS: { [string]: Look } = {
+	Ready = {
+		name = "Home",
+		fill = A.Fill.Home,
+		veil = 1,
+		hatch = false,
+		slash = false,
+		bolt = false,
+		sweep = false,
+		labelSize = 24,
+	},
+	BestTiming = {
+		name = "Home",
+		fill = A.Fill.Home,
+		veil = 1,
+		hatch = false,
+		slash = false,
+		bolt = false,
+		sweep = false,
+		labelSize = 24,
+	},
+	Cooldown = {
+		name = "Home",
+		fill = A.Fill.Home,
+		veil = 0.55,
+		hatch = false,
+		slash = false,
+		bolt = false,
+		sweep = true,
+		labelSize = 24,
+	},
+	NoTarget = {
+		name = "NoTarget",
+		fill = FILL_NO_TARGET,
+		veil = 0.45,
+		hatch = true,
+		slash = false,
+		bolt = false,
+		sweep = false,
+		labelSize = 18,
+	},
+	OutOfStamina = {
+		name = "NoStamina",
+		fill = FILL_NO_STAMINA,
+		veil = 1,
+		hatch = false,
+		slash = true,
+		bolt = true,
+		sweep = false,
+		labelSize = 16,
+	},
+}
+
+local function lookOf(display: string): Look
+	return LOOKS[display] or LOOKS.Ready
+end
+
+local function midOf(sequence: ColorSequence): Color3
+	local keys = sequence.Keypoints
+	return keys[math.ceil(#keys / 2)].Value
+end
+
+-- The face's middle colour as the player sees it: the fill under the veil (the sweep is not counted).
+local function visibleTint(look: Look): Color3
+	return midOf(look.fill):Lerp(A.Ink, 1 - look.veil)
+end
+
 local HopButton = {}
 HopButton.__index = HopButton
+
+HopButton.Size = SIZE
+HopButton.IconSize = ICON_SIZE
+
+-- The widest line of a state's word at its size in design px (Fredoka One, the label's font, measured with
+-- TextService), and whether it fits the label's text area with its outline.
+function HopButton.measureLabel(display: string): (number, boolean)
+	local look = lookOf(display)
+	local size = math.max(look.labelSize, Tokens.TextSize.Minimum)
+	local widest = 0
+	for _, line in string.split(HopState.label(display), "\n") do
+		local bounds = TextService:GetTextSize(line, size, Enum.Font.FredokaOne, Vector2.new(4096, 4096))
+		widest = math.max(widest, bounds.X)
+	end
+	local outline = if look.labelSize >= 24 then A.OutlineMajor else A.OutlineMinor
+	return widest, widest + 2 * outline <= LABEL_WIDTH - 6
+end
+
+-- The face of the button (lip, face, icon, crossed bolt, veil, label, hatching, slash, cooldown sweep) and the one
+-- function that dresses it for a display state. The live button and the playground specimen both use these two, so
+-- a specimen shows exactly what the button draws.
+type Parts = {
+	face: Frame,
+	grad: UIGradient,
+	icon: Frame,
+	bolt: Frame,
+	veil: Frame,
+	label: TextLabel,
+	hatch: Frame,
+	slash: Frame,
+	sweep: Arc.Arc,
+}
+
+local function buildFace(body: GuiObject): Parts
+	local lip = make("Frame", {
+		Name = "Lip",
+		Position = UDim2.fromOffset(0, A.Button.DepthOffset),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = A.Ink,
+		ZIndex = 3,
+		Parent = body,
+	})
+	Arcade.corner(lip, 12)
+	local face = make("Frame", {
+		Name = "Face",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ClipsDescendants = true,
+		ZIndex = 4,
+		Parent = body,
+	})
+	Arcade.corner(face, 12)
+	Arcade.outline(face, "Button")
+	local grad = make("UIGradient", { Color = A.Fill.Home, Rotation = 90, Parent = face })
+	Arcade.gloss(face)
+	local icon = make("Frame", {
+		Name = "Icon",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 6),
+		Size = UDim2.fromOffset(ICON_SIZE, ICON_SIZE),
+		BackgroundTransparency = 1,
+		ZIndex = 7,
+		Parent = face,
+	})
+	Arcade.icon(icon, "HopCar")
+	-- Out of Stamina: the car steps aside for a big grey cracked bolt with a red slash across it
+	local bolt = make("Frame", {
+		Name = "Bolt",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BOLT_TOP),
+		Size = UDim2.fromOffset(BOLT_SIZE, BOLT_SIZE),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 7,
+		Parent = face,
+	})
+	Arcade.icon(bolt, "BoltEmpty")
+	-- dim veil over the icon (structure cue for cooldown / no target)
+	local veil = make("Frame", {
+		Name = "Dim",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = A.Ink,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 9,
+		Parent = face,
+	})
+	Arcade.corner(veil, 12)
+	local label = Arcade.text(face, { text = "HOP", role = "Button", name = "Label", size = 24, z = 12 })
+	label.AnchorPoint = Vector2.new(0.5, 1)
+	label.Position = UDim2.new(0.5, 0, 1, -2)
+	label.Size = UDim2.new(1, -6, 0, LABEL_ONE_LINE)
+	-- diagonal hatching for NoTarget
+	local hatch = make("Frame", {
+		Name = "Hatch",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Visible = false,
+		ZIndex = 10,
+		Parent = face,
+	})
+	for i = -2, 5 do
+		make("Frame", {
+			Name = "Stripe" .. i,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(i * 22, SIZE / 2),
+			Size = UDim2.fromOffset(6, SIZE * 1.8),
+			Rotation = 35,
+			BackgroundColor3 = A.Ink,
+			BackgroundTransparency = 0.72,
+			BorderSizePixel = 0,
+			ZIndex = 10,
+			Parent = hatch,
+		})
+	end
+	-- OutOfStamina: a red slash across the bolt (a different look from NoTarget's hatching)
+	local slash = make("Frame", {
+		Name = "Slash",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(SIZE / 2, BOLT_TOP + BOLT_SIZE / 2),
+		Size = UDim2.fromOffset(SLASH_LENGTH, 7),
+		Rotation = -38,
+		BackgroundColor3 = SLASH_RED,
+		Visible = false,
+		ZIndex = 13,
+		Parent = face,
+	})
+	Arcade.corner(slash, 4)
+	Arcade.outline(slash, "Minor")
+	-- cooldown sweep (dark wedge shrinking from hopCooldown01 to 0)
+	local sweep = Arc.new(face, SIZE * 1.5, A.Ink, 0.5, 11)
+	return {
+		face = face,
+		grad = grad,
+		icon = icon,
+		bolt = bolt,
+		veil = veil,
+		label = label,
+		hatch = hatch,
+		slash = slash,
+		sweep = sweep,
+	}
+end
+
+local function applyLook(parts: Parts, display: string, cooldown: number)
+	local look = lookOf(display)
+	parts.grad.Color = look.fill
+	parts.hatch.Visible = look.hatch
+	parts.slash.Visible = look.slash
+	parts.bolt.Visible = look.bolt
+	parts.icon.Visible = not look.bolt
+	parts.veil.BackgroundTransparency = look.veil
+	-- the wedge belongs to the Cooldown state only (an empty Stamina bar outranks it, and NoTarget has none)
+	parts.sweep:set(if look.sweep then cooldown else 0)
+	local label = parts.label
+	local text = HopState.label(display)
+	label.Text = text
+	label.TextSize = math.max(look.labelSize, Tokens.TextSize.Minimum)
+	label.TextTransparency = 0
+	label.Size = UDim2.new(1, -6, 0, if string.find(text, "\n", 1, true) then LABEL_TWO_LINES else LABEL_ONE_LINE)
+	local stroke = label:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Thickness = if look.labelSize >= 24 then A.OutlineMajor else A.OutlineMinor
+	end
+end
+
+-- Playground specimen: one face in `display`, with no store, input or sounds. The caller owns (and destroys) it.
+function HopButton.buildSpecimenFace(parent: Instance, display: string, cooldown01: number?): Frame
+	local body = make("Frame", {
+		Name = "HopSpecimen_" .. HopState.key(display),
+		Size = UDim2.fromOffset(SIZE, SIZE),
+		BackgroundTransparency = 1,
+		Parent = parent,
+	})
+	local parts = buildFace(body)
+	applyLook(parts, display, math.clamp(cooldown01 or 0, 0, 1))
+	return body
+end
 
 function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 	local self = setmetatable({}, HopButton)
@@ -97,109 +384,8 @@ function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
 	local press = make("UIScale", { Name = "Press", Parent = body })
 	self._body = body
 	self._press = press
-	local lip = make("Frame", {
-		Name = "Lip",
-		Position = UDim2.fromOffset(0, A.Button.DepthOffset),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		ZIndex = 3,
-		Parent = body,
-	})
-	Arcade.corner(lip, 12)
-	local face = make("Frame", {
-		Name = "Face",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ClipsDescendants = true,
-		ZIndex = 4,
-		Parent = body,
-	})
-	Arcade.corner(face, 12)
-	Arcade.outline(face, "Button")
-	self._grad = make("UIGradient", { Color = A.Fill.Home, Rotation = 90, Parent = face })
-	Arcade.gloss(face)
-	self._face = face
-	local icon = make("Frame", {
-		Name = "Icon",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(SIZE * 0.58, SIZE * 0.58),
-		BackgroundTransparency = 1,
-		ZIndex = 7,
-		Parent = face,
-	})
-	Arcade.icon(icon, "HopFigure")
-	-- dim veil over the icon (structure cue for cooldown / unavailable)
-	local veil = make("Frame", {
-		Name = "Dim",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ZIndex = 9,
-		Parent = face,
-	})
-	Arcade.corner(veil, 12)
-	self._veil = veil
-	local label = Arcade.text(face, { text = "HOP", role = "Button", name = "Label", size = 24, z = 12 })
-	label.AnchorPoint = Vector2.new(0.5, 1)
-	label.Position = UDim2.new(0.5, 0, 1, -2)
-	label.Size = UDim2.new(1, -6, 0, 30)
-	self._label = label
-	-- diagonal hatching for Unavailable
-	local hatch = make("Frame", {
-		Name = "Hatch",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Visible = false,
-		ZIndex = 10,
-		Parent = face,
-	})
-	for i = -2, 5 do
-		make("Frame", {
-			Name = "Stripe" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(i * 22, SIZE / 2),
-			Size = UDim2.fromOffset(6, SIZE * 1.8),
-			Rotation = 35,
-			BackgroundColor3 = A.Ink,
-			BackgroundTransparency = 0.72,
-			BorderSizePixel = 0,
-			ZIndex = 10,
-			Parent = hatch,
-		})
-	end
-	self._hatch = hatch
-	-- OutOfStamina: a slash across the icon and the empty-bolt badge (a different look from NoTarget’s hatching)
-	local slash = make("Frame", {
-		Name = "Slash",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(SIZE / 2, SIZE * 0.4),
-		Size = UDim2.fromOffset(SIZE * 0.78, 7),
-		Rotation = -38,
-		BackgroundColor3 = Color3.fromRGB(226, 52, 62),
-		Visible = false,
-		ZIndex = 13,
-		Parent = face,
-	})
-	Arcade.corner(slash, 4)
-	Arcade.outline(slash, "Minor")
-	local badge = make("Frame", {
-		Name = "NoStamina",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -3, 0, 3),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundTransparency = 1,
-		Visible = false,
-		ZIndex = 14,
-		Parent = face,
-	})
-	Arcade.icon(badge, "BoltEmpty")
-	self._slash, self._outBadge = slash, badge
-	-- cooldown sweep (dark wedge shrinking from hopCooldown01 to 0)
-	local sweep = Arc.new(face, SIZE * 1.5, A.Ink, 0.5, 11)
-	self._sweep = sweep
+	local parts = buildFace(body)
+	self._parts = parts
 	-- Timing ring outside the boundary
 	local ring = make("Frame", {
 		Name = "TimingRing",
@@ -394,21 +580,10 @@ function HopButton._apply(self: HopButton)
 	local display: string = if cue and cue.display then cue:display() else HopState.resolve(run)
 	local cooldown = if run then math.clamp(run.hopCooldown01, 0, 1) else 0
 	self._cooldown = cooldown
-	self._sweep:set(cooldown)
 	local changed = display ~= self._state
 	self._state = display
-	local noTarget = display == "NoTarget"
-	local noStamina = display == "OutOfStamina"
-	local cooling = display == "Cooldown"
-	local blocked = noTarget or noStamina
-	self._grad.Color = if blocked then A.Fill.Disabled else A.Fill.Home
-	self._hatch.Visible = noTarget
-	self._slash.Visible = noStamina
-	self._outBadge.Visible = noStamina
-	self._veil.BackgroundTransparency = if blocked then 0.5 elseif cooling then 0.55 else 1
-	self._label.Text = if cooling then "WAIT" else "HOP"
-	self._label.TextTransparency = if blocked then 0.35 else 0
-	self._body.Active = not blocked
+	applyLook(self._parts, display, cooldown)
+	self._body.Active = display ~= "NoTarget" and display ~= "OutOfStamina"
 	if changed then
 		self:_applyRing()
 	end
@@ -449,8 +624,18 @@ function HopButton.setVisible(self: HopButton, on: boolean)
 	self:_applyRing()
 end
 
+-- Live object counts for leak checks: the component's own instances and what its Trove holds (connections,
+-- subscriptions, cleanup functions). It starts no thread and no render step.
+local function troveSize(trove: any): number
+	local objects = trove._objects
+	return if type(objects) == "table" then #objects else 0
+end
+
 function HopButton.getDebugState(self: HopButton): { [string]: any }
 	local rect = self._rect
+	local parts = self._parts
+	local look = lookOf(self._state)
+	local labelWidth, labelFits = HopButton.measureLabel(self._state)
 	return {
 		visible = self._visible,
 		input = self._input,
@@ -458,22 +643,34 @@ function HopButton.getDebugState(self: HopButton): { [string]: any }
 		keyLabel = if self._chip.Visible then self._chipText.Text else nil,
 		state = self._state,
 		display = self._state,
+		-- Round 3: one key, one tint and one word per state, so the unavailable looks can be told apart
+		stateKey = HopState.key(self._state),
+		fillName = look.name,
+		tint = visibleTint(look):ToHex(),
+		labelSize = parts.label.TextSize,
+		labelWidth = labelWidth,
+		labelFits = labelFits,
+		carIcon = parts.icon.Visible,
+		boltIcon = parts.bolt.Visible,
 		cooldown01 = self._cooldown,
-		sweep = self._sweep:get(),
-		label = self._label.Text,
-		hatched = self._hatch.Visible,
-		iconDimmed = self._veil.BackgroundTransparency < 1,
+		sweep = parts.sweep:get(),
+		label = parts.label.Text,
+		hatched = parts.hatch.Visible,
+		iconDimmed = parts.veil.BackgroundTransparency < 1,
 		ringShown = self._ring.Visible,
 		ringColour = self._ringStroke.Color,
 		ringPulsing = false, -- the ring is steady; only the window’s opening pops it once
 		accents = self._accents,
-		outOfStamina = self._slash.Visible,
+		outOfStamina = parts.slash.Visible,
 		cueMounted = self._cue ~= nil,
 		intents = self._intents,
 		box = rect and RunLayout.describe(rect),
 		conflict = self._conflict,
 		overlapsReserved = self._reservedHit,
 		overlapsProtected = rect ~= nil and RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),
+		instances = #self.root:GetDescendants(),
+		connections = troveSize(self._trove),
+		threads = 0,
 	}
 end
 

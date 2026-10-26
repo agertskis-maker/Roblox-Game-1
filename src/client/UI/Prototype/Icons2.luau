@@ -302,14 +302,15 @@ local tilts: { [string]: number } = {}
 
 -- SHARED PARTS ------------------------------------------------------------------------------
 
--- A chunky side-view hatchback filling its container (original proportions).
-local function carShape(pen: Pen, colour: Color3, withShine: boolean)
+-- A chunky side-view hatchback filling its container (original proportions). `glass` replaces the pale window
+-- colour (the Hop icon uses a dark pane so the roofline still reads on a white body and in greyscale).
+local function carShape(pen: Pen, colour: Color3, withShine: boolean, glass: Color3?)
 	group(pen, {
 		rect(0.5, 0.6, 0.92, 0.28, 0.12, colour),
 		rect(0.45, 0.42, 0.52, 0.26, 0.11, colour),
 	})
 	flat(pen, {
-		rect(0.44, 0.43, 0.4, 0.13, 0.04, GLASS),
+		rect(0.44, 0.43, 0.4, 0.13, 0.04, glass or GLASS),
 		rect(0.47, 0.43, 0.045, 0.15, 0, colour),
 		rect(0.935, 0.56, 0.05, 0.08, 0.02, rgb(255, 230, 120)),
 		circle(0.25, 0.76, 0.3, INK),
@@ -440,22 +441,49 @@ end
 
 -- STATS ICONS --------------------------------------------------------------------------------
 
--- CashStack: three fanned bills with a gold paper band (original, uses the approved bill
--- colours of the CashIcon).
+-- CashStack: three fanned bills held by ONE gold paper band (original, uses the approved bill colours of the
+-- CashIcon). Round 3 (R3-C1): the band is no longer a rectangle pasted on the front bill. It is a single loop
+-- around the whole hand of bills, drawn on top of all of them as one outlined silhouette (so no bill outline
+-- crosses it): a strip on each bill, square to that bill's long axis and at the same distance from its left
+-- end, so it turns with the fan; the strips overlap a little where one bill's edge meets the next and share one
+-- outline. Depth reads two ways: the front strip is lit and the strips behind it step darker, so a visible step
+-- shows where one layer meets the next; and both ends stand a hair past the bills' edges (the top end past the
+-- back bill, the bottom end past the front bill), where the band goes round behind and under the stack. The strips
+-- are flat (no lip), so the band stays one clean ribbon.
+local CASH_BAND_WIDTH = 0.12 -- of the holder
+local CASH_BAND_LIFT = 0.02 -- how far the band's ends stand proud of the bills' edges
 defaults.CashStack = Tokens.Color.BillFace
 tilts.CashStack = -8
 painters.CashStack = function(pen)
 	local face = pen.main
-	group(pen, { rect(0.54, 0.36, 0.78, 0.36, 0.04, face:Lerp(Tokens.Color.BillDark, 0.55), -14) })
-	group(pen, { rect(0.5, 0.48, 0.8, 0.36, 0.04, face:Lerp(Tokens.Color.BillDark, 0.25), -6) })
+	local colors = Tokens.Color
+	-- A strip on one bill: the bill's centre, its tilt, the strip's distance along the bill's long axis from the
+	-- centre (negative = toward the left end), its extent along the bill's short axis (v0 to v1, from the bill's
+	-- centre; positive = down the bill), and how much it steps toward the shaded band colour (0 = lit).
+	local function strip(cx: number, cy: number, tilt: number, u: number, v0: number, v1: number, mix: number): Spec
+		local a = math.rad(tilt)
+		local vm = (v0 + v1) / 2
+		local x = cx + u * math.cos(a) - vm * math.sin(a)
+		local y = cy + u * math.sin(a) + vm * math.cos(a)
+		return rect(x, y, CASH_BAND_WIDTH, v1 - v0, 0.02, colors.BillBand:Lerp(colors.BillBandShade, mix), tilt)
+	end
+	group(pen, { rect(0.54, 0.36, 0.78, 0.36, 0.04, face:Lerp(colors.BillDark, 0.55), -14) })
+	group(pen, { rect(0.5, 0.48, 0.8, 0.36, 0.04, face:Lerp(colors.BillDark, 0.25), -6) })
 	group(pen, { rect(0.47, 0.63, 0.82, 0.38, 0.04, face, 2) })
 	flat(pen, {
-		rect(0.47, 0.63, 0.66, 0.24, 0.03, Tokens.Color.BillLight, 2),
+		rect(0.47, 0.63, 0.66, 0.24, 0.03, colors.BillLight, 2),
 		rect(0.47, 0.63, 0.6, 0.18, 0.02, face, 2),
-		circle(0.5, 0.63, 0.17, Tokens.Color.BillLight),
-		circle(0.5, 0.63, 0.08, Tokens.Color.BillDark),
+		circle(0.5, 0.63, 0.17, colors.BillLight),
+		circle(0.5, 0.63, 0.08, colors.BillDark),
 	})
-	group(pen, { rect(0.27, 0.6, 0.12, 0.5, 0.02, Tokens.Color.BillBand, 2) })
+	group(pen, {
+		-- behind: from just past the back bill's top edge to a little way under the middle bill's top edge
+		flatSpec(strip(0.54, 0.36, -14, -0.2245, -0.18 - CASH_BAND_LIFT, -0.073, 0.75)),
+		-- middle: from its top edge to a little way under the front bill's top edge
+		flatSpec(strip(0.5, 0.48, -6, -0.209, -0.18, -0.044, 0.4)),
+		-- front: lit, from a little above its top edge to a little past its lower edge (it turns under there)
+		flatSpec(strip(0.47, 0.63, 2, -0.2, -0.19 - 0.02, 0.19 + CASH_BAND_LIFT, 0)),
+	})
 	shine(pen, 0.62, 0.5, 0.16, 0.04, 2)
 end
 
@@ -565,28 +593,38 @@ end
 
 -- RUN / FEEDBACK -----------------------------------------------------------------------------
 
--- HopFigure (Hop, Round 2): the CHARACTER leaps between two simplified roofs along a dotted arc (the car does not
--- jump). At 40 px the silhouette reads first: one big figure, two roofs, three dots a side.
-defaults.HopFigure = WHITE
-painters.HopFigure = function(pen)
-	flat(pen, { rect(0.2, 0.965, 0.3, 0.035, -1, INK), rect(0.8, 0.965, 0.3, 0.035, -1, INK) })
-	group(pen, { rect(0.2, 0.87, 0.3, 0.12, 0.04), rect(0.8, 0.87, 0.3, 0.12, 0.04) })
-	group(pen, {
-		flatSpec(circle(0.23, 0.73, 0.075, pen.main)),
-		flatSpec(circle(0.27, 0.63, 0.07, pen.main)),
-		flatSpec(circle(0.33, 0.55, 0.065, pen.main)),
-		flatSpec(circle(0.67, 0.57, 0.065, pen.main)),
-		flatSpec(circle(0.73, 0.65, 0.07, pen.main)),
-		flatSpec(circle(0.77, 0.74, 0.075, pen.main)),
-	})
-	group(pen, {
-		circle(0.5, 0.17, 0.17),
-		bar(0.5, 0.29, 0.5, 0.43, 0.13),
-		bar(0.5, 0.31, 0.32, 0.25, 0.08),
-		bar(0.5, 0.31, 0.68, 0.22, 0.08),
-		bar(0.5, 0.43, 0.38, 0.57, 0.09),
-		bar(0.5, 0.43, 0.61, 0.56, 0.09),
-	})
+-- HopCar (Hop, Round 3, R3-C2): an original side-view CAR (roof, dark window, two wheels) low in the box with ONE
+-- bold arc rising from above it to an arrowhead that points up and forward. It supersedes HopFigure (a character
+-- between two roofs). The icon names the action; it does not say whether the car or the driver leaves the ground.
+-- At about 56 px the silhouette reads first: one car, one arc, one arrowhead, nothing else; every shape has the
+-- dark outline, so it holds in greyscale. About 38 frames (budget 40).
+local HOP_GLASS = rgb(52, 108, 176) -- a dark pane: the roofline reads on the white body and in greyscale
+defaults.HopCar = WHITE
+painters.HopCar = function(pen)
+	-- the arc: a quadratic curve from above the car's rear, flat at first, then climbing steeply to the upper right
+	local p0x, p0y, p1x, p1y, p2x, p2y = 0.2, 0.33, 0.68, 0.35, 0.77, 0.14
+	local width = 0.11
+	local specs: { Spec } = {}
+	local px, py = p0x, p0y
+	for i = 1, 5 do
+		local t = i / 5
+		local u = 1 - t
+		local x = u * u * p0x + 2 * u * t * p1x + t * t * p2x
+		local y = u * u * p0y + 2 * u * t * p1y + t * t * p2y
+		table.insert(specs, bar(px, py, x, y, width))
+		px, py = x, y
+	end
+	-- the arrowhead: the tip a little past the end of the curve, two barbs sweeping back from it
+	local heading = math.atan2(p2y - p1y, p2x - p1x)
+	local tx, ty = p2x + 0.05 * math.cos(heading), p2y + 0.05 * math.sin(heading)
+	for _, side in { 1, -1 } do
+		local back = heading + side * math.rad(140)
+		table.insert(specs, bar(tx, ty, tx + 0.19 * math.cos(back), ty + 0.19 * math.sin(back), width))
+	end
+	group(pen, specs)
+	within(pen, 0.5, 0.675, 0.66, 0, "Car", function()
+		carShape(pen, pen.main, true, HOP_GLASS)
+	end)
 end
 
 -- FAMILY ICONS (Round 2, cards): the eight vehicle families as side silhouettes that share one weight (a body, a
@@ -1320,7 +1358,7 @@ Icons2.Names = {
 	"KeyLock",
 	"Padlock",
 	"CarJump",
-	"HopFigure",
+	"HopCar",
 	"Family_Compact",
 	"Family_Sedan",
 	"Family_Pickup",

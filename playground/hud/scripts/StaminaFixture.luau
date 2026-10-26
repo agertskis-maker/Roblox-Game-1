@@ -8,8 +8,15 @@
 -- hops while the current ride continues; an optional restoring pickup (a separate switch, also off) adds one,
 -- clamped to the maximum. Max-Stamina upgrades and pickup placement are unresolved team decisions.
 --
+-- Round 3 (R3-S1 / R3-S2 / R3-F4): this file stays PRESENTATION-ONLY scope. The colour states the meter shows (6-10
+-- yellow, 4-5 orange, 1-3 red, 0 depleted) are drawn by Run/StaminaMeter from the value alone; `lowAt` below is kept in
+-- the data shape but the meter no longer reads it. A tap on the unavailable Hop button is reported as HopRejected with
+-- reason "OutOfStamina": it spends nothing, is only counted here (counts.emptyTaps), and never ends the run. HOP STREAK
+-- is NOT built anywhere (Store keeps a type field only); this fixture has no streak counter, combo, or bonus.
+--
 --   local fx = StaminaFixture.new(store)
 --   fx:setEnabled(true, max?)   fx:setRestore(true)   fx:reset()
+--   fx:setValue(n)              -- jump to an exact value (clamped 0..max) for boundary tests and review shots
 --   fx:initial() -> StaminaState?   -- what a new run starts with (nil while off)
 --   fx:getDebugState()
 -- Events it reacts to (delivered through store:emit): "HopAccepted", "HopRejected" (reason), "StaminaPickup".
@@ -35,7 +42,7 @@ function StaminaFixture.new(store: Store.StoreObject)
 	self.enabled = false
 	self.restore = false
 	self.max = 10
-	self.counts = { spent = 0, rejected = 0, pickups = 0, clamped = 0, ignoredAtZero = 0 }
+	self.counts = { spent = 0, rejected = 0, pickups = 0, clamped = 0, ignoredAtZero = 0, emptyTaps = 0 }
 	self._trove:Connect(store.Event, function(event: Store.Event)
 		self:_onEvent(event)
 	end)
@@ -78,6 +85,9 @@ function StaminaFixture._onEvent(self: any, event: Store.Event)
 		end)
 	elseif event.kind == "HopRejected" then
 		self.counts.rejected += 1 -- no target, cooldown, airborne: nothing is spent
+		if event.reason == "OutOfStamina" then
+			self.counts.emptyTaps += 1 -- a tap on the unavailable button: counted only; the run continues
+		end
 	elseif event.kind == "StaminaPickup" then
 		if not self.restore then
 			return
@@ -115,10 +125,17 @@ function StaminaFixture.setRestore(self: any, on: boolean)
 	end)
 end
 
+-- Jumps to an exact value, clamped to 0..max (boundary tests and review shots; not a game rule).
+function StaminaFixture.setValue(self: any, value: number)
+	self:_patch(function(s)
+		return { value = math.clamp(math.floor(value), 0, s.max), max = s.max, lowAt = s.lowAt, restore = s.restore }
+	end)
+end
+
 -- Back to a full meter (between fixture runs).
 function StaminaFixture.reset(self: any)
 	table.clear(self.counts)
-	self.counts = { spent = 0, rejected = 0, pickups = 0, clamped = 0, ignoredAtZero = 0 }
+	self.counts = { spent = 0, rejected = 0, pickups = 0, clamped = 0, ignoredAtZero = 0, emptyTaps = 0 }
 	self:_patch(function(s)
 		return { value = s.max, max = s.max, lowAt = s.lowAt, restore = s.restore }
 	end)

@@ -11,6 +11,8 @@
 --
 --   HopState.resolve(run) -> Display
 --   HopState.worldMode(display) -> "Hidden" | "Grey" | "Ready" | "Best"   -- what the target cues show
+--   HopState.key(display) -> "ready" | "bestTiming" | "cooldown" | "noTarget" | "noStamina"   -- Round 3: the button's debug key
+--   HopState.label(display) -> the short word on the button (a newline starts the second line)
 
 local Store = require(script.Parent.Parent.Store)
 
@@ -20,6 +22,23 @@ export type Display = "Ready" | "BestTiming" | "Cooldown" | "NoTarget" | "OutOfS
 export type WorldMode = "Hidden" | "Grey" | "Ready" | "Best"
 
 HopState.Order = table.freeze({ "OutOfStamina", "Cooldown", "NoTarget", "BestTiming", "Ready" })
+
+-- Round 3 (R3-C2): the three unavailable looks must differ by more than a grey, so each state has its own short word
+-- (at least 16 px, child-friendly) and key. The button adds a different tint and glyph per state.
+HopState.Keys = table.freeze({
+	Ready = "ready",
+	BestTiming = "bestTiming",
+	Cooldown = "cooldown",
+	NoTarget = "noTarget",
+	OutOfStamina = "noStamina",
+} :: { [string]: string })
+HopState.Labels = table.freeze({
+	Ready = "HOP",
+	BestTiming = "HOP",
+	Cooldown = "WAIT",
+	NoTarget = "NO CAR",
+	OutOfStamina = "NO\nSTAMINA", -- two lines: "NO STAMINA" does not fit the 96 px button in one line at 16 px
+} :: { [string]: string })
 
 function HopState.resolve(run: Store.RunState?): Display
 	if run == nil then
@@ -39,6 +58,15 @@ function HopState.resolve(run: Store.RunState?): Display
 		return "BestTiming"
 	end
 	return "Ready"
+end
+
+-- Both take a plain string so the button can pass what HopCue reports; an unknown display reads as Ready.
+function HopState.key(display: string): string
+	return HopState.Keys[display] or HopState.Keys.Ready
+end
+
+function HopState.label(display: string): string
+	return HopState.Labels[display] or HopState.Labels.Ready
 end
 
 -- With no usable hop the target cues step back: a grey ring while the target still exists (cooldown, empty
