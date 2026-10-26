@@ -38,6 +38,8 @@ export type Options = { onDrive: ((TradingCard.CarRef) -> ())? }
 
 -- TOKEN CANDIDATE: the facts rows (design px).
 local FINISH_LABEL_H = 24
+local CAPTION_W = 84 -- the row captions (WORLD, LAP PAY) at 16 px
+local WORLD_TAG_LEFT = 8 + CAPTION_W + 8 + 8 -- caption column, gaps and the right margin; the World tag takes the rest of the row
 local STACK_CHIP_H = 36 -- a chip when the three are stacked: the name left, the state right
 local COLUMN_GAP = 16 -- card to rows when side by side
 local STACK_GAP = 12 -- card to rows when stacked
@@ -115,13 +117,13 @@ function Facts.new(parent: Instance, name: string?)
 	})
 	worldCaption.AnchorPoint = Vector2.new(0, 0.5)
 	worldCaption.Position = UDim2.new(0, 8, 0.5, 0)
-	worldCaption.Size = UDim2.fromOffset(110, 24)
+	worldCaption.Size = UDim2.fromOffset(CAPTION_W, 24)
 	local worldTag: Frame = make("Frame", {
 		Name = "WorldTag",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -8, 0.5, 0),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 30),
+		-- fills the room right of the caption (never an AutomaticSize tag: its width came out a few px short of the text)
+		Size = UDim2.new(1, -WORLD_TAG_LEFT, 0, 30),
 		BackgroundColor3 = WORLD_UNKNOWN_FILL,
 		BorderSizePixel = 0,
 		ZIndex = 7,
@@ -129,12 +131,8 @@ function Facts.new(parent: Instance, name: string?)
 	})
 	Arcade.corner(worldTag, 15)
 	Arcade.outline(worldTag, "Minor")
-	make("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), Parent = worldTag })
-	local worldValue = Arcade.text(
-		worldTag,
-		{ text = "?", role = "Label", name = "Value", autoWidth = true, z = 9, outline = "Minor" }
-	)
-	worldValue.Size = UDim2.fromOffset(0, 30)
+	local worldValue = Arcade.text(worldTag, { text = "?", role = "Label", name = "Value", z = 9, outline = "Minor" })
+	worldValue.Size = UDim2.fromScale(1, 1)
 	self._worldTag, self._worldValue, self._worldCaption = worldTag, worldValue, worldCaption
 
 	-- LAP PAY: a label on the left, "$220 / lap" (or "?") on the right
@@ -150,7 +148,7 @@ function Facts.new(parent: Instance, name: string?)
 	})
 	payCaption.AnchorPoint = Vector2.new(0, 0.5)
 	payCaption.Position = UDim2.new(0, 8, 0.5, 0)
-	payCaption.Size = UDim2.fromOffset(110, 24)
+	payCaption.Size = UDim2.fromOffset(CAPTION_W, 24)
 	local payValue = Arcade.text(payRow, {
 		text = "?",
 		role = "Value",

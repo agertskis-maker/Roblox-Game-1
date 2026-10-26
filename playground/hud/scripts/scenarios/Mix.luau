@@ -71,6 +71,16 @@ local function clean()
 	MusicSetting.reset()
 end
 
+-- The real Keys component (and the rest of the Run HUD) listens to the store in Run mode and calls Sounds.play / stopRise on its
+-- own, which would touch the ladder and the voice counts under a scenario that drives them by hand. Those scenarios run in Home.
+local function quiet(host: Host)
+	if host.store:get().mode ~= "Home" then
+		host.store:setMode("Home")
+		host.wait(0.4)
+	end
+	clean()
+end
+
 -- raw and effective sums, count and per-hook counts of the effects in the SFX group right now
 local function sfxNow(): (number, number, number, number, { [string]: number })
 	local group = Sounds.group()
@@ -246,6 +256,9 @@ S["Mix: peak overlap"] = function(host: Host)
 	host.wait(0.6)
 	local mix = Sounds.MIX
 	local group = Sounds.group()
+	-- a clean slate right before the burst: the running HUD may have sounded a warning or filled voices in the last second
+	Sounds.stopAll()
+	Sounds.resetThrottles()
 	-- confirm + Cash + warning together, with a click, a bump, a toast and a chime note on top
 	Sounds.play("KeysCapture")
 	Sounds.play("CashGain")
@@ -586,16 +599,37 @@ S["Mix: Keys chime ladder"] = function(host: Host)
 	host.log("(property checks only: no note was listened to)")
 end
 
+-- climb the whole ladder (p 0.3, 0.55, 0.8, 1) with `spacing` seconds between calls
+local function climb(host: Host, spacing: number)
+	for i, p in { 0.3, 0.55, 0.8, 1 } do
+		Sounds.rise("KeysRise", p)
+		if i < 4 then
+			host.wait(spacing)
+		end
+	end
+end
+
+-- notes at the ladder's last pitch (the sample's own: speed 1) from the ladder hook and from the pending cue
+local function finalNotes(): (number, number)
+	local fromLadder = 0
+	for _, entry in history("KeysRise") do
+		if entry.speed >= 1 - EPS then
+			fromLadder += 1
+		end
+	end
+	return fromLadder, #history("KeysPending")
+end
+
 S["Mix: ring-full cue and fanfare"] = function(host: Host)
-	clean()
+	quiet(host)
 	local mix = Sounds.MIX
-	-- a full ring whose answer is pending: the ladder's last note, quiet, never a fanfare
+	-- a full ring whose answer is pending, the ladder stopped one note short: ONE quiet cue (the last ladder note), never a fanfare
 	Sounds.rise("KeysRise", 0.3)
-	host.wait(0.3)
+	host.wait(0.4)
 	Sounds.rise("KeysRise", 0.55)
-	host.wait(0.3)
+	host.wait(0.4)
 	Sounds.rise("KeysRise", 0.8)
-	host.wait(0.3)
+	host.wait(0.4)
 	Sounds.play("KeysPending")
 	Sounds.play("KeysPending")
 	Sounds.play("KeysPending")
@@ -619,21 +653,39 @@ S["Mix: ring-full cue and fanfare"] = function(host: Host)
 		(plays.KeysCapture or 0) == 0 and (plays.NewBest or 0) == 0,
 		string.format("KeysCapture %d, NewBest %d", plays.KeysCapture or 0, plays.NewBest or 0)
 	)
-	-- the ladder already played its last note: the cue does not duplicate it
+	-- the ladder already played its last note (progress reached 100%): the pending cue does not duplicate it.
+	-- Exactly one note at the last pitch per capture, whichever of the two produced it.
 	clean()
-	for i, p in { 0.3, 0.55, 0.8, 1 } do
-		Sounds.rise("KeysRise", p)
-		if i < 4 then
-			host.wait(0.3)
-		end
-	end
+	climb(host, 0.4)
 	Sounds.play("KeysPending")
+	local fromLadder, cues = finalNotes()
 	verdict(
 		host,
-		"a ladder that reached 100% already played the last note: the pending cue adds none",
-		#history("KeysRise") == 4 and #history("KeysPending") == 0,
-		string.format("%d ladder notes, %d cue", #history("KeysRise"), #history("KeysPending"))
+		"a ladder that reached 100% already played the last note: the pending cue adds none (one last-pitch note in all)",
+		fromLadder + cues == 1 and (fromLadder == 0 or cues == 0),
+		string.format("%d ladder notes (%d at the last pitch), %d cue", #history("KeysRise"), fromLadder, cues)
 	)
+	-- the capture moves on: stopRise resets the ladder, and a second pending cue within 1.5 s still adds nothing
+	Sounds.stopRise("KeysRise", true)
+	Sounds.play("KeysPending")
+	local fromLadder2, cues2 = finalNotes()
+	verdict(
+		host,
+		"after stopRise the same capture's cue is not repeated (the last note sounded under 1.5 s ago)",
+		fromLadder2 + cues2 == 1,
+		string.format("%d at the last pitch in all", fromLadder2 + cues2)
+	)
+	host.wait(1.6)
+	Sounds.play("KeysPending") -- the next capture: its pending cue sounds again
+	local _, cues3 = finalNotes()
+	verdict(
+		host,
+		"the next capture's pending cue sounds again, once",
+		cues3 == cues2 + 1,
+		string.format("cues %d -> %d", cues2, cues3)
+	)
+	clean()
+	climb(host, 0.4)
 	-- stopRise right after the ring-full note (the capture moves on to pending) lets that note finish
 	local ringing = Sounds.getDebugState().perHook.KeysRise or 0
 	Sounds.stopRise("KeysRise")
@@ -700,6 +752,93 @@ S["Mix: ring-full cue and fanfare"] = function(host: Host)
 	)
 	clean()
 	host.log("(property checks only: no fanfare was listened to)")
+end
+
+S["Mix: safety cue under a pile-up"] = function(host: Host)
+	quiet(host)
+	local mix = Sounds.MIX
+	-- fill the effects group with ordinary effects first
+	Sounds.play("Tap")
+	host.wait(0.07)
+	Sounds.play("Tap")
+	Sounds.play("CashGain")
+	Sounds.play("Toast")
+	Sounds.play("Bonk")
+	Sounds.play("LapPay")
+	local before = Sounds.played()
+	-- the warning is a safety cue: it must sound, at most quieter, and the caps must still hold
+	Sounds.play("Warning")
+	local raw, _, count, _, per = sfxNow()
+	local warning = history("Warning")[1]
+	verdict(
+		host,
+		"pile-up: the warning still sounds (quieter at most), inside the sum and voice caps",
+		(Sounds.played().Warning or 0) == 1
+			and (per.UI_Warning or 0) == 1
+			and warning ~= nil
+			and warning.volume >= mix.hooks.Warning * 0.25 - EPS
+			and warning.volume <= mix.hooks.Warning + EPS
+			and raw <= mix.sumCap + EPS
+			and count <= mix.maxVoices,
+		string.format(
+			"effects before %d, now %d / %d voices, sum %.2f / %.2f, warning Volume %.2f (target %.2f)",
+			(before.Tap or 0) + (before.CashGain or 0) + (before.Toast or 0) + (before.Bonk or 0) + (before.LapPay or 0),
+			count,
+			mix.maxVoices,
+			raw,
+			mix.sumCap,
+			if warning then warning.volume else -1,
+			mix.hooks.Warning
+		)
+	)
+	-- the stings that duck the music also sound in a pile-up; the warning is never the one cut for them
+	Sounds.play("KeysCapture")
+	Sounds.play("Milestone")
+	local raw2, _, count2, _, per2 = sfxNow()
+	local plays = Sounds.played()
+	verdict(
+		host,
+		"pile-up: the confirm sting and the milestone sting sound, the warning is still there, the caps hold",
+		(plays.KeysCapture or 0) == 1
+			and (plays.Milestone or 0) == 1
+			and (per2.UI_Warning or 0) == 1
+			and raw2 <= mix.sumCap + EPS
+			and count2 <= mix.maxVoices,
+		string.format(
+			"KeysCapture %d, Milestone %d, sum %.2f / %.2f, voices %d / %d",
+			plays.KeysCapture or 0,
+			plays.Milestone or 0,
+			raw2,
+			mix.sumCap,
+			count2,
+			mix.maxVoices
+		)
+	)
+	-- an ordinary effect still obeys the cap: it is dropped exactly when there is not room for at least half of it
+	host.wait(0.07)
+	local rawNow, _, countNow, _, perNow = sfxNow()
+	local tapsBefore = Sounds.played().Tap or 0
+	Sounds.play("Tap")
+	local tapped = (Sounds.played().Tap or 0) - tapsBefore
+	local room = mix.sumCap - rawNow >= mix.hooks.Tap * 0.5
+		and countNow < mix.maxVoices
+		and (perNow.UI_Tap or 0) < mix.maxPerHook
+	verdict(
+		host,
+		"pile-up: an ordinary click is dropped when there is no room (the cap is not bent for it)",
+		(tapped == 1) == room,
+		string.format(
+			"room %s, sum %.2f / %.2f, voices %d, click sounded %d",
+			tostring(room),
+			rawNow,
+			mix.sumCap,
+			countNow,
+			tapped
+		)
+	)
+	Sounds.stopAll()
+	clean()
+	host.log("(property checks only)")
 end
 
 S["Mix: loops and cleanup"] = function(host: Host)

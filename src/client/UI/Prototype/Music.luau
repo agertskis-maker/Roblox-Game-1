@@ -304,8 +304,10 @@ local function fadeOutVoice(v: Voice, seconds: number)
 	end)
 end
 
--- A base voice goes to the fading list. If the list is full the quietest fading voice finishes its fade quickly (a short
--- smooth ramp from where it is), instead of being destroyed in one frame as it was before Round 3.
+-- A base voice goes to the fading list. If the list is full the quietest fading voice leaves it: a voice that is already
+-- inaudible (under 5% of its level) is destroyed at once, any other finishes its fade in FADE_EVICT (a short smooth ramp
+-- from where it is, never a one-frame cut of an audible voice). With the revive-first order in setWorld, a cycle of
+-- Worlds never gets here: the list only overflows when A/B candidates create several different tracks of one World.
 local function pushDying(v: Voice, seconds: number)
 	while #dying >= MAX_DYING do
 		local quietest = 1
@@ -315,7 +317,11 @@ local function pushDying(v: Voice, seconds: number)
 			end
 		end
 		local out = table.remove(dying, quietest) :: Voice
-		fadeOutVoice(out, Music.FADE_EVICT)
+		if levelOf(out) <= 0.05 then
+			destroyVoice(out)
+		else
+			fadeOutVoice(out, Music.FADE_EVICT)
+		end
 	end
 	table.insert(dying, v)
 	fadeOutVoice(v, seconds)
@@ -405,9 +411,12 @@ function Music.setWorld(id: string)
 		return
 	end
 	ensureGroups()
+	-- the track is still fading out from a moment ago: bring that Sound back (no restart, no new Sound). This comes BEFORE
+	-- the current base is retired: retiring first could push the very voice we want back out of the fading list (the
+	-- 4-voices-in-a-3-World-cycle bug) and then create a duplicate of it.
+	local revived = takeDying(id, index)
 	retireBase(Music.FADE_WORLD)
-	-- the track is still fading out from a moment ago: bring that Sound back (no restart, no new Sound)
-	local v = takeDying(id, index) or newVoice(id, baseGroup :: SoundGroup)
+	local v = revived or newVoice(id, baseGroup :: SoundGroup)
 	base = v
 	fadeIn(v, Music.FADE_IN)
 end

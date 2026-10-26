@@ -73,6 +73,7 @@ local HOME_H = 58
 local HOME_H_SHORT = 52
 local ROW_H = 52
 local ROW_GAP = 8
+local NOTE_H = 22 -- the "included in Cash earned" line under the road coins (was 18, too short for a 16 px line)
 local CASH_H = 92
 local SIDE = 10
 local CELL_WIDE = Vector2.new(176, 236) -- two name lines
@@ -299,8 +300,9 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 	local roadRow = statRow(2, "RoadCoins", "CashStack", "Road coins", "Cash")
 	local roadNote = Style.text(roadRow.frame, "included in Cash earned", "Small", { name = "IncludedNote", z = 8 })
 	roadNote.AnchorPoint = Vector2.new(0, 0)
-	roadNote.Position = UDim2.fromOffset(50, ROW_H - 4)
-	roadNote.Size = UDim2.new(1, -60, 0, 18)
+	-- Round 3: 22 px tall (it was 18: a 16 px Fredoka line is about 19 px, so Studio reported the note as not fitting)
+	roadNote.Position = UDim2.fromOffset(50, ROW_H - 6)
+	roadNote.Size = UDim2.new(1, -60, 0, NOTE_H)
 	roadNote.TextXAlignment = Enum.TextXAlignment.Left
 	roadNote.Visible = false
 	local bestRow = statRow(3, "Best", "Medal", "Best", "White")
@@ -631,7 +633,7 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 		-- shown as a source only: the amount is already inside the cash total unless the supplier says
 		-- otherwise (totalIncludesPickups == false), in which case no "included" note is claimed
 		roadNote.Visible = hasRoad and r.totalIncludesPickups ~= false
-		roadRow.frame.Size = UDim2.new(1, 0, 0, if roadNote.Visible then ROW_H + 18 else ROW_H)
+		roadRow.frame.Size = UDim2.new(1, 0, 0, if roadNote.Visible then ROW_H + NOTE_H else ROW_H)
 		local newBestValue = if r.newBest then math.max(r.best, r.distance) else r.best
 		bestRow.value.Text = Format.distance(newBestValue)
 		local showPrevious = r.newBest and r.distance > r.best

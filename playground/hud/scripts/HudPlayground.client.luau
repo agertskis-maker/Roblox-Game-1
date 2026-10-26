@@ -943,6 +943,13 @@ end
 function api.play(name: string)
 	return scenarios:play(name)
 end
+-- Test driver helpers (lead, Round 3): the scenario names, and the one still running (nil when idle).
+function api.scenarioList(): string
+	return game:GetService("HttpService"):JSONEncode(scenarios.list)
+end
+function api.scenarioBusy(): string?
+	return scenarios.current
+end
 
 local panel = DebugPanel.new(gui, api)
 api.panel = panel

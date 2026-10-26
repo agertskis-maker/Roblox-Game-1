@@ -62,6 +62,8 @@ local SLOT_ID = "home-toasts"
 local RUN_UPPER_ROW = true
 -- TOKEN CANDIDATE: the stack width in the run view (the widest Home width).
 local RUN_WIDTH = 360
+-- TOKEN CANDIDATE: how much taller the label font draws a line than TextService measures it (Fredoka One).
+local LINE_RATIO = 1.2
 -- TOKEN CANDIDATE: the count tag ("x2") size; the wide one is for two-digit counts.
 local COUNT_W = 38
 local COUNT_W_WIDE = 50
@@ -375,6 +377,14 @@ end
 
 -- VISUALS ------------------------------------------------------------------------------------
 
+-- The row height a text needs. TextService measures Enum.Font lines at the font size, but the label's own font draws a
+-- line about LINE_RATIO taller, and the final pixel size is rounded, so the text is wrapped a little narrower than its
+-- box and the height keeps that slack: a text always fits in full (Round 3: Studio reported TextFits = false on Desktop).
+local function rowHeight(text: string, width: number): number
+	local wrapW = width - 8 - math.ceil(width * 0.06)
+	return math.ceil(measure(text, TEXT, wrapW).Y * LINE_RATIO) + 20 + B.DepthOffset
+end
+
 -- the count tag is wider once it shows two digits ("x10" and up) so the number never spills out of it
 local function countWidth(count: number): number
 	return if count >= 10 then COUNT_W_WIDE else COUNT_W
@@ -406,9 +416,7 @@ function ToastStack._fill(self: any, toast: Toast)
 	-- text shrinks to fit (18 down to the 16 minimum, wrapping to two lines); elsewhere a long text grows the row
 	local fixed: boolean = self._fixed
 	v.text.TextScaled = fixed
-	local h = if fixed
-		then Layout.ToastHeight
-		else math.max(Layout.ToastHeight, math.ceil(measure(toast.text, TEXT, w - 8).Y) + 20 + B.DepthOffset)
+	local h = if fixed then Layout.ToastHeight else math.max(Layout.ToastHeight, rowHeight(toast.text, w))
 	toast.height = h
 	v.text.Size = UDim2.fromOffset(w, h - B.DepthOffset)
 	v.container.Size = UDim2.fromOffset(self._width, h)
@@ -621,11 +629,14 @@ function ToastStack.layout(self: any)
 	local ctx: Types.Ctx = self._ctx
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
-	local t = Layout.forProfile(ctx.screen:profile(), scale).toasts
+	local home = Layout.forProfile(ctx.screen:profile(), scale)
+	local t = home.toasts
 	local x, y, width = t.x, t.y, t.width
 	local maxVisible = M.ToastMaxVisible
 	local fixed = false
 	local stackH = 2 * 64 + Layout.ToastGap
+	-- the height of a stack of the most visible two-line rows
+	local tall = math.ceil(measure("A\nA", TEXT).Y * LINE_RATIO) + 20 + B.DepthOffset
 	self._place = "Home"
 	if RUN_UPPER_ROW and self:_gated() then
 		-- the run view: the Upper row under the distance pill, as many toasts as fit above the protected rectangle
@@ -638,10 +649,21 @@ function ToastStack.layout(self: any)
 		maxVisible =
 			math.clamp(math.floor((room + Layout.ToastGap) / (Layout.ToastHeight + Layout.ToastGap)), 1, maxVisible)
 		-- a two-line row is taller than the base row: when that many of them would not fit, rows stay at the base height
-		local tall = math.ceil(measure("A\nA", TEXT).Y) + 20 + B.DepthOffset
 		fixed = room < maxVisible * tall + (maxVisible - 1) * Layout.ToastGap
 		stackH = maxVisible * (if fixed then Layout.ToastHeight else tall) + (maxVisible - 1) * Layout.ToastGap
 		self._place = "Upper"
+	else
+		-- Home: the spot Home/Layout chose can reach a touch zone once two-line rows stack (PhoneSmall: the Jump zone,
+		-- already so in Round 2). The rows then keep the base height, which clears every zone on all six frames.
+		local left = x - width * t.anchorX
+		local worst = 2 * tall + Layout.ToastGap
+		for _, z in home.reserved do
+			if left < z.x + z.w and left + width > z.x and y < z.y + z.h and y + worst > z.y then
+				fixed = true
+				stackH = 2 * Layout.ToastHeight + Layout.ToastGap
+				break
+			end
+		end
 	end
 	self._maxVisible = maxVisible
 	self._fixed = fixed

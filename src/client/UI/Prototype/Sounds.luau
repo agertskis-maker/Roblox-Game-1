@@ -25,6 +25,9 @@
 --   * One MIX table (below) holds every level: a Volume per hook, the reference group levels, the music bed at a documented
 --     ratio under the effects, a cap on any one effect, a cap on the sum of live effects (a new sound is scaled to the
 --     headroom, or dropped when under half of itself would fit), and the voice caps. Per-hook minimum intervals stay.
+--     The warning (a safety cue) and the three stings that duck the music (KeysCapture, NewBest, Milestone) are PRIORITY
+--     hooks: when the caps have no room they cut the oldest lower-priority effect first (never a tally loop) and may play
+--     quieter, but are not dropped; the caps themselves never bend.
 --   * No per-frame work anywhere: fades and trims are finite TweenService tweens (or a TweenInfo delay) that clean
 --     themselves up; each voice has one cancellable safety timer. `getDebugState()` reports live counts for all of it.
 --
@@ -182,6 +185,12 @@ local STOP_FADE = 0.12 -- ringing chime notes at stopRise
 local SHOT_SAFETY = 6 -- a one-shot that never reports Ended is destroyed after this
 local LOOP_SAFETY = 8 -- a tally loop that nobody stopped is destroyed after this
 local MIN_FRACTION = 0.5 -- a sound that would have to be scaled below this share of itself is dropped instead
+-- Hooks that must still sound in a pile-up: the warning is a SAFETY cue (never silenced, at most quieter), the stings are
+-- the three that duck the music. When the voice cap or the sum cap has no room they make room by cutting the oldest
+-- lowest-priority effect (a short blip or click; never a tally loop and never a hook of their own or higher priority) and,
+-- if still short, play scaled down to the headroom (at least PRIORITY_FRACTION of themselves). The caps themselves never bend.
+local PRIORITY: { [string]: number } = { Warning = 3, KeysCapture = 2, NewBest = 2, Milestone = 2 }
+local PRIORITY_FRACTION = 0.25
 local ONCE_MEMORY = 64
 local HISTORY_MAX = 128
 
@@ -250,7 +259,7 @@ local ROUTES: { [string]: Route } = {
 	-- the Keys progress chime: driven by Sounds.rise (one note a quarter of progress, 0.25 s apart at the closest)
 	KeysRise = { category = "Note", minInterval = 0.25, ladder = true },
 	-- the ring is full and the answer is still pending: only the ladder's last note, quiet (never a victory)
-	KeysPending = { category = "Note", minInterval = 0.25, step = 4 },
+	KeysPending = { category = "Note", minInterval = 1.5, step = 4 },
 	-- the confirmed-capture sting: short, with a smooth tail
 	KeysCapture = { category = "Fanfare", minInterval = 1.5, maxSeconds = MIX.fanfareSeconds, tail = FANFARE_TAIL },
 	NewBest = { category = "Fanfare", minInterval = 2, maxSeconds = MIX.fanfareSeconds, tail = FANFARE_TAIL },
@@ -280,6 +289,9 @@ type Voice = {
 	hook: string,
 	volume: number, -- the Volume it was created with (an upper bound while it fades)
 	step: number?,
+	prio: number, -- 3 safety cue, 2 sting, 1 everything else (see PRIORITY)
+	born: number, -- os.clock() at creation: the oldest of the lowest priority is evicted first
+	looped: boolean, -- a tally loop is never evicted (its owner stops it)
 	leaving: boolean?, -- already fading out: a second stop leaves it alone
 	timer: thread?,
 	tween: Tween?,
@@ -472,14 +484,49 @@ type SpawnOptions = {
 	step: number?,
 }
 
+-- Cut the oldest effect of the lowest priority that is below `prio` (never a loop). False when nothing may be cut.
+local function evictFor(prio: number): boolean
+	local victim: Sound? = nil
+	local chosenVoice: Voice? = nil
+	for s, v in voices do
+		if v.prio < prio and not v.looped then
+			if
+				not chosenVoice
+				or v.prio < chosenVoice.prio
+				or (v.prio == chosenVoice.prio and v.born < chosenVoice.born)
+			then
+				victim = s
+				chosenVoice = v
+			end
+		end
+	end
+	if victim then
+		release(victim)
+		return true
+	end
+	return false
+end
+
 -- Create, play and track one effect. Returns nil when a cap says no (voices, per hook, or not enough headroom in the sum cap).
+-- A priority hook (PRIORITY) first cuts lower-priority effects to make room, so the counts and the sum stay inside the caps.
 local function spawn(hook: string, cfg: Config, wanted: number?, options: SpawnOptions?): Sound?
-	if liveCount >= MIX.maxVoices or (perHook[hook] or 0) >= MIX.maxPerHook then
+	local prio = PRIORITY[hook] or 1
+	if (perHook[hook] or 0) >= MIX.maxPerHook then
 		return nil
 	end
+	while liveCount >= MIX.maxVoices do
+		if not evictFor(prio) then
+			return nil
+		end
+	end
 	local want = math.min(wanted or cfg.volume, MIX.peakCap)
+	while MIX.sumCap - sumLive() < want * MIN_FRACTION do
+		if not evictFor(prio) then
+			break
+		end
+	end
 	local volume = math.min(want, MIX.sumCap - sumLive())
-	if volume < want * MIN_FRACTION then
+	if volume < want * (if prio > 1 then PRIORITY_FRACTION else MIN_FRACTION) then
 		return nil
 	end
 	local opts: SpawnOptions = options or {}
@@ -496,7 +543,7 @@ local function spawn(hook: string, cfg: Config, wanted: number?, options: SpawnO
 	local g = ensureGroup()
 	s.SoundGroup = g
 	s.Parent = g
-	local v: Voice = { hook = hook, volume = volume, step = opts.step }
+	local v: Voice = { hook = hook, volume = volume, step = opts.step, prio = prio, born = os.clock(), looped = looped }
 	voices[s] = v
 	liveCount += 1
 	perHook[hook] = (perHook[hook] or 0) + 1
@@ -579,6 +626,11 @@ local function playNote(hook: string, cfg: Config, step: number): boolean
 	chime.lastAt = now
 	chime.step = step
 	chime.notes += 1
+	if step == #MIX.chime.semitones then
+		-- the ring-full note has sounded (as the ladder's last note or as the pending cue): no second one for this capture,
+		-- even if stopRise resets the ladder a moment later
+		lastPlayed.KeysPending = now
+	end
 	return true
 end
 
@@ -629,26 +681,24 @@ function Sounds.play(hook: Hook, volume: number?)
 	if cfg.ladder then
 		return -- the chime notes are played by Sounds.rise only
 	end
+	local now = os.clock()
+	if now - (lastPlayed[hook] or -math.huge) < cfg.minInterval then
+		return
+	end
 	local step = cfg.step
 	if step then
-		-- the ring-full cue: the ladder's last note, once per capture
+		-- the ring-full cue (KeysPending): one quiet note, once per capture. Skipped when the ladder's last note has
+		-- already sounded for this capture (chime.step) or sounded within the last 1.5 s (lastPlayed, set by playNote).
 		if chime.step < step then
 			playNote(hook, cfg, step)
 		end
 		return
 	end
-	local now = os.clock()
-	if now - (lastPlayed[hook] or -math.huge) < cfg.minInterval then
-		return
-	end
-	if liveCount >= MIX.maxVoices or (perHook[hook] or 0) >= MIX.maxPerHook then
-		return
-	end
-	lastPlayed[hook] = now
 	local s = spawn(hook, cfg, volume, { seconds = cfg.maxSeconds, tail = cfg.tail })
 	if not s then
-		return
+		return -- a cap said no (a priority hook cuts lower-priority effects first, see PRIORITY)
 	end
+	lastPlayed[hook] = now
 	local duckFor = DUCK[hook]
 	if duckFor and duckHandler then
 		duckHandler(hook, duckFor)

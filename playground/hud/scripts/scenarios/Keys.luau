@@ -124,6 +124,9 @@ end
 local function startCapture(host: Host, car: any): string
 	local id = "ring-" .. nonce()
 	send(host, "KeysStart", { captureId = id, car = car })
+	-- the supplied state arrives with the start (as in the real flow): a capture whose meter state is missing at the
+	-- next store update is ended quietly by the ring, which is correct and is not what these scenarios test
+	setKeys(host, id, car, 0, "Holding")
 	return id
 end
 

@@ -167,7 +167,9 @@ S["Capture: tiers, countdown and warning"] = function(host: Host)
 	local log = t3.log :: { string }
 	local almosts = 0
 	for _, line in log do
-		if string.find(line, "ALMOST") then
+		-- only this capture's lines: the ring's rolling log still holds earlier captures' lines (Round 3 harness runs
+		-- many scenarios in one session)
+		if string.find(line, id, 1, true) and string.find(line, "ALMOST") then
 			almosts += 1
 		end
 	end

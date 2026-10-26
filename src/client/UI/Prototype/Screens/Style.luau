@@ -43,6 +43,12 @@ Style.PanelTop = rgb(66, 124, 226)
 Style.PanelBottom = rgb(34, 70, 168)
 -- TOKEN CANDIDATE: inset wells (rows, grid holder, detail pane) inside a panel.
 Style.Well = rgb(20, 38, 96)
+-- TOKEN CANDIDATE (Round 3): the bright plate fill for rows inside a panel (top -> bottom; the middle is 40, 110, 235).
+Style.PlateFill = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, rgb(86, 160, 255)),
+	ColorSequenceKeypoint.new(0.5, rgb(40, 110, 235)),
+	ColorSequenceKeypoint.new(1, rgb(22, 72, 190)),
+})
 -- TOKEN CANDIDATE: well transparency (the panel gradient shows through a little).
 Style.WellTransparency = 0.2
 -- TOKEN CANDIDATE: subordinate text colour on the dark panel (still outlined).
@@ -257,6 +263,8 @@ end
 -- Round 3 (R2-HM3): a bright arcade plate for a row inside a panel (the Results rows and the Cash tally), the
 -- same recipe as the card's Lap Pay plate: a kit fill, ONE dark outline (Minor, because it sits inside a panel
 -- that already has the heavy one) and the narrow gloss band. Style.well stays for the screens that still use it.
+-- Without a kit `fill` the plate takes Style.PlateFill: the Garage family deepened, because the kit's Garage middle
+-- gives the green Cash digits only 1.6:1 (white 2.6:1); this one gives them 2.8:1 and white text 4.7:1.
 function Style.plate(parent: Instance, name: string, z: number?, fill: Arcade.FillName?): Frame
 	local f: Frame = make("Frame", {
 		Name = name,
@@ -266,6 +274,10 @@ function Style.plate(parent: Instance, name: string, z: number?, fill: Arcade.Fi
 	})
 	Arcade.corner(f, 8)
 	Arcade.surface(f, fill or "Garage", { outline = "Minor" })
+	local gradient = f:FindFirstChildOfClass("UIGradient")
+	if gradient and not fill then
+		gradient.Color = Style.PlateFill
+	end
 	return f
 end
 

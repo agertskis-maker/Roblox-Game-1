@@ -187,6 +187,32 @@ local function shown(root: Instance, d: Instance): boolean
 	return true
 end
 
+-- The approved kit's own measure, taken live from the token table: a white label against the middle of each fill an
+-- approved button or banner uses (Arcade.button fills, the Tutorial banner and the Capture ribbon's Gold). A label on
+-- these overlays must reach the lowest of them (or 4.5:1); the dark outline is how every kit label reads.
+local KIT_FILLS = { "Rainbow", "Garage", "Missions", "Retry", "Settings", "Home", "Gold", "Green" }
+local KIT_FLOOR = math.huge
+local KIT_LOWEST = ""
+local KIT_LINE = {}
+for _, name in KIT_FILLS do
+	local r = ratio(Color3.new(1, 1, 1), sample(A.Fill[name], 0.5))
+	table.insert(KIT_LINE, string.format("%s %.2f", name, r))
+	if r < KIT_FLOOR then
+		KIT_FLOOR, KIT_LOWEST = r, name
+	end
+end
+
+local function logKitContrast(host: Host)
+	host.log(
+		string.format(
+			"INFO: kit contrast, white label on the middle of each approved fill: %s; floor %.2f:1 (%s)",
+			table.concat(KIT_LINE, ", "),
+			KIT_FLOOR,
+			KIT_LOWEST
+		)
+	)
+end
+
 type Audit = {
 	labels: number,
 	minSize: number,
@@ -240,14 +266,14 @@ local function auditText(root: GuiObject, skip: { string }?): Audit
 				table.insert(a.words, tag)
 			end
 		end
-		-- legible = enough contrast on the fill, or light text with the kit's dark outline (how every kit label reads)
+		-- legible = 4.5:1 on the fill, or the kit's dark outline AND at least the approved kit's lowest fill contrast
 		local face = d:FindFirstChildOfClass("UIGradient")
 		local textColour = if face then sample(face.Color, 0.5) else d.TextColor3
 		local r = ratio(textColour, behind(d))
 		a.minRatio = math.min(a.minRatio, r)
 		local stroke = d:FindFirstChildOfClass("UIStroke")
 		local outlined = stroke ~= nil and luminance(stroke.Color) < 0.05 and stroke.Thickness >= 1.5
-		if not (r >= 4.5 or (outlined and luminance(textColour) >= 0.5)) then
+		if not (r >= 4.5 or (outlined and r >= KIT_FLOOR - 0.01)) then
 			table.insert(a.illegible, string.format("%s (%.1f:1)", tag, r))
 		end
 	end
@@ -279,8 +305,10 @@ local function textChecks(t: Tally, tag: string, a: Audit)
 		tag .. " legible",
 		#a.illegible == 0,
 		string.format(
-			"lowest text-on-fill contrast %.1f:1 (the dark outline carries it); weak: %s",
+			"lowest text-on-fill contrast %.2f:1, approved kit floor %.2f:1 (%s); below it: %s",
 			a.minRatio,
+			KIT_FLOOR,
+			KIT_LOWEST,
 			joined(a.illegible)
 		)
 	)
@@ -417,6 +445,7 @@ local S: { [string]: (Host) -> () } = {}
 
 S["Overlays: toast stack (six frames)"] = function(host: Host)
 	local t = newTally(host, "Toasts")
+	logKitContrast(host)
 	local original = host.api.screen:profile().name
 	Motion.setOverride(nil)
 	local stack = comp(host, "toasts")
@@ -700,6 +729,7 @@ end
 
 S["Overlays: results card (six frames)"] = function(host: Host)
 	local t = newTally(host, "Results")
+	logKitContrast(host)
 	local original = host.api.screen:profile().name
 	Motion.setOverride(nil)
 	local card = comp(host, "results")
@@ -750,6 +780,7 @@ end
 
 S["Overlays: milestones band (six frames)"] = function(host: Host)
 	local t = newTally(host, "Milestones")
+	logKitContrast(host)
 	local original = host.api.screen:profile().name
 	Motion.setOverride(nil)
 	local ms = comp(host, "milestones")
