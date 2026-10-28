@@ -9,7 +9,10 @@
 const fs = require("fs");
 const path = require("path");
 
-const kitDirs = process.argv.slice(2);
+const args = process.argv.slice(2);
+const outAt = args.indexOf("--out");
+const outFile = outAt >= 0 ? args[outAt + 1] : null;
+const kitDirs = outAt >= 0 ? args.filter((_, i) => i !== outAt && i !== outAt + 1) : args;
 if (kitDirs.length === 0) throw new Error("usage: node write_manifest.js <island-kit folder> [more folders]");
 const manifest = [];
 const seen = new Set();
@@ -76,6 +79,8 @@ ${lines.join("\n")}
 
 return KitManifest
 `;
-const target = path.join(__dirname, "..", "..", "..", "src", "island", "Hub", "Environment", "KitManifest.luau");
+const target = outFile
+	? path.resolve(outFile)
+	: path.join(__dirname, "..", "..", "..", "src", "island", "Hub", "Environment", "KitManifest.luau");
 fs.writeFileSync(target, out);
 console.log(`wrote ${manifest.length} entries from ${kitDirs.length} folder(s) to ${target}`);

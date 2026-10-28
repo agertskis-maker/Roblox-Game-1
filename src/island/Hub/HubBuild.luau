@@ -136,9 +136,58 @@ function HubBuild.build(options: Options?): { [string]: any }
 			scenery = countParts(scenery),
 			helpers = if helpers.Parent then countParts(helpers) else 0,
 		},
-		trackSegmentsPerPlot = PlotRecipe.SegmentCount,
+		speedwayPreviewLevels = PlotRecipe.PreviewLevels,
 		plotCount = Layout.PlotCount,
 	}
+end
+
+-- The Speedway look module from a fresh copy of ReplicatedStorage.Shared (edit mode keeps an
+-- already-required module cached after Rojo syncs a change, as with ServerStorage.Island).
+local function speedwayLook(): any
+	local shared = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+	assert(shared, "ReplicatedStorage.Shared is not synced")
+	return (require :: any)((shared:Clone() :: any).Island.Speedway.Look)
+end
+
+-- Assembles the Speedway looks in edit mode, for views and fit checks (in Play each client
+-- assembles its own; Home/Island/SpeedwayLooks). `levels` is one level for every plot or a list
+-- per plot; by default each plot's SpeedwayPreviewLevel. Remove with clearSpeedway() before
+-- saving the place, so Play starts from the clients' own assembly.
+function HubBuild.previewSpeedway(levels: (number | { number })?): { [string]: any }
+	guard()
+	local root = workspace:FindFirstChild(ROOT_NAME)
+	assert(root and root:GetAttribute("PreviewOf") == PREVIEW_OF, "Build the hub preview first")
+	local Look = speedwayLook()
+	local plots = (root :: any).Island.Plots
+	local report = {}
+	for index = 1, Layout.PlotCount do
+		local plot = plots:FindFirstChild(string.format("Plot%02d", index))
+		local level = if type(levels) == "number"
+			then levels
+			elseif type(levels) == "table" then levels[index]
+			else plot:GetAttribute("SpeedwayPreviewLevel")
+		Look.clear(plot)
+		local started = os.clock()
+		Look.apply(plot, level or 1, { index = index, bearing = Layout.plotBearing(index), owner = "" })
+		report[index] = { level = level, seconds = math.round((os.clock() - started) * 100) / 100 }
+		task.wait()
+	end
+	return report
+end
+
+function HubBuild.clearSpeedway(): number
+	guard()
+	local root = workspace:FindFirstChild(ROOT_NAME)
+	local n = 0
+	if root then
+		for _, d in root:GetDescendants() do
+			if d.Name == "SpeedwayLook" or d.Name == "SpeedwayGhost" then
+				d:Destroy()
+				n += 1
+			end
+		end
+	end
+	return n
 end
 
 -- Draws the planning overlay into the existing hub preview (edit mode only).
