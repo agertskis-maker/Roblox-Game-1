@@ -728,7 +728,7 @@ function Props.gantry(major: Folder, minor: Folder, ctx: Ctx, gold: boolean)
 		gantry.CanCollide = true
 		gantry.CanQuery = true
 		gantry.Parent = major
-		for _, key in { "face_front", "face_back" } do
+		for _, key in { "face", "face_back" } do
 			local face = meshFace(major, "SwGantry", key, base, key == "face_back")
 			if face then
 				label(surface(face, 40), "START  ·  FINISH", { 0.02, 0.06, 0.96, 0.88 }, 60)
@@ -789,8 +789,20 @@ function Props.blimp(major: Folder, ctx: Ctx)
 		return
 	end
 	local extras = {}
+	-- the side faces stand on the envelope's flanks (meta plane_x, normal +-x; centre along the
+	-- envelope and up)
+	local m = Kit.info("SwBlimp").meta
 	for _, key in { "face_left", "face_right" } do
-		local face = meshFace(major, "SwBlimp", key, base)
+		local px = m[key .. ".plane_x"]
+		local face: Part? = nil
+		if px then
+			local side = if px < 0 then -1 else 1
+			local p = base:PointToWorldSpace(
+				Vector3.new(px + side * 0.05, m[key .. ".centre.2"] or 0, -(m[key .. ".centre.1"] or 0))
+			)
+			local normal = base:VectorToWorldSpace(Vector3.new(side, 0, 0))
+			face = facePart(major, CFrame.lookAt(p, p + normal), m[key .. ".size.1"] or 9, m[key .. ".size.2"] or 2)
+		end
 		if face then
 			label(surface(face, 30), "CAR HOP", { 0.02, 0.1, 0.96, 0.8 }, 60, Color3.fromRGB(234, 88, 50), CREAM)
 			table.insert(extras, face)
