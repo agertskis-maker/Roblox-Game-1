@@ -62,6 +62,8 @@ export type Palette = {
 	MeltdownStripe: Color3,
 	MeltdownGlow: Color3,
 	SmokeCore: Color3,
+	Teal: Color3,
+	TealLight: Color3,
 }
 
 -- Colour roles. Red (Danger) is reserved for danger; orange (Primary) for go/buy.
@@ -114,6 +116,10 @@ Tokens.Color = table.freeze({
 	MeltdownStripe = rgb(140, 12, 24), -- #8C0C18 darker red hazard stripes
 	MeltdownGlow = rgb(255, 170, 60), -- #FFAA3C bright edge glow
 	SmokeCore = rgb(86, 90, 104), -- #565A68 charcoal smoke centre
+	-- Raceway round 2 (approved by Adam 2026-10-29): the island kit teal, and a light teal for text
+	-- on navy (where Teal is only 2.8:1).
+	Teal = rgb(34, 138, 146), -- #228A92
+	TealLight = rgb(81, 215, 209), -- #51D7D1
 } :: Palette)
 
 -- Fixed temperature scale for Heat, 0 to 1. The bar reveals this scale from

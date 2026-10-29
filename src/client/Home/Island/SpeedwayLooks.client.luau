@@ -31,6 +31,7 @@ local ParkingLook = require(script.Parent.Speedway.ParkingLook)
 local Life = require(script.Parent.Speedway.Life)
 local PreviewPanel = require(script.Parent.Speedway.PreviewPanel)
 local Reveal = require(script.Parent.Speedway.Reveal)
+local ShopPanel = require(script.Parent.Speedway.ShopPanel)
 local Sound = require(script.Parent.Speedway.Sound)
 
 local ROOT_NAME = "Lane3_IslandPreview"
@@ -119,6 +120,104 @@ local function attach(root: Instance): Trove.Trove
 		end
 	end
 
+	-- The two purchase prompts (Raceway round 2, approved by Adam 2026-10-29): "Upgrade Raceway" on the
+	-- shop counter and "Buy Parking Spot" on the parking sign, Roblox's default prompt style, on the
+	-- local player's own plot only (visitors read the board and the sign). Purchases exist only in the
+	-- Studio preview: BUY raises the plot's preview level or spot count (LocalPlayer attributes), with no
+	-- Cash, saving or remote. Outside Studio no price exists yet, so there is no prompt and nothing to buy.
+	local PROMPT_NAME = "Lane3RacewayPrompt"
+	local canBuy = RunService:IsStudio()
+	local function anchorIn(container: Instance?, attribute: string): BasePart?
+		if not container then
+			return nil
+		end
+		for _, d in container:GetDescendants() do
+			if d:IsA("BasePart") and d:GetAttribute(attribute) then
+				return d
+			end
+		end
+		return nil
+	end
+	local function sourceFor(info: PlotInfo, kind: ShopPanel.Kind, anchor: BasePart): ShopPanel.Source
+		local plot = info.plot
+		if kind == "upgrade" then
+			return {
+				kind = kind,
+				plot = plot,
+				anchor = anchor,
+				current = function(): number
+					return info.level
+				end,
+				busy = function(): boolean
+					return info.busy or Reveal.active(plot)
+				end,
+				buy = if canBuy
+					then function(target: number)
+						player:SetAttribute(
+							string.format("Lane3SpeedwayPreviewLevel_Plot%02d", info.index),
+							Ladder.clamp(target)
+						)
+					end
+					else nil,
+			}
+		end
+		return {
+			kind = kind,
+			plot = plot,
+			anchor = anchor,
+			current = function(): number
+				local built = ParkingLook.built(plot)
+				return if built then built.spots else ParkingLook.resolve(plot, info.index)
+			end,
+			busy = function(): boolean
+				return ParkingLook.revealing(plot)
+			end,
+			buy = if canBuy
+				then function(target: number)
+					player:SetAttribute(string.format("Lane3ParkingPreviewSpots_Plot%02d", info.index), target)
+				end
+				else nil,
+		}
+	end
+	local function placePrompt(info: PlotInfo, kind: ShopPanel.Kind, anchor: BasePart?)
+		local mine = info.index == homeIndex() and canBuy
+		local existing = anchor and anchor:FindFirstChild(PROMPT_NAME)
+		if not (mine and anchor) then
+			if existing then
+				existing:Destroy()
+			end
+			return
+		end
+		if existing then
+			return
+		end
+		local at = anchor :: BasePart
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = PROMPT_NAME
+		prompt.ActionText = if kind == "upgrade" then "Upgrade Raceway" else "Buy Parking Spot"
+		prompt.ObjectText = if kind == "upgrade" then "Raceway shop" else "Parking"
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 10 -- the island's prompt range (Open Garage)
+		prompt.RequiresLineOfSight = true -- the booth's body hides it from behind the shop
+		prompt.Triggered:Connect(function()
+			if info.index == homeIndex() then
+				ShopPanel.open(sourceFor(info, kind, at))
+			end
+		end)
+		prompt.Parent = at
+	end
+	local function syncPrompts(info: PlotInfo)
+		placePrompt(info, "upgrade", anchorIn(info.plot:FindFirstChild("SpeedwayLook"), "ShopPromptAnchor"))
+		placePrompt(info, "parking", anchorIn(info.plot:FindFirstChild("ParkingLook"), "ParkingPromptAnchor"))
+	end
+	local function refreshParking(info: PlotInfo, reveal: boolean)
+		ParkingLook.refresh(info.plot, info.index, info.bearing, reveal, Calm(), fx)
+		syncPrompts(info)
+		if ShopPanel.openPlot() == info.plot then
+			ShopPanel.refresh()
+		end
+	end
+
 	local function build(info: PlotInfo, first: boolean)
 		local level = resolve(info)
 		local owner = ownerOf(info)
@@ -129,9 +228,16 @@ local function attach(root: Instance): Trove.Trove
 		end
 		Reveal.finish(info.plot)
 		if state and info.owner ~= owner then
-			-- a new owner name: rebuild the signs (and everything else) quietly
+			-- a new owner name: rebuild the signs (and everything else) quietly; a banner or an open
+			-- purchase panel for this plot ends at once
 			Look.clear(info.plot)
 			first = true
+			if info.index == homeIndex() then
+				Reveal.cancelBanner()
+			end
+			if ShopPanel.openPlot() == info.plot then
+				ShopPanel.close(true)
+			end
 		end
 		info.owner = owner
 		local old = info.level
@@ -145,11 +251,15 @@ local function attach(root: Instance): Trove.Trove
 			end
 			info.plot:SetAttribute("SpeedwayPathLevel", level)
 			Life.rescan(info.plot, level)
+			if level < old and info.index == homeIndex() then
+				Reveal.cancelBanner() -- a level-down shows nothing
+			end
 		else
 			local calm = Calm()
 			Reveal.play(info.plot, change.added, change.removed, calm, fx)
 			if info.index == homeIndex() then
-				Reveal.banner(Ladder.banner(level), calm)
+				-- only now that the track has this level: "RACEWAY LEVEL n!", the latest level only
+				Reveal.banner(level, calm)
 			end
 			-- the cars move to the new road, and the crowd is rescanned, once the reveal has built it
 			-- (the replaced pieces are destroyed by then)
@@ -164,6 +274,7 @@ local function attach(root: Instance): Trove.Trove
 		end
 		Life.setActive(info.plot, info.near)
 		Kiosk.fill(info.plot, level, options(info))
+		Kiosk.fillScreen(info.plot, level)
 		Sound.setLevel(info.plot, level, info.centre, fx)
 		ghost(info)
 		if not first and level > old and info.near then
@@ -172,6 +283,10 @@ local function attach(root: Instance): Trove.Trove
 		end
 		if panelRefresh then
 			panelRefresh()
+		end
+		syncPrompts(info)
+		if ShopPanel.openPlot() == info.plot then
+			ShopPanel.refresh()
 		end
 	end
 
@@ -229,11 +344,11 @@ local function attach(root: Instance): Trove.Trove
 			if name == "SpeedwayLevel" or name == "SpeedwayPreviewLevel" or name == "OwnerDisplayName" then
 				refresh(info, false)
 			elseif name == "ParkingSpots" then
-				ParkingLook.refresh(plot :: Model, info.index, info.bearing, info.near, Calm(), fx)
+				refreshParking(info, info.near)
 			end
 		end)
 		refresh(info, true)
-		ParkingLook.refresh(plot :: Model, info.index, info.bearing, false, Calm(), fx)
+		refreshParking(info, false)
 	end
 
 	local island = root:WaitForChild("Island", 30)
@@ -247,13 +362,18 @@ local function attach(root: Instance): Trove.Trove
 	trove:Connect(plotsFolder.ChildAdded, add)
 
 	trove:Connect(player.AttributeChanged, function(name)
+		if name == "Lane3SpeedwayPreviewHome" then
+			-- the preview owner changed: the purchase surface and any banner end at once
+			ShopPanel.close(true)
+			Reveal.cancelBanner()
+		end
 		if string.find(name, "^Lane3SpeedwayPreview") or name == "Lane3SpeedwayGhost" then
 			for _, info in infos do
 				refresh(info, false)
 			end
 		elseif string.find(name, "^Lane3ParkingPreviewSpots") then
-			for plot, info in infos do
-				ParkingLook.refresh(plot, info.index, info.bearing, info.near, Calm(), fx)
+			for _, info in infos do
+				refreshParking(info, info.near)
 			end
 		end
 	end)
@@ -327,6 +447,11 @@ local function attach(root: Instance): Trove.Trove
 				Life.setActive(plot, near)
 			end
 		end
+		for plot, info in infos do
+			if info.near and info.level >= 8 then
+				Kiosk.screenDetail(plot, eye)
+			end
+		end
 		Sound.update(eye)
 		greetOwner()
 	end)
@@ -366,7 +491,7 @@ local function attach(root: Instance): Trove.Trove
 		panelRefresh = refreshPanel
 
 		-- Studio test hook: a playtest script calls Invoke("timing", s), Invoke("measure", s),
-		-- Invoke("state") or Invoke("life") (this script's own module copies hold the live state)
+		-- Invoke("state"), Invoke("life"), Invoke("panel"), Invoke("banner") or Invoke("openPanel", kind) (this script's own module copies hold the live state)
 		local control = trove:Add(Instance.new("BindableFunction"))
 		control.Name = "Lane3SpeedwayControl"
 		control.OnInvoke = function(command: string, ...: any): any
@@ -376,6 +501,26 @@ local function attach(root: Instance): Trove.Trove
 				return LappingPreview.measure(...)
 			elseif command == "life" then
 				return Life.stats()
+			elseif command == "panel" then
+				return ShopPanel.state()
+			elseif command == "banner" then
+				return Reveal.bannerState()
+			elseif command == "openPanel" then
+				-- what the owner's prompt does: open the upgrade or parking panel of the home plot
+				local kind = (...) :: ShopPanel.Kind
+				for _, info in infos do
+					if info.index == homeIndex() then
+						local container =
+							info.plot:FindFirstChild(if kind == "upgrade" then "SpeedwayLook" else "ParkingLook")
+						local anchor =
+							anchorIn(container, if kind == "upgrade" then "ShopPromptAnchor" else "ParkingPromptAnchor")
+						if anchor then
+							ShopPanel.open(sourceFor(info, kind, anchor))
+							return true
+						end
+					end
+				end
+				return false
 			elseif command == "state" then
 				local out = {}
 				for plot, info in infos do
@@ -394,6 +539,8 @@ local function attach(root: Instance): Trove.Trove
 	end
 
 	trove:Add(function()
+		ShopPanel.close(true)
+		Reveal.cancelBanner()
 		for plot in infos do
 			Reveal.finish(plot)
 			Life.forget(plot)

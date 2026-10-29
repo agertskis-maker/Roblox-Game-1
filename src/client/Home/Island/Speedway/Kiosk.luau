@@ -1,9 +1,11 @@
 --!strict
--- The next-level preview on the Paddock kiosk's upgrade board (Lane 3, client presentation
--- only): the current level, the next level's name, a small picture of what it adds (the next
--- level's main piece, drawn in a ViewportFrame) and a price placeholder marked PREVIEW (prices
--- are Lane 2's; no amount is shown). At the top level the board shows a completed state instead
--- of an invalid next level. Spec: vault/design/ui/speedway-upgrade-board.md.
+-- The Raceway shop's stats board and the big screen (Lane 3, client presentation only; Raceway
+-- round 2, approved by Adam on 2026-10-29: vault/design/ui/speedway-upgrade-board.md R1 and R3).
+-- The board beside the shop shows what the next level gives, not a picture: "RACEWAY LEVEL n",
+-- "LAP PAY x1.35 -> x1.50" (the proposed Lap Pay table, Ladder.LapPay, Brian L's to replace),
+-- "NEXT: LEVEL n+1", the "New:" line and "PRICE: SET BY ECONOMY" with a PREVIEW tag (no amount: prices
+-- are Lane 2's). At level 12 it shows MAX LEVEL. Visitors see the same board (it is a sign; nothing
+-- to press). The big screen (levels 8 to 12) shows "RACEWAY LEVEL n" near and a plain bar far.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,104 +17,142 @@ local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI
 
 local Kiosk = {}
 
+local NAVY = Color3.fromRGB(36, 58, 98)
 local CREAM = Color3.fromRGB(255, 246, 224)
-local INK = Color3.fromRGB(20, 27, 51)
+local OUTLINE = Color3.fromRGB(20, 27, 51)
 local YELLOW = Color3.fromRGB(250, 206, 70)
 local MINT = Color3.fromRGB(128, 216, 189)
+local TEAL = Tokens.Color.Teal
+local TEAL_LIGHT = Tokens.Color.TealLight
 
-local function text(parent: Instance, value: string, y: number, h: number, size: number, colour: Color3): TextLabel
+-- Outlined Fredoka text in a px box { x, y, w, h } of a 215 x 235 face, scaled to fit up to `size`.
+local function text(
+	parent: Instance,
+	value: string,
+	box: { number },
+	size: number,
+	colour: Color3,
+	outline: number?
+): TextLabel
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
-	t.Position = UDim2.fromScale(0.05, y)
-	t.Size = UDim2.fromScale(0.9, h)
+	t.Position = UDim2.fromOffset(box[1], box[2])
+	t.Size = UDim2.fromOffset(box[3], box[4])
 	t.FontFace = Tokens.font()
 	t.Text = value
-	-- scaled to fit the small board (a long level name shrinks instead of being cut), up to `size`
 	t.TextScaled = true
 	t.TextWrapped = true
 	local limit = Instance.new("UITextSizeConstraint")
 	limit.MaxTextSize = size
+	limit.MinTextSize = 12
 	limit.Parent = t
 	t.TextColor3 = colour
 	local s = Instance.new("UIStroke")
-	s.Color = INK
-	s.Thickness = math.max(1, math.floor(size / 14))
+	s.Color = OUTLINE
+	s.Thickness = outline or math.max(1, math.floor(size / 14))
 	s.Parent = t
 	t.Parent = parent
 	return t
 end
 
--- A picture of the next level's main piece: its Major parts, framed by a camera.
-local function picture(parent: Instance, plot: Model, level: number, options: Look.Options)
-	local frame = Instance.new("ViewportFrame")
-	frame.Name = "Picture"
-	frame.Position = UDim2.fromScale(0.08, 0.36)
-	frame.Size = UDim2.fromScale(0.84, 0.36)
-	frame.BackgroundColor3 = Color3.fromRGB(176, 218, 232)
-	frame.BorderSizePixel = 0
-	frame.Ambient = Color3.fromRGB(200, 200, 200)
-	frame.LightColor = Color3.fromRGB(255, 250, 240)
-	frame.LightDirection = Vector3.new(-1, -2, -1)
-	frame.Parent = parent
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = frame
-	-- build the piece away from the plot, then move it into the viewport
-	local ghost = Look.signaturePiece(plot, level, options)
-	if not ghost then
-		return
+local function box(parent: Instance, rect: { number }, colour: Color3, radius: number?): Frame
+	local f = Instance.new("Frame")
+	f.BorderSizePixel = 0
+	f.Position = UDim2.fromOffset(rect[1], rect[2])
+	f.Size = UDim2.fromOffset(rect[3], rect[4])
+	f.BackgroundColor3 = colour
+	if radius then
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, radius)
+		c.Parent = f
 	end
-	for _, d in ghost:GetDescendants() do
-		if d:IsA("SurfaceGui") or d:IsA("Beam") or d:IsA("Light") then
-			d:Destroy()
-		end
-	end
-	local model = Instance.new("Model")
-	local lo, hi = Vector3.one * math.huge, -Vector3.one * math.huge
-	for _, d in ghost:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Transparency = 0
-			d.Color = Color3.fromRGB(244, 236, 214)
-			local half = d.Size / 2
-			lo = lo:Min(d.Position - half)
-			hi = hi:Max(d.Position + half)
-		end
-	end
-	ghost.Parent = model
-	model.Parent = frame
-	local cam = Instance.new("Camera")
-	local centre = (lo + hi) / 2
-	local radius = math.max(4, (hi - lo).Magnitude / 2)
-	-- a three-quarter view from the plot's track centre (the side the pieces face), a little above
-	local trackCentre = CFrame.Angles(0, -math.rad(options.bearing), 0) * Vector3.new(0, 0, -441)
-	local toward = (trackCentre - centre) * Vector3.new(1, 0, 1)
-	toward = if toward.Magnitude > 1e-3 then toward.Unit else Vector3.new(0, 0, 1)
-	toward = (CFrame.Angles(0, math.rad(35), 0) * toward).Unit
-	cam.FieldOfView = 40
-	cam.CFrame = CFrame.lookAt(centre + toward * radius * 1.9 + Vector3.yAxis * radius * 0.8, centre)
-	cam.Parent = frame
-	frame.CurrentCamera = cam
+	f.Parent = parent
+	return f
 end
 
--- Fills the plot's kiosk board for `level`.
-function Kiosk.fill(plot: Model, level: number, options: Look.Options)
+-- A line between two px points (for the arrows), `w` thick.
+local function bar(parent: Instance, a: Vector2, b: Vector2, w: number, colour: Color3)
+	local d = b - a
+	local f = Instance.new("Frame")
+	f.BorderSizePixel = 0
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Position = UDim2.fromOffset((a.X + b.X) / 2, (a.Y + b.Y) / 2)
+	f.Size = UDim2.fromOffset(d.Magnitude + w, w)
+	f.Rotation = math.deg(math.atan2(d.Y, d.X))
+	f.BackgroundColor3 = colour
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0.5, 0)
+	c.Parent = f
+	f.Parent = parent
+end
+
+-- "x1.35 -> (up cue) x1.50" centred in a row at y, h px high.
+local function lapPayRow(parent: Instance, level: number, y: number, h: number)
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Position = UDim2.fromOffset(0, y)
+	row.Size = UDim2.fromOffset(215, h)
+	row.Parent = parent
+	-- fixed pieces: 64 | 5 | arrow 20 | 5 | cue 14 | 3 | 64, centred in 215
+	local x0 = (215 - (64 + 5 + 20 + 5 + 14 + 3 + 64)) / 2
+	text(row, Ladder.lapPayText(level), { x0, 0, 64, h }, 24, CREAM)
+	local ax = x0 + 69
+	local mid = h / 2
+	bar(row, Vector2.new(ax, mid), Vector2.new(ax + 18, mid), 3, CREAM)
+	bar(row, Vector2.new(ax + 12, mid - 5), Vector2.new(ax + 18, mid), 3, CREAM)
+	bar(row, Vector2.new(ax + 12, mid + 5), Vector2.new(ax + 18, mid), 3, CREAM)
+	-- the up cue: a shape, not only a colour, says "more"
+	local cx = ax + 25 + 7
+	for _, w in { 6, 3 } do
+		local colour = if w == 6 then OUTLINE else TEAL_LIGHT
+		bar(row, Vector2.new(cx, mid + 8), Vector2.new(cx, mid - 6), w, colour)
+		bar(row, Vector2.new(cx - 5, mid - 1), Vector2.new(cx, mid - 6), w, colour)
+		bar(row, Vector2.new(cx + 5, mid - 1), Vector2.new(cx, mid - 6), w, colour)
+	end
+	text(row, Ladder.lapPayText(level + 1), { cx + 10, 0, 64, h }, 24, TEAL_LIGHT)
+end
+
+-- Dashed 2 px outline round a px rect (UIStroke has no dashes).
+local function dashed(parent: Instance, rect: { number }, colour: Color3)
+	local x, y, w, h = rect[1], rect[2], rect[3], rect[4]
+	local dash, gap = 5, 3
+	local s = 0
+	while s < w do
+		local len = math.min(dash, w - s)
+		box(parent, { x + s, y, len, 2 }, colour)
+		box(parent, { x + s, y + h - 2, len, 2 }, colour)
+		s += dash + gap
+	end
+	s = 0
+	while s < h do
+		local len = math.min(dash, h - s)
+		box(parent, { x, y + s, 2, len }, colour)
+		box(parent, { x + w - 2, y + s, 2, len }, colour)
+		s += dash + gap
+	end
+end
+
+local function faceOf(plot: Model, attribute: string): BasePart?
 	local root = plot:FindFirstChild("SpeedwayLook")
 	if not root then
-		return
+		return nil
 	end
-	local face: BasePart? = nil
 	for _, d in root:GetDescendants() do
-		if d:IsA("BasePart") and d:GetAttribute("KioskBoard") then
-			face = d
-			break
+		if d:IsA("BasePart") and d:GetAttribute(attribute) then
+			return d
 		end
 	end
+	return nil
+end
+
+-- Fills the plot's stats board for `level`.
+function Kiosk.fill(plot: Model, level: number, _options: Look.Options?)
+	local face = faceOf(plot, "KioskBoard")
 	if not face then
 		return
 	end
-	-- The board's SurfaceGui lives in PlayerGui, adorned to the face: a ViewportFrame on a SurfaceGui
-	-- parented in the Workspace does not draw (found in a Studio playtest, 2026-10-28). It goes
-	-- when the face does.
+	-- The board's SurfaceGui lives in PlayerGui, adorned to the face (kept from round 1, when a
+	-- ViewportFrame needed it); it goes when the face does.
 	local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 	if not playerGui then
 		return
@@ -125,7 +165,7 @@ function Kiosk.fill(plot: Model, level: number, options: Look.Options)
 		made.Name = name
 		made.Face = Enum.NormalId.Front
 		made.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		made.PixelsPerStud = if inWorld then inWorld.PixelsPerStud else 50
+		made.PixelsPerStud = 50
 		made.LightInfluence = 1
 		made.MaxDistance = 400
 		made.ResetOnSpawn = false
@@ -134,7 +174,6 @@ function Kiosk.fill(plot: Model, level: number, options: Look.Options)
 	end
 	local board = existing :: SurfaceGui
 	if board.Adornee ~= face then
-		-- one watcher per face (the face lasts through every level change)
 		board.Adornee = face
 		face.Destroying:Once(function()
 			if board.Adornee == face or board.Adornee == nil then
@@ -146,26 +185,78 @@ function Kiosk.fill(plot: Model, level: number, options: Look.Options)
 	if inWorld then
 		inWorld:Destroy()
 	end
-	local bg = Instance.new("Frame")
+	local bg = box(board, { 0, 0, 215, 235 }, NAVY)
 	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = Color3.fromRGB(36, 58, 98)
-	bg.BorderSizePixel = 0
-	bg.Parent = board
-	local current = Ladder.get(level)
-	text(bg, "SPEEDWAY LEVEL " .. current.level, 0.03, 0.09, 26, YELLOW)
-	text(bg, current.name, 0.12, 0.08, 20, CREAM)
-	if current.level >= Ladder.MaxLevel then
-		text(bg, "TOP LEVEL!", 0.26, 0.09, 30, YELLOW)
-		text(bg, "Every look is built.", 0.4, 0.1, 20, CREAM)
-		text(bg, "PREVIEW", 0.86, 0.08, 18, MINT)
+	local current = Ladder.clamp(level)
+	text(bg, "RACEWAY LEVEL " .. current, { 8, 10, 199, 26 }, 22, YELLOW)
+	if current >= Ladder.MaxLevel then
+		text(bg, "MAX LEVEL", { 8, 52, 199, 44 }, 34, CREAM, 2)
+		box(bg, { 58, 97, 99, 6 }, TEAL, 3)
+		text(bg, "LAP PAY", { 8, 126, 199, 20 }, 16, CREAM)
+		text(bg, Ladder.lapPayText(current), { 8, 146, 199, 36 }, 30, CREAM)
 		return
 	end
-	local nextLevel = Ladder.get(current.level + 1)
-	text(bg, "NEXT: " .. string.upper(nextLevel.name), 0.22, 0.12, 22, CREAM)
-	picture(bg, plot, nextLevel.level, options)
-	text(bg, nextLevel.adds, 0.73, 0.1, 17, CREAM)
-	local price = text(bg, "PRICE: PREVIEW", 0.85, 0.09, 20, MINT)
+	text(bg, "LAP PAY", { 8, 42, 199, 18 }, 16, CREAM)
+	lapPayRow(bg, current, 58, 30)
+	text(bg, "NEXT: LEVEL " .. (current + 1), { 8, 100, 199, 22 }, 18, CREAM)
+	text(bg, Ladder.newText(current + 1) or "", { 14, 126, 187, 40 }, 16, CREAM)
+	dashed(bg, { 12, 172, 191, 24 }, MINT)
+	local price = text(bg, "PRICE: SET BY ECONOMY", { 18, 174, 179, 20 }, 14, MINT)
 	price.Name = "PricePlaceholder"
+	local pill = box(bg, { 78, 202, 59, 18 }, NAVY, 9)
+	local ring = Instance.new("UIStroke")
+	ring.Color = MINT
+	ring.Thickness = 2
+	ring.Parent = pill
+	text(pill, "PREVIEW", { 4, 2, 51, 14 }, 12, MINT, 1)
+end
+
+-- each plot's big-screen face, found once per build (false: this plot has none now)
+local screens: { [Model]: BasePart | false } = setmetatable({}, { __mode = "k" }) :: any
+
+-- Fills the big screen (levels 8 to 12): "RACEWAY LEVEL n" with a small teal underline.
+function Kiosk.fillScreen(plot: Model, level: number)
+	screens[plot] = nil
+	local face = faceOf(plot, "RacewayScreen")
+	if not face then
+		return
+	end
+	local label = face:FindFirstChild("ScreenLevel", true)
+	if label and label:IsA("TextLabel") then
+		label.Text = "RACEWAY LEVEL " .. Ladder.clamp(level)
+	end
+end
+
+-- Near: the words; far (beyond `far` studs, with 10 studs of hysteresis): only the broad shapes.
+Kiosk.ScreenFar = 80
+function Kiosk.screenDetail(plot: Model, eye: Vector3)
+	local cached = screens[plot]
+	local face: BasePart? = if cached and cached.Parent then cached else nil
+	if not face then
+		-- look again only after a rebuild (the cache is cleared by fillScreen)
+		if cached == false then
+			return
+		end
+		face = faceOf(plot, "RacewayScreen")
+		screens[plot] = face or false
+		if not face then
+			return
+		end
+	end
+	local near = face:FindFirstChild("Near", true)
+	local far = face:FindFirstChild("Far", true)
+	if not (near and near:IsA("GuiObject") and far and far:IsA("GuiObject")) then
+		return
+	end
+	local d = (face.Position - eye).Magnitude
+	local isNear = near.Visible
+	if isNear and d > Kiosk.ScreenFar + 10 then
+		isNear = false
+	elseif not isNear and d < Kiosk.ScreenFar then
+		isNear = true
+	end
+	near.Visible = isNear
+	far.Visible = not isNear
 end
 
 return Kiosk

@@ -14,7 +14,7 @@ export type Ctx = {
 	bearing: number,
 	frame: CFrame,
 	level: number,
-	owner: string, -- the owner's display name, or "" (the signs then read YOUR SPEEDWAY)
+	owner: string, -- the owner's display name, or "" (the signs then read YOUR RACEWAY)
 }
 
 function Ctx.new(plot: Model, index: number, bearing: number, level: number, owner: string): Ctx

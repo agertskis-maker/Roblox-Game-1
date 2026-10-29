@@ -1,10 +1,13 @@
 ---
 title: Raceway level-up banner (RACEWAY LEVEL 5!)
 tags: [design, ui, raceway]
-status: "pending Adam's approval"
+status: "approved by Adam 2026-10-29"
 ---
 
 # Raceway level-up banner
+
+> [!success] Approved by Adam, 2026-10-29
+> "approved for all ur reccomendations  and yes upload the meshes" (reply to the Raceway round 2 approval page, https://claude.ai/artifact/97zrdVD9wkB5nnFZQXmYgQ, and the Figma page node 25-747). Choices taken: (1) new token `Teal` #228A92 plus the light teal #51D7D1 for text on navy; (2) the banner keeps one line wherever it fits, two lines only as the fallback; (3) panel padding 20 on desktop and tablet, 16 on phones; (4) the shop roof stays at 8.5 studs. Every other default in this file is taken as written. Recorded in `vault/design/visual-direction.md`.
 
 - Figma: Car Hop UI, page 'Raceway round 2 (pending Adam)' - https://www.figma.com/design/b6z7jCt39PfBVHRrWOC2V3?node-id=25-747 (imported 2026-10-29 from `Car-Hop-Art/review/raceway-round2/mocks/raceway-ui-mocks.html` with html_to_figma: flat layers, text outlines may be dropped by the import; the spec values win)
 - Mock: `Car-Hop-Art\review\raceway-round2\mocks\raceway-ui-mocks.html`, frames 4a (desktop 1920 x 1080, single line), 4b (phone landscape 844 x 390, the result of the width rule), 4c (the same phone with the two-line fallback), 4d (tablet landscape 1180 x 820).

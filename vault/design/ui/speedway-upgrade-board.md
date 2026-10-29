@@ -1,10 +1,13 @@
 ---
 title: Speedway upgrade board, level-up banner and preview panel
 tags: [design, ui, speedway]
-status: "Round 2 pending Adam's approval; Round 1 sections 1 and 2 superseded"
+status: "approved by Adam 2026-10-29"
 ---
 
 # Speedway upgrade board, level-up banner and preview panel
+
+> [!success] Approved by Adam, 2026-10-29
+> "approved for all ur reccomendations  and yes upload the meshes" (reply to the Raceway round 2 approval page, https://claude.ai/artifact/97zrdVD9wkB5nnFZQXmYgQ, and the Figma page node 25-747). Choices taken: (1) new token `Teal` #228A92 plus the light teal #51D7D1 for text on navy; (2) the banner keeps one line wherever it fits, two lines only as the fallback; (3) panel padding 20 on desktop and tablet, 16 on phones; (4) the shop roof stays at 8.5 studs. Every other default in this file is taken as written. Recorded in `vault/design/visual-direction.md`.
 
 ## Round 2 (2026-10-29, pending Adam's approval)
 

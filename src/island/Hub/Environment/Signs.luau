@@ -80,7 +80,7 @@ function Signs.banner(part: BasePart, name: string, plotIndex: number)
 	local g = gui(part, 100)
 	image(g, id)
 	if name == "Owner" then
-		local t = label(g, "PLAYER'S SPEEDWAY", { 0.04, 0.12, 0.92, 0.76 }, 96)
+		local t = label(g, "PLAYER'S RACEWAY", { 0.04, 0.12, 0.92, 0.76 }, 96)
 		-- fit the board whatever its size or the owner name's length (Task 4: it overflowed)
 		t.TextScaled = true
 		local limit = Instance.new("UITextSizeConstraint")
@@ -206,7 +206,7 @@ function Signs.plotGateName(part: BasePart, plotIndex: number, accent: Color3)
 	-- row 1: the owner name in upper case, scaled to fit, then truncated (spec §4 long-name state).
 	-- Until Lane 2's plot ownership supplies a name, it reads YOUR SPEEDWAY (Task 4 complaint
 	-- review J8: "PLAYER NAME" read as an unfilled template on all six homes)
-	local name = label(g, "YOUR SPEEDWAY", { 0.03, 0.03, 0.94, 0.58 }, 58)
+	local name = label(g, "YOUR RACEWAY", { 0.03, 0.03, 0.94, 0.58 }, 58)
 	name.Name = "OwnerName"
 	name.TextScaled = true
 	name.TextTruncate = Enum.TextTruncate.AtEnd

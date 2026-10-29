@@ -142,9 +142,9 @@ end
 
 local function ownerText(ctx: Ctx): string
 	if ctx.owner ~= "" then
-		return ctx.owner .. "'s Speedway"
+		return ctx.owner .. "'s Raceway"
 	end
-	return "Your Speedway"
+	return "Your Raceway"
 end
 
 -- A figure model: the body as PrimaryPart plus parts. The animator works in the placement frame
@@ -786,7 +786,10 @@ function Props.gantry(major: Folder, minor: Folder, ctx: Ctx, gold: boolean)
 	end
 end
 
--- The big screen: the Lineup's names and Lap Pay (PREVIEW fixture rows now; Lane 2 data later).
+-- The big screen (Raceway round 2, approved by Adam 2026-10-29; speedway-upgrade-board.md R3): one
+-- calm "RACEWAY LEVEL n" in cream with a small teal underline, no ads, rows or payouts. Near and Far
+-- are both built; the client shows the words near and only the broad bar far (Kiosk.screenDetail),
+-- and fills the level (Kiosk.fillScreen).
 function Props.bigScreen(major: Folder, ctx: Ctx)
 	local facing = (Vector2.new(-10, 330) - A.Screen).Unit
 	local base = Ctx.face(ctx, A.Screen.X, A.Screen.Y, facing)
@@ -807,28 +810,54 @@ function Props.bigScreen(major: Folder, ctx: Ctx)
 	bg.BackgroundColor3 = Color3.fromRGB(20, 27, 51)
 	bg.BorderSizePixel = 0
 	bg.Parent = g
-	label(bg, "LINEUP", { 0.04, 0.03, 0.62, 0.18 }, 40, Color3.fromRGB(250, 206, 70))
-	label(bg, "PREVIEW", { 0.66, 0.05, 0.3, 0.14 }, 22, Color3.fromRGB(128, 216, 189))
-	local list = Instance.new("Frame")
-	list.Name = "Rows"
-	list.BackgroundTransparency = 1
-	list.Position = UDim2.fromScale(0.04, 0.24)
-	list.Size = UDim2.fromScale(0.92, 0.72)
-	list.Parent = bg
-	-- PREVIEW rows: the preview cars' slots and rarity fixture (LappingPreview); Lane 2's Lineup data
-	-- (car names, Lap Pay) replaces them later. No amounts.
-	local rows = {
-		{ "1", "COMMON", Color3.fromRGB(110, 170, 230) },
-		{ "2", "RARE", Color3.fromRGB(90, 200, 120) },
-		{ "4", "EPIC", Color3.fromRGB(170, 110, 230) },
-		{ "6", "LEGENDARY", Color3.fromRGB(250, 190, 60) },
-	}
-	for i, row in rows do
-		local y = (i - 1) * 0.25
-		label(list, "CAR " .. row[1], { 0, y, 0.4, 0.22 }, 28, CREAM)
-		label(list, row[2], { 0.42, y, 0.58, 0.22 }, 28, row[3])
+	local function layer(name: string, visible: boolean): Frame
+		local f = Instance.new("Frame")
+		f.Name = name
+		f.Size = UDim2.fromScale(1, 1)
+		f.BackgroundTransparency = 1
+		f.Visible = visible
+		f.Parent = bg
+		return f
 	end
-	face:SetAttribute("LineupScreen", true)
+	local function underline(parent: Instance)
+		local u = Instance.new("Frame")
+		u.BorderSizePixel = 0
+		u.BackgroundColor3 = Tokens.Color.Teal
+		u.Position = UDim2.fromScale(170 / 500, 150 / 275)
+		u.Size = UDim2.fromScale(160 / 500, 8 / 275)
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 4)
+		c.Parent = u
+		u.Parent = parent
+	end
+	local near = layer("Near", true)
+	local t = Instance.new("TextLabel")
+	t.Name = "ScreenLevel"
+	t.BackgroundTransparency = 1
+	t.Position = UDim2.fromScale(0, 78 / 275)
+	t.Size = UDim2.fromScale(1, 60 / 275)
+	t.FontFace = FONT
+	t.Text = "RACEWAY LEVEL " .. ctx.level
+	t.TextColor3 = CREAM
+	t.TextScaled = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = 48
+	limit.MinTextSize = 28
+	limit.Parent = t
+	t.Parent = near
+	underline(near)
+	local far = layer("Far", false)
+	local cream = Instance.new("Frame")
+	cream.BorderSizePixel = 0
+	cream.BackgroundColor3 = CREAM
+	cream.Position = UDim2.fromScale(95 / 500, 92 / 275)
+	cream.Size = UDim2.fromScale(310 / 500, 40 / 275)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 10)
+	c.Parent = cream
+	cream.Parent = far
+	underline(far)
+	face:SetAttribute("RacewayScreen", true)
 end
 
 -- ------------------------------------------------------------------ levels 11 and 12
@@ -921,6 +950,33 @@ function Props.shop(major: Folder, life: Folder, ctx: Ctx)
 	if fascia then
 		fascia.Name = "ShopFascia"
 		fascia:SetAttribute("ShopFascia", true)
+		-- one cream sign, navy "RACEWAY UPGRADES" (speedway-upgrade-board.md R4): the mesh is the cream
+		-- board, so the face draws only the thin navy inner line and the words
+		local g = surface(fascia, 50)
+		local line = Instance.new("Frame")
+		line.BackgroundTransparency = 1
+		line.Position = UDim2.fromOffset(5, 5)
+		line.Size = UDim2.new(1, -10, 1, -10)
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = NAVY
+		stroke.Thickness = 2
+		stroke.Parent = line
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = line
+		line.Parent = g
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.FontFace = FONT
+		t.Text = "RACEWAY UPGRADES"
+		t.TextColor3 = NAVY
+		t.TextScaled = true
+		local limit = Instance.new("UITextSizeConstraint")
+		limit.MaxTextSize = 38
+		limit.MinTextSize = 24
+		limit.Parent = t
+		t.Parent = g
 	end
 	-- where the owner's prompt sits: over the counter front, at chest height
 	local counter = Kit.meta("SwRacewayShop", "counter_top", 3)

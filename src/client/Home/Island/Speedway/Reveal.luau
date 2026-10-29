@@ -1,8 +1,8 @@
 --!strict
 -- The Speedway level-up reveal (Lane 3, client presentation only), about 1.5 seconds: a puff of
 -- construction dust at each new piece, the new pieces drop into place with a springy bounce
--- (staggered), replaced pieces fade away, a short confetti burst and a banner
--- "SPEEDWAY LEVEL 5: THE FLAG OFFICIAL!" in the HUD style. Nothing blocks input; a falling piece
+-- (staggered), replaced pieces fade away, a short confetti burst and the banner "RACEWAY LEVEL 5!"
+-- in the HUD style (Reveal.banner; vault/design/ui/raceway-level-banner.md, approved 2026-10-29). Nothing blocks input; a falling piece
 -- does not collide until it lands (then a visitor standing inside it is lifted on top), and a
 -- new reveal, a reset or a downgrade first snaps any running one to its end. Reduce Motion:
 -- pieces fade in where they stand, no drop, no confetti, the banner fades.
@@ -10,6 +10,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 
 local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("Tokens"))
@@ -253,82 +254,292 @@ function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: 
 	end)
 end
 
--- The HUD banner. Fredoka One at the Display size (Tokens), cream on a navy pill with a coral
--- edge; scales in with a bounce, holds, fades. Reduce Motion: fades in and out in place.
-function Reveal.banner(text: string, calm: boolean)
-	local player = Players.LocalPlayer
-	local gui = player:FindFirstChildOfClass("PlayerGui")
+-- The level-up banner (vault/design/ui/raceway-level-banner.md, approved by Adam 2026-10-29): exactly
+-- "RACEWAY LEVEL N!" (no level name), cream Fredoka One with a navy outline on the navy pill with the
+-- coral edge, the number in yellow, 14 % down the screen. One line wherever it fits in the safe area;
+-- two lines ("RACEWAY" / "LEVEL N!") only when it does not, and 24 instead of 36 only when two lines
+-- at 36 still do not fit. 0.18 s in (fade, settling from 0.94 to 1.0, no overshoot), 1.10 s hold,
+-- 0.22 s out. Reduce Motion: opacity only. At most one banner: a new request cancels the running
+-- tweens and the pending hold and shows only the latest level; Reveal.cancelBanner() fades it out
+-- (a level-down or an owner change). It never takes input.
+Reveal.BannerIn, Reveal.BannerHold, Reveal.BannerOut = 0.18, 1.1, 0.22
+
+local NAVY = Color3.fromRGB(36, 58, 98)
+local CREAM = Color3.fromRGB(255, 246, 224)
+local YELLOW = Color3.fromRGB(250, 206, 70)
+local CORAL = Color3.fromRGB(244, 127, 112)
+local OUTLINE = Color3.fromRGB(20, 27, 51)
+local PAD_X, PAD_TOP, PAD_BOTTOM = 28, 10, 12
+local MARGIN = 16 -- the least screen margin either side of the pill (Tokens.Space.L)
+
+type Banner = {
+	screen: ScreenGui,
+	group: CanvasGroup,
+	settle: UIScale,
+	tweens: { Tween },
+	hold: thread?,
+	token: number,
+}
+local banner: Banner? = nil
+local bannerToken = 0
+
+local function stopTweens(b: Banner)
+	for _, t in b.tweens do
+		t:Cancel()
+	end
+	table.clear(b.tweens)
+	if b.hold then
+		pcall(task.cancel, b.hold)
+		b.hold = nil
+	end
+end
+
+local function textWidth(text: string, size: number): number
+	local ok, bounds = pcall(function()
+		local params = Instance.new("GetTextBoundsParams")
+		params.Text = text
+		params.Font = Tokens.font()
+		params.Size = size
+		params.Width = 10000
+		return TextService:GetTextBoundsAsync(params)
+	end)
+	if ok and typeof(bounds) == "Vector2" then
+		return bounds.X
+	end
+	return #text * 0.62 * size -- the spec's estimate when the measurement fails
+end
+
+local function word(parent: Instance, text: string, size: number, colour: Color3, order: number): TextLabel
+	local t = Instance.new("TextLabel")
+	t.Name = "Word"
+	t.LayoutOrder = order
+	t.AutomaticSize = Enum.AutomaticSize.XY
+	t.BackgroundTransparency = 1
+	t.FontFace = Tokens.font()
+	t.TextSize = size
+	t.TextColor3 = colour
+	t.Text = text
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = OUTLINE
+	stroke.Thickness = 3
+	stroke.Parent = t
+	t.Parent = parent
+	return t
+end
+
+local function row(parent: Instance, gap: number, order: number): Frame
+	local f = Instance.new("Frame")
+	f.Name = "Row"
+	f.LayoutOrder = order
+	f.AutomaticSize = Enum.AutomaticSize.XY
+	f.BackgroundTransparency = 1
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, gap)
+	list.Parent = f
+	f.Parent = parent
+	return f
+end
+
+-- "LEVEL" + "5!" (the number yellow, the mark cream, no gap between them)
+local function levelWords(parent: Instance, level: number, size: number, order: number, withRaceway: boolean)
+	local r = row(parent, math.floor(size * 0.28), order)
+	if withRaceway then
+		word(r, "RACEWAY", size, CREAM, 1)
+	end
+	word(r, "LEVEL", size, CREAM, 2)
+	local n = row(r, 0, 3)
+	word(n, tostring(level), size, YELLOW, 1)
+	word(n, "!", size, CREAM, 2)
+end
+
+-- Chooses the layout for the safe width (design px): one line at 36, two lines at 36, two lines at 24.
+function Reveal.bannerLayout(level: number, safeWidth: number): (number, number)
+	local limit = safeWidth - 2 * PAD_X - 2 * MARGIN
+	local display, value = Tokens.TextSize.Display, Tokens.TextSize.Value
+	if textWidth(string.format("RACEWAY LEVEL %d!", level), display) <= limit then
+		return 1, display
+	end
+	local wider = math.max(textWidth("RACEWAY", display), textWidth(string.format("LEVEL %d!", level), display))
+	if wider <= limit then
+		return 2, display
+	end
+	return 2, value
+end
+
+function Reveal.cancelBanner()
+	bannerToken += 1
+	local b = banner
+	if not b then
+		return
+	end
+	stopTweens(b)
+	local token = bannerToken
+	local out = TweenService:Create(b.group, TweenInfo.new(Reveal.BannerOut), { GroupTransparency = 1 })
+	table.insert(b.tweens, out)
+	out:Play()
+	out.Completed:Once(function()
+		if bannerToken == token and banner == b then
+			b.screen:Destroy()
+			banner = nil
+		end
+	end)
+end
+
+-- Shows "RACEWAY LEVEL <level>!" (only the latest request is ever shown).
+function Reveal.banner(level: number, calm: boolean)
+	local gui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 	if not gui then
 		return
 	end
-	local old = gui:FindFirstChild("Lane3SpeedwayBanner")
-	if old then
-		old:Destroy()
+	bannerToken += 1
+	local token = bannerToken
+	local b = banner
+	if b then
+		stopTweens(b)
+		b.screen:Destroy()
+		banner = nil
 	end
 	local screen = Instance.new("ScreenGui")
 	screen.Name = "Lane3SpeedwayBanner"
 	screen.ResetOnSpawn = false
-	screen.IgnoreGuiInset = true
+	screen.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 	screen.DisplayOrder = 20
+	screen.Parent = gui
+	local camera = workspace.CurrentCamera
+	local scaleValue = Tokens.uiScaleFor(if camera then camera.ViewportSize else Vector2.new(1920, 1080))
+	local safe = screen.AbsoluteSize.X
+	if safe <= 0 and camera then
+		safe = camera.ViewportSize.X
+	end
+	local lines, size = Reveal.bannerLayout(level, safe / scaleValue)
+	if token ~= bannerToken then
+		screen:Destroy() -- a newer request arrived while measuring
+		return
+	end
+
+	local holder = Instance.new("Frame")
+	holder.Name = "Holder"
+	holder.AnchorPoint = Vector2.new(0.5, 0)
+	holder.Position = UDim2.fromScale(0.5, 0.14)
+	holder.AutomaticSize = Enum.AutomaticSize.XY
+	holder.BackgroundTransparency = 1
+	holder.Active = false
+	local rootScale = Instance.new("UIScale")
+	rootScale.Scale = scaleValue
+	rootScale.Parent = holder
+	local group = Instance.new("CanvasGroup")
+	group.Name = "Fade"
+	group.AutomaticSize = Enum.AutomaticSize.XY
+	group.BackgroundTransparency = 1
+	group.GroupTransparency = 1
+	group.Parent = holder
+	local settle = Instance.new("UIScale")
+	settle.Scale = if calm then 1 else 0.94
+	settle.Parent = group
+	-- the coral border is drawn outside the pill: keep a 4 px margin so the canvas never clips it
+	local margin = Instance.new("UIPadding")
+	for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
+		(margin :: any)[side] = UDim.new(0, 4)
+	end
+	margin.Parent = group
 	local pill = Instance.new("Frame")
 	pill.Name = "Pill"
-	pill.AnchorPoint = Vector2.new(0.5, 0)
-	pill.Position = UDim2.fromScale(0.5, 0.14)
 	pill.AutomaticSize = Enum.AutomaticSize.XY
-	pill.BackgroundColor3 = Color3.fromRGB(36, 58, 98)
+	pill.BackgroundColor3 = NAVY
 	pill.BackgroundTransparency = 0.05
-	pill.Parent = screen
+	pill.Parent = group
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 18)
 	corner.Parent = pill
 	local edge = Instance.new("UIStroke")
-	edge.Color = Color3.fromRGB(244, 127, 112)
+	edge.Color = CORAL
 	edge.Thickness = 4
 	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	edge.Parent = pill
 	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 28)
-	pad.PaddingRight = UDim.new(0, 28)
-	pad.PaddingTop = UDim.new(0, 10)
-	pad.PaddingBottom = UDim.new(0, 12)
+	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, PAD_X), UDim.new(0, PAD_X)
+	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, PAD_TOP), UDim.new(0, PAD_BOTTOM)
 	pad.Parent = pill
-	local label = Instance.new("TextLabel")
-	label.Name = "Text"
-	label.AutomaticSize = Enum.AutomaticSize.XY
-	label.BackgroundTransparency = 1
-	label.FontFace = Tokens.font()
-	label.TextSize = Tokens.TextSize.Display
-	label.TextColor3 = Color3.fromRGB(255, 246, 224)
-	label.Text = text
-	label.Parent = pill
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(20, 27, 51)
-	stroke.Thickness = 3
-	stroke.Parent = label
-	local scale = Instance.new("UIScale")
-	scale.Scale = if calm then 1 else 0.6
-	scale.Parent = pill
-	local group = Instance.new("CanvasGroup")
-	group.Name = "Fade"
-	group.BackgroundTransparency = 1
-	group.Size = UDim2.fromScale(1, 1)
-	group.GroupTransparency = 1
-	pill.Parent = group
-	group.Parent = screen
-	screen.Parent = gui
-	TweenService:Create(group, TweenInfo.new(0.25), { GroupTransparency = 0 }):Play()
-	if not calm then
-		TweenService:Create(scale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
-			:Play()
+	local stack = Instance.new("UIListLayout")
+	stack.FillDirection = Enum.FillDirection.Vertical
+	stack.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	stack.SortOrder = Enum.SortOrder.LayoutOrder
+	stack.Parent = pill
+	if lines == 1 then
+		levelWords(pill, level, size, 1, true)
+	else
+		local top = row(pill, 0, 1)
+		word(top, "RACEWAY", size, CREAM, 1)
+		levelWords(pill, level, size, 2, false)
 	end
-	task.delay(Reveal.Seconds + 1.2, function()
-		if screen.Parent then
-			local fade = TweenService:Create(group, TweenInfo.new(0.4), { GroupTransparency = 1 })
-			fade:Play()
-			fade.Completed:Wait()
-			screen:Destroy()
+	holder.Parent = screen
+	screen:SetAttribute("Level", level)
+	screen:SetAttribute("Lines", lines)
+	screen:SetAttribute("TextSize", size)
+
+	local made: Banner = { screen = screen, group = group, settle = settle, tweens = {}, hold = nil, token = token }
+	banner = made
+	local fadeIn = TweenService:Create(
+		group,
+		TweenInfo.new(Reveal.BannerIn, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ GroupTransparency = 0 }
+	)
+	table.insert(made.tweens, fadeIn)
+	fadeIn:Play()
+	if not calm then
+		local grow = TweenService:Create(
+			settle,
+			TweenInfo.new(Reveal.BannerIn, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		)
+		table.insert(made.tweens, grow)
+		grow:Play()
+	end
+	made.hold = task.delay(Reveal.BannerIn + Reveal.BannerHold, function()
+		made.hold = nil
+		if banner ~= made then
+			return
 		end
+		local out = TweenService:Create(
+			group,
+			TweenInfo.new(Reveal.BannerOut, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ GroupTransparency = 1 }
+		)
+		table.insert(made.tweens, out)
+		out:Play()
+		out.Completed:Once(function(state)
+			if state == Enum.PlaybackState.Completed and banner == made then
+				screen:Destroy()
+				banner = nil
+			end
+		end)
 	end)
+end
+
+-- For Studio tests: the live banner's level, line count and text size (nil when none is showing).
+function Reveal.bannerState(): { [string]: any }?
+	local b = banner
+	if not b then
+		return nil
+	end
+	return {
+		level = b.screen:GetAttribute("Level"),
+		lines = b.screen:GetAttribute("Lines"),
+		textSize = b.screen:GetAttribute("TextSize"),
+		screens = (function()
+			local n = 0
+			for _, c in (b.screen.Parent :: Instance):GetChildren() do
+				if c.Name == "Lane3SpeedwayBanner" then
+					n += 1
+				end
+			end
+			return n
+		end)(),
+	}
 end
 
 return Reveal

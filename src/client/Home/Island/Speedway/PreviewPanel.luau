@@ -125,7 +125,7 @@ function PreviewPanel.mount(
 		local h = home()
 		local all = player:GetAttribute("Lane3SpeedwayPreviewLevel")
 		title.Text =
-			string.format("SPEEDWAY PREVIEW  ·  Plot %d  ·  Level %d%s", h, levelOf(h), if all then " (all)" else "")
+			string.format("RACEWAY PREVIEW  ·  Plot %d  ·  Level %d%s", h, levelOf(h), if all then " (all)" else "")
 		ghostButton.Text = if player:GetAttribute("Lane3SpeedwayGhost") == false then "Ghost: off" else "Ghost: on"
 		calmButton.Text = if player:GetAttribute("Lane3ReducedMotionOverride") == true then "Calm: on" else "Calm: off"
 	end

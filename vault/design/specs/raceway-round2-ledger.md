@@ -81,3 +81,17 @@ Adam's private island place, one Studio, Rojo port 34873. Edit = edit-mode previ
 | RW2-22, RW2-24 | Play | the same 65-stud avenue 3 stretch walked three times (MoveTo, real character) | island base off: 15.7 studs/s (peak 16); base 32, lanes off: 31.3 (peak 32); base 32 on the boost lane: 44.3 average, peak 48 (the first 7 studs are before the strip) |
 | RW2-22 | Play | run handover fixture (character placed in and out of the Summit Pass field) | outside 32; inside 16 with `MovementSpeedOwner = Lane3RunFixture`; back out 32 and the attribute cleared (teleported, not walked) |
 | RW2-27 | Play | real-time video | **blocked**: Windows does not let this session bring Studio to the front, and the window capture is black behind other windows; needs Adam to click the Studio window once (guided moment) |
+
+## Walking boundaries (Studio Play, 2026-10-29 evening)
+Plot 3 frame, a real character driven by MoveTo and a scripted jump at the bank edge (Roblox's default jump: the root peaked at y 9.5 every time), Studio Play, one client.
+
+| WalkSpeed | Speed at the jump | Came down at | River at that spot (x 25) |
+|---|---|---|---|
+| 16 | 15.4 | u 155.0 (in the river) | water u 147 to 164 (18 wide) |
+| 32 (island base) | 30.7 | u 163.0 (the far edge of the water) | |
+| 48 (boost lane only) | 46.5 | u 170.5 (clear across) | |
+
+- A boosted running jump clears the 18-wide river; at 32 it reaches the far edge. Every avenue already has a bridge where its boost lane runs, so it saves a few seconds and crosses no fence or gate. For Adam: accept (reversible: a low reed edge or a wider river).
+- The plots have no fences (visitors may walk onto any Raceway by design), so there is no plot fence to jump.
+- Lake: from the fountain toward +Z the first water is 78 studs out behind a sand beach sloping to -0.7; a 32-speed run in ends up swimming in the shallows and walking back out is on land in 1.0 s (no drop, no trap). Swimming speed stays the island base 32 (the boost itself drops in water, as designed). Roblox's own state flicker (Swimming, GettingUp, Running) shows at the shallow edge.
+- Not tested: the waterfall approach, diagonal and turning runs, the walk animation look at 32 and 48 on video (needs the Studio window in front).
