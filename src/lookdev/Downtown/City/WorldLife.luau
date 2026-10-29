@@ -67,6 +67,10 @@ type Skater = { body: Part, head: Part, loop: number, phase: number, speed: numb
 type Chair = { seat: Part, hanger: Part, leg: number, u: number, dir: number, speed: number }
 type Loop = { centre: CFrame, radiusX: number, radiusZ: number }
 type Leg = { points: { Vector3 }, length: number }
+-- World build V2 (Dusty): the windmill wheel (0.1 turns per second), two pennant strings of eight, a far shimmer strip
+type Wheel = { hub: Vector3, normal: Vector3, radius: number, blades: { Part }, hubPart: Part }
+type PennantString = { a: Vector3, b: Vector3, flags: { Part }, poles: { Part } }
+type Shimmer = { part: Part, base: CFrame }
 
 type Fields = {
 	id: string,
@@ -89,6 +93,9 @@ type Fields = {
 	loops: { Loop },
 	chairs: { Chair },
 	legs: { Leg },
+	wheels: { Wheel },
+	strings: { PennantString },
+	shimmers: { Shimmer },
 	reduced: boolean,
 	clock: number,
 	accumulator: number,
@@ -165,6 +172,9 @@ function WorldLife.new(options: Options): WorldLife
 		loops = {},
 		chairs = {},
 		legs = {},
+		wheels = {},
+		strings = {},
+		shimmers = {},
 		reduced = Util.reducedMotion(),
 		clock = 0,
 		accumulator = 0,
@@ -266,6 +276,79 @@ function WorldLife.new(options: Options): WorldLife
 					end
 				end
 			end
+		end
+	end
+	if id == "DustyHighway" and options.world.v2 and options.plan.world and options.plan.world.motion then
+		-- World build V2 (decision 0026): the approved Dusty motion, within its limits: one windmill wheel (0.1 turns per
+		-- second, on within 600 studs), at most two pennant strings of eight (sway about 6 degrees at 0.4 Hz, on within 350
+		-- studs, parallel to the road and never over it) and one far shimmer strip (alpha drift at most 0.4 Hz, within 900)
+		local motion = options.plan.world.motion
+		for _, w in motion.windmills do
+			local hubPart = Parts.block(
+				folder,
+				"WheelHub",
+				Vector3.new(1.8, 1.8, 1.8),
+				CFrame.new(0, -500, 0),
+				Color3.fromRGB(88, 94, 104),
+				Enum.PartType.Ball
+			)
+			hubPart.CastShadow = false
+			local blades: { Part } = {}
+			for k = 1, 10 do
+				local blade = Parts.block(
+					folder,
+					"WheelSail",
+					Vector3.new(0.3, w.radius * 0.72, 2.2),
+					CFrame.new(0, -500, 0),
+					if k % 2 == 0 then Color3.fromRGB(160, 92, 56) else Color3.fromRGB(150, 156, 164)
+				)
+				blade.CastShadow = false
+				table.insert(blades, blade)
+			end
+			table.insert(
+				self.wheels,
+				{ hub = w.hub, normal = w.normal, radius = w.radius, blades = blades, hubPart = hubPart }
+			)
+		end
+		for _, s in motion.pennants do
+			local flags: { Part } = {}
+			for k = 1, 8 do
+				local flag = Parts.block(
+					folder,
+					"Pennant",
+					Vector3.new(1.6, 1.2, 0.1),
+					CFrame.new(0, -500, 0),
+					if k % 2 == 0 then Color3.fromRGB(206, 84, 70) else Color3.fromRGB(54, 176, 170)
+				)
+				flag.CastShadow = false
+				table.insert(flags, flag)
+			end
+			local poles: { Part } = {}
+			for _, at in { s.a, s.b } do
+				local pole = Parts.block(
+					folder,
+					"PennantPole",
+					Vector3.new(0.4, at.Y, 0.4),
+					CFrame.new(at.X, at.Y / 2, at.Z),
+					Color3.fromRGB(120, 76, 54)
+				)
+				pole.CastShadow = false
+				table.insert(poles, pole)
+			end
+			table.insert(self.strings, { a = s.a, b = s.b, flags = flags, poles = poles })
+		end
+		for _, sh in motion.shimmers do
+			local part = Parts.block(
+				folder,
+				"ShimmerStrip",
+				Vector3.new(sh.length, 0.1, sh.width),
+				sh.cframe,
+				Color3.fromRGB(206, 216, 232)
+			)
+			part.CastShadow = false
+			part.Transparency = 0.55
+			part.Material = Enum.Material.SmoothPlastic
+			table.insert(self.shimmers, { part = part, base = sh.cframe })
 		end
 	end
 	if id == "SummitPass" and options.world.v2 then
@@ -554,6 +637,43 @@ function WorldLife.step(self: WorldLife, dt: number)
 	end
 	for _, s in self.smoke do
 		s.emitter.Enabled = nearest(points, s.part.Position) <= NEAR
+	end
+	-- Dusty (V2): the windmill wheel, the pennant strings and the shimmer strip
+	for _, w in self.wheels do
+		if nearest(points, w.hub) <= 600 then
+			local angle = if reduced then 0 else self.clock * 0.1 * math.pi * 2
+			local n = w.normal
+			local up = (Vector3.yAxis - n * n:Dot(Vector3.yAxis)).Unit
+			local side = n:Cross(up)
+			local list: { BasePart }, cfs: { CFrame } = { w.hubPart }, { CFrame.new(w.hub) }
+			for k, blade in w.blades do
+				local a = angle + (k - 1) * math.pi * 2 / #w.blades
+				local d = up * math.cos(a) + side * math.sin(a)
+				table.insert(list, blade)
+				table.insert(cfs, CFrame.fromMatrix(w.hub + d * (w.radius * 0.5), n, d))
+			end
+			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
+	end
+	for _, s in self.strings do
+		if nearest(points, (s.a + s.b) / 2) <= 350 then
+			local list: { BasePart }, cfs: { CFrame } = {}, {}
+			local dir = (s.b - s.a).Unit
+			local across = dir:Cross(Vector3.yAxis).Unit
+			for k, flag in s.flags do
+				local u = (k - 0.5) / #s.flags
+				local sway = if reduced then 0 else math.rad(6) * math.sin(self.clock * 0.4 * math.pi * 2 + k * 0.7)
+				local p = s.a:Lerp(s.b, u) - Vector3.new(0, 2.4 * u * (1 - u) * 4 + 0.7, 0)
+				table.insert(list, flag)
+				table.insert(cfs, CFrame.lookAt(p, p + across) * CFrame.Angles(sway, 0, 0))
+			end
+			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
+	end
+	for _, sh in self.shimmers do
+		sh.part.Transparency = if reduced or nearest(points, sh.base.Position) > 900
+			then 0.6
+			else 0.55 + 0.1 * math.sin(self.clock * 0.25 * math.pi * 2)
 	end
 	-- skaters: two loops on the lake, at rest in reduced motion
 	if #self.skaters > 0 then

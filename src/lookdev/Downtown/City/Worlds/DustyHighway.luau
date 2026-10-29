@@ -350,11 +350,11 @@ return {
 		lamp = "DH_Prop_Pole",
 		bridgeLamp = "DH_Prop_Pole",
 		busStop = "DH_Prop_BusShelter",
-		cactus = "DH_Prop_Cactus",
+		cactus = "DH_Fol_Sentinel_B",
 		rock = "DH_Prop_Rock",
 		barrel = "DH_Prop_Barrel",
 		fencePost = "DH_Prop_FencePost",
-		tree = "DH_Prop_Cactus",
+		tree = "DH_Fol_Sentinel_B",
 		bench = "DH_Prop_Barrel",
 		bin = "DH_Prop_Barrel",
 	},
@@ -373,11 +373,11 @@ return {
 		"BOOT SCOOT BURGERS",
 	},
 	midMeshes = {
-		CactusFlats = { "DH_Mid_Mesa_1", "DH_Mid_Butte_1" },
-		DinerStrip = { "DH_Mid_Butte_1", "DH_Mid_Mesa_2" },
-		RedRockArches = { "DH_Mid_Mesa_1", "DH_Mid_Mesa_2", "DH_Mid_Butte_2" },
-		CanyonBridge = { "DH_Mid_Mesa_2", "DH_Mid_Butte_2" },
-		MirageDunes = { "DH_Mid_Dune_1", "DH_Mid_Butte_1" },
+		CactusFlats = { "DH_Mass_Butte_A", "DH_Mass_Butte_B" },
+		DinerStrip = { "DH_Mass_Butte_B", "DH_Mass_Butte_E" },
+		RedRockArches = { "DH_Mass_Butte_C", "DH_Mass_Butte_D", "DH_Mass_Butte_F" },
+		CanyonBridge = { "DH_Mass_Butte_E", "DH_Mass_Butte_F" },
+		MirageDunes = { "DH_BG_Dune_A", "DH_Mass_Butte_A" },
 	},
 	skyMeshes = {
 		"DH_Sky_Mesa_1",
@@ -442,9 +442,13 @@ return {
 			floorDepth = 70,
 			endPad = 16,
 			wall = { "DH_Gorge_Wall_A", "DH_Gorge_Wall_B" },
-			wallEnd = "DH_Gorge_Wall_C",
+			corner = "DH_Gorge_Wall_C",
+			cornerMirror = "DH_Gorge_Wall_C_mirror",
+			cornerWall = 41, -- the corner piece's wall part is as deep as the plain walls (41); the rest is its return leg
 			pylon = "DH_LM_BridgePylon",
 			pylonEvery = 96,
+			under = "DH_LM_BridgeUnder",
+			underDrop = 8.5,
 		},
 		-- nominal sizes, used until the kit's own bounds are read (Catalog.sizes)
 		sizes = {
@@ -489,6 +493,8 @@ return {
 		},
 		-- every other mesh a placement feature names (their real sizes are read from the kit)
 		meshes = {
+			"DH_Gorge_Wall_C_mirror",
+			"DH_LM_BridgeUnder",
 			"DH_LM_DinerSign",
 			"DH_Yard_Tank",
 			"DH_Yard_PumpHouse",
@@ -504,6 +510,17 @@ return {
 			"DH_LM_WindmillTower",
 			"DH_LM_Diner",
 			"DH_LM_GhostHuts",
+		},
+		-- approved motion (plan 7; Adam's answer 9): the windmill wheel, two pennant strings, one shimmer strip; WorldLife builds the parts
+		motion = {
+			windmill = {
+				landmark = "WindmillTower",
+				mesh = "DH_LM_WindmillTower",
+				hub = Vector3.new(19.2, 54, 10),
+				radius = 11.5,
+			},
+			pennants = { landmark = "Diner", count = 2, lateral = 64, length = 28, height = 11 },
+			shimmer = { district = "MirageDunes", t = 0.5, side = "outside", lateral = 380, length = 200, width = 40 },
 		},
 		-- hazard readability kit (plan 6.5): a warning board 130 studs before every hazard, a wind sock at the sand drift
 		warnings = { board = "DH_Sign_Warning", ahead = 130, lateral = 47, sock = "DH_Haz_WindSock", sockKind = "oil" },
@@ -536,7 +553,23 @@ return {
 			{
 				landmark = "Diner",
 				hall = "DH_LM_Diner",
-				parts = { { m = "DH_LM_DinerSign", x = 4, z = -8, label = "DINER SIGN" } },
+				parts = {
+					{ m = "DH_LM_DinerSign", x = 4, z = -8, label = "DINER SIGN" },
+					-- the forecourt: a ramada, umbrella tables and planter barrels beside the diner (plan 6.2 groups)
+					{ m = "DH_Shade_Ramada", x = "rightOf", gap = 3, z = 6, label = "RAMADA" },
+					{ m = "DH_Shade_Umbrellas", x = "leftOf", gap = 3, z = 8, label = "UMBRELLAS" },
+					{ m = "DH_Fore_Table", x = "leftOf", gap = 18, z = 10, label = "TABLE" },
+					{ m = "DH_Fore_Planters", x = "rightOf", gap = 32, z = 8, label = "PLANTERS" },
+				},
+			},
+			-- the old pump garage: a flat canopy line with two pump totems under it
+			{
+				landmark = "PumpStation",
+				hall = "DH_LM_PumpStation",
+				parts = {
+					{ m = "DH_Fore_PumpCanopy", x = "leftOf", gap = 4, z = 4, label = "PUMP CANOPY" },
+					{ m = "DH_Fore_PumpTotem", x = "rightOf", gap = 4, z = 6, label = "PUMP TOTEM" },
+				},
 			},
 			-- the windmill yard: water tank, pump house and a pipe run to the horizon
 			{
@@ -681,6 +714,29 @@ return {
 				recent = 2,
 				colour = rgb(190, 132, 96),
 			},
+			-- single plants in the open ground between groups: Sentinel, Paddle and Rosette only (Barrels live inside groups, G7)
+			{
+				id = "plants",
+				kind = "fol",
+				band = "near",
+				pool = {
+					{ m = "DH_Fol_Sentinel_A", label = "SENTINEL" },
+					{ m = "DH_Fol_Sentinel_B", label = "SENTINEL" },
+					{ m = "DH_Fol_Paddle_A", label = "PADDLE" },
+					{ m = "DH_Fol_Rosette_A", label = "ROSETTE" },
+					{ m = "DH_Fol_Paddle_B", label = "PADDLE" },
+					{ m = "DH_Fol_Rosette_B", label = "ROSETTE" },
+				},
+				density = { CactusFlats = 1.0, DinerStrip = 0.3, RedRockArches = 0.5, MirageDunes = 0.6 },
+				lateral = { 84, 150 },
+				scale = { 0.9, 1.15 },
+				yaw = "quarter",
+				recent = 2,
+				gap = 40,
+				need = 56,
+				hazardClear = true,
+				colour = rgb(105, 138, 102),
+			},
 			{
 				id = "markers",
 				kind = "edge",
@@ -706,6 +762,43 @@ return {
 				hazardClear = true,
 				gap = 30,
 				colour = rgb(170, 130, 100),
+			},
+		},
+		chains = {
+			-- ranch rail fence framing the near ground in Cactus Flats (E3), one side, with open stretches between runs
+			{
+				id = "rails",
+				kind = "edge",
+				band = "near",
+				districts = { CactusFlats = true },
+				sides = "outside",
+				pool = { { m = "DH_Edge_Rail24", label = "RAIL" } },
+				lateral = 64,
+				y = -0.3,
+				yaw = "alongRoad",
+				gap = { 60, 140 },
+				hazardBefore = 80,
+				bridgePad = 8,
+				colour = rgb(150, 98, 66),
+			},
+			-- verge-softening sand fringe outside the shoulder (E4, P3): gold body, clay-sand skirt, never pale at the edge
+			{
+				id = "fringe",
+				kind = "edge",
+				band = "near",
+				districts = { MirageDunes = true, CactusFlats = true },
+				pool = {
+					{ m = "DH_Fringe_Sand_A", label = "FRINGE" },
+					{ m = "DH_Fringe_Sand_B", label = "FRINGE" },
+					{ m = "DH_Fringe_Sand_C", label = "FRINGE" },
+				},
+				lateral = 56,
+				y = -0.3,
+				yaw = "alongRoad",
+				gap = { 20, 80 },
+				hazardBefore = 60,
+				bridgePad = 8,
+				colour = rgb(232, 194, 120),
 			},
 		},
 	},

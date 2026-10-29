@@ -59,10 +59,14 @@ export type Gorge = {
 	halfWidth: number,
 	floorDepth: number,
 	endPad: number,
-	wall: { string },
-	wallEnd: string?,
-	pylon: string?,
+	wall: { string }, -- plain terraced wall pieces, chained along each side
+	corner: string, -- the L-shaped corner piece (closes a +X end)
+	cornerMirror: string, -- its mirror (closes a -X end)
+	cornerWall: number, -- depth of the corner piece's wall part (the rest of its Z extent is the return leg)
+	pylon: string?, -- the bent pier with a crosshead, standing on the floor under the deck, one at the route centre
 	pylonEvery: number?,
+	under: string?, -- the cross-frame under each 192-stud deck
+	underDrop: number?, -- how far below deck level its pivot sits
 }
 
 -- hash(seed, cycle, district order, salt) -> a Random seed: the per-district sub-seed of the approved plans
@@ -157,6 +161,9 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	end
 
 	-- 1. the gorge (computed first: every later rule keeps out of it) ----------------------------------
+	-- The walls stand on a floor `floorDepth` below the deck, faces toward the gorge, rims at ground level. Two L-shaped corner
+	-- pieces (C and its mirror) close each end of each side wall; a bent pier with a crosshead stands on the floor under the
+	-- deck; a cross-frame sits under each 192-stud deck. Every piece is scaled uniformly so its rim meets the ground.
 	local gorge: Gorge? = v2.gorge
 	if gorge then
 		for _, lm in plan.landmarks do
@@ -164,70 +171,86 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 				local s0, s1 = lm.from - gorge.endPad, lm.to + gorge.endPad
 				local mid = (s0 + s1) / 2
 				local centre = h.frame(mid)
-				local entry = {
+				local depth = gorge.floorDepth
+				table.insert(info.gorges, {
 					district = gorge.district,
 					from = s0,
 					to = s1,
 					centre = centre,
 					halfLength = (s1 - s0) / 2,
 					halfWidth = gorge.halfWidth,
-					floorY = -gorge.floorDepth,
-				}
-				table.insert(info.gorges, entry)
-				-- the gorge walls: pieces chained along both edges, standing on the floor, tops at the rim
+					floorY = -depth,
+				})
+				local function scaleFor(size: Vector3): number
+					return math.clamp(depth / math.max(size.Y - 1.5, 1), 0.7, 1.6)
+				end
+				local function addPiece(
+					name: string,
+					c: number,
+					lateral: number,
+					side: number,
+					yaw: number,
+					label: string,
+					sc: number,
+					size: Vector3
+				)
+					table.insert(extras, {
+						kind = "gorge",
+						module = name,
+						label = label,
+						cframe = h.frame(c, side * lateral, -depth) * CFrame.Angles(0, yaw, 0),
+						scale = sc,
+						size = size * sc,
+						colour = Color3.fromRGB(150, 76, 56),
+						band = "near",
+						segment = h.segAt(c),
+						station = c,
+						side = side,
+						district = gorge.district,
+					})
+				end
 				for _, side in { -1, 1 } do
-					local st = s0
+					-- long axis along the route, front (local -Z) toward the gorge: +90 degrees on the right wall, -90 on the left
+					local yaw = if side > 0 then math.pi / 2 else -math.pi / 2
+					-- a right wall's +X points forward, a left wall's backward: the corner that closes the forward end differs
+					local fwdName = if side > 0 then gorge.corner else gorge.cornerMirror
+					local backName = if side > 0 then gorge.cornerMirror else gorge.corner
+					local fwdSize, backSize = sizeOf({ m = fwdName }), sizeOf({ m = backName })
+					local fwdSc, backSc = scaleFor(fwdSize), scaleFor(backSize)
+					local fwdLen, backLen = fwdSize.X * fwdSc, backSize.X * backSc
+					-- a corner's wall front face lies (size.Z / 2 - cornerWall) outward of its centre: put that face on the edge
+					addPiece(
+						fwdName,
+						s1 - fwdLen / 2,
+						gorge.halfWidth - (fwdSize.Z / 2 - gorge.cornerWall) * fwdSc,
+						side,
+						yaw,
+						"GORGE CORNER",
+						fwdSc,
+						fwdSize
+					)
+					addPiece(
+						backName,
+						s0 + backLen / 2,
+						gorge.halfWidth - (backSize.Z / 2 - gorge.cornerWall) * backSc,
+						side,
+						yaw,
+						"GORGE CORNER",
+						backSc,
+						backSize
+					)
+					local st = s0 + backLen * 0.9
+					local stop = s1 - fwdLen * 0.9
 					local k = 0
-					while st < s1 - 8 do
+					while st < stop - 4 do
 						local name = gorge.wall[(k + (if side > 0 then 1 else 0)) % #gorge.wall + 1]
 						local size = sizeOf({ m = name })
-						local len = math.max(size.X, 24)
-						local c = math.min(st + len / 2, s1 - 4)
-						local sc = math.clamp((gorge.floorDepth + 1.5) / math.max(size.Y, 1), 0.8, 1.5)
-						-- flush with the hole's edge: the pivot sits half the wall's depth beyond it
-						local base = h.frame(c, side * (gorge.halfWidth + size.Z * sc / 2), -gorge.floorDepth - 0.5)
-						-- the piece's long axis runs along the route; its front (local -Z) faces the gorge
-						local cf = base * CFrame.Angles(0, if side > 0 then math.pi / 2 else -math.pi / 2, 0)
-						table.insert(extras, {
-							kind = "gorge",
-							module = name,
-							label = "GORGE WALL",
-							cframe = cf,
-							scale = sc,
-							size = size * sc,
-							colour = Color3.fromRGB(150, 76, 56),
-							band = "near",
-							segment = h.segAt(c),
-							station = c,
-							side = side,
-							district = gorge.district,
-						})
+						local sc = scaleFor(size)
+						local len = size.X * sc
+						local c = math.min(st + len / 2, stop - len / 2 + 6)
+						addPiece(name, c, gorge.halfWidth + size.Z * sc / 2, side, yaw, "GORGE WALL", sc, size)
 						st += len * 0.96
 						k += 1
-					end
-				end
-				if gorge.wallEnd then
-					local size = sizeOf({ m = gorge.wallEnd })
-					for _, end_ in { s0, s1 } do
-						local sc = math.clamp((gorge.floorDepth + 1.5) / math.max(size.Y, 1), 0.8, 1.5)
-						-- the end piece closes the gorge across its width; its front faces back into the gorge
-						local back = if end_ == s0 then -1 else 1
-						local base = h.frame(end_ + back * size.Z * sc / 2, 0, -gorge.floorDepth - 0.5)
-						local cf = base * CFrame.Angles(0, if end_ == s0 then 0 else math.pi, 0)
-						table.insert(extras, {
-							kind = "gorge",
-							module = gorge.wallEnd,
-							label = "GORGE END",
-							cframe = cf,
-							scale = sc,
-							size = size * sc,
-							colour = Color3.fromRGB(150, 76, 56),
-							band = "near",
-							segment = h.segAt(end_),
-							station = end_,
-							side = 0,
-							district = gorge.district,
-						})
 					end
 				end
 				if gorge.pylon then
@@ -235,28 +258,33 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 					local every = gorge.pylonEvery or 96
 					local st = s0 + 48
 					while st < s1 - 24 do
-						for _, side in { -1, 1 } do
-							local cf = h.frame(st, side * (halfRoad + 1.6), -gorge.floorDepth - 0.5)
-							table.insert(extras, {
-								kind = "gorge",
-								module = gorge.pylon,
-								label = "BRIDGE PYLON",
-								cframe = cf,
-								scale = 1,
-								size = size,
-								colour = Color3.fromRGB(120, 110, 104),
-								band = "near",
-								segment = h.segAt(st),
-								station = st,
-								side = side,
-								district = gorge.district,
-							})
-						end
+						addPiece(gorge.pylon, st, 0, 1, 0, "BRIDGE PIER", 1, size)
 						st += every
 					end
 				end
+				if gorge.under then
+					local size = sizeOf({ m = gorge.under })
+					local st = lm.from + size.Z / 2
+					while st < lm.to - 8 do
+						table.insert(extras, {
+							kind = "gorge",
+							module = gorge.under,
+							label = "BRIDGE FRAMING",
+							cframe = h.frame(st, 0, -(gorge.underDrop or 8.5)),
+							scale = 1,
+							size = size,
+							colour = Color3.fromRGB(110, 74, 58),
+							band = "near",
+							segment = h.segAt(st),
+							station = st,
+							side = 0,
+							district = gorge.district,
+						})
+						st += size.Z
+					end
+				end
 				stats.gorgeLength = s1 - s0
-				stats.gorgeFloor = -gorge.floorDepth
+				stats.gorgeFloor = -depth
 				break
 			end
 		end
@@ -577,6 +605,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	Features.companions(ctx)
 	Features.signs(ctx)
 	Features.warnings(ctx)
+	Features.motion(ctx)
 
 	-- 7. later laps carry a different welcome span (Summit Pass: "KEEP CLIMBING!") --------------------------
 	if v2.welcomeLater then

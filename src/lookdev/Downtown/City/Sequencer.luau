@@ -177,6 +177,7 @@ export type WorldInfo = {
 	lift: any?, -- the ski lift path(s) for WorldLife
 	lake: any?, -- the measured lake plane(s)
 	checks: { { id: string, ok: boolean, detail: string } }?, -- WorldPlan's measured proofs of the approved rules
+	motion: any?, -- windmill hubs, pennant strings and shimmer strips for WorldLife (Dusty)
 }
 
 export type Checks = {

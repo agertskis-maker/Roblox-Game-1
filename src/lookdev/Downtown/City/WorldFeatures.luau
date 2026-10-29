@@ -17,7 +17,7 @@ export type Ctx = {
 	v2: any,
 	h: { frame: (number, number?, number?) -> CFrame, segAt: (number) -> number, spanAt: (number) -> number },
 	extras: { any },
-	info: { notes: { string }, stats: { [string]: number }, gorges: { any }, lift: any?, lake: any? },
+	info: { notes: { string }, stats: { [string]: number }, gorges: { any }, lift: any?, lake: any?, motion: any? },
 	halfRoad: number,
 	sizeOf: (any) -> Vector3,
 	rngFor: (any, string) -> Random,
@@ -574,6 +574,74 @@ function WorldFeatures.lift(ctx: Ctx)
 		ctx.info.stats.liftCrossing = if lowest == math.huge then 0 else lowest
 	end
 	ctx.info.lift = paths
+end
+
+-- motion --------------------------------------------------------------------------------------------------
+-- Where the approved Dusty motion lives (plan 7, Adam's answer 9): the windmill wheel's hub (0.1 turns per second), at most
+-- two pennant strings of eight inside the Diner Strip forecourt area (parallel to the road, 60+ studs from the centre line,
+-- never over the road) and one far shimmer strip. WorldLife builds the moving parts from plain Parts; this only places them.
+function WorldFeatures.motion(ctx: Ctx)
+	local cfg = ctx.v2.motion
+	if not cfg then
+		return
+	end
+	local out: { [string]: any } = { windmills = {}, pennants = {}, shimmers = {} }
+	if cfg.windmill then
+		local size = ctx.sizeOf({ m = cfg.windmill.mesh })
+		for _, lm in ctx.plan.landmarks do
+			if lm.id == cfg.windmill.landmark then
+				-- a lot-frame mesh is centred in its landmark slot: its pivot sits (slot - mesh) / 2 in from the front-left corner
+				local pivot: CFrame = lm.pivot * CFrame.new((lm.width - size.X) / 2, 0, (lm.depth - size.Z) / 2)
+				local hub: Vector3 = pivot:PointToWorldSpace(cfg.windmill.hub)
+				table.insert(
+					out.windmills,
+					{ hub = hub, normal = pivot.XVector, radius = cfg.windmill.radius, station = lm.station }
+				)
+			end
+		end
+	end
+	if cfg.pennants then
+		local placed = 0
+		for _, lm in ctx.plan.landmarks do
+			if lm.id == cfg.pennants.landmark and placed < cfg.pennants.count then
+				for i = 1, cfg.pennants.count - placed do
+					local st = lm.station + lm.width / 2 + 24 + (i - 1) * 40
+					if not ctx.onBridge(st, 20) and not ctx.nearHazard(st, 80, 40 + cfg.pennants.length) then
+						local a = ctx.h.frame(st, lm.side * cfg.pennants.lateral, cfg.pennants.height).Position
+						local b = ctx.h.frame(
+							st + cfg.pennants.length,
+							lm.side * cfg.pennants.lateral,
+							cfg.pennants.height
+						).Position
+						table.insert(out.pennants, { a = a, b = b, station = st })
+						placed += 1
+					end
+				end
+			end
+		end
+	end
+	if cfg.shimmer then
+		for _, span in ctx.plan.districts do
+			if span.id == cfg.shimmer.district then
+				local side = sideOf(ctx, span, cfg.shimmer.side or "outside")
+				local st = span.startS + (span.endS - span.startS) * (cfg.shimmer.t or 0.5)
+				local f = ctx.h.frame(st, side * cfg.shimmer.lateral, 0.05)
+				table.insert(
+					out.shimmers,
+					{
+						cframe = f * CFrame.Angles(0, math.pi / 2, 0),
+						length = cfg.shimmer.length,
+						width = cfg.shimmer.width,
+						station = st,
+					}
+				)
+			end
+		end
+	end
+	ctx.info.motion = out
+	ctx.info.stats.windmills = #out.windmills
+	ctx.info.stats.pennantStrings = #out.pennants
+	ctx.info.stats.shimmerStrips = #out.shimmers
 end
 
 -- signs ---------------------------------------------------------------------------------------------------
