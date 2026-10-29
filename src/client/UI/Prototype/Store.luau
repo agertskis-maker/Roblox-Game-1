@@ -175,10 +175,12 @@ export type State = {
 	shop: { newItem: boolean }?,
 	missionsClaimable: number,
 	tutorial: Tutorial?,
-	-- local preview settings; musicOn is the Home toggle row (a real local setting, not saved)
+	-- local preview settings, kept for this client session, never saved (Home/MusicSetting). Settings sound rows (2026-10-29):
+	-- music / sfx are the player's 0..1 levels (shown 0 to 100, default 1; the approved mix levels live in the nested mix
+	-- groups), musicOn / sfxOn false = muted (the level then holds the last non-zero value); musicOn is also the Home switch
 	-- haptics: Round 3, the Settings "Haptics" switch: ON by default (nil counts as ON, false = off). Best effort and
 	-- local preview state only; never claimed felt on hardware (Run/Haptics)
-	settings: { music: number, sfx: number, musicOn: boolean?, haptics: boolean? },
+	settings: { music: number, sfx: number, musicOn: boolean?, sfxOn: boolean?, haptics: boolean? },
 	-- off-by-default proposals shown only in captioned review captures
 	proposals: { timers: boolean }?,
 	run: RunState?,
@@ -261,7 +263,7 @@ function Store.baseline(): State
 		shop = { newItem = false },
 		missionsClaimable = 1,
 		tutorial = nil,
-		settings = { music = 0.5, sfx = 0.6, musicOn = true, haptics = true }, -- Round 3: Haptics default ON
+		settings = { music = 1, sfx = 1, musicOn = true, sfxOn = true, haptics = true }, -- Round 3: Haptics default ON; 2026-10-29: levels 100
 		proposals = { timers = false },
 		run = nil,
 		results = nil,

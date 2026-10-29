@@ -31,8 +31,11 @@
 --   * No per-frame work anywhere: fades and trims are finite TweenService tweens (or a TweenInfo delay) that clean
 --     themselves up; each voice has one cancellable safety timer. `getDebugState()` reports live counts for all of it.
 --
--- Mix: one preview UI SoundGroup "Lane3PreviewUI" (the Settings effects volume) and a separate music group
--- "Lane3PreviewMusic" (see Music.luau). Positional ambience, if ever added, belongs in its own group, not here.
+-- Mix: one preview UI SoundGroup "Lane3PreviewUI" at the approved effects level and a separate music group
+-- "Lane3PreviewMusic" (see Music.luau). Settings sound rows (2026-10-29): both are NESTED under the player's categories
+-- (AudioMix: "Effects" and "Music", the Settings sliders), so the player's level multiplies the approved mix and never
+-- replaces it. Positional ambience, if ever added, gets its own mix group under AudioMix.group("Effects"), not this one.
+-- "VolumeTick" is the Settings SOUND EFFECTS preview: the small click trimmed to 70 ms, at most one per 150 ms.
 --
 --   Sounds.play(hook, volume?)                 -- one-shot (counted even when silent)
 --   Sounds.playOnce(hook, key, volume?) -> bool-- one-shot at most once per key (bounded memory); false when already played
@@ -50,6 +53,8 @@
 
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+
+local AudioMix = require(script.Parent.AudioMix)
 
 local Sounds = {}
 
@@ -77,6 +82,7 @@ export type Hook =
 	| "NewBest"
 	| "Warning"
 	| "Bonk"
+	| "VolumeTick"
 
 type Config = {
 	id: string,
@@ -125,6 +131,7 @@ local HOOK_VOLUME: { [string]: number } = {
 	Tap = 0.26,
 	Open = 0.26,
 	Close = 0.2,
+	VolumeTick = 0.22, -- the Settings SOUND EFFECTS preview: a little under a click
 	-- money: Cash is the reference; Lap Pay is a quieter background tick of the same sound
 	CashGain = 0.3,
 	LapPay = 0.2,
@@ -254,6 +261,8 @@ local ROUTES: { [string]: Route } = {
 	Tap = { category = "Click", minInterval = 0.06 },
 	Open = { category = "Click", minInterval = 0.1 },
 	Close = { category = "Click", minInterval = 0.1 },
+	-- the Settings SOUND EFFECTS preview tick: trimmed to 70 ms, so ticks 150 ms apart never overlap into a buzz
+	VolumeTick = { category = "Click", minInterval = 0.15, maxSeconds = 0.07, tail = 0.03 },
 	CashGain = { category = "Cash", minInterval = 0.12 },
 	LapPay = { category = "Cash", minInterval = 0.25 },
 	-- the Keys progress chime: driven by Sounds.rise (one note a quarter of progress, 0.25 s apart at the closest)
@@ -319,36 +328,40 @@ local music: SoundGroup? = nil
 -- the chime ladder of the capture in progress
 local chime = { step = 0, notes = 0, lastAt = -math.huge, highest = 0 }
 
-local function ensureGroup(): SoundGroup
-	if group and group.Parent then
-		return group
-	end
-	local g = SoundService:FindFirstChild("Lane3PreviewUI") :: SoundGroup?
-	if not g then
+-- A mix group nested under the player's category (AudioMix): found where it is (an older build left it in SoundService)
+-- and moved under the category, or made there. Its Volume is the approved mix level and nothing else writes it.
+local function mixGroup(name: string, category: AudioMix.Category, level: number): SoundGroup
+	local parent = AudioMix.group(category)
+	local g = parent:FindFirstChild(name) or SoundService:FindFirstChild(name)
+	if not (g and g:IsA("SoundGroup")) then
 		local created = Instance.new("SoundGroup")
-		created.Name = "Lane3PreviewUI"
-		created.Volume = MIX.sfxGroup
-		created.Parent = SoundService
+		created.Name = name
 		g = created
 	end
-	group = g
-	return g :: SoundGroup
+	local sg = g :: SoundGroup
+	sg.Volume = level
+	sg.Parent = parent
+	return sg
+end
+
+local function ensureGroup(): SoundGroup
+	local g = group
+	if g and g.Parent and g.Parent == AudioMix.group("Effects") then
+		return g
+	end
+	local made = mixGroup("Lane3PreviewUI", "Effects", MIX.sfxGroup)
+	group = made
+	return made
 end
 
 function Sounds.musicGroup(): SoundGroup
-	if music and music.Parent then
-		return music
+	local g = music
+	if g and g.Parent and g.Parent == AudioMix.group("Music") then
+		return g
 	end
-	local g = SoundService:FindFirstChild("Lane3PreviewMusic") :: SoundGroup?
-	if not g then
-		local created = Instance.new("SoundGroup")
-		created.Name = "Lane3PreviewMusic"
-		created.Volume = MIX.musicGroup
-		created.Parent = SoundService
-		g = created
-	end
-	music = g
-	return g :: SoundGroup
+	local made = mixGroup("Lane3PreviewMusic", "Music", MIX.musicGroup)
+	music = made
+	return made
 end
 
 function Sounds.group(): SoundGroup

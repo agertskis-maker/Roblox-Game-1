@@ -18,7 +18,7 @@ local Prototype = Players.LocalPlayer
 	:WaitForChild("Prototype")
 local Fixtures = require(Prototype:WaitForChild("Fixtures")) :: any
 local Motion = require(Prototype:WaitForChild("Motion"))
-local Sounds = require(Prototype:WaitForChild("Sounds"))
+local AudioMix = require(Prototype:WaitForChild("AudioMix"))
 local Home = Prototype:WaitForChild("Home")
 local MusicSetting = require(Home:WaitForChild("MusicSetting"))
 
@@ -255,7 +255,7 @@ return {
 					label,
 					tostring(MusicSetting.isOn(s)),
 					s:get().settings.music,
-					Sounds.musicGroup().Volume
+					AudioMix.group("Music").Volume
 				)
 			)
 		end
@@ -279,7 +279,7 @@ return {
 			host.wait(3)
 			host.api.close("settings")
 		end
-		MusicSetting.setLevel(s, 0.5)
+		MusicSetting.setLevel(s, 1)
 		host.wait(0.5)
 	end,
 
