@@ -169,7 +169,13 @@ export type Extra = {
 	side: number,
 	district: string,
 }
-export type WorldInfo = { notes: { string }, stats: { [string]: number }, gorges: { { [string]: any } } }
+export type WorldInfo = {
+	notes: { string },
+	stats: { [string]: number },
+	gorges: { { [string]: any } },
+	lift: any?, -- the ski lift path(s) for WorldLife
+	lake: any?, -- the measured lake plane(s)
+}
 
 export type Checks = {
 	passed: boolean,
@@ -650,6 +656,25 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				end)
 				if id then
 					table.insert(candidates, id)
+				end
+			end
+			-- World build V2: a district may fix the ORDER its landmarks appear in (Summit Lodge: the observatory, then the
+			-- snowmen, then the lodge). Only the next one not yet placed in this span is a candidate.
+			local landmarkOrder = (district :: any).landmarkOrder
+			if landmarkOrder then
+				candidates = {}
+				for _, wanted in landmarkOrder do
+					local placedHere = false
+					for _, lm in landmarks do
+						if lm.id == wanted and lm.station >= span.startS and lm.station < span.endS then
+							placedHere = true
+							break
+						end
+					end
+					if not placedHere then
+						table.insert(candidates, wanted)
+						break
+					end
 				end
 			end
 			for _, id in candidates do

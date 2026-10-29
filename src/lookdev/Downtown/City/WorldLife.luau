@@ -62,6 +62,11 @@ export type Stats = {
 type Tumbleweed = { part: Part, station: number, side: number, speed: number, phase: number, angle: number }
 type Bird = { left: BasePart, right: BasePart, body: BasePart, offset: Vector3, phase: number }
 type Smoke = { emitter: ParticleEmitter, part: Part }
+-- World build V2: skaters on the lake (two loops), chairs on the lift's far legs (never over the road), a re-homing smoke pool
+type Skater = { body: Part, head: Part, loop: number, phase: number, speed: number }
+type Chair = { seat: Part, hanger: Part, leg: number, u: number, dir: number, speed: number }
+type Loop = { centre: CFrame, radiusX: number, radiusZ: number }
+type Leg = { points: { Vector3 }, length: number }
 
 type Fields = {
 	id: string,
@@ -79,6 +84,11 @@ type Fields = {
 	snow: Part?,
 	snowEmitter: ParticleEmitter?,
 	smoke: { Smoke },
+	chimneys: { Vector3 }, -- every candidate chimney top in the plan (V2): the smoke pool re-homes to the nearest ones
+	skaters: { Skater },
+	loops: { Loop },
+	chairs: { Chair },
+	legs: { Leg },
 	reduced: boolean,
 	clock: number,
 	accumulator: number,
@@ -150,6 +160,11 @@ function WorldLife.new(options: Options): WorldLife
 		snow = nil,
 		snowEmitter = nil,
 		smoke = {},
+		chimneys = {},
+		skaters = {},
+		loops = {},
+		chairs = {},
+		legs = {},
 		reduced = Util.reducedMotion(),
 		clock = 0,
 		accumulator = 0,
@@ -224,7 +239,7 @@ function WorldLife.new(options: Options): WorldLife
 		self.snow, self.snowEmitter = snow, e
 		for _, lm in options.plan.landmarks do
 			local spots = SMOKE[lm.id]
-			if spots and lm.placement ~= "bridge" then
+			if spots and lm.placement ~= "bridge" and not options.world.v2 then
 				for _, spot in spots do
 					if #self.smoke < 5 then
 						local part = anchoredPart(folder, "ChimneyOrigin", Vector3.new(1, 1, 1))
@@ -250,6 +265,131 @@ function WorldLife.new(options: Options): WorldLife
 						table.insert(self.smoke, { emitter = s, part = part })
 					end
 				end
+			end
+		end
+	end
+	if id == "SummitPass" and options.world.v2 then
+		-- World build V2 (decision 0026): a smoke pool of five that re-homes to the nearest chimneys (plan 5.9), skaters on
+		-- two loops on the lake, and chairs that move only on the lift's far legs, never over the road (Option M is a proposal)
+		local chimneys: { [string]: { Vector3 } } = options.world.v2.chimneys or {}
+		for _, lm in options.plan.landmarks do
+			local spots = SMOKE[lm.id] or chimneys[lm.module]
+			if spots and lm.placement ~= "bridge" then
+				for _, spot in spots do
+					table.insert(self.chimneys, (lm.pivot * CFrame.new(spot)).Position)
+				end
+			end
+		end
+		for _, lot in options.plan.lots do
+			local spots = chimneys[lot.module]
+			if spots then
+				for _, spot in spots do
+					table.insert(self.chimneys, (lot.pivot * CFrame.new(spot)).Position)
+				end
+			end
+		end
+		for _ = 1, 5 do
+			local part = anchoredPart(folder, "ChimneyOrigin", Vector3.new(1, 1, 1))
+			local a2 = Instance.new("Attachment")
+			a2.Parent = part
+			local s = emitter(a2, "ChimneySmoke")
+			s.Rate = 4
+			s.Lifetime = NumberRange.new(3, 4.5)
+			s.Speed = NumberRange.new(2, 3)
+			s.EmissionDirection = Enum.NormalId.Top
+			s.SpreadAngle = Vector2.new(10, 10)
+			s.Acceleration = Vector3.new(0.5, 0.4, 0)
+			s.Rotation = NumberRange.new(0, 360)
+			s.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 4) })
+			s.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.55),
+				NumberSequenceKeypoint.new(0.4, 0.7),
+				NumberSequenceKeypoint.new(1, 1),
+			})
+			s.Color = ColorSequence.new(Color3.fromRGB(238, 242, 248))
+			table.insert(self.smoke, { emitter = s, part = part })
+		end
+		local world = options.plan.world
+		local bunting = { Color3.fromRGB(70, 170, 170), Color3.fromRGB(204, 72, 66), Color3.fromRGB(242, 190, 78) }
+		for _, lake in if world then world.lake or {} else {} do
+			local mid = (lake.nearEdge + lake.farEdge) / 2
+			local across = lake.farEdge - lake.nearEdge
+			for k, spec in { { 0.3, 0.32, 0.9 }, { 0.7, 0.26, 0.7 } } do
+				local lateral = mid + (spec[1] - 0.5) * across
+				local centre = Route.frame(
+					options.plan.segments,
+					lake.station + (k - 1.5) * lake.along * 0.3,
+					lake.side * lateral,
+					2
+				)
+				table.insert(
+					self.loops,
+					{ centre = centre, radiusX = lake.along * spec[2], radiusZ = across * 0.12 * spec[3] }
+				)
+				for i = 1, 3 do
+					local body = Parts.block(
+						folder,
+						"Skater",
+						Vector3.new(1, 2.6, 1),
+						CFrame.new(0, -500, 0),
+						bunting[(i + k) % 3 + 1]
+					)
+					local head = Parts.block(
+						folder,
+						"SkaterHead",
+						Vector3.new(0.9, 0.9, 0.9),
+						CFrame.new(0, -500, 0),
+						Color3.fromRGB(240, 214, 190),
+						Enum.PartType.Ball
+					)
+					body.CastShadow, head.CastShadow = false, false
+					table.insert(
+						self.skaters,
+						{ body = body, head = head, loop = #self.loops, phase = i * 2.1 + k, speed = 0.07 + 0.02 * i }
+					)
+				end
+			end
+		end
+		for _, lift in if world then world.lift or {} else {} do
+			for _, leg in lift.legs or {} do
+				local points: { Vector3 } = leg
+				if #points >= 2 then
+					local length = 0
+					for i = 1, #points - 1 do
+						length += (points[i + 1] - points[i]).Magnitude
+					end
+					table.insert(self.legs, { points = points, length = length })
+				end
+			end
+		end
+		if #self.legs > 0 then
+			for i = 1, 6 do
+				local seat = Parts.block(
+					folder,
+					"ChairSeat",
+					Vector3.new(3, 0.5, 2.2),
+					CFrame.new(0, -500, 0),
+					if i % 2 == 0 then Color3.fromRGB(204, 72, 66) else Color3.fromRGB(70, 170, 170)
+				)
+				local hanger = Parts.block(
+					folder,
+					"ChairHanger",
+					Vector3.new(0.3, 4, 0.3),
+					CFrame.new(0, -500, 0),
+					Color3.fromRGB(60, 62, 70)
+				)
+				seat.CastShadow, hanger.CastShadow = false, false
+				table.insert(
+					self.chairs,
+					{
+						seat = seat,
+						hanger = hanger,
+						leg = (i - 1) % #self.legs + 1,
+						u = ((i - 1) // #self.legs) * 0.3 + 0.1,
+						dir = if i % 2 == 0 then 1 else -1,
+						speed = 3,
+					}
+				)
 			end
 		end
 	end
@@ -305,6 +445,11 @@ function WorldLife.step(self: WorldLife, dt: number)
 	for _, w in self.tumbleweeds do
 		if w.station < station - BEHIND or w.station > station + AHEAD + 60 then
 			rehome(self, w, station)
+		end
+		-- World build V2: a tumbleweed never rolls onto a bridge deck (with a true gorge it would roll on air beside the deck)
+		local under = segments[Route.find(segments, w.station)]
+		if under and under.kind == "BridgeDeck" then
+			w.station = under.endS + 30
 		end
 		if not reduced then
 			w.station += w.speed * dt
@@ -366,8 +511,107 @@ function WorldLife.step(self: WorldLife, dt: number)
 		end
 		snowEmitter.Enabled = focus ~= nil
 	end
+	-- World build V2: the smoke pool of five re-homes to the nearest chimneys within NEAR of the camera
+	local focus0 = points[1]
+	if #self.chimneys > 0 and #self.smoke > 0 and focus0 then
+		local order: { { d: number, p: Vector3 } } = {}
+		for _, p in self.chimneys do
+			local d = (p - focus0).Magnitude
+			if d <= NEAR then
+				table.insert(order, { d = d, p = p })
+			end
+		end
+		table.sort(order, function(a, b)
+			return a.d < b.d
+		end)
+		local chosen: { Vector3 } = {}
+		for i = 1, math.min(#self.smoke, #order) do
+			table.insert(chosen, order[i].p)
+		end
+		local function has(list: { { emitter: ParticleEmitter, part: Part } }, p: Vector3): boolean
+			for _, s in list do
+				if (s.part.Position - p).Magnitude < 0.5 then
+					return true
+				end
+			end
+			return false
+		end
+		local free: { Vector3 } = {}
+		for _, p in chosen do
+			if not has(self.smoke, p) then
+				table.insert(free, p)
+			end
+		end
+		for _, s in self.smoke do
+			local keep = false
+			for _, p in chosen do
+				if (s.part.Position - p).Magnitude < 0.5 then
+					keep = true
+					break
+				end
+			end
+			if not keep then
+				s.part.CFrame = CFrame.new(table.remove(free) or Vector3.new(0, -500, 0))
+			end
+		end
+	end
 	for _, s in self.smoke do
 		s.emitter.Enabled = nearest(points, s.part.Position) <= NEAR
+	end
+	-- skaters: two loops on the lake, at rest in reduced motion
+	if #self.skaters > 0 then
+		local list: { BasePart }, cfs: { CFrame } = {}, {}
+		for _, k in self.skaters do
+			local loop = self.loops[k.loop]
+			if nearest(points, loop.centre.Position) <= SKY_NEAR then
+				local a = k.phase + (if reduced then 0 else self.clock * k.speed * math.pi * 2)
+				local at = loop.centre * CFrame.new(math.cos(a) * loop.radiusX, 0, math.sin(a) * loop.radiusZ)
+				local ahead = loop.centre
+					* CFrame.new(math.cos(a + 0.05) * loop.radiusX, 0, math.sin(a + 0.05) * loop.radiusZ)
+				local facing = CFrame.lookAt(at.Position, ahead.Position)
+				table.insert(list, k.body)
+				table.insert(cfs, facing)
+				table.insert(list, k.head)
+				table.insert(cfs, facing * CFrame.new(0, 1.7, 0))
+			end
+		end
+		if #list > 0 then
+			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
+	end
+	-- lift chairs: only on the far legs (never over the road); at rest in reduced motion
+	if #self.chairs > 0 then
+		local list: { BasePart }, cfs: { CFrame } = {}, {}
+		for _, c in self.chairs do
+			local leg = self.legs[c.leg]
+			if not reduced then
+				c.u += c.dir * c.speed * 0.1 / leg.length
+				if c.u >= 1 then
+					c.u, c.dir = 1, -1
+				elseif c.u <= 0 then
+					c.u, c.dir = 0, 1
+				end
+			end
+			local want = c.u * leg.length
+			local p = leg.points[#leg.points]
+			for i = 1, #leg.points - 1 do
+				local seg = (leg.points[i + 1] - leg.points[i]).Magnitude
+				if want <= seg then
+					p = leg.points[i]:Lerp(leg.points[i + 1], want / math.max(seg, 1e-3))
+					break
+				end
+				want -= seg
+			end
+			if nearest(points, p) <= SKY_NEAR then
+				table.insert(list, c.hanger)
+				table.insert(cfs, CFrame.new(p - Vector3.new(0, 2.2, 0)))
+				table.insert(list, c.seat)
+				table.insert(cfs, CFrame.new(p - Vector3.new(0, 4.6, 0)))
+			end
+		end
+		if #list > 0 then
+			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
 	end
 end
 

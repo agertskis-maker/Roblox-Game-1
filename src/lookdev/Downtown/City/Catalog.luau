@@ -947,6 +947,10 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 			want(g.wallEnd)
 			want(g.pylon)
 		end
+		-- every other mesh a placement feature names (pins, chains, lake, tunnel, lift, companions)
+		for _, name in def.v2.meshes or {} do
+			want(name)
+		end
 		cat.sizes = sizes
 	end
 	if cat.kitCount > 0 then

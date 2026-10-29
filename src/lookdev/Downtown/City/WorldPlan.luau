@@ -22,6 +22,8 @@
 --   welcomeLater     string       text of the welcome span on cycles after the first
 --   sizes            { [mesh]: Vector3 }  nominal sizes, used until the kit's own bounds are known (Catalog.sizes)
 
+local Features = require(script.Parent.WorldFeatures)
+
 local WorldPlan = {}
 
 type Helpers = {
@@ -47,6 +49,7 @@ export type Rule = {
 	recent: number?, -- a module is not repeated within this many picks on a side (default 2)
 	reuseGap: number?, -- the same module is not used again within this many studs on a side
 	hazardClear: boolean?, -- keep out of the 60 studs before and 10 after a hazard when the pivot is within 120 of the line
+	hazardBefore: number?, -- studs before a hazard to keep clear instead of 60 (Summit's calm zone is 120)
 	skipBridge: boolean?, -- never on a bridge deck span or inside the gorge (default true)
 	colour: Color3?, -- proxy colour
 	sides: string?, -- "both" (default) | "alternate" (one side per piece)
@@ -99,7 +102,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	local v2 = world.v2
 	local notes: { string } = {}
 	local stats: { [string]: number } = {}
-	local info = { notes = notes, stats = stats, gorges = {} :: { { [string]: any } } }
+	local info: any = { notes = notes, stats = stats, gorges = {} :: { { [string]: any } } }
 	plan.world = info
 	local extras = plan.extras
 	local halfRoad = plan.halfRoad
@@ -279,6 +282,23 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		return false
 	end
 
+	local ctx: Features.Ctx = {
+		plan = plan,
+		catalog = catalog,
+		v2 = v2,
+		h = h,
+		extras = extras,
+		info = info,
+		halfRoad = halfRoad,
+		sizeOf = function(entry: any): Vector3
+			return sizeOf(entry :: PoolEntry)
+		end,
+		rngFor = rngFor,
+		onBridge = onBridge,
+		nearHazard = nearHazard,
+		inGorge = inGorge,
+	}
+
 	-- 2. the base planner's masses are replaced by the scatter rules ---------------------------------
 	if v2.replaceMasses then
 		stats.massesDropped = #plan.masses
@@ -442,8 +462,13 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 				continue
 			end
 			local rng = rngFor(span, rule.id)
-			local sideList = if rule.sides == "alternate" then { 0 } else { -1, 1 }
-			local perSide = density / (if rule.sides == "alternate" then 100 else 200) -- pieces per stud on one side
+			local single = rule.sides == "alternate" or rule.sides == "outside" or rule.sides == "inside"
+			local sideList: { number } = if rule.sides == "alternate"
+				then { 0 }
+				elseif rule.sides == "outside" then { Features.outsideSide(ctx, span) }
+				elseif rule.sides == "inside" then { -Features.outsideSide(ctx, span) }
+				else { -1, 1 }
+			local perSide = density / (if single then 100 else 200) -- pieces per stud on one side
 			local flip = if rng:NextNumber() < 0.5 then -1 else 1
 			for _, sd in sideList do
 				local recent: { string } = {}
@@ -491,7 +516,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 							ok
 							and rule.hazardClear
 							and lateral < 120
-							and nearHazard(station, 60 + radius, 10 + radius)
+							and nearHazard(station, (rule.hazardBefore or 60) + radius, 10 + radius)
 						then
 							ok = false
 						end
@@ -542,6 +567,14 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		placedBy[rule.id] = count
 		stats["rule:" .. rule.id] = count
 	end
+
+	-- 6b. the placement features: pins, chains, lake, tunnel, lift, companions (see WorldFeatures) -----------------
+	Features.pins(ctx)
+	Features.chains(ctx)
+	Features.lake(ctx)
+	Features.tunnel(ctx)
+	Features.lift(ctx)
+	Features.companions(ctx)
 
 	-- 7. later laps carry a different welcome span (Summit Pass: "KEEP CLIMBING!") --------------------------
 	if v2.welcomeLater then
