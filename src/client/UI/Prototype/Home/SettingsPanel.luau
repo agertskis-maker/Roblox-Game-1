@@ -1,12 +1,17 @@
 --!strict
 -- Home HUD: preview Settings panel (Lane 3 preview, HUD rebuild 2026-10-22; ledger H-14).
--- Every control does exactly what it says for this session only; nothing is saved and no
--- schema is added ("Preview: not saved" is a harness caption on the card).
+-- Every control does exactly what it says for this client session; nothing is saved and no
+-- schema is added ("Preview: kept this session, not saved" is a harness caption on the card).
 --
---   Music          slider -> store.settings.music via Home/MusicSetting, which sets the preview
---                  music SoundGroup "Lane3PreviewMusic" (0 while the Home Music toggle is Off;
---                  the line under the label says so)
---   Sound effects  slider -> store.settings.sfx -> the preview SoundGroup "Lane3PreviewUI"
+--   Music / Sound effects   (2026-10-29, Design 7; spec vault/design/ui/settings-sound.md, awaiting Adam's visual
+--                  approval) two AUDIO ROWS: a 48 x 48 mute button with the note / speaker icon (a slash and "MUTED"
+--                  when muted, never colour alone), the label, a right-aligned whole percentage, and a 0 to 100 slider
+--                  beneath (navy recessed track, cream inactive part, teal fill, cream knob). Home/MusicSetting turns them
+--                  into the player's level on the "Music" / "Effects" category groups (AudioMix). Music On / Off is the
+--                  MUSIC mute (the Home switch shows the same state). Mute keeps the level; unmute restores it (100 if
+--                  none); a slider above 0 unmutes; 0 is muted. The SOUND EFFECTS slider plays a soft 70 ms preview tick
+--                  through Effects: at most one per 150 ms while dragging, one on release when the level moved, none at 0.
+--                  NORMAL frames stack the two rows; COMPACT (phone) frames put them side by side.
 --   Reduce motion  three choices -> Motion.setOverride(nil | true | false):
 --                  "Use Roblox setting" (default, follows GuiService.ReducedMotionEnabled),
 --                  "On", "Off". The line under the label shows the effective state.
@@ -23,23 +28,23 @@
 -- fill, white knob with a dark outline) and segment buttons (gold when chosen, with a tick, so
 -- the state is not colour alone).
 --
--- Input: sliders take drag and tap (mouse and touch) and, while selected with a gamepad or
--- keyboard navigation, Left / Right (arrow keys, D-pad) in 10% steps (ContextActionService,
--- bound only while the slider is selected). Close, Escape and ButtonB close the panel (Back is
--- bound only while open). Tapping the dim backdrop also closes it. Opening selects the first
--- control when the last input was a gamepad (or keyboard navigation was active); closing returns
+-- Input: sliders take drag and tap (mouse and touch). A drag owns the one pointer that started it until that pointer ends
+-- or is cancelled (or the window loses focus), clamps to 0 and 100 anywhere on screen, and ends when the card closes. While
+-- selected with a gamepad or keyboard navigation, Left / Right (arrow keys, D-pad) move a slider in 5-point steps
+-- (read from UserInputService while that slider is selected); on a mute button Right goes to its slider. Close,
+-- Escape and ButtonB close the panel (Back is bound only while open). Tapping the dim backdrop also closes it.
+-- Opening selects the first control when the last input was a gamepad (or keyboard navigation was active); closing returns
 -- the selection to the opener (the Home Settings button) when it is still on screen, otherwise
 -- clears it. Gamepad selection is kept inside the card (SelectionGroup with Stop behaviours).
 --
--- Layout: centred card with wide rows on every (landscape) profile. Hit targets are 48 px or larger. With four rows the
--- card no longer fits the short phone frames (safe height under COMPACT_BELOW design px: 300 and 325), so those use the
--- tighter COMPACT metrics (shorter title and rows, the harness caption moved into the title row); taller frames keep the
--- NORMAL metrics.
+-- Layout: centred card with wide rows on every (landscape) profile. Hit targets are 48 px or larger. The short phone frames
+-- (safe height under COMPACT_BELOW design px: 300 and 325) use the COMPACT metrics (shorter title and rows, the harness
+-- caption in the title row, the two audio rows side by side); taller frames keep the NORMAL metrics.
 --
 -- API: SettingsPanel.new(ctx, { onClosed: (() -> ())? }?) -> SettingsPanel
 --   :open(opener: GuiObject?)  :close()  :isOpen() -> boolean
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()
---   :getControls() -> { music, sfx, motionRoblox, motionOn, motionOff, haptics, close }  (test hook)
+--   :getControls() -> { music, sfx, musicMute, sfxMute, motionRoblox, motionOn, motionOff, haptics, close }  (test hook)
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -49,6 +54,7 @@ local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
 local Arcade = require(script.Parent.Parent.Arcade)
+local AudioMix = require(script.Parent.Parent.AudioMix)
 local Fade = require(script.Parent.Fade)
 local Haptics = require(script.Parent.Parent.Run.Haptics)
 local IconArt = require(script.Parent.IconArt)
@@ -68,11 +74,23 @@ local make = Arcade.make
 
 local OVERRIDE = "Lane3ReducedMotionOverride"
 local BACK_ACTION = "Lane3PreviewSettingsBack"
-local SLIDER_ACTION = "Lane3PreviewSettingsSlider"
-local PAD = 20
-local KNOB = 30
+local PAD = 16 -- Design 7 side padding (was 20)
 local LABEL = Tokens.TextSize.Value
 local VALUE = Tokens.TextSize.Minimum
+-- Design 7 audio rows (Adam's proposed values; spec section 2)
+local AUDIO_H = 80
+local MUTE = Tokens.Touch.Minimum -- the mute button, 48 x 48
+local AUDIO_TEXT_X = MUTE + 8 -- the label and the slider start here
+local AUDIO_LABEL = Tokens.TextSize.Label -- 18
+local KNOB = 24
+local SURROUND_H = 16 -- the navy recessed surround around the 10 px visual track
+local TRACK_H = 10
+local SLIDER_Y = 64 -- the slider hit box (48 high) is centred here: y 40 to 88
+local COLUMN_GAP = 24 -- COMPACT: between the two audio rows (12 left MUSIC's "MUTED" reading as part of the next row)
+local KEY_STEP = 0.05 -- keyboard / gamepad: 5 points
+local TICK_GAP = 0.15 -- the preview tick: at most one per 150 ms
+local TRACK_CREAM = Tokens.Color.Card
+local TRACK_TEAL = Tokens.Color.Calm
 -- TOKEN CANDIDATE: the settings card body (deep navy) and an unchosen segment.
 local CARD_FILL = ColorSequence.new(Color3.fromRGB(58, 74, 126), Color3.fromRGB(28, 36, 72))
 local SEGMENT_OFF = Color3.fromRGB(70, 86, 140)
@@ -81,17 +99,20 @@ local HAPTICS_ON_LINE = "Buzz when you get a car"
 local HAPTICS_OFF_LINE = "Buzz is off"
 local HAPTICS_UNAVAILABLE_LINE = "Not available on this device"
 
--- TOKEN CANDIDATE: card metrics. COMPACT is used when the safe height is under COMPACT_BELOW design px (the phone frames),
--- so four rows still fit: 52 + 4 x 52 + 3 x 4 + 10 = 282 px against the smallest safe height of 300. NORMAL is the
--- earlier look with a fourth row (388 px, against 495 on the tablet).
+-- TOKEN CANDIDATE: card metrics. COMPACT is used when the safe height is under COMPACT_BELOW design px (the phone frames):
+-- the two 80 px audio rows side by side, then two 52 px rows: 52 + 80 + 8 + 52 + 4 + 52 + 10 = 258 px against the smallest
+-- safe height of 300 (four stacked rows would need 338). NORMAL stacks all four: 70 + 80 + 12 + 80 + 12 + 60 + 12 + 60 + 48
+-- = 434 px, against 495 on the tablet.
 local COMPACT_BELOW = 400
 type Metrics = {
 	titleY: number, -- the "Settings" title top
 	titleBoxH: number,
 	closeY: number, -- the Close button top
 	rowsTop: number, -- where the first row starts
-	rowH: number,
+	rowH: number, -- Reduce motion and Haptics
 	gap: number, -- between rows
+	audioGap: number, -- under the audio rows
+	audioColumns: boolean, -- the two audio rows side by side (COMPACT)
 	labelH: number,
 	valueY: number, -- the small line under the row label
 	controlY: number,
@@ -104,7 +125,9 @@ local NORMAL: Metrics = {
 	closeY = 10,
 	rowsTop = 70,
 	rowH = 60,
-	gap = 10,
+	gap = 12,
+	audioGap = 12,
+	audioColumns = false,
 	labelH = 34,
 	valueY = 34,
 	controlY = 6,
@@ -118,6 +141,8 @@ local COMPACT: Metrics = {
 	rowsTop = 52,
 	rowH = 52,
 	gap = 4,
+	audioGap = 8,
+	audioColumns = true,
 	labelH = 30,
 	valueY = 30,
 	controlY = 2,
@@ -141,11 +166,21 @@ export type SettingsPanel = {
 
 type Slider = {
 	hit: TextButton,
-	track: Frame,
+	track: Frame, -- the navy surround: positions are measured across it
 	fill: Frame,
 	knob: Frame,
-	value: number,
-	set: (v: number, fromUser: boolean) -> (),
+	value: number, -- the level shown (the effective level: 0 while muted)
+	dragStart: number, -- the level when the current drag started (kept for unmute when the drag ends at 0)
+	set: (v: number, fromUser: boolean, kept: number?) -> (),
+}
+
+-- One audio row (Design 7): the mute button, the percentage and the slider of one category.
+type AudioRow = {
+	category: MusicSetting.Category,
+	mute: TextButton,
+	slash: Frame,
+	pct: TextLabel,
+	slider: Slider,
 }
 
 type Segment = { button: TextButton, choice: string, tick: Frame, text: TextLabel, gradient: UIGradient }
@@ -186,6 +221,11 @@ local function choiceNow(): string
 	return "Roblox"
 end
 
+local function rectOf(g: GuiObject): { number }
+	local p, z = g.AbsolutePosition, g.AbsoluteSize
+	return { math.floor(p.X + 0.5), math.floor(p.Y + 0.5), math.floor(z.X + 0.5), math.floor(z.Y + 0.5) }
+end
+
 local function pct(v: number): string
 	return string.format("%d%%", math.floor(v * 100 + 0.5))
 end
@@ -200,9 +240,14 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	self._kind = ""
 	self._content = self._trove:Extend()
 	self._sliders = {} :: { [string]: Slider }
+	self._audio = {} :: { [string]: AudioRow } -- "music" / "sfx"
 	self._segments = {} :: { Segment }
-	self._dragging = nil :: InputObject?
+	self._dragging = nil :: InputObject? -- the one pointer that owns the current drag
 	self._dragSlider = nil :: Slider?
+	self._tickAt = -math.huge -- the last preview tick (os.clock)
+	self._tickLevel = -1 -- the effects level it was played at
+	self._tickTimer = nil :: thread? -- a release tick waiting for the 150 ms gap
+	self._ticks = 0
 	self._closeToken = 0
 	self._haptics = nil :: Arcade.Toggle? -- the Haptics switch (rebuilt with the card)
 	self._hapticsDim = nil :: Frame? -- the "not available" shade over the switch
@@ -240,6 +285,7 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 		if not slider or not drag then
 			return
 		end
+		-- only the owning pointer moves the knob: the same touch, or the mouse while its button holds the drag
 		local mouseDrag = drag.UserInputType == Enum.UserInputType.MouseButton1
 			and input.UserInputType == Enum.UserInputType.MouseMovement
 		if input == drag or mouseDrag then
@@ -248,8 +294,49 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	end)
 	self._trove:Connect(UserInputService.InputEnded, function(input: InputObject)
 		local drag: InputObject? = self._dragging
-		if drag and (input == drag or input.UserInputType == drag.UserInputType) then
+		if not drag then
+			return
+		end
+		-- the owning pointer ended or was cancelled; another finger lifting does not end it
+		local mouseUp = drag.UserInputType == Enum.UserInputType.MouseButton1
+			and input.UserInputType == Enum.UserInputType.MouseButton1
+		if input == drag or mouseUp then
 			self:_endDrag()
+		end
+	end)
+	-- Left / Right (arrow keys, D-pad) on a SELECTED slider: 5-point steps. Roblox's GUI navigation marks these keys as
+	-- processed before ContextActionService sees them (measured in Studio Play, 2026-10-29: the old CAS binding never fired),
+	-- so the panel reads them here, and only while one of its sliders is the selected object. The slider's own NextSelection
+	-- Left / Right point at itself, so the selection never moves; Up / Down still navigate and nothing traps the focus.
+	self._trove:Connect(UserInputService.InputBegan, function(input: InputObject)
+		local k = input.KeyCode
+		local dir = if k == Enum.KeyCode.Left or k == Enum.KeyCode.DPadLeft
+			then -1
+			elseif k == Enum.KeyCode.Right or k == Enum.KeyCode.DPadRight then 1
+			else 0
+		if dir == 0 or not self._open then
+			return
+		end
+		local selected = GuiService.SelectedObject
+		for _, slider: Slider in self._sliders do
+			if slider.hit == selected then
+				local before = slider.value
+				slider.set(math.floor((before + dir * KEY_STEP) * 100 + 0.5) / 100, true, before)
+				if slider == self._sliders.sfx then
+					self:_tick(true)
+				end
+				return
+			end
+		end
+	end)
+	self._trove:Connect(UserInputService.WindowFocusReleased, function()
+		self:_endDrag()
+	end)
+	self._trove:Add(function()
+		local timer: thread? = self._tickTimer
+		self._tickTimer = nil
+		if timer then
+			task.cancel(timer)
 		end
 	end)
 	self._trove:Add(Motion.onReducedChanged(function()
@@ -261,7 +348,6 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	end))
 	self._trove:Add(function()
 		ContextActionService:UnbindAction(BACK_ACTION)
-		ContextActionService:UnbindAction(SLIDER_ACTION)
 		if self._fade then
 			self._fade:destroy()
 		end
@@ -273,23 +359,55 @@ function SettingsPanel.new(ctx: Types.Ctx, opts: Options?): SettingsPanel
 	return self :: SettingsPanel
 end
 
+-- The SOUND EFFECTS preview tick, through Effects at the new level. `final` is a release or a key step: it plays only when
+-- the level moved since the last tick, and waits out the 150 ms gap instead of being dropped. Never at 0, never overlapping
+-- (the tick is 70 ms long, ticks are at least 150 ms apart).
+function SettingsPanel._tick(self: any, final: boolean)
+	local level = MusicSetting.effective(self._ctx.store, "Effects")
+	local timer: thread? = self._tickTimer
+	if timer then
+		self._tickTimer = nil
+		task.cancel(timer)
+	end
+	if level <= 0 or math.abs(level - self._tickLevel) < 0.005 then
+		return
+	end
+	local wait = self._tickAt + TICK_GAP - os.clock()
+	if wait > 0 then
+		if final then
+			self._tickTimer = task.delay(wait + 0.005, function()
+				self._tickTimer = nil
+				self:_tick(true)
+			end)
+		end
+		return
+	end
+	self._tickAt = os.clock()
+	self._tickLevel = level
+	self._ticks += 1
+	Sounds.play("VolumeTick")
+end
+
 function SettingsPanel._endDrag(self: any)
 	local slider: Slider? = self._dragSlider
 	self._dragging = nil
 	self._dragSlider = nil
 	if slider and slider == self._sliders.sfx then
-		Sounds.play("Tap") -- lets the player hear the new effects level
+		self:_tick(true) -- lets the player hear the new effects level
 	end
 end
 
-function SettingsPanel._setFromX(_self: any, slider: Slider, x: number)
+function SettingsPanel._setFromX(self: any, slider: Slider, x: number)
 	local left = slider.track.AbsolutePosition.X
 	local width = slider.track.AbsoluteSize.X
 	if width <= 0 then
 		return
 	end
-	local v = math.clamp((x - left) / width, 0, 1)
-	slider.set(math.floor(v * 20 + 0.5) / 20, true)
+	local v = math.clamp((x - left) / width, 0, 1) -- clamps anywhere on screen, inside the card or not
+	slider.set(math.floor(v * 100 + 0.5) / 100, true, slider.dragStart)
+	if slider == self._sliders.sfx then
+		self:_tick(false)
+	end
 end
 
 function SettingsPanel._makeSlider(
@@ -298,7 +416,7 @@ function SettingsPanel._makeSlider(
 	name: string,
 	width: number,
 	initial: number,
-	onChange: (number) -> ()
+	onChange: (number, number?) -> ()
 ): Slider
 	local trove = self._content
 	local hit = make("TextButton", {
@@ -314,37 +432,47 @@ function SettingsPanel._makeSlider(
 	hit.SelectionImageObject = selectionRing(hit)
 	hit.NextSelectionLeft = hit
 	hit.NextSelectionRight = hit
+	-- Design 7: a navy recessed surround (16 high) holding the 10 px cream track; the knob's centre runs end to end
 	local track = make("Frame", {
 		Name = "Track",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, KNOB / 2, 0.5, 0),
-		Size = UDim2.new(1, -KNOB, 0, 14),
+		Size = UDim2.new(1, -KNOB, 0, SURROUND_H),
 		BackgroundColor3 = A.Ink,
 		ZIndex = 45,
 		Parent = hit,
 	})
-	Arcade.corner(track, 7)
-	Arcade.outline(track, 2, Color3.new(1, 1, 1))
-	local fill = make("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(initial, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
+	Arcade.corner(track, SURROUND_H // 2)
+	local inner = make("Frame", {
+		Name = "Inactive",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, (SURROUND_H - TRACK_H) // 2, 0.5, 0),
+		Size = UDim2.new(1, -(SURROUND_H - TRACK_H), 0, TRACK_H),
+		BackgroundColor3 = TRACK_CREAM,
 		ZIndex = 46,
 		Parent = track,
 	})
-	Arcade.corner(fill, 7)
-	make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = fill })
+	Arcade.corner(inner, TRACK_H // 2)
+	local fill = make("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(initial, 1),
+		BackgroundColor3 = TRACK_TEAL,
+		Visible = initial > 0, -- no misleading sliver at 0
+		ZIndex = 47,
+		Parent = inner,
+	})
+	Arcade.corner(fill, TRACK_H // 2)
 	local knob = make("Frame", {
 		Name = "Knob",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(initial, 0.5),
 		Size = UDim2.fromOffset(KNOB, KNOB),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ZIndex = 47,
+		BackgroundColor3 = TRACK_CREAM,
+		ZIndex = 48,
 		Parent = track,
 	})
-	Arcade.corner(knob, B.Radius)
-	Arcade.outline(knob, "Button")
+	Arcade.corner(knob, KNOB // 2)
+	Arcade.outline(knob, 2, A.Ink)
 	local slider: Slider
 	slider = {
 		hit = hit,
@@ -352,49 +480,29 @@ function SettingsPanel._makeSlider(
 		fill = fill,
 		knob = knob,
 		value = initial,
-		set = function(v: number, fromUser: boolean)
+		dragStart = initial,
+		set = function(v: number, fromUser: boolean, kept: number?)
 			local clamped = math.clamp(v, 0, 1)
 			slider.value = clamped
 			fill.Size = UDim2.fromScale(clamped, 1)
+			fill.Visible = clamped > 0
 			knob.Position = UDim2.fromScale(clamped, 0.5)
 			if fromUser then
-				onChange(clamped)
+				onChange(clamped, kept)
 			end
 		end,
 	}
 	trove:Connect(hit.InputBegan, function(input: InputObject)
 		local t = input.UserInputType
+		if self._dragging then
+			return -- a drag already owns a pointer: a second finger neither steals nor restarts it
+		end
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			self._dragging = input
 			self._dragSlider = slider
+			slider.dragStart = slider.value
 			self:_setFromX(slider, input.Position.X)
 		end
-	end)
-	trove:Connect(hit.SelectionGained, function()
-		ContextActionService:BindActionAtPriority(
-			SLIDER_ACTION,
-			function(_name: string, state: Enum.UserInputState, input: InputObject)
-				if state ~= Enum.UserInputState.Begin then
-					return Enum.ContextActionResult.Sink
-				end
-				local k = input.KeyCode
-				local step = if k == Enum.KeyCode.Left or k == Enum.KeyCode.DPadLeft then -0.1 else 0.1
-				slider.set(math.floor((slider.value + step) * 10 + 0.5) / 10, true)
-				if slider == self._sliders.sfx then
-					Sounds.play("Tap")
-				end
-				return Enum.ContextActionResult.Sink
-			end,
-			false,
-			Enum.ContextActionPriority.High.Value,
-			Enum.KeyCode.Left,
-			Enum.KeyCode.Right,
-			Enum.KeyCode.DPadLeft,
-			Enum.KeyCode.DPadRight
-		)
-	end)
-	trove:Connect(hit.SelectionLost, function()
-		ContextActionService:UnbindAction(SLIDER_ACTION)
 	end)
 	return slider
 end
@@ -423,22 +531,134 @@ function SettingsPanel._refreshMotion(self: any)
 	end
 end
 
+-- Each audio row shows the level as heard: the slider and the percentage follow the effective level, and a muted (or 0)
+-- category shows the slash, a navy button and "MUTED" (state is never colour alone).
 function SettingsPanel._refreshSound(self: any)
-	local s = self._ctx.store:get().settings
-	local music: Slider? = self._sliders.music
-	if music then
-		music.set(s.music, false)
+	local store = self._ctx.store
+	for _, row: AudioRow in self._audio do
+		local level = MusicSetting.effective(store, row.category)
+		local muted = level <= 0
+		row.slider.set(level, false)
+		row.pct.Text = if muted then "MUTED" else pct(level)
+		row.slash.Visible = muted
+		row.mute.BackgroundColor3 = if muted then A.Ink else SEGMENT_OFF
 	end
-	local sfx: Slider? = self._sliders.sfx
-	if sfx then
-		sfx.set(s.sfx, false)
-	end
-	if self._musicValue then
-		self._musicValue.Text = if s.musicOn == false then pct(s.music) .. " · Music is Off" else pct(s.music)
-	end
-	if self._sfxValue then
-		self._sfxValue.Text = pct(s.sfx)
-	end
+end
+
+-- One Design 7 audio row (80 high): the mute button (48 x 48) on the left, the label and the right-aligned percentage on
+-- the 48 px top line, the slider beneath from the label's x to the row's right edge.
+function SettingsPanel._audioRow(
+	self: any,
+	parent: Instance,
+	key: string,
+	category: MusicSetting.Category,
+	icon: string,
+	text: string,
+	x: number,
+	y: number,
+	width: number
+): AudioRow
+	local ctx: Types.Ctx = self._ctx
+	local trove = self._content
+	local row = make("Frame", {
+		Name = "Audio" .. category,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(x, y),
+		Size = UDim2.fromOffset(width, AUDIO_H),
+		ZIndex = 42,
+		Parent = parent,
+	})
+	local mute = make("TextButton", {
+		Name = "Mute",
+		Size = UDim2.fromOffset(MUTE, MUTE),
+		BackgroundColor3 = SEGMENT_OFF,
+		AutoButtonColor = false,
+		Selectable = true,
+		Text = "",
+		ZIndex = 44,
+		Parent = row,
+	})
+	Arcade.corner(mute)
+	Arcade.outline(mute, "Button")
+	mute.SelectionImageObject = selectionRing(mute)
+	mute.NextSelectionLeft = mute
+	local iconHolder = make("Frame", {
+		Name = "Icon",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(30, 30),
+		BackgroundTransparency = 1,
+		ZIndex = 45,
+		Parent = mute,
+	})
+	IconArt.draw(iconHolder, { icon })
+	-- the mute slash: a cream bar with a navy outline, corner to corner over the icon, drawn above it
+	local slash = make("Frame", {
+		Name = "Slash",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(4, 40),
+		Rotation = 45,
+		BackgroundColor3 = TRACK_CREAM,
+		Visible = false,
+		ZIndex = 50,
+		Parent = mute,
+	})
+	Arcade.corner(slash, 2)
+	Arcade.outline(slash, 3, A.Ink)
+	local label = Arcade.text(row, {
+		text = text,
+		role = "Label",
+		name = "Label",
+		size = AUDIO_LABEL,
+		xAlign = Enum.TextXAlignment.Left,
+		z = 43,
+	})
+	label.Position = UDim2.fromOffset(AUDIO_TEXT_X, 0)
+	label.Size = UDim2.fromOffset(math.ceil(measure(text, AUDIO_LABEL)) + 12, MUTE)
+	local value = Arcade.text(row, {
+		text = "",
+		role = "Small",
+		name = "Percent",
+		size = VALUE,
+		colour = Color3.fromRGB(214, 226, 255),
+		z = 43,
+	})
+	value.AnchorPoint = Vector2.new(1, 0)
+	value.Position = UDim2.fromScale(1, 0)
+	value.Size = UDim2.fromOffset(72, MUTE)
+	value.TextXAlignment = Enum.TextXAlignment.Right
+	local holder = make("Frame", {
+		Name = "Control",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromOffset(AUDIO_TEXT_X, SLIDER_Y),
+		Size = UDim2.fromOffset(width - AUDIO_TEXT_X, MUTE),
+		ZIndex = 43,
+		Parent = row,
+	})
+	local initial = MusicSetting.effective(ctx.store, category)
+	local slider = self:_makeSlider(holder, key, width - AUDIO_TEXT_X, initial, function(v: number, kept: number?)
+		if category == "Music" then
+			MusicSetting.setLevel(ctx.store, v, kept)
+		else
+			MusicSetting.setSfx(ctx.store, v, kept)
+		end
+	end)
+	slider.hit.Position = UDim2.fromOffset(0, 0)
+	mute.NextSelectionRight = slider.hit
+	trove:Connect(mute.Activated, function()
+		Sounds.play("Tap")
+		MusicSetting.toggle(ctx.store, category)
+		if category == "Effects" then
+			self._tickLevel = -1
+			self:_tick(true) -- unmuting effects: hear the level that came back (silent when this muted them)
+		end
+	end)
+	local out: AudioRow = { category = category, mute = mute, slash = slash, pct = value, slider = slider }
+	self._sliders[key] = slider
+	self._audio[key] = out
+	return out
 end
 
 -- The Haptics row follows the preference (ON unless false) and the device: unsupported = shown but OFF, dimmed, disabled, with
@@ -550,7 +770,6 @@ function SettingsPanel._row(
 end
 
 function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
-	local ctx: Types.Ctx = self._ctx
 	local m: Metrics = if compact then COMPACT else NORMAL
 	local selected = GuiService.SelectedObject
 	local hadSelection = selected ~= nil and selected:IsDescendantOf(self.root)
@@ -640,23 +859,33 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		Parent = list,
 	})
 	local total = 0
-	local settings = ctx.store:get().settings
+	table.clear(self._audio)
 
-	local musicControl, musicValue, h1 = self:_row(list, 1, { "Music" }, "Music", inner, m)
-	self._musicValue = musicValue
-	local music = self:_makeSlider(musicControl, "Music", musicControl.Size.X.Offset, settings.music, function(v)
-		MusicSetting.setLevel(ctx.store, v)
-	end)
-	self._sliders.music = music
-	total += h1 + gap
-
-	local sfxControl, sfxValue, h2 = self:_row(list, 2, { "Speaker" }, "Sound effects", inner, m)
-	self._sfxValue = sfxValue
-	local sfx = self:_makeSlider(sfxControl, "Sfx", sfxControl.Size.X.Offset, settings.sfx, function(v)
-		MusicSetting.setSfx(ctx.store, v)
-	end)
-	self._sliders.sfx = sfx
-	total += h2 + gap
+	-- Design 7 audio rows: stacked (NORMAL) or side by side (COMPACT), in one block so the list keeps its order. The block
+	-- carries any extra space under it (audioGap beyond the list's own gap).
+	local extra = m.audioGap - gap
+	local audioH = if m.audioColumns then AUDIO_H + extra else 2 * AUDIO_H + m.audioGap + extra
+	local audio = make("Frame", {
+		Name = "Audio",
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Size = UDim2.fromOffset(inner, audioH),
+		ZIndex = 42,
+		Parent = list,
+	})
+	local musicRow: AudioRow
+	local sfxRow: AudioRow
+	if m.audioColumns then
+		local colW = (inner - COLUMN_GAP) // 2
+		musicRow = self:_audioRow(audio, "music", "Music", "Music", "Music", 0, 0, colW)
+		sfxRow = self:_audioRow(audio, "sfx", "Effects", "Speaker", "Sound effects", inner - colW, 0, colW)
+	else
+		musicRow = self:_audioRow(audio, "music", "Music", "Music", "Music", 0, 0, inner)
+		sfxRow = self:_audioRow(audio, "sfx", "Effects", "Speaker", "Sound effects", 0, AUDIO_H + m.audioGap, inner)
+	end
+	local music = musicRow.slider
+	local sfx = sfxRow.slider
+	total += audioH + gap
 
 	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", inner, m)
 	self._motionValue = motionValue
@@ -745,7 +974,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	total += h4
 
 	local footer = Arcade.text(card, {
-		text = "Preview: not saved",
+		text = "Preview: kept this session, not saved",
 		role = "Small",
 		name = "PreviewNote", -- harness caption (hidden in player-facing captures)
 		size = VALUE,
@@ -768,10 +997,14 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	holder.Size = UDim2.fromOffset(cardWidth, cardH)
 	self._cardHeight = cardH
 
-	-- Selection order: music -> sfx -> motion choices -> haptics (only when the device can vibrate: _refreshHaptics sets
-	-- the two links around it) -> close.
-	music.hit.NextSelectionDown = sfx.hit
-	sfx.hit.NextSelectionUp = music.hit
+	-- Selection order: MUSIC mute -> MUSIC slider -> SOUND EFFECTS mute -> SOUND EFFECTS slider -> motion choices -> haptics
+	-- (only when the device can vibrate: _refreshHaptics sets the two links around it) -> close -> MUSIC mute.
+	musicRow.mute.NextSelectionDown = music.hit
+	music.hit.NextSelectionUp = musicRow.mute
+	music.hit.NextSelectionDown = sfxRow.mute
+	sfxRow.mute.NextSelectionUp = music.hit
+	sfxRow.mute.NextSelectionDown = sfx.hit
+	sfx.hit.NextSelectionUp = sfxRow.mute
 	sfx.hit.NextSelectionDown = self._segments[1].button
 	for i, seg in self._segments do
 		seg.button.NextSelectionUp = sfx.hit
@@ -781,16 +1014,16 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	end
 	hit.NextSelectionUp = self._segments[1].button
 	hit.NextSelectionDown = close.body
-	close.body.NextSelectionDown = music.hit
+	close.body.NextSelectionDown = musicRow.mute
 	close.body.NextSelectionUp = self._segments[1].button
-	music.hit.NextSelectionUp = close.body
+	musicRow.mute.NextSelectionUp = close.body
 	self:_refreshHaptics(true) -- reads the device capability, then links the motion choices and Close around the switch
 
 	self._fade = Fade.capture(self.root)
 	self:_refreshMotion()
 	self:_refreshSound()
 	if hadSelection and self._open then
-		GuiService.SelectedObject = music.hit
+		GuiService.SelectedObject = musicRow.mute
 	end
 end
 
@@ -846,7 +1079,7 @@ function SettingsPanel.open(self: any, opener: GuiObject?)
 		return Enum.ContextActionResult.Sink
 	end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Escape, Enum.KeyCode.ButtonB)
 	if useSelection then
-		GuiService.SelectedObject = self._sliders.music.hit
+		GuiService.SelectedObject = self._audio.music.mute
 	end
 end
 
@@ -857,7 +1090,6 @@ function SettingsPanel.close(self: any)
 	self._open = false
 	self:_endDrag()
 	ContextActionService:UnbindAction(BACK_ACTION)
-	ContextActionService:UnbindAction(SLIDER_ACTION)
 	local selected = GuiService.SelectedObject
 	local hadSelection = (selected ~= nil and selected:IsDescendantOf(self.root)) or lastInputIsGamepad()
 	if selected ~= nil and selected:IsDescendantOf(self.root) then
@@ -905,6 +1137,8 @@ function SettingsPanel.getControls(self: any): { [string]: GuiObject }
 	local controls: { [string]: GuiObject } = {
 		music = self._sliders.music.hit,
 		sfx = self._sliders.sfx.hit,
+		musicMute = self._audio.music.mute,
+		sfxMute = self._audio.sfx.mute,
 		close = self._closeButton,
 	}
 	local switch: Arcade.Toggle? = self._haptics
@@ -948,13 +1182,36 @@ function SettingsPanel.getDebugState(self: any): { [string]: any }
 		open = self._open,
 		visible = self.root.Visible,
 		layout = self._kind,
-		music = Sounds.musicGroup().Volume,
-		sfx = Sounds.group().Volume,
+		music = AudioMix.group("Music").Volume, -- the player's category groups (0..1 as heard)
+		sfx = AudioMix.group("Effects").Volume,
+		musicMix = Sounds.musicGroup().Volume, -- the approved mix levels nested under them (never written by Settings)
+		sfxMix = Sounds.group().Volume,
 		musicSetting = s.music,
 		musicOn = s.musicOn ~= false,
 		sfxSetting = s.sfx,
+		sfxOn = (s :: any).sfxOn ~= false,
 		musicSlider = self._sliders.music.value,
 		sfxSlider = self._sliders.sfx.value,
+		musicText = self._audio.music.pct.Text,
+		sfxText = self._audio.sfx.pct.Text,
+		musicSlash = self._audio.music.slash.Visible,
+		sfxSlash = self._audio.sfx.slash.Visible,
+		musicFill = self._sliders.music.fill.Visible,
+		sfxFill = self._sliders.sfx.fill.Visible,
+		dragOwner = if self._dragging then self._dragging.UserInputType.Name else nil,
+		dragSlider = if self._dragSlider == self._sliders.music
+			then "music"
+			elseif self._dragSlider == self._sliders.sfx then "sfx"
+			else nil,
+		ticks = self._ticks,
+		audioColumns = string.find(self._kind, "compact", 1, true) ~= nil,
+		musicRow = rectOf(self._audio.music.mute.Parent :: GuiObject), -- device px: { x, y, w, h }
+		sfxRow = rectOf(self._audio.sfx.mute.Parent :: GuiObject),
+		musicMute = rectOf(self._audio.music.mute),
+		sfxMute = rectOf(self._audio.sfx.mute),
+		musicHit = rectOf(self._sliders.music.hit),
+		sfxHit = rectOf(self._sliders.sfx.hit),
+		musicKnob = rectOf(self._sliders.music.knob),
 		motionChoice = choiceNow(),
 		override = if player then player:GetAttribute(OVERRIDE) else nil,
 		reduced = Motion.reduced(),

@@ -11,7 +11,8 @@
 -- 2026-10-28 private review videos carry the game audio, music included, so Adam can judge it (his rule, CLAUDE.md).
 --
 -- Signal path (one parent the user controls, one duck, two groups; this module never touches the parent's volume):
---   Lane3PreviewMusic (Settings level / Home toggle, MusicSetting)
+--   Music (AudioMix: the player's MUSIC level and mute, Settings and the Home switch, 2026-10-29)
+--   -> Lane3PreviewMusic (the approved mix level, 0.5)
 --     -> Lane3Music_Duck (the single duck source: floor 0.6, attack ~80 ms, release ~400 ms)
 --         -> Lane3Music_Base (the World loop; dips under the tension layer) -> Lane3Music_Tension (the tension layer)
 -- The user's level is the parent's Volume and nothing here writes it, so a duck always releases to "whatever the user set
@@ -42,6 +43,7 @@
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
+local AudioMix = require(script.Parent.AudioMix)
 local Sounds = require(script.Parent.Sounds)
 
 local Music = {}
@@ -612,7 +614,8 @@ function Music.state(): { [string]: any }
 		tweens = tweenCount,
 		timers = ducks,
 		heartbeatConnections = 0, -- by construction: this module connects nothing per frame
-		parentVolume = Sounds.musicGroup().Volume,
+		parentVolume = AudioMix.group("Music").Volume, -- the player's MUSIC level (Settings, 2026-10-29)
+		mixVolume = Sounds.musicGroup().Volume, -- the approved mix level nested under it (0.5, never written)
 	}
 end
 

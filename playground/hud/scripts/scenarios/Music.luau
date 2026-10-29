@@ -29,6 +29,7 @@ local Prototype = Players.LocalPlayer
 	:WaitForChild("Client")
 	:WaitForChild("UI")
 	:WaitForChild("Prototype")
+local AudioMix = require(Prototype:WaitForChild("AudioMix"))
 local Music = require(Prototype:WaitForChild("Music"))
 local Sounds = require(Prototype:WaitForChild("Sounds"))
 local MusicSetting = require(Prototype:WaitForChild("Home"):WaitForChild("MusicSetting"))
@@ -385,7 +386,7 @@ S["Music: fades and mute during a fade"] = function(host: Host)
 	-- mute DURING a fade-in
 	Music.setWorld("Downtown")
 	host.wait(0.1)
-	local parentBefore = Sounds.musicGroup().Volume
+	local parentBefore = AudioMix.group("Music").Volume -- the player level (Music.state().parentVolume)
 	Music.setMuted(true)
 	host.wait(Music.FADE_MUTE + 0.2)
 	s = st()
@@ -601,26 +602,47 @@ S["Music: slider drag and idle"] = function(host: Host)
 			and MusicSetting.getDebugState().tweens == 0,
 		fmt(s)
 	)
-	-- the On / Off toggle fades the group; a slider tick while it fades does not cut it
+	-- MUSIC mute (2026-10-29: the Home switch and the Settings mute button): the player group fades (not a cut) to 0 and the
+	-- loop keeps playing underneath, so unmute neither restarts nor re-creates it. While muted the kept level is the slider's.
+	local loop = Music.baseSound()
+	MusicSetting.setLevel(store, 0.6)
+	host.wait(0.2)
 	MusicSetting.setOn(store, false)
 	host.wait(0.1)
-	local midVolume = Sounds.musicGroup().Volume
-	MusicSetting.setLevel(store, 0.6) -- still Off: must not un-mute or cut the fade short
-	host.wait(0.5)
+	local midVolume = AudioMix.group("Music").Volume
+	local mutedAt = if loop then loop.TimePosition else 0
+	host.wait(0.6)
 	s = st()
 	verdict(
 		host,
-		"Music Off: the group fades (not a cut), ends at 0, the voices are gone",
-		midVolume > 0 and midVolume < 0.8 and s.parentVolume == 0 and s.liveMusicSounds == 0,
-		string.format("mid-fade group volume %.2f; %s", midVolume, fmt(s))
+		"Music mute: the player group fades (not a cut) to 0; the same loop keeps playing and keeping time",
+		midVolume > 0
+			and midVolume < 0.6
+			and s.parentVolume == 0
+			and s.liveMusicSounds == 1
+			and Music.baseSound() == loop
+			and loop ~= nil
+			and loop.IsPlaying,
+		string.format(
+			"mid-fade %.2f; TimePosition %.2f -> %.2f s; %s",
+			midVolume,
+			mutedAt,
+			if loop then loop.TimePosition else -1,
+			fmt(s)
+		)
 	)
+	local createdMuted = st().created
 	MusicSetting.setOn(store, true)
 	host.wait(0.8)
 	s = st()
 	verdict(
 		host,
-		"Music On: back at the player's level (0.60), one voice",
-		math.abs(s.parentVolume - 0.6) < 1e-4 and s.liveMusicSounds == 1 and MusicSetting.getDebugState().tweens == 0,
+		"Music unmute: back at the kept level (0.60), the same voice, nothing created",
+		math.abs(s.parentVolume - 0.6) < 1e-4
+			and s.liveMusicSounds == 1
+			and Music.baseSound() == loop
+			and s.created == createdMuted
+			and MusicSetting.getDebugState().tweens == 0,
 		fmt(s)
 	)
 	MusicSetting.setLevel(store, original.music)
@@ -639,7 +661,7 @@ S["Music: duck restores the user level"] = function(host: Host)
 	Music.enable(true)
 	Music.setWorld("Downtown")
 	host.wait(0.8)
-	local parent = Sounds.musicGroup()
+	local parent = AudioMix.group("Music") -- the player's MUSIC level (2026-10-29)
 	Music.duck("KeysCapture", 1.0)
 	host.wait(0.2)
 	local s = st()
@@ -677,8 +699,8 @@ S["Music: duck restores the user level"] = function(host: Host)
 	s = st()
 	verdict(
 		host,
-		"Music Off through three stings: still silent, level 0, no voices, no duck",
-		s.parentVolume == 0 and s.liveMusicSounds == 0 and s.duckSources == 0 and s.duckLevel == 1 and s.muted,
+		"Music muted through three stings: still silent (player level 0), nothing un-mutes it; the loop keeps time silently",
+		s.parentVolume == 0 and s.liveMusicSounds == 1 and parent.Volume == 0,
 		fmt(s)
 	)
 	-- the same stings with Music On: the duck releases to the player's level

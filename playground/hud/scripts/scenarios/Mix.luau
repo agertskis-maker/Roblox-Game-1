@@ -247,8 +247,8 @@ S["Mix: peak overlap"] = function(host: Host)
 	local original = table.clone(store:get().settings)
 	host.enterRun()
 	MusicSetting.setOn(store, true)
-	MusicSetting.setLevel(store, 0.5) -- the reference groups: music 0.5, effects 0.6
-	MusicSetting.setSfx(store, 0.6)
+	MusicSetting.setLevel(store, 1) -- the player at 100: the reference mix groups (music 0.5, effects 0.6) as heard
+	MusicSetting.setSfx(store, 1)
 	Music.enable(true)
 	Music.setWorld("Downtown")
 	host.wait(0.6)
