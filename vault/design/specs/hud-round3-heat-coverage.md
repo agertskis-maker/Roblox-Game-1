@@ -1,4 +1,4 @@
-﻿---
+---
 title: Round 3 ENGINE HEAT coverage (measured in Studio Play)
 tags: [design, spec, heat, lane3, measurement]
 status: measured (Studio Play, virtual frames; not physical devices)
@@ -17,8 +17,8 @@ Adam asked for the panel "slightly bigger" after the first measured version (13 
 
 | Frame | Scale | Title text | Panel x, y, w, h (px) | Overlap, steady | Warning / Critical / Meltdown | Panel inside road | Thumbstick zone |
 |---|---|---|---|---|---|---|---|
-| Desktop | 0.709 | 17 px | 786.6, 953.1, 346.7, 119.1 | 0.0% | 0.0 / 0.0 / 0.4% | 0.0% | none |
-| Tablet | 0.709 | 17 px | 416.6, 673.1, 346.7, 119.1 | 1.7% | 3.1 / 6.2 / 8.6% | 7.1% | 55.4 px (visual only) |
+| Desktop | 0.708 | 17 px | 786.6, 953.1, 346.7, 119.1 | 0.0% | 0.0 / 0.0 / 0.4% | 0.0% | none |
+| Tablet | 0.708 | 17 px | 416.6, 673.1, 346.7, 119.1 | 1.7% | 3.1 / 6.2 / 8.6% | 7.1% | 55.4 px (visual only) |
 | PhoneLandscape | 0.875 | 14 px | 279.4, 266.5, 285.2, 98.0 | **28.0%** | 32.3 / 42.0 / 47.3% | 48.2% | 58.2 px |
 | PhoneSmall | 0.875 | 14 px | 227.4, 237.5, 285.2, 98.0 | **38.1%** | 42.0 / 49.5 / 53.2% | 52.6% | 68.6 px |
 | PhoneLandscapeLeft (notch) | 0.875 | 14 px | 279.4, 266.5, 285.2, 98.0 | 27.1% | 31.3 / 39.9 / 44.4% | 48.2% | 58.2 px |
@@ -35,4 +35,4 @@ Adam asked for the panel "slightly bigger" after the first measured version (13 
 
 Matched frames (same spot on the route, PhoneLandscape): `Car-Hop-Art/review/hud-round3/stills/r3-heat-matched-phonelandscape-s700-title16px-scale1.00.jpg`, `...title14px-scale0.89.jpg`, `...title13px-scale0.81...jpg`, `...title14px-scale0.875-SHIPPED.jpg`.
 
-**Decision still yours:** the phone floor (14 px) is below the project's approved 16 px minimum for ordinary text; it is one constant (`RunLayout.HeatTextFloor`; Desktop and Tablet use `HeatTextFloorLarge`, 17). Scale cannot reach zero overlap without an unreadable strip (PhoneLandscape still has 2.3% at scale 0.50, an 8 px title). Smallest further changes, none applied: accept; measure the real camera and move the protected rectangle's bottom edge; cut the 8 px bottom margin to 4 (about 3 points). HOP NOW! stays hidden at zero Stamina (Round 2 behaviour; scenario `Heat: reduced motion and HOP NOW!` 8/8 PASS).
+**Confirmed final by Adam on 2026-10-28** (round 3 close-out brief; recorded in `vault/design/visual-direction.md`): the phone floor (14 px) is an approved exception to the 16 px minimum for ordinary text; it is one constant (`RunLayout.HeatTextFloor`; Desktop and Tablet use `HeatTextFloorLarge`, 17). Scale cannot reach zero overlap without an unreadable strip (PhoneLandscape still has 2.3% at scale 0.50, an 8 px title). Smallest further changes, none applied: accept; measure the real camera and move the protected rectangle's bottom edge; cut the 8 px bottom margin to 4 (about 3 points). HOP NOW! stays hidden at zero Stamina (Round 2 behaviour; scenario `Heat: reduced motion and HOP NOW!` 8/8 PASS).

@@ -13,7 +13,7 @@ Ledger [[hud-round3]]; spec `vault/design/ui/hud-round3.md`; follows [[0020-hud-
 2. **One pill, two lines.** "821 m | Cactus Flats / Next in 73 m" instead of one line (one line needs about 440 px). "You are here" when nothing lies ahead, so a current area is never shown as the next one.
 3. **Keys ring** fills clockwise from 12 o'clock, drawn from frames and strokes (no upload), eases to the supplied progress in 0.07 s and never changes capture time.
 4. **Landing label replaces the permanent Riding chip** and yields to the capture nameplate: the nameplate wins.
-5. **Heat floor 14 px on phones, 17 px on Desktop and Tablet (provisional).** The project's 16 px minimum text rule would keep every phone frame at scale 1.0 (measured 41% / 49% of the protected road rectangle on PhoneLandscape / PhoneSmall, title tab included). I first used 13 px (scale 0.81, 22% / 31%); Adam then asked for the panel "slightly bigger", so phones are now 14 px (scale 0.875, 28% / 38%) and Desktop and Tablet 17 px (scale 0.709, 0% / 1.7%). Two constants (`RunLayout.HeatTextFloor`, `HeatTextFloorLarge`); setting them to 16 restores the stricter rule. The size is Adam's request within his brief's delegation; the number is still **his to confirm** (AGENTS.md: sizes other than the approved ones are propose-first).
+5. **Heat floor 14 px on phones, 17 px on Desktop and Tablet (confirmed final by Adam, 2026-10-28).** The project's 16 px minimum text rule would keep every phone frame at scale 1.0 (measured 41% / 49% of the protected road rectangle on PhoneLandscape / PhoneSmall, title tab included). I first used 13 px (scale 0.81, 22% / 31%); Adam then asked for the panel "slightly bigger", so phones are now 14 px (scale 0.875, 28% / 38%) and Desktop and Tablet 17 px (scale 0.708, 0% / 1.7%). Two constants (`RunLayout.HeatTextFloor`, `HeatTextFloorLarge`); setting them to 16 restores the stricter rule. The size was Adam's request within his brief's delegation; Adam **confirmed it final** on 2026-10-28 (round 3 close-out brief, section 1), recorded in `vault/design/visual-direction.md` (AGENTS.md: sizes other than the approved ones need the owner's approval).
 6. **Run-scoped capture identity** lives in the preview Store (`run.runId`, or a synthetic per-run key). Stale events are shown as nothing but are still recorded, flagged, so a permanent reward is never lost on the other lane's side.
 7. **Haptics** default ON, gated by one function; unsupported hardware shows "Not available on this device".
 8. **Audio:** `KeysTick` retired (it stacked on the chime); the old looped riser with a pitch ramp is replaced by at most four discrete chime notes per capture; the fanfare plays once per confirmed capture; the Warning, KeysCapture, NewBest and Milestone cues are priority cues that the voice cap never silences; the music bed is 8 dB under Cash; fades are finite tweens, never a polling loop.
@@ -27,6 +27,11 @@ Ledger [[hud-round3]]; spec `vault/design/ui/hud-round3.md`; follows [[0020-hud-
 - A screen resize while a capture was ending left the ring on screen for good, with a live connection (`layout()` re-showed an ended capture and cancelled its own hide).
 - The World name in the Garage detail was clipped by 4 px.
 - Toast and Results text fit; Results plate contrast raised to the approved kit's own floor; a voice cap overrun; ducking lost under a full voice cap; the warning sound silenced by the overlap cap.
+
+## Update 2026-10-28 (round 3 close-out, Adam's decisions)
+- The Heat size in item 5 is **confirmed final** (phones 14 px, scale 0.875; Desktop and Tablet 17 px, scale 0.708). The numbers did not change.
+- The Cash icon band is **approved as it is**.
+- The Hop button keeps its car; its arrow is redone in the close-out (four candidates; decision recorded in [[hud-round3-closeout]] and the ledger [[hud-round3]]).
 
 ## Not decided here
 HOP STREAK (backlog, proposal only). Reducing claim times (draft for Brian R and Brian L, nothing sent). The Dusty Highway and Summit Pass redesigns (plans only, waiting for Adam).
