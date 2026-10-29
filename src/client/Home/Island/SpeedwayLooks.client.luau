@@ -27,6 +27,7 @@ local Path = require(Speedway:WaitForChild("Path"))
 local Calm = require(script.Parent.Speedway.Calm)
 local Kiosk = require(script.Parent.Speedway.Kiosk)
 local LappingPreview = require(script.Parent.LappingPreview)
+local ParkingLook = require(script.Parent.Speedway.ParkingLook)
 local Life = require(script.Parent.Speedway.Life)
 local PreviewPanel = require(script.Parent.Speedway.PreviewPanel)
 local Reveal = require(script.Parent.Speedway.Reveal)
@@ -36,6 +37,8 @@ local ROOT_NAME = "Lane3_IslandPreview"
 local NEAR = 230 -- full detail inside this distance from a plot's track centre (Tunable)
 local FAR = 260 -- still silhouette beyond this; between the two a plot keeps its state
 local TRACK_CENTRE_U = 441
+local GREET_RADIUS = 10 -- the island's prompt range (Open Garage, Hub/Environment/Destinations)
+local GREET_REARM = 13 -- the keeper greets again only after the owner walked this far away
 
 local player = Players.LocalPlayer
 
@@ -52,6 +55,7 @@ type PlotInfo = {
 	owner: string?,
 	busy: boolean,
 	dirty: boolean,
+	greetArmed: boolean,
 }
 
 local function attach(root: Instance): Trove.Trove
@@ -217,15 +221,19 @@ local function attach(root: Instance): Trove.Trove
 			owner = nil,
 			busy = false,
 			dirty = false,
+			greetArmed = true,
 		}
 		infos[plot] = info
 		-- listen first, so a level set during the first build is not missed
 		trove:Connect(plot.AttributeChanged, function(name)
 			if name == "SpeedwayLevel" or name == "SpeedwayPreviewLevel" or name == "OwnerDisplayName" then
 				refresh(info, false)
+			elseif name == "ParkingSpots" then
+				ParkingLook.refresh(plot :: Model, info.index, info.bearing, info.near, Calm(), fx)
 			end
 		end)
 		refresh(info, true)
+		ParkingLook.refresh(plot :: Model, info.index, info.bearing, false, Calm(), fx)
 	end
 
 	local island = root:WaitForChild("Island", 30)
@@ -243,8 +251,48 @@ local function attach(root: Instance): Trove.Trove
 			for _, info in infos do
 				refresh(info, false)
 			end
+		elseif string.find(name, "^Lane3ParkingPreviewSpots") then
+			for plot, info in infos do
+				ParkingLook.refresh(plot, info.index, info.bearing, info.near, Calm(), fx)
+			end
 		end
 	end)
+
+	-- The shopkeeper of your own plot greets you once as you walk up to the counter (inside the prompt
+	-- range, in front of the shop, nothing in between); it greets again only after you walked away.
+	-- Visitors on someone else's plot are not greeted.
+	local sightParams = RaycastParams.new()
+	sightParams.FilterType = Enum.RaycastFilterType.Exclude
+	local function greetOwner()
+		local character = player.Character
+		local head = character and character:FindFirstChild("Head")
+		if not (head and head:IsA("BasePart")) then
+			return
+		end
+		for plot, info in infos do
+			if info.index ~= homeIndex() or not info.near then
+				continue
+			end
+			local look = plot:FindFirstChild("SpeedwayLook")
+			local keeper = look and look:FindFirstChild("Shopkeeper", true)
+			if not (keeper and keeper:IsA("Model") and keeper.PrimaryPart) then
+				continue
+			end
+			local body = keeper.PrimaryPart :: BasePart
+			local eye = body.Position + Vector3.yAxis * 1.4
+			local offset = head.Position - eye
+			local flat = offset * Vector3.new(1, 0, 1)
+			if flat.Magnitude > GREET_REARM then
+				info.greetArmed = true
+			elseif info.greetArmed and flat.Magnitude < GREET_RADIUS and flat:Dot(body.CFrame.LookVector) > 0 then
+				-- in front of the counter (the keeper faces the park); no wall or prop in between
+				sightParams.FilterDescendantsInstances = { character, keeper }
+				if not Workspace:Raycast(eye, offset, sightParams) and Life.greet(plot) then
+					info.greetArmed = false
+				end
+			end
+		end
+	end
 
 	-- far plots keep their silhouette only (no small props, figures or motion)
 	local lastDetail = 0
@@ -273,6 +321,7 @@ local function attach(root: Instance): Trove.Trove
 			end
 		end
 		Sound.update(eye)
+		greetOwner()
 	end)
 
 	-- preview Lineup cars (Studio only; a fixture) and their finish crossings
@@ -341,6 +390,7 @@ local function attach(root: Instance): Trove.Trove
 		for plot in infos do
 			Reveal.finish(plot)
 			Life.forget(plot)
+			ParkingLook.forget(plot)
 			Sound.forget(plot)
 			if plot.Parent then
 				Look.clear(plot)

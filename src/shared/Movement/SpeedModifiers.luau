@@ -6,7 +6,10 @@
 --
 -- Each humanoid has a base WalkSpeed and any number of named sources, one slot per source.
 -- WalkSpeed = base x the LARGEST active multiplier, clamped to [0, MaxMultiplier]. Sources never
--- multiply together and setting a source again replaces its value, so nothing stacks.
+-- multiply together and setting a source again replaces its value, so nothing stacks. The result
+-- is always computed from the base, never from the current WalkSpeed, so a repeated set cannot
+-- compound. A speed-up (multiplier above 1) multiplies the base (the island base 32 x 1.5 = 48) and
+-- stops at BoostCap (48); it never slows a base that is already faster (target()).
 --
 -- The base is never overwritten for good:
 --   - the base is read from the humanoid when the first source becomes active;
@@ -18,11 +21,17 @@
 --
 -- Movement modes that own speed outright (a run, a race, driving) should not mix with this: they
 -- set the LocalPlayer attribute "MovementSpeedOwner" (see WalkBoost), which makes the island boost
--- clear its source and stand aside.
+-- clear its source, hand back the pre-island WalkSpeed and stand aside. The island base (32) itself
+-- is not held here: WalkBoost writes it once per character, and this layer only multiplies
+-- whatever base the humanoid has when a source becomes active.
 
 local SpeedModifiers = {}
 
 SpeedModifiers.MaxMultiplier = 1.5 -- the ceiling from the proposed contract (IRW-84)
+-- The highest WalkSpeed a speed-up may produce: the island base 32 x MaxMultiplier 1.5 (Adam,
+-- 2026-10-29; WalkBoostLogic.IslandBase x Multiplier, a test keeps the two equal). A foreign base
+-- that would go above it is held to it; a base already above it is left as it is.
+SpeedModifiers.BoostCap = 48
 
 local EPSILON = 1e-3 -- WalkSpeed is stored as a float, so read-backs differ slightly
 
@@ -65,9 +74,15 @@ local function drop(humanoid: Humanoid)
 	table.clear(e.connections)
 end
 
--- the highest WalkSpeed a speed-up may produce (the default 16 x 1.5); a base already above it is
--- left as it is
-SpeedModifiers.BoostCap = 24
+-- The WalkSpeed for a base and a combined multiplier. Above 1 it is a speed-up: base x multiplier,
+-- held to BoostCap and never below the base itself (a boost does not slow a faster base). At 1 or
+-- below it is base x multiplier. Pure; WalkBoostLogic.speed is the same formula.
+function SpeedModifiers.target(base: number, multiplier: number): number
+	if multiplier > 1 then
+		return math.max(base, math.min(base * multiplier, SpeedModifiers.BoostCap))
+	end
+	return base * multiplier
+end
 
 local function apply(humanoid: Humanoid, e: Entry)
 	local m = SpeedModifiers.combine(e.sources)
@@ -81,12 +96,9 @@ local function apply(humanoid: Humanoid, e: Entry)
 		end
 		return
 	end
-	-- capped (architecture review M3): a boost never lifts another system's faster speed further,
-	-- so a 20 or 24 sprint is not turned into 30 or 36; it only brings a slower base up to the cap
-	local target = if m > 1 then math.max(e.base, math.min(e.base * m, SpeedModifiers.BoostCap)) else e.base * m
-	if m == 1 then
-		target = e.base -- exact, no float drift
-	end
+	-- a boost multiplies the base and stops at BoostCap (architecture review M3: it never lifts
+	-- another system's faster speed further, so a 60 sprint is not turned into 90)
+	local target = if m == 1 then e.base else SpeedModifiers.target(e.base, m) -- exact at 1, no float drift
 	if humanoid.WalkSpeed ~= target then
 		-- recorded before the write: with immediate signals the handler runs inside it
 		e.written = target

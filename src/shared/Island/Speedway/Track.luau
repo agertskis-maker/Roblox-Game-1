@@ -8,7 +8,6 @@
 
 local Ctx = require(script.Parent.Ctx)
 local Kit = require(script.Parent.Kit)
-local KitIds = require(script.Parent.KitIds)
 local Path = require(script.Parent.Path)
 
 local Track = {}
@@ -33,8 +32,9 @@ Track.Colours = {
 	DirtRaked = Color3.fromRGB(198, 144, 96),
 	Rut = Color3.fromRGB(150, 100, 62),
 	Chalk = Color3.fromRGB(250, 248, 240),
-	Wall = Color3.fromRGB(246, 246, 242),
-	WallCap = Color3.fromRGB(36, 58, 98), -- navy
+	Wall = Color3.fromRGB(34, 138, 146), -- teal lower band (Raceway round 2)
+	WallCap = Color3.fromRGB(244, 236, 214), -- cream upper edge
+	WallEnd = Color3.fromRGB(244, 127, 112), -- coral end marker
 	DeckBody = Color3.fromRGB(36, 58, 98),
 	DeckStripe = Color3.fromRGB(238, 140, 44), -- orange edge (reference 2)
 	Rail = Color3.fromRGB(196, 202, 210),
@@ -400,16 +400,19 @@ end
 
 -- ------------------------------------------------------------------ banked turns (level 9 on)
 
--- Raised outer walls on a banked turn (white with a navy cap), catch fencing on top (minor
--- detail) and fictional banners on the wall's inner face. `turn` is "near" or "far"; the near turn
--- (facing the plaza) gets only a low white lip, so the plaza sees the track over it.
+-- Raised outer walls on a banked turn and catch fencing on top (minor detail). Raceway round 2
+-- (Adam, 2026-10-29; no advertising): a broad teal wall with a cream upper edge and one coral end
+-- marker at each end, no banners. `turn` is "near" or "far"; the near turn (facing the plaza)
+-- gets only a low lip, so the plaza sees the track over it.
 function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 	local path = Path.forLevel(9)
 	local seg = if turn == "near" then path.segments[2] else path.segments[4]
 	local a, b = seg.s0 - Path.BankEase, seg.s0 + seg.length + Path.BankEase
 	-- the near turn faces the plaza: a lower lip and no catch fence, so the track reads over it
 	local lip = if turn == "near" then 0.4 else 2.2
+	local edgeTall = math.min(0.3, lip - 0.05) -- the cream upper edge
 	local list = samples(path, a, b, 3)
+	local ends: { { a: Vector3, b: Vector3, height: number } } = {}
 	for i = 1, #list - 1 do
 		local sa, sb = list[i], list[i + 1]
 		local pa, da = Path.planPoint(path, sa)
@@ -421,19 +424,40 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 			local edge = Path.TrackTop + 2 * HALF_W * math.sin(bank)
 			local height = edge + lip
 			local wa, wb = Ctx.at(ctx, oa.X, oa.Y, height), Ctx.at(ctx, ob.X, ob.Y, height)
-			Kit.slab(major, wa, wb, Vector3.yAxis, 0.9, height, {
-				name = "BankWall",
-				color = C.Wall,
+			Kit.slab(
+				major,
+				wa - Vector3.yAxis * edgeTall,
+				wb - Vector3.yAxis * edgeTall,
+				Vector3.yAxis,
+				0.9,
+				height - edgeTall,
+				{
+					name = "BankWall",
+					color = C.Wall,
+					collide = true,
+					castShadow = false,
+				},
+				0.5
+			)
+			Kit.slab(major, wa, wb, Vector3.yAxis, 1.0, edgeTall, {
+				name = "BankWallCap",
+				color = C.WallCap,
 				collide = true,
 				castShadow = false,
 			}, 0.5)
-			if turn ~= "near" then
-				Kit.slab(major, wa + Vector3.yAxis * 0.16, wb + Vector3.yAxis * 0.16, Vector3.yAxis, 1.15, 0.16, {
-					name = "BankWallCap",
-					color = C.WallCap,
-					castShadow = false,
-				}, 0.5)
-			end
+			table.insert(ends, { a = wa, b = wb, height = height })
+		end
+	end
+	-- one restrained coral marker at each end of the wall (a short painted block over the wall end)
+	if #ends > 0 then
+		for _, which in { ends[1], ends[#ends] } do
+			local along = (which.b - which.a).Unit
+			local tip = if which == ends[1] then which.a + along * 0.6 else which.b - along * 0.6
+			Kit.slab(major, tip - along * 0.6, tip + along * 0.6, Vector3.yAxis, 1.04, which.height + 0.02, {
+				name = "BankWallEnd",
+				color = C.WallEnd,
+				castShadow = false,
+			}, 0)
 		end
 	end
 	-- catch fence runs on the wall top, along the full-bank part of the turn
@@ -446,36 +470,8 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		local at = p + out * (HALF_W + 0.9)
 		if not inPitGap(at) then
 			local bank = math.rad(Path.bank(path, s))
-			local top = Path.TrackTop + 2 * HALF_W * math.sin(bank) + lip + 0.16
+			local top = Path.TrackTop + 2 * HALF_W * math.sin(bank) + lip
 			Ctx.place(ctx, minor, "SwCatchFence", at.X, at.Y, -out, top)
-		end
-	end
-	if turn == "near" then
-		return -- the near wall is a low lip, too short for banners
-	end
-	-- three fictional banners on the far wall's inner face (flat boards, the wall curves gently)
-	local arts = { "BannerA", "BannerB", "BannerC", "BannerD" }
-	for k, f in { 0.25, 0.5, 0.75 } do
-		local s = seg.s0 + seg.length * f
-		local p, d = Path.planPoint(path, s)
-		local out = Vector2.new(d.Y, -d.X)
-		local at = p + out * (HALF_W + 0.35)
-		local bank = math.rad(Path.bank(path, s))
-		local tall = math.min(1.5, lip - 0.15)
-		local y = Path.TrackTop + 2 * HALF_W * math.sin(bank) + 0.05 + tall / 2
-		local centre = Ctx.at(ctx, at.X, at.Y, y)
-		local board =
-			Kit.part(major, Vector3.new(tall * 6, tall, 0.08), CFrame.lookAt(centre, centre - Ctx.dir(ctx, out)), {
-				name = "Banner",
-				color = C.Wall,
-				castShadow = false,
-			})
-		local art = (KitIds.Textures :: any)[arts[(k + ctx.index) % #arts + 1]]
-		if art then
-			local decal = Instance.new("Decal")
-			decal.Texture = art
-			decal.Face = Enum.NormalId.Front
-			decal.Parent = board
 		end
 	end
 end

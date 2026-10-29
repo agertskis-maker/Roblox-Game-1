@@ -1,8 +1,9 @@
 --!strict
--- Starts the island walking boost for the local character (Lane 3). Everything lives in the
--- WalkBoost module next to this script; the one switch is WalkBoost.ENABLED there. This script
--- creates nothing when the switch is off, and nothing in a place without the island's boost
--- lanes (Workspace.Lane3_IslandEnvironment.BoostLanes): it waits for them, with no polling loop.
+-- Starts the island walking speed and boost lanes for the local character (Lane 3). Everything
+-- lives in the WalkBoost module next to this script; its two switches are WalkBoost.ENABLED (the
+-- lane boost) and WalkBoost.ISLAND_BASE_ENABLED (the island base speed, 32). This script creates
+-- nothing when both are off, and nothing in a place without the island's boost lanes
+-- (Workspace.Lane3_IslandEnvironment.BoostLanes): it waits for them, with no polling loop.
 -- Spec: vault/design/specs/walk-boost.md.
 
 local WalkBoost = require(script.Parent.WalkBoost)
@@ -12,7 +13,7 @@ local function start()
 	WalkBoost.new({ publish = true })
 end
 
-if WalkBoost.ENABLED then
+if WalkBoost.ENABLED or WalkBoost.ISLAND_BASE_ENABLED then
 	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
 	if env and env:FindFirstChild("BoostLanes") then
 		start()

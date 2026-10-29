@@ -5,8 +5,13 @@
 -- (Home/Island/WalkBoost) and the server preview walkers (Hub/Preview/WalkTests). This is the
 -- one source of truth for the boost numbers. Spec: vault/design/specs/walk-boost.md.
 --
+-- Speeds (Adam, Raceway round 2, 2026-10-29): every player on the home island walks at
+-- IslandBase (exactly 32; Roblox's default is 16). Over an avenue boost strip the speed is the
+-- island base x Multiplier: 32 x 1.5 = 48, TopSpeed. The boost multiplies the island base; it is not
+-- a maximum and not a cap on the base (speed() is the one formula).
+--
 -- Behaviour: while the walker is over an avenue boost strip the multiplier is Multiplier (1.5,
--- WalkSpeed 16 to 24). After stepping off it stays at Multiplier for Linger seconds, then eases
+-- WalkSpeed 32 to 48). After stepping off it stays at Multiplier for Linger seconds, then eases
 -- back to exactly 1 over Ease seconds (smoothstep). Stepping back on at any point returns it to
 -- Multiplier straight away. The multiplier is a level, never a product: re-entering, standing
 -- on two overlapping strips or sampling many times a frame can never take it above Multiplier.
@@ -21,10 +26,16 @@
 --   drop  Seated (or Sit, or a SeatPart), Swimming, Dead: the boost is reset to exactly 1 at once.
 -- stepGated() applies the gait and then runs step(). The preview walkers call step() directly.
 --
+-- Feedback (Adam's Design 6): no speed effect at normal walking. Only while the walker is moving
+-- along a boost lane, a low dust puff behind the feet, at most 4 a second (PuffInterval), never under
+-- Reduced Motion or at low graphics detail. puffWanted() and puffDue() are the pure rules; the
+-- client (Home/Island/WalkBoost) emits the particles.
+--
 -- Plan frame: x east, y north. Roblox world X = x, world Z = -y.
 
 local WalkBoostLogic = {}
 
+WalkBoostLogic.IslandBase = 32 -- WalkSpeed of every player on the home island (Adam, 2026-10-29)
 WalkBoostLogic.Multiplier = 1.5 -- approved by Adam (Task 4 brief, 2026-10-22)
 WalkBoostLogic.Linger = 0.5 -- seconds at full boost after stepping off (Tunable)
 WalkBoostLogic.Ease = 0.5 -- seconds to ease back to the base speed after the linger (Tunable)
@@ -38,6 +49,16 @@ WalkBoostLogic.MaxAbove = 10
 -- Seconds in the air (Jumping or Freefall) that still count as walking. A default jump is about
 -- 0.55 s from take-off to landing, so a hop on a strip or a short drop is covered (Tunable).
 WalkBoostLogic.AirGrace = 1
+-- Dust puffs on a boost lane (Adam's Design 6; Tunable within his limits): at most 4 a second, each
+-- lasting 0.25 s, 0.15 to 0.35 stud across. A walker slower than PuffMinSpeed studs/s is at rest.
+-- LowGraphicsMax: UserGameSettings.SavedQualityLevel 1 to this value counts as low detail (0 is
+-- Automatic, which is not treated as low).
+WalkBoostLogic.PuffInterval = 0.25
+WalkBoostLogic.PuffLifetime = 0.25
+WalkBoostLogic.PuffSizeMin = 0.15
+WalkBoostLogic.PuffSizeMax = 0.35
+WalkBoostLogic.PuffMinSpeed = 2
+WalkBoostLogic.LowGraphicsMax = 3
 
 -- A strip in plan coordinates; y is the strip's surface height in world studs, when known.
 export type Strip = { from: Vector2, to: Vector2, y: number? }
@@ -202,13 +223,49 @@ function WalkBoostLogic.stepGated(state: State, now: number, overStrip: boolean,
 	return WalkBoostLogic.step(state, now, counted), counted
 end
 
--- 0 at no boost, 1 at full boost: drives the feedback strength.
+-- 0 at no boost, 1 at full boost.
 function WalkBoostLogic.intensity(multiplier: number): number
 	local span = WalkBoostLogic.Multiplier - 1
 	if span <= 0 then
 		return 0
 	end
 	return math.clamp((multiplier - 1) / span, 0, 1)
+end
+
+-- The fastest WalkSpeed a lane boost produces: the island base x the multiplier (32 x 1.5 = 48).
+function WalkBoostLogic.topSpeed(): number
+	return WalkBoostLogic.IslandBase * WalkBoostLogic.Multiplier
+end
+
+-- WalkSpeed for a base speed and a boost multiplier: the boost multiplies the base, never above
+-- TopSpeed, so a foreign base (someone else's WalkSpeed) is still held to 48; a base already at or
+-- above TopSpeed is left as it is (a boost never slows anyone). A multiplier of 1 or less
+-- scales the base with no cap. SpeedModifiers.target is the same formula.
+function WalkBoostLogic.speed(base: number, multiplier: number): number
+	if multiplier > 1 then
+		return math.max(base, math.min(base * multiplier, WalkBoostLogic.topSpeed()))
+	end
+	return base * multiplier
+end
+
+-- True for a UserGameSettings.SavedQualityLevel value (its EnumItem .Value) that is low detail.
+function WalkBoostLogic.lowGraphics(level: number): boolean
+	return level >= 1 and level <= WalkBoostLogic.LowGraphicsMax
+end
+
+-- True when a dust puff may be made: the walker is walking (gait "walk") along a boost lane
+-- (onLane: counted as over a strip this sample) faster than PuffMinSpeed studs/s horizontally, and
+-- neither Reduced Motion (calm) nor low graphics detail applies. Off the lane, at rest, in the air,
+-- seated or after leaving the lane there is none.
+function WalkBoostLogic.puffWanted(onLane: boolean, gait: Gait, speed: number, calm: boolean, low: boolean): boolean
+	return onLane and gait == "walk" and speed > WalkBoostLogic.PuffMinSpeed and not calm and not low
+end
+
+-- True when the next puff is allowed: none made yet (last nil), a clock that went backwards, or
+-- PuffInterval seconds since the last. Calling this and recording `now` on true gives at most
+-- 1 / PuffInterval = 4 puffs a second, whatever the frame rate.
+function WalkBoostLogic.puffDue(last: number?, now: number): boolean
+	return last == nil or now < last or now - last >= WalkBoostLogic.PuffInterval - TIME_EPSILON
 end
 
 return WalkBoostLogic

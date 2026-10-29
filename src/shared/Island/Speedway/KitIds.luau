@@ -21,13 +21,9 @@ KitIds.Textures = {
 	FlagStripesA = id(97908223611462),
 	FlagStripesB = id(81318556896008),
 	FlagStar = id(93044374349935),
-	BannerA = id(121463232337129), -- ZOOPA FIZZ (fictional)
-	BannerB = id(110246953719901), -- CRUNCHKIN PUFFS (fictional)
-	BannerC = id(78479045044254), -- STICKYTOE TYRES (fictional)
-	BannerD = id(140634403555411), -- WOBBLEBOT TOYS (fictional)
 }
 
--- name -> "rbxassetid://..." (55 meshes). Imported 2026-10-28 with Studio's 3D Importer from
+-- name -> "rbxassetid://..." (55 meshes imported, 52 in use). Imported 2026-10-28 with Studio's 3D Importer from
 -- Car-Hop-Art/island-kit-speedway/island-kit.obj under Adam's user account (peskaface) for now,
 -- on Adam's choice, because the account is not in a group yet; a group-owned re-import replaces
 -- these ids (vault/design/specs/island-group-reimport.md). Checked with Preview/ImportCheck:
@@ -35,8 +31,6 @@ KitIds.Textures = {
 KitIds.Meshes = {
 	SwAnnouncerBooth = id(124453131187665),
 	SwBigScreen = id(136313621591068),
-	SwBleachers = id(116247810996339),
-	SwBlimp = id(90422652853307),
 	SwCatchFence = id(118467531984872),
 	SwColumn = id(117122389431761),
 	SwColumnCap = id(138360257717620),
@@ -55,7 +49,6 @@ KitIds.Meshes = {
 	SwFoldingChair = id(118657963872263),
 	SwGantry = id(74403998767331),
 	SwGantryGold = id(84586293883784),
-	SwGrandstandBay = id(80000123062400),
 	SwGuardRail = id(118243041147792),
 	SwHayRun = id(71403699224391),
 	SwLapBoard = id(82939533196986),
@@ -88,6 +81,18 @@ KitIds.Meshes = {
 	SwWheelbarrow = id(92646788953541),
 	SwWonkyStick = id(107697770547663),
 	SwWrench = id(75450568807779),
+} :: { [string]: string }
+
+-- Raceway round 2 (Adam, 2026-10-29): no advertising. The banked-wall banner images (ZOOPA FIZZ,
+-- CRUNCHKIN PUFFS, STICKYTOE TYRES, WOBBLEBOT TOYS; ids in Island/Hub/Environment/AssetIds) are no
+-- longer used by the Raceway. These three meshes were repainted (plain fascias, an unlettered
+-- blimp); until the guided re-import they load from the preview mesh data. Their earlier uploads
+-- carry the old paint but no lettering (the sponsor and blimp text were SurfaceGuis); kept here
+-- until the replacements are verified (vault/design/specs/raceway-round2-ledger.md).
+KitIds.Superseded = {
+	SwBleachers = id(116247810996339),
+	SwBlimp = id(90422652853307),
+	SwGrandstandBay = id(80000123062400),
 } :: { [string]: string }
 
 return KitIds

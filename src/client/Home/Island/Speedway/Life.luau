@@ -3,6 +3,9 @@
 --   fans          bob gently; clap when a car finishes; stand up and wave for a Rare or rarer car
 --   flag official raises and waves the checkered flag on every finish crossing
 --   mechanic      turns a wrench
+--   shopkeeper    a slow idle bob (at most 0.05 stud over 3.2 s); waves once when the plot owner walks
+--                 up (Life.greet: arm up 55 degrees in 0.18 s, two 12 degree waves over 0.65 s, down in
+--                 0.22 s; at most one greeting every 8 s). Reduce Motion: a still welcoming pose
 --   blimp         circles slowly overhead
 --   start lights  count down each lap; the gantry lights pulse on each finish; the lap board counts
 --   Legendary     confetti cannons and soft fireworks at level 12
@@ -43,6 +46,7 @@ type PlotLife = {
 	cheerStart: number, -- when the current cheer began (a second cheer extends it without a dip)
 	waveAt: number,
 	celebrateAt: number,
+	greetAt: number, -- when the shopkeeper last began a greeting
 	laps: number,
 }
 
@@ -75,6 +79,7 @@ local function collect(plot: Model): PlotLife
 			cheerStart = 0,
 			waveAt = -100,
 			celebrateAt = -100,
+			greetAt = -100,
 			laps = 0,
 		}
 	table.clear(pl.figures)
@@ -146,6 +151,34 @@ function Life.setActive(plot: Model, active: boolean)
 	if pl then
 		pl.active = active
 	end
+end
+
+-- The shopkeeper greets (the plot owner walked up). Returns false when it greeted under 8 s ago, is
+-- not animating, or Reduce Motion holds the still pose.
+Life.GreetGap = 8
+function Life.greet(plot: Model): boolean
+	local pl = plots[plot]
+	local now = os.clock()
+	if not pl or not pl.active or Calm() or now - pl.greetAt < Life.GreetGap then
+		return false
+	end
+	pl.greetAt = now
+	return true
+end
+
+-- The greeting arm angle (radians, outward) at t seconds after it began (0 outside the greeting).
+Life.GreetLift, Life.GreetWave = math.rad(55), math.rad(12)
+function Life.greetAngle(t: number): number
+	if t < 0 or t >= 1.05 then
+		return 0
+	elseif t < 0.18 then
+		local x = t / 0.18
+		return Life.GreetLift * x * x * (3 - 2 * x)
+	elseif t < 0.83 then
+		return Life.GreetLift + Life.GreetWave * math.sin((t - 0.18) / 0.65 * 4 * math.pi)
+	end
+	local x = (t - 0.83) / 0.22
+	return Life.GreetLift * (1 - x * x * (3 - 2 * x))
 end
 
 function Life.forget(plot: Model)
@@ -392,6 +425,21 @@ local function animate(pl: PlotLife, now: number, calm: boolean, parts: { BasePa
 				local spin = CFrame.Angles(0, 0, now * (if calm then 1.2 else 5))
 				table.insert(parts, item.part)
 				table.insert(cframes, shoulderTurn(base, item, spin))
+			end
+		elseif fig.kind == "Keeper" then
+			local bob = if calm then 0 else 0.025 * math.sin(now * (2 * math.pi / 3.2) + fig.phase)
+			local body = base * CFrame.new(0, bob, 0)
+			table.insert(parts, fig.model.PrimaryPart :: BasePart)
+			table.insert(cframes, body * fig.bodyRest)
+			local greet = if calm then 0 else Life.greetAngle(now - pl.greetAt)
+			for _, item in fig.parts do
+				-- the right arm hangs at -x: turning about Z by a negative angle swings it outward
+				local angle = 0
+				if item.part.Name == "ArmR" then
+					angle = if calm then -math.rad(18) else -greet
+				end
+				table.insert(parts, item.part)
+				table.insert(cframes, shoulderTurn(body, item, CFrame.Angles(0, 0, angle)))
 			end
 		elseif fig.kind == "Blimp" then
 			local centre = fig.model:GetAttribute("Centre") :: Vector3

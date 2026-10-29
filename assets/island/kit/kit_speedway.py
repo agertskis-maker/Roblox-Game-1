@@ -608,7 +608,7 @@ def terrace(b, x0, x1, prof, tops, risers, ends, back, front=None):
 
 # ---------------------------------------------------------------- bleachers
 # Painted island-style stand: three benches (front navy, middle coral, back cream) on stepped decks, a
-# navy sponsor hoarding along the whole front and light-metal hand rails. Fan fit (SwFanA..D, origin =
+# plain painted fascia along the whole front and light-metal hand rails. Fan fit (SwFanA..D, origin =
 # seat contact point): the thighs run 1.0 forward over the bench, the shins hang just in front of its
 # front edge (0.69), the shoes reach 1.3 forward and sit 0.88 below the origin. So each bench is
 # 0.68 in front of and 0.34 behind its row's y, and the feet land on the deck of the step below
@@ -635,12 +635,18 @@ def bleachers(name):
     # yellow nosing lines on the stair strip
     for yc, t in zip(BL_YC, BL_DECK):
         quad_z(b, BL_X1 + 0.15, XR - 0.2, yc - 0.68, yc - 0.5, t + 0.004, "awning_yellow")
-    # sponsor hoarding along the front: navy board, cream cap and end posts, plain navy plate for the text
+    # front fascia (Raceway round 2, Adam 2026-10-29: no advertising): a plain cream board with a navy
+    # lower stripe 15 % of its height, one short teal racing stripe at each end (mirrored about the
+    # fascia centre), a navy cap and cream end posts; the middle stays plain
     HX0, HX1, HY, HH = XL, BL_X1 + 0.1, -2.66, 0.95
-    bx(b, V((HX0 + HX1) / 2, HY + 0.08, HH / 2), (HX1 - HX0, 0.16, HH), "navy", zm=None, yp=None)
-    bx(b, V((HX0 + HX1) / 2, HY + 0.02, HH + 0.04), (HX1 - HX0, 0.3, 0.08), "cream", zm=None)
-    plate_x0, plate_x1, plate_z0, plate_z1 = -7.6, 6.2, 0.14, 0.84
-    bx(b, V((plate_x0 + plate_x1) / 2, HY - 0.02, (plate_z0 + plate_z1) / 2), (plate_x1 - plate_x0, 0.04, plate_z1 - plate_z0), "navy", yp=None)
+    hxc = (HX0 + HX1) / 2
+    bx(b, V(hxc, HY + 0.08, HH / 2), (HX1 - HX0, 0.16, HH), "cream", zm=None, yp=None)
+    bx(b, V(hxc, HY + 0.02, HH + 0.04), (HX1 - HX0, 0.3, 0.08), "navy", zm=None)
+    stripe = round(0.15 * HH, 3)
+    quad_y(b, HX0, HX1, 0.0, stripe, HY - 0.003, "navy", -1)
+    for s in (-1, 1):
+        x_in, x_out = hxc + s * (HX1 - HX0) / 2 * 0.62, hxc + s * ((HX1 - HX0) / 2 - 0.55)
+        quad_y(b, min(x_in, x_out), max(x_in, x_out), 0.42, 0.62, HY - 0.003, "teal", -1)
     for px in (XL + 0.17, HX1 - 0.17):
         bx(b, V(px, HY + 0.05, 0.62), (0.3, 0.26, 1.24), "cream", zm=None)
     # back rail (two bars on five posts) and the two end rails (a sloped bar on four posts each)
@@ -663,9 +669,7 @@ def bleachers(name):
         "origin": "footprint centre on the ground", "front": "-y", "length": 16.0, "depth": 5.4, "height": 3.6,
         "rows": [{"seat_z": sz, "y": yc, "x0": BL_X0, "x1": BL_X1} for yc, sz in BL_ROWS],
         "steps": {"x": [BL_X1 + 0.1, XR - 0.2], "end": "+x"}, "back_rail_z": [2.9, 3.56],
-        "sponsor": {"centre": [round((plate_x0 + plate_x1) / 2, 3), round((plate_z0 + plate_z1) / 2, 3)],
-                    "size": [round(plate_x1 - plate_x0, 3), round(plate_z1 - plate_z0, 3)], "plane_y": round(HY - 0.04, 3),
-                    "normal": [0, -1, 0], "note": "plain navy board, text goes on it"},
+        "fascia": {"x": [HX0, HX1], "height": HH, "navy_stripe": stripe, "note": "plain painted fascia, no text"},
         "note": "seat_z is the top of the bench; y the bench seat centre (bench from y - 0.68 to y + 0.34); a fan origin sits at (x, y, seat_z), its feet land on the deck of the step below",
     }
 
@@ -1043,7 +1047,7 @@ def tyre_stack_tall(name):
 
 # ---------------------------------------------------------------- grandstand bay
 # The bleachers' painted look, bigger and roofed: five tiers of seat runs (navy, coral, cream, navy,
-# coral from the front) with a teal stepped terrace, a navy sponsor hoarding along the front, the
+# coral from the front) with a teal stepped terrace, a plain navy fascia along the front, the
 # central aisle with its rails, the back wall, columns and the cantilevered canopy. Each tier climbs
 # in two equal 0.46 steps: a foot tread, then the seat deck (0.42 seat + 0.46 step = the fan's 0.88 hip-to-sole). Fan fit (see bleachers): the seat run is
 # 0.68 in front of and 0.32 behind the tier's y; its foot tread (0.7 wide) lies in front of the riser
@@ -1102,18 +1106,18 @@ def grandstand_bay(name):
               "teal" if k % 2 == 0 else CREAM, V((xa + xb) / 2, 0, 0))
     for x in (-3.5, 3.5):
         bar(b, V(x, 5.2, ztop(5.2) - 0.65), V(x, -5.0, ztop(-5.0) - 0.65), 0.35, NAVY, w2=0.5, up=(1, 0, 0))
-    # sponsor hoarding along the whole front (joins flush with the next bay): navy board, cream cap,
-    # a plain navy plate (0.04 proud) for the text
+    # front fascia along the whole front (joins flush with the next bay; Raceway round 2, Adam
+    # 2026-10-29: no advertising): navy board, cream cap and a plain cream inset (0.04 proud), no text;
+    # the two coral end caps of the whole stand are placed at its outer ends (Props.grandstand)
     HY, HH = -5.5, 1.4
     bx(b, V(0, HY + 0.1, HH / 2), (14.0, 0.2, HH), NAVY, zm=None, yp=None)
     bx(b, V(0, HY + 0.04, HH + 0.04), (14.0, 0.32, 0.08), CREAM, zm=None)
-    plate = {"x": 13.4, "z0": 0.2, "z1": 1.2}
-    bx(b, V(0, HY - 0.02, (plate["z0"] + plate["z1"]) / 2), (plate["x"], 0.04, plate["z1"] - plate["z0"]), NAVY, yp=None)
+    plate = {"x": 13.0, "z0": 0.42, "z1": 0.98}
+    bx(b, V(0, HY - 0.02, (plate["z0"] + plate["z1"]) / 2), (plate["x"], 0.04, plate["z1"] - plate["z0"]), CREAM, yp=None)
     rows = [{"seat_z": round(t + GS_SEAT, 3), "y": round(yc, 3), "x0": -6.85, "x1": 6.85, "aisle": [-0.7, 0.7]} for yc, t in zip(GS_YC, GS_T)]
     return b, {"origin": "footprint centre on the ground", "front": "-y", "module": [14.0, 11.0], "height": 13.0, "join": "flush at x = +/-7, repeat every 14 along x",
                "rows": rows, "canopy_underside_front": round(ztop(-5.3) - 0.4, 3), "columns_x": [-3.5, 3.5], "note": "back columns repeat every 7 studs across modules; seat_z is the top of the seat pan, y the seat centre (seat from y - 0.68 to y + 0.32), a fan origin sits at (x, y, seat_z) and its feet land on the foot tread in front of the seat deck; keep fans out of the aisle (x within +/-1.3)",
-               "sponsor": {"centre": [0.0, round((plate["z0"] + plate["z1"]) / 2, 3)], "size": [plate["x"], round(plate["z1"] - plate["z0"], 3)],
-                           "plane_y": round(HY - 0.04, 3), "normal": [0, -1, 0], "note": "plain navy board along the front, text goes on it"}}
+               "fascia": {"y": HY, "height": HH, "inset": [plate["x"], round(plate["z1"] - plate["z0"], 3)], "note": "plain painted fascia, no text"}}
 
 
 # ---------------------------------------------------------------- announcer booth
@@ -1410,6 +1414,8 @@ def blimp(name):
             r = blimp_r(t)
             rings.append([V(r * math.sin(2 * math.pi * k / n), y, r * math.cos(2 * math.pi * k / n)) for k in range(n)])
 
+    # Raceway round 2 (Adam 2026-10-29): cream body, navy underside, one coral stripe along each side
+    # (the band at the equator), teal tail fins; no lettering, plaques or logos
     def sw(i, k):
         thm = (k + 0.5) * 360.0 / n
         if thm > 180:
@@ -1417,18 +1423,16 @@ def blimp(name):
         e = 90 - thm
         up = e >= 0
         lvl = int(round((abs(e) - 11.25) / 22.5))
-        if i in (0, len(ts) - 2):
-            return "coral" if up else "teal"
-        return {3: "teal" if up else "coral", 2: "cream", 1: "coral" if up else "teal", 0: "cart_white"}[lvl]
+        if lvl == 0:
+            return "coral"
+        return "cream" if up else "navy"
 
     loft(b, rings, sw)
-    for sx in (-1, 1):
-        cbox(b, V(sx * (BL_R + 0.04 - 0.25), 0, 0), (0.5, 10.0, 2.6), "cart_white", c=0.06, edge="teal")
     for k in range(4):
         xf = Xf(b, rot=(0, 90 * k, 0))
         hexa(xf, [V(-0.09, 7.4, 1.4), V(0.09, 7.4, 1.4), V(0.09, 11.0, 1.0), V(-0.09, 11.0, 1.0),
-                  V(-0.09, 9.5, 5.3), V(0.09, 9.5, 5.3), V(0.09, 11.0, 5.0), V(-0.09, 11.0, 5.0)], "teal" if k % 2 == 0 else "coral")
-    cbox(b, V(0, -1.5, -3.9), (1.8, 4.2, 1.4), "cart_white", c=0.12, edge="teal")
+                  V(-0.09, 9.5, 5.3), V(0.09, 9.5, 5.3), V(0.09, 11.0, 5.0), V(-0.09, 11.0, 5.0)], "teal")
+    cbox(b, V(0, -1.5, -3.9), (1.8, 4.2, 1.4), "cream", c=0.12, edge="navy")
     for sx in (-1, 1):
         bx(b, V(sx * 0.92, -1.5, -3.75), (0.04, 3.0, 0.5), "glass_tint")
     bx(b, V(0, -3.62, -3.75), (1.3, 0.04, 0.5), "glass_tint")
@@ -1436,9 +1440,8 @@ def blimp(name):
         bx(Xf(b, pos=(0, 0.75, -3.9), rot=(0, z, 0)), V0, (0.14, 0.06, 1.5), "iron_hi")
     gem(b, V(0, 0.68, -3.9), 0.14, 0.1, 0.14, "deco_gold", n=6)
     gem(b, V(0, -12.0, 0), 0.4, 0.4, 0.5, "deco_gold", n=8)
-    face = lambda sx: {"centre": [0.0, 0.0], "size": [9.6, 2.4], "plane_x": round(sx * (BL_R + 0.04), 3), "normal": [sx, 0, 0], "note": "(y, z) centre on the plaque"}
-    return b, {"origin": "envelope centre (not the ground)", "nose": "-y", "length": 24.0, "radius": BL_R, "height": 9.0, "face_left": face(-1), "face_right": face(1),
-               "fins": 4, "gondola_z": -3.9, "note": "text plaques on both sides, flat vertical faces normal +/-x"}
+    return b, {"origin": "envelope centre (not the ground)", "nose": "-y", "length": 24.0, "radius": BL_R, "height": 9.0,
+               "fins": 4, "gondola_z": -3.9, "note": "plain painted envelope, no lettering (Raceway round 2)"}
 
 
 # ---------------------------------------------------------------- loop track
@@ -1639,6 +1642,157 @@ def preview_car(name):
 
 
 # ---------------------------------------------------------------- build
+# ---------------------------------------------------------------- Raceway shop, keeper, parking
+# Raceway round 2 (Adam 2026-10-29). The shop replaces the plot's KioskBooth inside the Kiosk
+# reservation (plot frame x 19..29, u 250.187..258.187, height 9), 0.5 inside it: 9 wide x 7 deep x
+# 8.5 high including the awning (Adam's 12 x 8 x 10.5 target does not fit the reservation). Cream
+# walls, teal corner posts, a coral counter base with a cream top (3.0 high, 1.2 deep), a 7.8 wide
+# opening, a 1.5 awning in three broad cream / teal / cream bands, one cream fascia (9 x 1.6) for
+# "RACEWAY UPGRADES" and a gently pitched navy roof. One tool tray and one folded cloth.
+SHOP_W, SHOP_YF, SHOP_YB, SHOP_EAVE, SHOP_RIDGE = 9.0, -2.0, 3.5, 7.9, 8.5
+SHOP_COUNTER = 3.0
+
+
+def raceway_shop(name):
+    b = Builder(name)
+    hw = SHOP_W / 2
+    yf, yb = SHOP_YF, SHOP_YB
+    ym = (yf + yb) / 2
+    cbox(b, V(0, ym, 0.15), (SHOP_W, yb - yf, 0.3), "navy", c=0.06)
+    # corner posts and walls
+    px, pf, pb = hw - 0.3, yf + 0.3, yb - 0.3
+    for sx in (-1, 1):
+        for y in (pf, pb):
+            cbox(b, V(sx * px, y, (0.3 + SHOP_EAVE) / 2), (0.6, 0.6, SHOP_EAVE - 0.3), "teal", c=0.1)
+        bx(b, V(sx * px, ym, (0.3 + SHOP_EAVE) / 2), (0.4, pb - pf, SHOP_EAVE - 0.3), "cream")
+    bx(b, V(0, pb, (0.3 + SHOP_EAVE) / 2), (2 * px, 0.4, SHOP_EAVE - 0.3), "cream")
+    ox = px - 0.3  # the opening runs between the posts' inner faces
+    top = SHOP_COUNTER - 0.16
+    # counter: coral base wall and a solid body behind it, cream top overhanging 0.15 in front
+    bx(b, V(0, yf + 0.2, (0.3 + top) / 2), (2 * ox, 0.4, top - 0.3), "coral")
+    bx(b, V(0, yf + 0.4 + 0.325, (0.3 + top) / 2), (2 * ox, 0.65, top - 0.3), "coral", ym=None)
+    cbox(b, V(0, yf - 0.15 + 0.6, SHOP_COUNTER - 0.08), (2 * ox + 0.2, 1.2, 0.16), "cream", c=0.04)
+    # a low step behind the counter, so the keeper shows from the chest up
+    cbox(b, V(0, 0.45, 0.6), (2.4, 1.3, 0.6), "plank_dark", c=0.04)
+    # wall above the opening, behind the fascia
+    op_top = 6.2
+    bx(b, V(0, yf + 0.2, (op_top + SHOP_EAVE) / 2), (2 * ox, 0.4, SHOP_EAVE - op_top), "cream")
+    # interior: plank floor and a teal band on the back wall at shoulder height
+    quad_z(b, -ox, ox, yf + 1.05, pb - 0.2, 0.31, "plank")
+    quad_y(b, -ox, ox, 3.4, 3.8, pb - 0.21, "teal", -1)
+    # fascia sign under the roof
+    fy = yf - 0.12
+    cbox(b, V(0, fy, 7.0), (SHOP_W, 0.2, 1.6), "cream", c=0.05, edge="navy")
+    # awning: three broad bands from the wall under the fascia out 1.5, a straight valance edge
+    ay0, ay1, az0, az1, ax = fy - 0.1, yf - 1.5, 6.15, 5.7, ox + 0.1
+    for k, sw in enumerate(("cream", "teal", "cream")):
+        xa, xb = -ax + 2 * ax * k / 3, -ax + 2 * ax * (k + 1) / 3
+        hexa(b, [V(xa, ay0, az0), V(xb, ay0, az0), V(xb, ay1, az1), V(xa, ay1, az1),
+                 V(xa, ay0, az0 + 0.08), V(xb, ay0, az0 + 0.08), V(xb, ay1, az1 + 0.08), V(xa, ay1, az1 + 0.08)], sw)
+        cbox(b, V((xa + xb) / 2, ay1 + 0.04, az1 - 0.14), (xb - xa, 0.08, 0.36), sw, c=0.035)
+    for sx in (-1, 1):
+        bar(b, V(sx * px, pf - 0.3, 4.6), V(sx * ax * 0.97, ay1 + 0.1, az1 - 0.05), 0.08, "metal")
+    # roof: two gently pitched navy slabs over a ridge along x, cream gable ends
+    rf, rb, rt = fy - 0.15, yb, 0.2
+    ridge_y = (rf + rb) / 2
+    for y0, z0 in ((rf, SHOP_EAVE), (rb, SHOP_EAVE)):
+        hexa(b, [V(-hw, y0, z0 - rt), V(hw, y0, z0 - rt), V(hw, ridge_y, SHOP_RIDGE - rt), V(-hw, ridge_y, SHOP_RIDGE - rt),
+                 V(-hw, y0, z0), V(hw, y0, z0), V(hw, ridge_y, SHOP_RIDGE), V(-hw, ridge_y, SHOP_RIDGE)], "navy")
+    for sx in (-1, 1):
+        oface(b, [V(sx * (px + 0.2), pf, SHOP_EAVE - rt), V(sx * (px + 0.2), pb, SHOP_EAVE - rt), V(sx * (px + 0.2), ridge_y, SHOP_RIDGE - rt)],
+              "cream", V(0, ridge_y, 7.0))
+    # one tool tray and one folded cloth on the counter
+    ct = SHOP_COUNTER
+    bx(b, V(2.9, yf + 0.5, ct + 0.06), (0.9, 0.45, 0.12), "metal", zm=None)
+    bx(b, V(2.85, yf + 0.5, ct + 0.13), (0.55, 0.08, 0.05), "iron_hi", zm=None)
+    cbox(b, V(-2.9, yf + 0.5, ct + 0.06), (0.7, 0.5, 0.12), "teal", c=0.03)
+    return b, {
+        "origin": "footprint centre on the ground", "front": "-y", "footprint": [SHOP_W, round(yb - (yf - 1.5), 3)],
+        "y_range": [round(yf - 1.5, 3), yb], "height": SHOP_RIDGE, "counter_top": SHOP_COUNTER, "counter_depth": 1.2,
+        "opening": {"x": [round(-ox, 3), round(ox, 3)], "z": [SHOP_COUNTER, op_top]}, "awning_projection": 1.5,
+        "fascia": {"centre": [0.0, 7.0], "size": [8.6, 1.3], "plane_y": round(fy - 0.1, 3), "normal": [0, -1, 0]},
+        "keeper": [0.0, 0.45, 0.9], "collider": {"x": [-hw, hw], "y": [yf, yb], "z": [0.0, SHOP_EAVE]},
+        "note": "the keeper's feet go at 'keeper'; the fascia holds the RACEWAY UPGRADES text (SurfaceGui)",
+    }
+
+
+KEEPER_SHOULDER = (0.74, 0.0, 2.92)
+
+
+def keeper_body(name):
+    b = Builder(name)
+    skin = "log_inner"
+    for sx in (-1, 1):
+        x = sx * 0.27
+        hexa(b, [V(x - 0.22, -0.24, 0.26), V(x + 0.22, -0.24, 0.26), V(x + 0.22, 0.24, 0.26), V(x - 0.22, 0.24, 0.26),
+                 V(x - 0.24, -0.27, 1.6), V(x + 0.24, -0.27, 1.6), V(x + 0.24, 0.27, 1.6), V(x - 0.24, 0.27, 1.6)], "teal_dark", skip=(0,))
+        bx(b, V(x, -0.08, 0.13), (0.46, 0.76, 0.26), "raccoon_dark", zm=None)
+    # navy work shirt, teal apron with its bib and two straps
+    hexa(b, [V(-0.56, -0.32, 1.55), V(0.56, -0.32, 1.55), V(0.56, 0.32, 1.55), V(-0.56, 0.32, 1.55),
+             V(-0.64, -0.34, 3.08), V(0.64, -0.34, 3.08), V(0.64, 0.34, 3.08), V(-0.64, 0.34, 3.08)], "navy")
+    bx(b, V(0, -0.38, 1.85), (0.98, 0.06, 1.3), "teal")
+    bx(b, V(0, -0.38, 2.72), (0.62, 0.06, 0.44), "teal")
+    for sx in (-1, 1):
+        bx(b, V(sx * 0.3, -0.37, 2.98), (0.1, 0.05, 0.2), "teal")
+    bx(b, V(0, -0.42, 2.0), (0.42, 0.04, 0.26), "teal_dark")
+    lat(b, V(0, 0, 3.05), [(0.17, 0), (0.16, 0.2)], 6, skin)
+    # a head about 1.25 times the fans' (radius 0.62 against 0.5), coral cap with a short brim, no logo
+    hc = V(0, 0, 3.78)
+    head(b, hc, 0.62, skin)
+    bx(b, hc + V(0, 0.34, 0.0), (0.74, 0.32, 0.5), "bark_dark", zm=None, ym=None)
+    dome(b, hc + V(0, 0, 0.24), 0.66, 0.5, 8, 2, "coral")
+    bx(b, hc + V(0, -0.76, 0.27), (0.9, 0.46, 0.07), "coral")
+    return b, {"origin": "feet on the ground", "front": "-y", "height": round(hc.z + 0.24 + 0.5, 3),
+               "shoulder_l": list(KEEPER_SHOULDER), "shoulder_r": [-KEEPER_SHOULDER[0], KEEPER_SHOULDER[1], KEEPER_SHOULDER[2]],
+               "head_centre": r3(hc), "note": "no arms; SwKeeperArm hangs at both shoulders (character left is +x)"}
+
+
+def keeper_arm(name):
+    b = Builder(name)
+    cyl(b, V(0, 0, -0.7), 0.9, 0.22, 6, "navy", r_top=0.27, top=True, bottom=True)
+    cyl(b, V(0, 0, -1.2), 0.5, 0.17, 6, "navy", r_top=0.2, top=False, bottom=False)
+    ball(b, V(0, 0, -1.34), 0.24, 6, 3, "cream")
+    return b, {"origin": "shoulder pivot", "length": 1.58, "rest": "hangs along -z", "hand": [0.0, 0.0, -1.34],
+               "note": "cream glove, no fingers; the same mesh hangs at both shoulders"}
+
+
+def parking_sign(name):
+    b = Builder(name)
+    cbox(b, V(0, 0, 0.08), (0.8, 0.8, 0.16), "navy", c=0.05)
+    cbox(b, V(0, 0.02, 1.0), (0.3, 0.3, 1.8), "navy", c=0.06)
+    cbox(b, V(0, -0.05, 2.6), (3.2, 0.25, 2.4), "cream", c=0.1)
+    bx(b, V(0, -0.19, 2.6), (2.9, 0.04, 2.1), "teal", yp=None)
+    return b, {"origin": "post foot on the ground", "front": "-y", "width": 3.2, "height": 3.8,
+               "face": {"centre": [0.0, 2.6], "size": [2.8, 2.0], "plane_y": -0.22, "normal": [0, -1, 0]},
+               "note": "teal inset: the P symbol, PARKING and the owned count go on a SurfaceGui"}
+
+
+BARRIER_PIVOT_Z = 1.6
+BARRIER_LEN = 7.4
+
+
+def bay_barrier_post(name):
+    b = Builder(name)
+    cbox(b, V(0, 0, 0.9), (0.45, 0.45, 1.8), "navy", c=0.06)
+    cbox(b, V(0, 0, 1.9), (0.52, 0.52, 0.2), "cream", c=0.05)
+    return b, {"origin": "foot on the ground", "height": 2.0, "pivot": [0.0, -0.32, BARRIER_PIVOT_Z],
+               "note": "the arm's origin goes at pivot; the arm runs along +x"}
+
+
+def bay_barrier_arm(name):
+    b = Builder(name)
+    n = 7
+    seg = BARRIER_LEN / n
+    for k in range(n):
+        cbox(b, V(seg * (k + 0.5), 0, 0), (seg + 0.002, 0.16, 0.2), "navy" if k % 2 == 0 else "cream", c=0.03)
+    cbox(b, V(-0.05, 0, 0), (0.3, 0.2, 0.3), "navy", c=0.05)
+    px = BARRIER_LEN / 2
+    cbox(b, V(px, -0.1, 0), (1.9, 0.06, 0.58), "navy", c=0.03)
+    return b, {"origin": "pivot", "length": BARRIER_LEN, "along": "+x",
+               "plaque": {"centre": [px, 0.0], "size": [1.8, 0.5], "plane_y": -0.135, "normal": [0, -1, 0]},
+               "note": "ADD SPOT plaque at the middle (SurfaceGui); the arm lifts by turning about its origin (local y axis)"}
+
+
 CAPS = {
     "SwHayRun": 220, "SwTyreRun": 320, "SwTyreWall": 520, "SwRopeFence": 220, "SwOwnerSign": 220, "SwWonkyStick": 80,
     "SwRustyShed": 650, "SwPaintedShed": 750, "SwLemonadeStand": 520, "SwFoldingChair": 120, "SwStartBoard": 320,
@@ -1650,6 +1804,7 @@ CAPS = {
     "SwBigScreen": 520, "SwCatchFence": 320, "SwColumn": 40, "SwColumnCap": 80, "SwGuardRail": 220, "SwOrangeBarrier": 120,
     "SwFlameDecal": 60, "SwBlimp": 950, "SwLoopTrack": 1600, "SwStatuePedestal": 320,
     "SwStatueCar": 800, "SwRoofSection": 1000, "SwConfettiCannon": 200, "SwFireworkRack": 160, "SwPreviewCar": 600,
+    "SwRacewayShop": 1400, "SwKeeperBody": 520, "SwKeeperArm": 80, "SwParkingSign": 160, "SwBayBarrierPost": 100, "SwBayBarrierArm": 420,
 }
 
 
@@ -1719,3 +1874,9 @@ def build_all(emit):
     go(confetti_cannon("SwConfettiCannon"), "Late")
     go(firework_rack("SwFireworkRack"), "Late")
     go(preview_car("SwPreviewCar"), "Late")
+    go(raceway_shop("SwRacewayShop"), "Shop")
+    go(keeper_body("SwKeeperBody"), "Shop")
+    go(keeper_arm("SwKeeperArm"), "Shop")
+    go(parking_sign("SwParkingSign"), "Shop")
+    go(bay_barrier_post("SwBayBarrierPost"), "Shop")
+    go(bay_barrier_arm("SwBayBarrierArm"), "Shop")

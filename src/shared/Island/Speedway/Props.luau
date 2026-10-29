@@ -429,15 +429,6 @@ end
 
 -- ------------------------------------------------------------------ level 3
 
--- The fictional sponsor on a stand's navy front panel (the mesh's "sponsor" face, if it has one).
-local SPONSORS = { "PIP'S POPS", "COMET COLA", "HAUL BUDDY TIRES" }
-local function sponsorPanel(folder: Folder, mesh: string, base: CFrame, which: number)
-	local face = meshFace(folder, mesh, "sponsor", base)
-	if face then
-		label(surface(face, 40), SPONSORS[(which - 1) % #SPONSORS + 1], { 0.03, 0.08, 0.94, 0.84 }, 48, CREAM, NAVY)
-	end
-end
-
 function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 	local base = Ctx.face(ctx, A.Bleachers.X, A.Bleachers.Y, EAST)
 	local stand = Kit.place("SwBleachers", base)
@@ -445,7 +436,6 @@ function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 		stand.CanCollide = true
 		stand.CanQuery = true
 		stand.Parent = major
-		sponsorPanel(major, "SwBleachers", base, 1)
 	end
 	seatFans(life, ctx, "SwBleachers", base, 9, 3)
 end
@@ -691,9 +681,22 @@ function Props.grandstand(major: Folder, life: Folder, ctx: Ctx)
 			bay.CanCollide = true
 			bay.CanQuery = true
 			bay.Parent = major
-			sponsorPanel(major, "SwGrandstandBay", base, k)
 		end
 		seatFans(life, ctx, "SwGrandstandBay", base, 12, 10 + k)
+	end
+	-- two mirrored coral end caps on the fascia at the stand's outer ends (Raceway round 2; the
+	-- bay mesh repeats, so the caps are placed once here)
+	local us = A.GrandstandU
+	local half = Kit.meta("SwGrandstandBay", "module.1", 14) / 2
+	local y = Kit.meta("SwGrandstandBay", "fascia.y", -5.5)
+	local tall = Kit.meta("SwGrandstandBay", "fascia.height", 1.4)
+	for _, side in { -1, 1 } do
+		local u = if side < 0 then us[1] - half + 0.3 else us[#us] + half - 0.3
+		local base = Ctx.face(ctx, A.GrandstandX, u, EAST)
+		Kit.part(major, Vector3.new(0.6, tall + 0.12, 0.5), base * CFrame.new(0, (tall + 0.12) / 2, -y + 0.1), {
+			name = "GrandstandEndCap",
+			color = Color3.fromRGB(244, 127, 112),
+		})
 	end
 end
 
@@ -838,27 +841,8 @@ function Props.blimp(major: Folder, ctx: Ctx)
 	if not blimp then
 		return
 	end
-	local extras = {}
-	-- the side faces stand on the envelope's flanks (meta plane_x, normal +-x; centre along the
-	-- envelope and up)
-	local m = Kit.info("SwBlimp").meta
-	for _, key in { "face_left", "face_right" } do
-		local px = m[key .. ".plane_x"]
-		local face: Part? = nil
-		if px then
-			local side = if px < 0 then -1 else 1
-			local p = base:PointToWorldSpace(
-				Vector3.new(px + side * 0.05, m[key .. ".centre.2"] or 0, -(m[key .. ".centre.1"] or 0))
-			)
-			local normal = base:VectorToWorldSpace(Vector3.new(side, 0, 0))
-			face = facePart(major, CFrame.lookAt(p, p + normal), m[key .. ".size.1"] or 9, m[key .. ".size.2"] or 2)
-		end
-		if face then
-			label(surface(face, 30), "CAR HOP", { 0.02, 0.1, 0.96, 0.8 }, 60, Color3.fromRGB(234, 88, 50), CREAM)
-			table.insert(extras, face)
-		end
-	end
-	local model = figure(major, "Blimp", "Blimp", blimp, extras, base)
+	-- plain painted envelope, no lettering (Raceway round 2, Adam 2026-10-29)
+	local model = figure(major, "Blimp", "Blimp", blimp, {}, base)
 	model:SetAttribute("Centre", Ctx.at(ctx, c.X, c.Y, 58))
 	model:SetAttribute("Radius", 52)
 end
@@ -904,6 +888,73 @@ function Props.cannons(folder: Folder, ctx: Ctx)
 			rack:SetAttribute("FireworkRack", true)
 		end
 	end
+end
+
+-- ------------------------------------------------------------------ Raceway shop (all levels)
+
+-- The Raceway shop (Raceway round 2, Adam 2026-10-29) replaces the plot's kiosk booth in the Kiosk
+-- reservation (HubData: x 19..29, u 250.187..258.187, height 9): the SwRacewayShop booth (9 x 7 x
+-- 8.5 with the awning, 0.5 inside the reservation), its fascia face for the sign, and the
+-- shopkeeper, a rigid figure (body and two arms) the client animates (Home/Island/Speedway/Keeper).
+-- Only the booth's body collides (an invisible box); the awning, the keeper and the counter props
+-- never do, so nobody is pushed or trapped.
+Props.ShopCentre = Vector2.new(24, 254.187)
+
+function Props.shop(major: Folder, life: Folder, ctx: Ctx)
+	local base = Ctx.face(ctx, Props.ShopCentre.X, Props.ShopCentre.Y, PARKWARD)
+	local booth = Kit.place("SwRacewayShop", base)
+	if not booth then
+		return
+	end
+	booth.Parent = major
+	local x0, x1 = Kit.meta("SwRacewayShop", "collider.x.1", -4.5), Kit.meta("SwRacewayShop", "collider.x.2", 4.5)
+	local y0, y1 = Kit.meta("SwRacewayShop", "collider.y.1", -2), Kit.meta("SwRacewayShop", "collider.y.2", 3.5)
+	local top = Kit.meta("SwRacewayShop", "collider.z.2", 7.9)
+	-- recipe (x, y, z) -> mesh-local (x, z, -y)
+	Kit.part(major, Vector3.new(x1 - x0, top, y1 - y0), base * CFrame.new((x0 + x1) / 2, top / 2, -(y0 + y1) / 2), {
+		name = "ShopCollider",
+		transparency = 1,
+		collide = true,
+		castShadow = false,
+	})
+	local fascia = meshFace(major, "SwRacewayShop", "fascia", base)
+	if fascia then
+		fascia.Name = "ShopFascia"
+		fascia:SetAttribute("ShopFascia", true)
+	end
+	-- where the owner's prompt sits: over the counter front, at chest height
+	local counter = Kit.meta("SwRacewayShop", "counter_top", 3)
+	local anchor = Kit.part(major, Vector3.one * 0.4, base * CFrame.new(0, counter + 0.6, -y0 + 0.4), {
+		name = "ShopPromptAnchor",
+		transparency = 1,
+		castShadow = false,
+	})
+	anchor:SetAttribute("ShopPromptAnchor", true)
+
+	local feet = Kit.point("SwRacewayShop", "keeper", base)
+	if not feet then
+		return
+	end
+	local at = CFrame.new(feet) * (base - base.Position)
+	local body = Kit.place("SwKeeperBody", at)
+	if not body then
+		return
+	end
+	local extras = {}
+	for _, side in { "l", "r" } do
+		local shoulder = Kit.point("SwKeeperBody", "shoulder_" .. side, at)
+		if shoulder then
+			local a = arm("SwKeeperArm", at, shoulder)
+			if a then
+				a.Name = if side == "l" then "ArmL" else "ArmR"
+				a:SetAttribute("Rest", at:ToObjectSpace(a.CFrame))
+				a:SetAttribute("Shoulder", at:PointToObjectSpace(shoulder))
+				table.insert(extras, a)
+			end
+		end
+	end
+	local keeper = figure(life, "Shopkeeper", "Keeper", body, extras, at)
+	keeper:SetAttribute("Phase", ctx.index * 1.7) -- no two plots' keepers bob in step
 end
 
 -- ------------------------------------------------------------------ kiosk board (all levels)

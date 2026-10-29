@@ -1,6 +1,6 @@
 --!strict
 -- One hub plot's front (Task 3, 2026-10-22; Task 4 gate): front to back the entrance court and
--- gate with its nameplate, the upgrade kiosk, the Paddock with 15 marked bay placeholders, the
+-- gate with its nameplate, the Kiosk reservation (the Raceway shop), the Paddock floor, the
 -- walkway and the pit lanes. The Speedway itself (track, edges, stands and everything that grows)
 -- is assembled per client for the plot's level by the Speedway look module
 -- (ReplicatedStorage.Shared.Island.Speedway.Look; Home/Island/SpeedwayLooks): the Task 3 base
@@ -37,20 +37,6 @@ local function rect(
 	return Kit.strip(parent, a, b, math.abs(x1 - x0), thickness, topY, options, 0)
 end
 
--- Box standing on the surface over a plot-frame rectangle.
-local function box(
-	parent: Instance,
-	bearing: number,
-	x0: number,
-	u0: number,
-	x1: number,
-	u1: number,
-	height: number,
-	options: Kit.PartOptions
-): Part?
-	return rect(parent, bearing, x0, u0, x1, u1, SURFACE + height, height, options)
-end
-
 local function polyline(
 	parent: Instance,
 	bearing: number,
@@ -71,15 +57,6 @@ local function polyline(
 			width * 0.5
 		)
 	end
-end
-
--- A thin invisible face part for a SurfaceGui, centred at `at`, its Front face toward `toward`.
-local function facePart(parent: Instance, name: string, at: Vector3, toward: Vector3, w: number, h: number): Part
-	return Kit.part(parent, Vector3.new(w, h, 0.02), CFrame.lookAt(at, toward), {
-		name = name,
-		transparency = 1,
-		castShadow = false,
-	})
 end
 
 -- Task 4 plot gate (brief §11; gates family, assets/island/kit/kit_gates.py; concept-review M14):
@@ -281,31 +258,9 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 	local gateAt = W(0, r0, SURFACE)
 	buildGate(front, CFrame.lookAt(gateAt, gateAt - parkward), index)
 
-	-- the upgrade kiosk: a placeholder booth with a blank-for-now panel (no prices or prompts)
-	local kx0, ku0, kx1, ku1 = Layout.bounds(Layout.reservation("Kiosk").poly)
-	if KitAssets.has("KioskBooth") then
-		local at = W((kx0 + kx1) / 2, (ku0 + ku1) / 2, SURFACE)
-		local base = CFrame.lookAt(at, at - parkward)
-		local kiosk = KitAssets.place("KioskBooth", base, 1, true)
-		kiosk.Name = "Kiosk"
-		kiosk:SetAttribute("Placeholder", "upgrade kiosk; interactions belong to Lane 2")
-		kiosk.Parent = front
-		-- the panel face (kit_plot.py): 5.0 x 0.9 at 5.35 up, 2.76 in front of the mesh origin
-		local face = base * CFrame.new(0, 5.35, 2.78)
-		local panel = facePart(front, "KioskPanel", face.Position, face.Position + parkward, 5, 0.9)
-		Signs.kioskPanel(panel)
-	else
-		box(
-			front,
-			bearing,
-			kx0 + 1,
-			ku0 + 1,
-			kx1 - 1,
-			ku1 - 1,
-			6,
-			{ name = "Kiosk", color = Palette.Mint, collide = true }
-		)
-	end
+	-- the Kiosk reservation holds the Raceway shop, assembled per client with the look
+	-- (Shared/Island/Speedway/Props.shop; Raceway round 2, 2026-10-29); the old KioskBooth mesh and its
+	-- blank panel are no longer placed here
 
 	local wx0, wu0, wx1, wu1 = Layout.bounds(Layout.reservation("PlotWalk").poly)
 	rect(
@@ -320,8 +275,7 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 		{ name = "Walkway", color = Palette.Paving, collide = true, castShadow = false }
 	)
 
-	-- Paddock: floor, aisle, bays (placeholders: painted outlines and numbers; Bay01 to Bay03 are
-	-- the starting bays, outlined in yellow), pit lanes
+	-- Paddock: floor, aisle and pit lanes
 	local paddock = Instance.new("Folder")
 	paddock.Name = "Paddock"
 	paddock.Parent = visual
@@ -340,33 +294,9 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 		collide = true,
 		castShadow = false,
 	})
-	for _, bay in Layout.Bays do
-		local rowU = if bay.row == "A" then Layout.RowA else Layout.RowB
-		local tile =
-			rect(paddock, bearing, bay.x - 4.2, rowU[1] + 0.3, bay.x + 4.2, rowU[2] - 0.3, SURFACE + 0.14, 0.04, {
-				name = string.format("Bay%02d", bay.index),
-				color = if bay.initial then Color3.fromRGB(196, 190, 180) else Color3.fromRGB(214, 210, 202),
-				material = Enum.Material.Concrete,
-				castShadow = false,
-			})
-		if tile then
-			tile:SetAttribute("BayIndex", bay.index)
-			tile:SetAttribute("Placeholder", "bay; car placement belongs to Lane 2")
-			Signs.bayNumber(tile, bay.index, bay.initial, bay.facing)
-		end
-		-- painted outline: two sides and the back line (open toward the aisle)
-		local line = {
-			name = "BayLine",
-			color = if bay.initial then Color3.fromRGB(246, 200, 60) else Color3.new(1, 1, 1),
-			castShadow = false,
-		}
-		local back = if bay.row == "A" then rowU[1] + 0.3 else rowU[2] - 0.3
-		local open = if bay.row == "A" then rowU[2] - 0.3 else rowU[1] + 0.3
-		for _, sx in { -4.2, 4.2 } do
-			Kit.strip(paddock, W(bay.x + sx, back), W(bay.x + sx, open), 0.25, 0.03, SURFACE + 0.17, line, 0)
-		end
-		Kit.strip(paddock, W(bay.x - 4.2, back), W(bay.x + 4.2, back), 0.25, 0.03, SURFACE + 0.17, line, 0)
-	end
+	-- the bays themselves (owned bays' cream lines, the next bay's barrier, the parking sign) are drawn
+	-- per client from the plot's owned spot count (Shared/Island/Speedway/Parking; Raceway round 2); the
+	-- floor stays plain under the bays nobody owns. The Lane 2 bay markers (Hub/Markers) are unchanged.
 	polyline(
 		paddock,
 		bearing,

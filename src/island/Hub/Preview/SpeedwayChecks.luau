@@ -12,7 +12,9 @@
 --     firework bloom envelope (both moving or transient, added analytically)
 --   sector: parts outside the plot's sector less its 8-stud buffer, or past the outer radius
 --   protected: parts over the entrance court, the plot walk, the Paddock, the kiosk, or taller
---     than 0.3 over the pit lanes (with names)
+--     than 0.3 over the pit lanes (with names); the Raceway shop is the Kiosk reservation's occupant,
+--     so its parts are checked against that reservation instead (shop: every corner at least 0.5
+--     inside it, nothing higher than its 9-stud limit)
 --   plazaView: of 40 sample points along the lap (1.5 above the road), the share visible from five
 --     points on the plaza edge, with this plot's Speedway parts as the only blockers: at standing eye
 --     height (5) and at a usual third-person camera height (12).
@@ -132,6 +134,24 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 				table.insert(sector, d:GetFullName())
 			end
 			local centre = Layout.planToPlot(bearing, Layout.worldToPlan(d.Position))
+			local feature = d:FindFirstAncestorWhichIsA("Folder")
+			while feature and feature:GetAttribute("SpeedwayFeature") == nil do
+				feature = feature:FindFirstAncestorWhichIsA("Folder")
+			end
+			if feature and feature:GetAttribute("SpeedwayFeature") == "Shop" then
+				local kx0, ku0, kx1, ku1 = Layout.bounds(Layout.reservation("Kiosk").poly)
+				local limit = Layout.reservation("Kiosk").height
+				for _, p in pts do
+					if
+						(p.X < kx0 + 0.49 or p.X > kx1 - 0.49 or p.Y < ku0 + 0.49 or p.Y > ku1 - 0.49 or hi > limit)
+						and #protected < 12
+					then
+						table.insert(protected, "Shop outside the Kiosk reservation less 0.5: " .. d.Name)
+						break
+					end
+				end
+				continue
+			end
 			for _, id in protectedIds do
 				local r = Layout.reservation(id)
 				if inPoly(centre, r.poly) and hi > 0.4 and #protected < 12 then
@@ -196,6 +216,66 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 		task.wait()
 	end
 	Look.clear(plot)
+	return report
+end
+
+-- Raceway round 2 parking: the client's bay list matches Hub/Layout's, and for every owned count 2 to
+-- 15 the parking pieces stay inside the Paddock reservation (the sign in its free left margin), no
+-- parking piece stands on the plot walk or a pit lane, and only the post colliders collide.
+function SpeedwayChecks.parking(options: { plot: number? }?): { [string]: any }
+	assert(RunService:IsStudio() and not RunService:IsRunning(), "edit mode in Studio only")
+	local index = (options and options.plot) or 3
+	local root = workspace:FindFirstChild("Lane3_IslandPreview") :: any
+	assert(root, "build the island hub first")
+	local plot = root.Island.Plots:FindFirstChild(string.format("Plot%02d", index)) :: Model
+	local bearing = Layout.plotBearing(index)
+	local S = shared()
+	local Parking = (require :: any)(S.Island.Speedway.Parking)
+	local Ctx = (require :: any)(S.Island.Speedway.Ctx)
+	local mismatch = {}
+	for i, bay in Layout.Bays do
+		local mine = Parking.Bays[i]
+		if not mine or mine.row ~= bay.row or math.abs(mine.x - bay.x) > 1e-3 or math.abs(mine.u - bay.u) > 1e-3 then
+			table.insert(mismatch, i)
+		end
+	end
+	local pad = Layout.reservation("Paddock").poly
+	local ctx = Ctx.new(plot, index, bearing, 1, "")
+	local report = { bayListMismatch = mismatch, counts = {} }
+	for n = Parking.StartSpots, Parking.MaxSpots do
+		local built = Parking.build(plot, ctx, n)
+		local outside, onRoutes, colliding = {}, {}, {}
+		for _, d in built.folder:GetDescendants() do
+			if not d:IsA("BasePart") then
+				continue
+			end
+			local pts = footprint(d, bearing)
+			for _, p in pts do
+				if not inPoly(p, pad) then
+					table.insert(outside, d.Name)
+					break
+				end
+			end
+			local centre = Layout.planToPlot(bearing, Layout.worldToPlan(d.Position))
+			for _, id in { "PlotWalk", "PitExit", "PitEntry", "EntranceCourt" } do
+				if inPoly(centre, Layout.reservation(id).poly) then
+					table.insert(onRoutes, id .. ": " .. d.Name)
+				end
+			end
+			if d.CanCollide and not string.find(d.Name, "Collider") then
+				table.insert(colliding, d.Name)
+			end
+		end
+		report.counts[n] = {
+			ownedBays = #built.lines,
+			barrierAt = if built.arm then built.arm:GetAttribute("BayIndex") else "none",
+			outsidePaddock = outside,
+			onRoutes = onRoutes,
+			collidingDecoration = colliding,
+		}
+		built.folder:Destroy()
+		task.wait()
+	end
 	return report
 end
 

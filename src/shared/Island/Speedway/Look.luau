@@ -191,6 +191,9 @@ Look.Features = {
 	f("KioskBoard", 1, 12, function(p, c)
 		Props.kioskBoard(p.major, c)
 	end),
+	f("Shop", 1, 12, function(p, c)
+		Props.shop(p.major, p.life, c)
+	end),
 } :: { Feature }
 
 local byName: { [string]: Feature } = {}

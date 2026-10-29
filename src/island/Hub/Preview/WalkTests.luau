@@ -9,7 +9,8 @@
 --
 --   local Walk = require(game.ServerStorage.Island.Hub.Preview.WalkTests)
 --   Walk.run("Downtown")   -- Fountain, SummitPass, Downtown, DustyHighway, Garage, StuntGate
---   Walk.run("Garage", { boost = true })   -- with the avenue boost (the players' numbers and ease)
+--   Walk.run("Garage", { boost = true })   -- with the avenue boost (1.5 x the walker's own speed, same ease)
+--   Walk.run("Garage", { island = true, boost = true })   -- as a player: island base 32, boost 48
 
 local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
@@ -79,8 +80,10 @@ end
 -- Boost for the test walkers: with options.boost, a walker on an avenue boost strip follows the
 -- same state machine as the players' boost (ReplicatedStorage.Shared.Island.WalkBoostLogic:
 -- 1.5 x on a strip, held 0.5 s after stepping off, then eased back over 0.5 s); it never stacks
--- (one state per walker) and starts from the walker's own default WalkSpeed. Plan test only
--- (the walkers stay on the avenue surface).
+-- (one state per walker) and multiplies the walker's own WalkSpeed with the players' formula
+-- (WalkBoostLogic.speed, at most 48). With options.island the walkers start at the island base
+-- (32, so 48 boosted) as the players do; without it they keep the default 16 (24 boosted). Plan
+-- test only (the walkers stay on the avenue surface).
 local strips = BoostLanes.strips()
 local function onStrip(p: Vector2): boolean
 	return WalkBoostLogic.onStripPlan(p, strips, BoostLanes.HalfWidth)
@@ -107,7 +110,7 @@ local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 }, boo
 			if boost then
 				local m = WalkBoostLogic.step(boostState, now, onStrip(Vector2.new(p.X, -p.Z)))
 				local boosted = m > 1
-				humanoid.WalkSpeed = if boosted then base * m else base
+				humanoid.WalkSpeed = WalkBoostLogic.speed(base, m)
 				if boosted then
 					boostedTime += now - lastTick
 				end
@@ -138,8 +141,9 @@ local function walk(humanoid: Humanoid, root: BasePart, points: { Vector3 }, boo
 	end)
 end
 
-function WalkTests.run(destination: string, options: { boost: boolean? }?): { [string]: any }
+function WalkTests.run(destination: string, options: { boost: boolean?, island: boolean? }?): { [string]: any }
 	local boost = (options and options.boost) == true
+	local island = (options and options.island) == true
 	assert(
 		RunService:IsStudio() and RunService:IsServer() and RunService:IsRunning(),
 		"Run during a Studio playtest, server side"
@@ -159,6 +163,9 @@ function WalkTests.run(destination: string, options: { boost: boolean? }?): { [s
 			local points = table.clone(route.points)
 			points[1] = Layout.worldToPlan(spawnCFrame.Position)
 			local _, humanoid, root = makeWalker(trove, string.format("Walker%02d", route.plot), spawnCFrame)
+			if island then
+				humanoid.WalkSpeed = WalkBoostLogic.IslandBase -- as a player on the home island
+			end
 			local planned = 0
 			for k = 2, #points do
 				planned += (points[k] - points[k - 1]).Magnitude
@@ -168,7 +175,7 @@ function WalkTests.run(destination: string, options: { boost: boolean? }?): { [s
 				walkSpeed = humanoid.WalkSpeed,
 				plannedStuds = r2(planned),
 				layoutStuds = r2(route.studs),
-				layoutSeconds = r2(route.studs / Layout.Data.walkSpeed),
+				layoutSeconds = r2(route.studs / (if island then humanoid.WalkSpeed else Layout.Data.walkSpeed)),
 			}
 			table.insert(rows, row)
 			table.insert(starts, function()
@@ -205,6 +212,7 @@ function WalkTests.run(destination: string, options: { boost: boolean? }?): { [s
 	return {
 		destination = destination,
 		boost = if boost then WalkBoostLogic.Multiplier else false,
+		island = if island then WalkBoostLogic.IslandBase else false,
 		plots = rows,
 		best = r2(best),
 		worst = r2(worst),
