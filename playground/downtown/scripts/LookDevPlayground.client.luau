@@ -13,6 +13,7 @@
 -- Downtown B city (LookDev.Downtown.City, client-side in Play; the fixture ambient stops first):
 --        city run [seed] | city sample [seconds] | city stats | city stop | city camera <FIXTURE|HIGH> |
 --        city frame <s> | city width | city reset
+--        (city run takes optional <seed> <world> <length>, e.g. "city run 2207 DustyHighway 6400")
 -- Results are printed as "[Lane3LookDev] <verb> <json>" (and "[Lane3City] ...") for get_console_output.
 
 local HttpService = game:GetService("HttpService")
@@ -81,7 +82,11 @@ local function run(command: string)
 			Ambient.stop()
 			ChaseCamera.stop()
 			task.spawn(function()
-				report("city run", City.run({ seed = tonumber(value) or 2207 }))
+				-- World build V2: city run [seed] [world] [length]; a route length of 6400 shows a full second cycle (the wrap)
+				report(
+					"city run",
+					City.run({ seed = tonumber(value) or 2207, world = words[5], length = tonumber(words[6]) })
+				)
 			end)
 		elseif sub == "sample" then
 			task.spawn(function()
