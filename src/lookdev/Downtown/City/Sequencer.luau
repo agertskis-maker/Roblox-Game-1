@@ -176,6 +176,7 @@ export type WorldInfo = {
 	gorges: { { [string]: any } },
 	lift: any?, -- the ski lift path(s) for WorldLife
 	lake: any?, -- the measured lake plane(s)
+	checks: { { id: string, ok: boolean, detail: string } }?, -- WorldPlan's measured proofs of the approved rules
 }
 
 export type Checks = {
@@ -2007,6 +2008,17 @@ function Sequencer.describe(plan: Plan): string
 	add(string.format("  segment join error %.4f studs", c.segmentJoinError))
 	for _, n in c.notes do
 		add("  note: " .. n)
+	end
+	-- World build V2: WorldPlan's measured proofs of the approved rules
+	local world = plan.world
+	if world and world.checks then
+		add(string.format("World V2 checks (%d extras placed):", #plan.extras))
+		for _, ch in world.checks do
+			add(string.format("  [%s] %s: %s", if ch.ok then "PASS" else "FAIL", ch.id, ch.detail))
+		end
+		for _, n in world.notes do
+			add("  world note: " .. n)
+		end
 	end
 	return table.concat(lines, "\n")
 end

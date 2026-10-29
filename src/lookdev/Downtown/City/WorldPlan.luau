@@ -590,6 +590,177 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		end
 	end
 
+	-- 8. checks: measured proof of the approved rules, printed with the plan (Sequencer.describe) ------------------
+	local checks: { { id: string, ok: boolean, detail: string } } = {}
+	local function check(id: string, ok: boolean, detail: string)
+		table.insert(checks, { id = id, ok = ok, detail = detail })
+	end
+	local function routeDistance(p: Vector3): number
+		local flat = Vector3.new(p.X, 0, p.Z)
+		local best = math.huge
+		for _, s in samples do
+			best = math.min(best, (s - flat).Magnitude)
+		end
+		return best
+	end
+	do
+		local onRoad = 0
+		for _, e in extras do
+			if e.kind ~= "ground" and e.kind ~= "tunnel" and e.kind ~= "gorge" and e.kind ~= "lake" then
+				if routeDistance((e.cframe :: CFrame).Position) < halfRoad + 4 then
+					onRoad += 1
+				end
+			end
+		end
+		check(
+			"scenery-off-road",
+			onRoad == 0,
+			string.format("%d extras within 4 studs of the carriageway (want 0)", onRoad)
+		)
+	end
+	for id, cfg in v2.landmarks or {} do
+		for _, lm in plan.landmarks do
+			if lm.id == id and cfg.setback and cfg.setback >= 30 then
+				local nearest = math.huge
+				for _, c in
+					{
+						Vector3.new(0, 0, 0),
+						Vector3.new(lm.width, 0, 0),
+						Vector3.new(0, 0, lm.depth),
+						Vector3.new(lm.width, 0, lm.depth),
+					}
+				do
+					nearest = math.min(nearest, routeDistance((lm.pivot :: CFrame):PointToWorldSpace(c)) - halfRoad)
+				end
+				check(
+					"landmark-off-road:" .. id,
+					nearest >= 20,
+					string.format("%s nearest corner %.1f studs from the road edge (arch rule: 50)", id, nearest)
+				)
+			end
+		end
+	end
+	do
+		local violations, worst = 0, math.huge
+		for _, e in extras do
+			if
+				e.kind == "mass"
+				or e.kind == "fol"
+				or e.kind == "edge"
+				or e.kind == "garland"
+				or e.kind == "backdrop"
+			then
+				local d = routeDistance((e.cframe :: CFrame).Position)
+				if d < 120 + halfRoad then
+					local before = if e.kind == "garland" then 120 else 60
+					for _, hz in plan.hazards do
+						if e.station > hz.station - before and e.station < hz.station + hz.length + 10 then
+							violations += 1
+							worst = math.min(worst, hz.station - e.station)
+						end
+					end
+				end
+			end
+		end
+		check(
+			"hazard-clear-zone",
+			violations == 0,
+			string.format("%d near scenery pieces inside the clear zone before or at a hazard (want 0)", violations)
+		)
+	end
+	if v2.lake and info.lake then
+		for _, lake in info.lake do
+			check(
+				"lake-size",
+				lake.across >= 240 and lake.along >= 360,
+				string.format("lake plane %d x %d studs (want at least 240 x 360)", lake.across, lake.along)
+			)
+			check(
+				"lake-buffer",
+				lake.nearEdge >= 90,
+				string.format(
+					"ice starts %d studs from the centre line (want 90 or more: a 40-stud buffer past the road edge)",
+					lake.nearEdge
+				)
+			)
+		end
+	end
+	if v2.tunnel then
+		check(
+			"tunnel-openings",
+			(stats.tunnelBays or 0) >= 1 and (stats.tunnelOpenings or 0) >= 3,
+			string.format(
+				"%d bays, %d openings (want at least 3 in 12)",
+				stats.tunnelBays or 0,
+				stats.tunnelOpenings or 0
+			)
+		)
+	end
+	if v2.lift and info.lift then
+		for _, path in info.lift do
+			check(
+				"lift-clearance",
+				path.crossingHeight >= (path.clearance or 64),
+				string.format("crossing at %.1f studs over the deck (want 64 or more)", path.crossingHeight)
+			)
+		end
+	end
+	if #info.gorges > 0 then
+		local g = info.gorges[1]
+		check(
+			"gorge",
+			true,
+			string.format(
+				"gorge %.0f long, %.0f half-wide, floor %.0f below the deck",
+				g.halfLength * 2,
+				g.halfWidth,
+				-g.floorY
+			)
+		)
+	end
+	do
+		local cones = 0
+		for _, lot in plan.lots do
+			if string.find(lot.module, "Peak") then
+				cones += 1
+			end
+		end
+		for _, e in extras do
+			if string.find(e.module, "Peak") then
+				cones += 1
+			end
+		end
+		if v2.replaceMasses then
+			check("no-cones", cones == 0, string.format("%d stacked-cone pieces placed (want 0)", cones))
+		end
+	end
+	if v2.welcomeLater then
+		local later, wrong = 0, 0
+		for _, sp in plan.spans do
+			if sp.kind == "welcome" then
+				local span = plan.districts[h.spanAt(sp.station)]
+				if span and span.cycle > 1 then
+					later += 1
+					if sp.text ~= v2.welcomeLater then
+						wrong += 1
+					end
+				end
+			end
+		end
+		check(
+			"welcome-later-laps",
+			wrong == 0,
+			string.format("%d later-lap welcome spans, %d with the wrong words", later, wrong)
+		)
+	end
+	info.checks = checks
+	stats.checksFailed = 0
+	for _, c in checks do
+		if not c.ok then
+			stats.checksFailed += 1
+		end
+	end
+
 	stats.extras = #extras
 	table.sort(extras, function(a, b)
 		return a.station < b.station
