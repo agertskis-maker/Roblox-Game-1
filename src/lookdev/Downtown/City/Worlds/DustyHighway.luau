@@ -198,28 +198,6 @@ return {
 		},
 	},
 	lots = {
-		lot(
-			"DH_Lot_Cactus24_a",
-			"building",
-			24,
-			22,
-			14,
-			"low",
-			"cactus",
-			{ "CactusFlats", "DinerStrip", "MirageDunes" },
-			false
-		),
-		lot(
-			"DH_Lot_Cactus36_b",
-			"building",
-			36,
-			22,
-			16,
-			"low",
-			"cactus",
-			{ "CactusFlats", "DinerStrip", "MirageDunes" },
-			false
-		),
 		lot("DH_Lot_Scrub24_a", "building", 24, 20, 6, "low", "scrub", ALL, false),
 		lot("DH_Lot_Scrub36_b", "building", 36, 22, 7, "low", "scrub", ALL, false),
 		lot(
@@ -248,29 +226,10 @@ return {
 		lot("DH_Lot_Motel48_a", "building", 48, 24, 14, "low", "motel", { "DinerStrip" }, true),
 		lot("DH_Lot_Stand24_a", "building", 24, 20, 10, "low", "stand", { "DinerStrip", "MirageDunes" }, true),
 		lot("DH_Lot_Garage36_a", "building", 36, 22, 14, "low", "garage", { "DinerStrip" }, true),
-		lot("DH_Lot_Mesa36_a", "building", 36, 24, 34, "mid", "rock", { "RedRockArches", "CanyonBridge" }, false),
-		lot("DH_Lot_Mesa48_b", "building", 48, 24, 42, "mid", "rock", { "RedRockArches", "CanyonBridge" }, false),
-		lot("DH_Lot_Pillar24_a", "building", 24, 22, 36, "mid", "rock", { "RedRockArches" }, false),
-		lot("DH_Lot_Hoodoo24_b", "building", 24, 22, 28, "mid", "rock", { "RedRockArches", "MirageDunes" }, false),
 		lot("DH_Lot_Cliff48_a", "building", 48, 24, 40, "mid", "cliff", { "CanyonBridge" }, false),
 		lot("DH_Lot_Cliff36_b", "building", 36, 24, 34, "mid", "cliff", { "CanyonBridge" }, false),
-		lot("DH_Lot_Ridge24_a", "building", 24, 22, 20, "low", "cliff", { "CanyonBridge", "RedRockArches" }, false),
-		lot("DH_Lot_Dune36_a", "building", 36, 24, 10, "low", "dune", { "MirageDunes", "CactusFlats" }, false),
-		lot("DH_Lot_Dune48_b", "building", 48, 24, 12, "low", "dune", { "MirageDunes" }, false),
-		lot("DH_Lot_Hut24_a", "building", 24, 22, 12, "low", "ghost", { "MirageDunes", "DinerStrip" }, false),
 		lot("DH_Lot_Oasis24", "park", 24, 24, 14, "low", "oasis", ALL, false),
 		lot("DH_Lot_Oasis36", "park", 36, 24, 14, "low", "oasis", ALL, false),
-		lot(
-			"DH_Lot_Rest36_a",
-			"courtyard",
-			36,
-			24,
-			12,
-			"mid",
-			"rest",
-			{ "CactusFlats", "DinerStrip", "MirageDunes" },
-			false
-		),
 		-- World build V2 (decision 0026): designed plant-and-rock groups baked into lot modules (grammar G4, G10), and the
 		-- Diner Strip facades. Names are the kit's (assets/downtown/kit/kit_dusty2.py).
 		lot(
@@ -379,14 +338,7 @@ return {
 		CanyonBridge = { "DH_Mass_Butte_E", "DH_Mass_Butte_F" },
 		MirageDunes = { "DH_BG_Dune_A", "DH_Mass_Butte_A" },
 	},
-	skyMeshes = {
-		"DH_Sky_Mesa_1",
-		"DH_Sky_Mesa_2",
-		"DH_Sky_Mesa_3",
-		"DH_Sky_Ridge_1",
-		"DH_Sky_Ridge_2",
-		"DH_Sky_Spire",
-	},
+	skyMeshes = { "DH_BG_MesaWall_A", "DH_BG_MesaWall_B", "DH_BG_MesaWall_C", "DH_BG_MesaWall_D" },
 	-- planner hazard kind -> kit mesh: sinkhole, sand drift and a rockslide crew stand in for pothole / oil / construction
 	hazardMeshes = {
 		pothole = "DH_Haz_Sinkhole",
@@ -417,7 +369,7 @@ return {
 		occupancy = {
 			CactusFlats = { { 0, 0.4 }, { 0.5, 0.3 }, { 1, 0.35 } },
 			DinerStrip = { { 0, 0.3 }, { 0.25, 0.7 }, { 0.75, 0.7 }, { 1, 0.3 } },
-			RedRockArches = 0.62,
+			RedRockArches = 0.5,
 			CanyonBridge = 0.75,
 			MirageDunes = 0.2,
 		},
@@ -618,6 +570,30 @@ return {
 				gap = 24,
 				recent = 3,
 				need = 62,
+				hazardClear = true,
+				colour = rgb(194, 96, 62),
+			},
+			{
+				-- the near rank of sandstone for Red Rock Arches and the gorge approach (the Round 2 stacked-slab frontage lots are gone):
+				-- smaller buttes close to the road, where a mass reads against the near ground (plan 6.3 near layer)
+				id = "nearbuttes",
+				kind = "mass",
+				band = "near",
+				pool = {
+					{ m = "DH_Mass_Butte_A", label = "BUTTE A" },
+					{ m = "DH_Mass_Butte_B", label = "BUTTE B" },
+					{ m = "DH_Mass_Butte_C", label = "BUTTE C" },
+					{ m = "DH_Mass_Butte_D", label = "BUTTE D" },
+					{ m = "DH_Mass_Butte_E", label = "BUTTE E" },
+					{ m = "DH_Mass_Butte_F", label = "BUTTE F" },
+				},
+				density = { RedRockArches = 1.4, CanyonBridge = 0.6, MirageDunes = 0.3 },
+				lateral = { 74, 112 },
+				scale = { 0.6, 0.9 },
+				yaw = "alongRoad",
+				gap = 40,
+				recent = 3,
+				need = 36,
 				hazardClear = true,
 				colour = rgb(194, 96, 62),
 			},

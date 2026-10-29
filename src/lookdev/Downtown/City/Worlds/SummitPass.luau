@@ -198,44 +198,8 @@ return {
 		},
 	},
 	lots = {
-		lot(
-			"SP_Lot_Chalet24_a",
-			"building",
-			24,
-			22,
-			16,
-			"low",
-			"chalet",
-			{ "PineVillage", "SkiLiftRidge", "SummitLodge" },
-			false
-		),
-		lot(
-			"SP_Lot_Chalet36_b",
-			"building",
-			36,
-			22,
-			18,
-			"low",
-			"chalet",
-			{ "PineVillage", "SkiLiftRidge", "SummitLodge" },
-			false
-		),
-		lot(
-			"SP_Lot_Cabin24_a",
-			"building",
-			24,
-			20,
-			12,
-			"low",
-			"cabin",
-			{ "PineVillage", "FrozenLake", "SummitLodge" },
-			false
-		),
 		lot("SP_Lot_Cafe36_a", "building", 36, 22, 16, "low", "cafe", { "PineVillage", "SkiLiftRidge" }, true),
 		lot("SP_Lot_Shop24_a", "building", 24, 20, 14, "low", "shop", { "PineVillage", "SummitLodge" }, true),
-		lot("SP_Lot_Lodge48_a", "building", 48, 24, 20, "low", "lodge", { "PineVillage", "SummitLodge" }, true),
-		lot("SP_Lot_Pines36_a", "building", 36, 22, 24, "low", "pine", ALL, false),
-		lot("SP_Lot_Pines24_b", "building", 24, 20, 20, "low", "pine", ALL, false),
 		lot("SP_Lot_Bank36_a", "building", 36, 20, 8, "low", "snowbank", ALL, false),
 		lot("SP_Lot_Bank24_b", "building", 24, 20, 7, "low", "snowbank", ALL, false),
 		lot(
@@ -249,10 +213,8 @@ return {
 			{ "SkiLiftRidge", "GlacierTunnel", "SummitLodge" },
 			false
 		),
-		lot("SP_Lot_Shed36_a", "building", 36, 22, 14, "low", "liftshed", { "SkiLiftRidge" }, false),
 		lot("SP_Lot_Ice24_a", "building", 24, 20, 8, "low", "ice", { "FrozenLake", "GlacierTunnel" }, false),
 		lot("SP_Lot_Ice36_b", "building", 36, 22, 10, "low", "ice", { "FrozenLake", "GlacierTunnel" }, false),
-		lot("SP_Lot_Pier36_a", "building", 36, 22, 10, "low", "pier", { "FrozenLake" }, false),
 		-- V2 (decision 0026): the stacked-cone road-edge lots (Peak36_a, Peak48_b, Crag24_a) are retired: Adam retired the cones
 		-- from the visible foreground. A village of different forms replaces them (plan 7.1; kit: kit_summit2.py).
 		lot(
