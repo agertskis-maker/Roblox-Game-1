@@ -42,6 +42,13 @@ These pages are private to Adam until he shares them.
   - the 378 to 398 px one-row range (calculated, not seen on screen);
   - the HUD over the real road and chase camera (Downtown scene review).
 
+## Approvals recorded (Adam, 2026-10-28, round 3 review)
+Source: Adam's round 3 close-out brief (`vault/design/specs/hud-round3-closeout.md`, section 1).
+- **ENGINE HEAT size, confirmed final:** the smallest Heat text (the title tab) is at least 14 real px on phones (scale 0.875) and 17 real px on Desktop and Tablet (scale 0.708 = 17 / (16 x HudScale 1.5)). Constants `RunLayout.HeatTextFloor` (14) and `RunLayout.HeatTextFloorLarge` (17) in `src/client/UI/Prototype/Run/RunLayout.luau`. This is an approved exception to the 16 px minimum for the Heat panel only; measured coverage is in `vault/design/specs/hud-round3-heat-coverage.md`.
+- **Cash icon band, approved as built** (round 3, R3-C1: the paper band wraps the top, the fold and the front of the stack). No changes.
+- **Hop button:** the car stays; the arrow is redone (round 3 close-out, four candidates). Not approved yet.
+- **Review videos carry game audio** (music, sound effects, fanfares) from 2026-10-28; see the "Motion review evidence" rule in `CLAUDE.md`.
+
 ## Direction
 Labels: (outline), (approved) by Adam, (my proposal, pending review), (constraint).
 
