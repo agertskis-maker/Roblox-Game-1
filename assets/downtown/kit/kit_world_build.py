@@ -35,10 +35,23 @@ SPACING = 140.0
 PER_ROW = 14
 
 
+# V2: --keep <file> (one mesh name per line) limits the manifest and the upload packages to the meshes the Worlds actually use
+KEEP = {"file": None}
+
+
+def keep_names():
+    if not KEEP["file"]:
+        return None
+    with open(KEEP["file"]) as fh:
+        return {line.strip() for line in fh if line.strip()}
+
+
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
     out, only, fbx = None, None, True
     for i, a in enumerate(argv):
+        if a == "--keep":
+            KEEP["file"] = argv[i + 1]
         if a == "--out":
             out = argv[i + 1]
         if a == "--only":
@@ -139,6 +152,12 @@ def main():
             old = json.load(fh).get("meshes", [])
     names = {m["name"] for m in manifest}
     merged = [m for m in old if m["name"] not in names] + manifest
+    keep = keep_names()
+    if keep is not None:
+        merged = [m for m in merged if m["name"] in keep]
+        for o in list(bpy.data.objects):
+            if o.type == "MESH" and o.name not in keep:
+                bpy.data.objects.remove(o, do_unlink=True)
     merged.sort(key=lambda m: (m["world"], m["family"], m["name"]))
     totals = {}
     for m in merged:
