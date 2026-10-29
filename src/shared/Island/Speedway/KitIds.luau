@@ -23,14 +23,19 @@ KitIds.Textures = {
 	FlagStar = id(93044374349935),
 }
 
--- name -> "rbxassetid://..." (55 meshes imported, 52 in use). Imported 2026-10-28 with Studio's 3D Importer from
+-- name -> "rbxassetid://..." (61 meshes: 52 from the 2026-10-28 import and 9 from the Raceway round 2 import of 2026-10-29,
+-- Car-Hop-Art/island-kit-speedway/raceway-round2.obj, same account and settings). Imported 2026-10-28 with Studio's 3D Importer from
 -- Car-Hop-Art/island-kit-speedway/island-kit.obj under Adam's user account (peskaface) for now,
 -- on Adam's choice, because the account is not in a group yet; a group-owned re-import replaces
 -- these ids (vault/design/specs/island-group-reimport.md). Checked with Preview/ImportCheck:
 -- 55 found, none missing, extra or duplicated, sizes within 0.01 of the manifest.
 KitIds.Meshes = {
 	SwAnnouncerBooth = id(124453131187665),
+	SwBayBarrierArm = id(99420121739252), -- Raceway round 2 (imported 2026-10-29)
+	SwBayBarrierPost = id(98664871775585), -- Raceway round 2 (imported 2026-10-29)
 	SwBigScreen = id(136313621591068),
+	SwBleachers = id(87693115942075), -- Raceway round 2 (imported 2026-10-29)
+	SwBlimp = id(80603776193517), -- Raceway round 2 (imported 2026-10-29)
 	SwCatchFence = id(118467531984872),
 	SwColumn = id(117122389431761),
 	SwColumnCap = id(138360257717620),
@@ -49,8 +54,11 @@ KitIds.Meshes = {
 	SwFoldingChair = id(118657963872263),
 	SwGantry = id(74403998767331),
 	SwGantryGold = id(84586293883784),
+	SwGrandstandBay = id(95312713352772), -- Raceway round 2 (imported 2026-10-29)
 	SwGuardRail = id(118243041147792),
 	SwHayRun = id(71403699224391),
+	SwKeeperArm = id(136090235910283), -- Raceway round 2 (imported 2026-10-29)
+	SwKeeperBody = id(129469051229063), -- Raceway round 2 (imported 2026-10-29)
 	SwLapBoard = id(82939533196986),
 	SwLemonadeStand = id(88358586428374),
 	SwLoopTrack = id(125969216625674),
@@ -61,9 +69,11 @@ KitIds.Meshes = {
 	SwOrangeBarrier = id(116584146015210),
 	SwOwnerSign = id(114585653931779),
 	SwPaintedShed = id(100881923990640),
+	SwParkingSign = id(97551999119993), -- Raceway round 2 (imported 2026-10-29)
 	SwPennantPole = id(133219469923618),
 	SwPitGarage = id(85056047877073),
 	SwPreviewCar = id(114289274081549),
+	SwRacewayShop = id(136327841605965), -- Raceway round 2 (imported 2026-10-29)
 	SwRollDoor = id(137736104496512),
 	SwRoofSection = id(136803859882416),
 	SwRopeFence = id(130736182708379),
@@ -86,9 +96,9 @@ KitIds.Meshes = {
 -- Raceway round 2 (Adam, 2026-10-29): no advertising. The banked-wall banner images (ZOOPA FIZZ,
 -- CRUNCHKIN PUFFS, STICKYTOE TYRES, WOBBLEBOT TOYS; ids in Island/Hub/Environment/AssetIds) are no
 -- longer used by the Raceway. These three meshes were repainted (plain fascias, an unlettered
--- blimp); until the guided re-import they load from the preview mesh data. Their earlier uploads
--- carry the old paint but no lettering (the sponsor and blimp text were SurfaceGuis); kept here
--- until the replacements are verified (vault/design/specs/raceway-round2-ledger.md).
+-- blimp) and re-imported on 2026-10-29 (ids in Meshes, sizes checked against the manifest). Their
+-- earlier uploads carry the old paint but no lettering (the sponsor and blimp text were
+-- SurfaceGuis); kept here for the record (vault/design/specs/raceway-round2-ledger.md).
 KitIds.Superseded = {
 	SwBleachers = id(116247810996339),
 	SwBlimp = id(90422652853307),
