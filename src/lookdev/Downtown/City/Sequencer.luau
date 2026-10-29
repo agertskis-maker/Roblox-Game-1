@@ -161,8 +161,9 @@ export type Extra = {
 	label: string, -- shown on the proxy when the mesh is missing
 	cframe: CFrame, -- the mesh's pivot frame (bottom centre for authored meshes)
 	scale: number, -- uniform scale, 1 = authored size
-	size: Vector3, -- proxy size, used when the mesh is missing
+	size: Vector3, -- proxy size, used when the mesh is missing (a board's width and height when `text` is set)
 	colour: Color3, -- proxy colour
+	text: string?, -- a wayfinding board's words (drawn on a part-built board, never baked into a mesh)
 	band: string, -- "near" (the lot window) | "far" (the skyline window)
 	segment: number,
 	station: number,

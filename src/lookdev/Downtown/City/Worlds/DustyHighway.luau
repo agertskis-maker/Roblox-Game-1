@@ -432,6 +432,8 @@ return {
 		-- the thick arch stands off the road (no part within 50 studs of the road edge) and turns toward oncoming cars
 		landmarks = {
 			RockArch = { setback = 42, yaw = 28 },
+			-- the windmill is isolated in open ground, set back 40 to 60 behind the frontage line (plan 6.1)
+			WindmillTower = { setback = 44 },
 			RockArchSmall = { setback = 30, yaw = -24 },
 		},
 		gorge = {
@@ -472,6 +474,90 @@ return {
 			DH_Edge_Cairn = Vector3.new(4, 4, 4),
 			DH_Edge_Culvert = Vector3.new(10, 5, 6),
 			DH_Edge_WallStub = Vector3.new(12, 3, 3),
+			DH_LM_DinerSign = Vector3.new(12, 46, 6),
+			DH_Yard_Tank = Vector3.new(12, 16, 12),
+			DH_Yard_PumpHouse = Vector3.new(14, 10, 12),
+			DH_Yard_PipeRun = Vector3.new(96, 4, 4),
+			DH_Ghost_FalseFront = Vector3.new(24, 18, 8),
+			DH_Ghost_Shed = Vector3.new(18, 10, 14),
+			DH_Ghost_Well = Vector3.new(8, 8, 8),
+			DH_Ghost_Fence = Vector3.new(24, 4, 1),
+			DH_Sign_Warning = Vector3.new(8, 12, 1),
+			DH_Haz_WindSock = Vector3.new(3, 14, 3),
+			DH_Keeper_Worksite = Vector3.new(24, 10, 18),
+			DH_Keeper_Hut = Vector3.new(12, 9, 10),
+		},
+		-- every other mesh a placement feature names (their real sizes are read from the kit)
+		meshes = {
+			"DH_LM_DinerSign",
+			"DH_Yard_Tank",
+			"DH_Yard_PumpHouse",
+			"DH_Yard_PipeRun",
+			"DH_Ghost_FalseFront",
+			"DH_Ghost_Shed",
+			"DH_Ghost_Well",
+			"DH_Ghost_Fence",
+			"DH_Sign_Warning",
+			"DH_Haz_WindSock",
+			"DH_Keeper_Worksite",
+			"DH_Keeper_Hut",
+			"DH_LM_WindmillTower",
+			"DH_LM_Diner",
+			"DH_LM_GhostHuts",
+		},
+		-- hazard readability kit (plan 6.5): a warning board 130 studs before every hazard, a wind sock at the sand drift
+		warnings = { board = "DH_Sign_Warning", ahead = 130, lateral = 47, sock = "DH_Haz_WindSock", sockKind = "oil" },
+		-- fixed wayfinding words (plan 6.1 to 6.5): one plaque and one board per cycle, none within 80 studs of a hazard
+		signs = {
+			{ district = "CactusFlats", t = 0.1, side = 1, lateral = 50, w = 9, h = 4, text = "CACTUS FLATS" },
+			{
+				district = "CactusFlats",
+				t = 0.82,
+				side = -1,
+				lateral = 50,
+				w = 14,
+				h = 4,
+				text = "SHADE AND SODA AHEAD",
+			},
+			{ district = "RedRockArches", t = 0.52, side = 1, lateral = 50, w = 9, h = 4, text = "LOOKOUT" },
+			{
+				district = "RedRockArches",
+				t = 0.88,
+				side = -1,
+				lateral = 50,
+				w = 14,
+				h = 4,
+				text = "CANYON BRIDGE AHEAD",
+			},
+			{ district = "MirageDunes", t = 0.6, side = 1, lateral = 50, w = 14, h = 4, text = "LAST FILL, THEN SAND" },
+		},
+		companions = {
+			-- the Diner's strong daytime pole sign stands on the verge in front of it
+			{
+				landmark = "Diner",
+				hall = "DH_LM_Diner",
+				parts = { { m = "DH_LM_DinerSign", x = 4, z = -8, label = "DINER SIGN" } },
+			},
+			-- the windmill yard: water tank, pump house and a pipe run to the horizon
+			{
+				landmark = "WindmillTower",
+				hall = "DH_LM_WindmillTower",
+				parts = {
+					{ m = "DH_Yard_Tank", x = "rightOf", gap = 4, z = 6, label = "WATER TANK" },
+					{ m = "DH_Yard_PumpHouse", x = "leftOf", gap = 4, z = 4, label = "PUMP HOUSE" },
+					{ m = "DH_Yard_PipeRun", x = 0, z = 40, label = "PIPE RUN" },
+				},
+			},
+			-- the ghost huts: leaning remnants around them
+			{
+				landmark = "GhostHuts",
+				hall = "DH_LM_GhostHuts",
+				parts = {
+					{ m = "DH_Ghost_FalseFront", x = "rightOf", gap = 2, z = 4, label = "FALSE FRONT" },
+					{ m = "DH_Ghost_Well", x = "leftOf", gap = 4, z = 6, label = "DEAD WELL" },
+					{ m = "DH_Ghost_Fence", x = 0, z = 28, label = "BENT FENCE" },
+				},
+			},
 		},
 		rules = {
 			{

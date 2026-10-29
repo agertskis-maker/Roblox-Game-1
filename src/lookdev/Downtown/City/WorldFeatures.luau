@@ -576,6 +576,101 @@ function WorldFeatures.lift(ctx: Ctx)
 	ctx.info.lift = paths
 end
 
+-- signs ---------------------------------------------------------------------------------------------------
+-- Fixed wayfinding boards with words (the district plaque, "SHADE AND SODA AHEAD", "LOOKOUT", "CANYON BRIDGE AHEAD",
+-- "LAST FILL, THEN SAND"): part-built boards, never within 80 studs of a hazard, none on a bridge, facing the oncoming cars.
+function WorldFeatures.signs(ctx: Ctx)
+	local count = 0
+	for _, board in ctx.v2.signs or {} do
+		for _, span in ctx.plan.districts do
+			if span.id ~= board.district then
+				continue
+			end
+			local st = span.startS + board.t * (span.endS - span.startS)
+			for _ = 1, 6 do
+				if ctx.onBridge(st, 24) or ctx.nearHazard(st, 80, 80) then
+					st -= 40
+				else
+					break
+				end
+			end
+			if st > span.startS and not ctx.onBridge(st, 24) and not ctx.nearHazard(st, 80, 80) then
+				local side = sideOf(ctx, span, board.side or 1)
+				local f = ctx.h.frame(st, side * board.lateral, 0)
+				add(ctx, {
+					kind = "sign",
+					module = "",
+					label = board.text,
+					text = board.text,
+					cframe = f * CFrame.Angles(0, math.pi + side * math.rad(14), 0),
+					scale = 1,
+					size = Vector3.new(board.w, board.h, 0.5),
+					colour = Color3.fromRGB(250, 244, 228),
+					band = "near",
+					station = st,
+					side = side,
+					district = span.id,
+				})
+				count += 1
+			end
+		end
+	end
+	ctx.info.stats.boards = count
+end
+
+-- warnings ------------------------------------------------------------------------------------------------
+-- The hazard readability kit (plan 6.5; scenery previews, hazards are Brian R's): a warning board `ahead` studs before
+-- each hazard on the side of its lane, and a wind-sock marker at a sand drift. Hazard-only look (orange and white).
+function WorldFeatures.warnings(ctx: Ctx)
+	local cfg = ctx.v2.warnings
+	if not cfg then
+		return
+	end
+	local boards, socks = 0, 0
+	for _, hz in ctx.plan.hazards do
+		local st = hz.station - cfg.ahead
+		local span = ctx.plan.districts[ctx.h.spanAt(st)]
+		if st > 20 and span and not ctx.onBridge(st, 20) then
+			local side = if hz.lane >= 3 then 1 else -1
+			local size = ctx.sizeOf({ m = cfg.board })
+			add(ctx, {
+				kind = "sign",
+				module = cfg.board,
+				label = "HAZARD BOARD",
+				cframe = ctx.h.frame(st, side * cfg.lateral, 0) * CFrame.Angles(0, math.pi + side * math.rad(12), 0),
+				scale = 1,
+				size = size,
+				colour = Color3.fromRGB(240, 120, 30),
+				band = "near",
+				station = st,
+				side = side,
+				district = span.id,
+			})
+			boards += 1
+			if cfg.sock and hz.kind == cfg.sockKind then
+				local ss = hz.station - 14
+				local sockSize = ctx.sizeOf({ m = cfg.sock })
+				add(ctx, {
+					kind = "sign",
+					module = cfg.sock,
+					label = "WIND SOCK",
+					cframe = ctx.h.frame(ss, side * (cfg.lateral - 2), 0),
+					scale = 1,
+					size = sockSize,
+					colour = Color3.fromRGB(240, 120, 30),
+					band = "near",
+					station = ss,
+					side = side,
+					district = span.id,
+				})
+				socks += 1
+			end
+		end
+	end
+	ctx.info.stats.hazardBoards = boards
+	ctx.info.stats.windSocks = socks
+end
+
 -- companions ----------------------------------------------------------------------------------------------
 -- Parts placed beside a landmark in its own frame (front-left corner pivot, facade toward the road): the lodge's two wings
 -- and annex. `x` may be a number, "leftOf" or "rightOf" (relative to the landmark's own mesh, centred in its slot).

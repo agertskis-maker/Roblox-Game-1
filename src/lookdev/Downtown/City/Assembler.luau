@@ -1001,6 +1001,26 @@ local EXTRA_FOLDER: { [string]: string } =
 -- sized MeshPart; Play: merged into the segment. A mesh that is missing is a labelled block of the planned size.
 local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolean): Spec
 	local kind = EXTRA_FOLDER[e.kind] or "Masses"
+	-- a wayfinding board with words on it is a part-built board (the same route the shop signs take), never merged
+	if e.text then
+		local text = e.text :: string
+		local width, height = e.size.X, e.size.Y
+		return {
+			key = string.format("board:%d:%d", math.floor(width + 0.5), math.floor(height + 0.5)),
+			kind = "Signs",
+			tris = 0,
+			mesh = false,
+			make = function()
+				return Proxies.board(width, height)
+			end,
+			place = function(inst: Instance)
+				Proxies.setText(inst, text)
+				if inst:IsA("Model") then
+					inst:PivotTo(e.cframe)
+				end
+			end,
+		}
+	end
 	local t = template(self, e.module)
 	local s = e.scale
 	if t then

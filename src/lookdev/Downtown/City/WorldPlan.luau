@@ -575,6 +575,8 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	Features.tunnel(ctx)
 	Features.lift(ctx)
 	Features.companions(ctx)
+	Features.signs(ctx)
+	Features.warnings(ctx)
 
 	-- 7. later laps carry a different welcome span (Summit Pass: "KEEP CLIMBING!") --------------------------
 	if v2.welcomeLater then
