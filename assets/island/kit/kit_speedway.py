@@ -13,9 +13,9 @@
 #   Mid levels            SwSnackCart SwLapBoard SwStartLights SwPitGarage SwRollDoor SwToolChest
 #                         SwTyreStackTall SwGrandstandBay SwAnnouncerBooth SwFloodTower SwGantry
 #                         SwGantryGold SwBigScreen
-#   Late levels           SwCatchFence SwColumn SwColumnCap SwGuardRail SwOrangeBarrier SwJumpRamp
-#                         SwJumpLanding SwFlameDecal SwBlimp SwLoopTrack SwStatuePedestal
-#                         SwStatueCar SwRoofSection SwConfettiCannon SwFireworkRack SwPreviewCar
+#   Late levels           SwCatchFence SwColumn SwColumnCap SwGuardRail SwOrangeBarrier
+#                         SwFlameDecal SwBlimp SwLoopTrack SwStatuePedestal SwStatueCar
+#                         SwRoofSection SwConfettiCannon SwFireworkRack SwPreviewCar
 
 import math
 import random
@@ -582,37 +582,91 @@ def wheelbarrow(name):
     return b, {"origin": "footprint centre on the ground", "front": "-y", "length": 3.0, "wheel_at": "+x", "height": 1.2}
 
 
+# ---------------------------------------------------------------- stepped terraces
+def terrace(b, x0, x1, prof, tops, risers, ends, back, front=None):
+    """A solid stepped block under a (y, z) profile that climbs from the front (-y) to the back: each
+    segment of `prof` is a tread (same z) or a riser (same y, higher z); the front and back faces drop
+    to the ground and the two ends (x0 / x1) are stepped panels. tops / risers: a swatch, or a list
+    with one swatch per tread / riser in order."""
+
+    def pick(sw, k):
+        return sw[k] if isinstance(sw, (list, tuple)) else sw
+
+    nt = nr = 0
+    quad_y(b, x0, x1, 0.0, prof[0][1], prof[0][0], front or pick(risers, 0), -1)
+    for (ya, za), (yb, zb) in zip(prof, prof[1:]):
+        if abs(za - zb) < 1e-9:
+            quad_z(b, x0, x1, ya, yb, za, pick(tops, nt))
+            nt += 1
+            quad_x(b, ya, yb, 0.0, za, x0, ends, -1)
+            quad_x(b, ya, yb, 0.0, za, x1, ends, 1)
+        else:
+            quad_y(b, x0, x1, za, zb, ya, pick(risers, nr), -1)
+            nr += 1
+    quad_y(b, x0, x1, 0.0, prof[-1][1], prof[-1][0], back, 1)
+
+
 # ---------------------------------------------------------------- bleachers
-BL_ROWS = [(-1.75, 0.8), (-0.45, 1.6), (0.85, 2.4)]  # (seat plank centre y, seat top z)
-BL_X0, BL_X1 = -7.9, 6.6
+# Painted island-style stand: three benches (front navy, middle coral, back cream) on stepped decks, a
+# navy sponsor hoarding along the whole front and light-metal hand rails. Fan fit (SwFanA..D, origin =
+# seat contact point): the thighs run 1.0 forward over the bench, the shins hang just in front of its
+# front edge (0.69), the shoes reach 1.3 forward and sit 0.88 below the origin. So each bench is
+# 0.68 in front of and 0.34 behind its row's y, and the feet land on the deck of the step below
+# (a rise of 0.68 + the 0.2 bench = 0.88), the front row's on the apron.
+BL_PITCH, BL_RISE, BL_BENCH_T, BL_APRON = 1.68, 0.68, 0.2, 0.12
+BL_YC = [-1.15 + BL_PITCH * i for i in range(3)]  # seat centre y of each row
+BL_DECK = [BL_APRON + BL_RISE * (i + 1) for i in range(3)]  # deck tops
+BL_ROWS = [(round(y, 3), round(t + BL_BENCH_T, 3)) for y, t in zip(BL_YC, BL_DECK)]  # (seat y, seat top z)
+BL_X0, BL_X1 = -7.8, 6.5  # bench ends; the deck beyond (to +8) is the stair strip at the +x end
+BL_COLOURS = ["navy", "coral", "cream"]
 
 
 def bleachers(name):
     b = Builder(name)
-    white = "cart_white"
-    for yc, sz in BL_ROWS:
-        for sy in (-1, 1):
-            bx(b, V((BL_X0 + BL_X1) / 2, yc + sy * 0.325, sz - 0.07), (BL_X1 - BL_X0, 0.55, 0.14), "plank_dark", zp="plank", zm=None)
-        bx(b, V((BL_X0 + BL_X1) / 2, yc - 0.7, sz - 0.4), (BL_X1 - BL_X0, 0.08, 0.6), white, zm=None, zp=None, yp=None)
-    pys = [(-2.15, 0.66), (-0.85, 1.46), (0.45, 2.26), (2.39, 3.6)]
-    for x in (-7.85, -3.95, 0.0, 3.95, 7.85):
-        for y, h in pys:
-            bx(b, V(x, y, h / 2), (0.22, 0.22, h), white, zm=None)
-        bar(b, V(x, -2.15, 0.3), V(x, 2.39, 2.6), 0.14, white, w2=0.2, up=(1, 0, 0))
-        bx(b, V(x, 0.12, 0.12), (0.14, 4.54, 0.14), white, zm=None)
-    for z in (3.55, 3.0):
-        bx(b, V(0, 2.39, z), (15.9, 0.12, 0.12), white)
+    XL, XR, YF, YB = -8.0, 8.0, -2.5, 2.7
+    rail = "iron_hi"
+    prof = [(YF, BL_APRON)]
+    for yc, t in zip(BL_YC, BL_DECK):
+        prof += [(yc - 0.68, prof[-1][1]), (yc - 0.68, t)]
+    prof.append((YB, BL_DECK[-1]))
+    terrace(b, XL, XR, prof, "teal_dark", "teal", "teal", "teal")
+    for (yc, sz), col in zip(BL_ROWS, BL_COLOURS):
+        cbox(b, V((BL_X0 + BL_X1) / 2, yc - 0.17, sz - BL_BENCH_T / 2), (BL_X1 - BL_X0, 1.02, BL_BENCH_T), col, c=0.04)
+    # yellow nosing lines on the stair strip
+    for yc, t in zip(BL_YC, BL_DECK):
+        quad_z(b, BL_X1 + 0.15, XR - 0.2, yc - 0.68, yc - 0.5, t + 0.004, "awning_yellow")
+    # sponsor hoarding along the front: navy board, cream cap and end posts, plain navy plate for the text
+    HX0, HX1, HY, HH = XL, BL_X1 + 0.1, -2.66, 0.95
+    bx(b, V((HX0 + HX1) / 2, HY + 0.08, HH / 2), (HX1 - HX0, 0.16, HH), "navy", zm=None, yp=None)
+    bx(b, V((HX0 + HX1) / 2, HY + 0.02, HH + 0.04), (HX1 - HX0, 0.3, 0.08), "cream", zm=None)
+    plate_x0, plate_x1, plate_z0, plate_z1 = -7.6, 6.2, 0.14, 0.84
+    bx(b, V((plate_x0 + plate_x1) / 2, HY - 0.02, (plate_z0 + plate_z1) / 2), (plate_x1 - plate_x0, 0.04, plate_z1 - plate_z0), "navy", yp=None)
+    for px in (XL + 0.17, HX1 - 0.17):
+        bx(b, V(px, HY + 0.05, 0.62), (0.3, 0.26, 1.24), "cream", zm=None)
+    # back rail (two bars on five posts) and the two end rails (a sloped bar on four posts each)
+    BY = 2.62
+    for x in (-7.9, -3.95, 0.0, 3.95, 7.9):
+        bx(b, V(x, BY, (BL_DECK[-1] + 3.56) / 2), (0.12, 0.12, 3.56 - BL_DECK[-1]), rail, zm=None)
+    for z in (3.5, 2.9):
+        bx(b, V(0, BY, z), (15.8, 0.1, 0.1), rail, xm=None, xp=None)
+
+    def z_line(y):
+        return BL_DECK[0] + (BL_DECK[1] - BL_DECK[0]) / BL_PITCH * (y - (BL_YC[0] - 0.68))
+
     for sx in (-1, 1):
-        bar(b, V(sx * 7.97, -2.15, 0.9), V(sx * 7.97, 2.39, 3.0), 0.08, white, w2=0.14, up=(1, 0, 0))
-    # steps at the +x end, level with the three rows
-    for (y0, y1, top) in ((-2.3, -1.1, 0.8), (-1.1, 0.2, 1.6), (0.2, 1.5, 2.4)):
-        bx(b, V(7.25, (y0 + y1) / 2, top / 2), (1.0, y1 - y0, top), white, zm=None, zp="plank")
-    bar(b, V(7.85, -2.35, 1.1), V(7.85, 1.6, 3.3), 0.08, white, w2=0.14, up=(1, 0, 0))
+        x = sx * 7.9
+        bar(b, V(x, -2.2, z_line(-2.2) + 0.95), V(x, BY, z_line(BY) + 0.95), 0.1, rail, w2=0.1, up=(1, 0, 0))
+        for y, base in ((-2.2, BL_APRON), (-1.0, BL_DECK[0]), (0.7, BL_DECK[1])):
+            top = z_line(y) + 0.95
+            bx(b, V(x, y, (base + top) / 2), (0.1, 0.1, top - base), rail, zm=None)
     return b, {
-        "origin": "footprint centre on the ground", "front": "-y", "length": 16.0, "depth": 4.94, "height": 3.6,
+        "origin": "footprint centre on the ground", "front": "-y", "length": 16.0, "depth": 5.4, "height": 3.6,
         "rows": [{"seat_z": sz, "y": yc, "x0": BL_X0, "x1": BL_X1} for yc, sz in BL_ROWS],
-        "steps": {"x": [6.75, 7.75], "end": "+x"}, "back_rail_z": [3.0, 3.55],
-        "note": "seat_z is the top of the seat plank; y the plank-pair centre; a fan origin sits at (x, y, seat_z)",
+        "steps": {"x": [BL_X1 + 0.1, XR - 0.2], "end": "+x"}, "back_rail_z": [2.9, 3.56],
+        "sponsor": {"centre": [round((plate_x0 + plate_x1) / 2, 3), round((plate_z0 + plate_z1) / 2, 3)],
+                    "size": [round(plate_x1 - plate_x0, 3), round(plate_z1 - plate_z0, 3)], "plane_y": round(HY - 0.04, 3),
+                    "normal": [0, -1, 0], "note": "plain navy board, text goes on it"},
+        "note": "seat_z is the top of the bench; y the bench seat centre (bench from y - 0.68 to y + 0.34); a fan origin sits at (x, y, seat_z), its feet land on the deck of the step below",
     }
 
 
@@ -988,30 +1042,50 @@ def tyre_stack_tall(name):
 
 
 # ---------------------------------------------------------------- grandstand bay
-GS_TIERS = [(1.4 + 1.2 * i, -5.0 + 1.5 * i) for i in range(5)]  # (tier top z, tier front y)
+# The bleachers' painted look, bigger and roofed: five tiers of seat runs (navy, coral, cream, navy,
+# coral from the front) with a teal stepped terrace, a navy sponsor hoarding along the front, the
+# central aisle with its rails, the back wall, columns and the cantilevered canopy. Each tier climbs
+# in two equal 0.46 steps: a foot tread, then the seat deck (0.42 seat + 0.46 step = the fan's 0.88 hip-to-sole). Fan fit (see bleachers): the seat run is
+# 0.68 in front of and 0.32 behind the tier's y; its foot tread (0.7 wide) lies in front of the riser
+# below the seat deck and the shoes (0.88 under the origin, 0.62 forward of the seat front) rest on it.
+GS_P, GS_STEP, GS_SEAT = 1.85, 0.46, 0.42  # tier pitch along y; half step (a tier rises 2 x GS_STEP); seat top above its deck
+GS_YC = [-3.8 + GS_P * i for i in range(5)]  # seat centre y of each tier
+GS_T = [1.6 + 2 * GS_STEP * i for i in range(5)]  # seat deck top z
+GS_COLOURS = ["navy", "coral", "cream", "navy", "coral"]
 
 
 def grandstand_bay(name):
     b = Builder(name)
     NAVY, CREAM, CORAL = "navy", "cream", "coral"
-    for i, (z, y0) in enumerate(GS_TIERS):
-        y1 = y0 + 1.5 if i < 4 else 4.95
-        bx(b, V(0, (y0 + y1) / 2, z / 2), (14.0, y1 - y0, z), CREAM, ym=NAVY, zp="stone_light", zm=None)
-        # a seat run each side of the central aisle: base, pan and backrests
+    yB = [yc - 0.68 for yc in GS_YC]  # riser under each seat deck (front of the seat run)
+    pts = [(-5.3, GS_T[0] - GS_STEP)]
+    for i in range(5):
+        pts += [(yB[i], GS_T[i] - GS_STEP), (yB[i], GS_T[i])]
+        if i < 4:  # the seat deck runs 0.47 behind the tier's y (past the backrests), then the next foot tread
+            pts += [(GS_YC[i] + 0.47, GS_T[i]), (GS_YC[i] + 0.47, GS_T[i + 1] - GS_STEP)]
+    pts.append((4.95, GS_T[4]))
+    terrace(b, -7.0, 7.0, pts, "teal_dark", "teal", CREAM, CREAM, front=NAVY)
+    # a seat run each side of the central aisle: metal bracket block, painted seat pan and backrest panels
+    for i, (yc, t, col) in enumerate(zip(GS_YC, GS_T, GS_COLOURS)):
         for sx in (-1, 1):
             xc = sx * 3.85
-            bx(b, V(xc, y0 + 0.32, z + 0.18), (6.3, 0.3, 0.36), NAVY, zm=None, zp=None, ym=NAVY)
-            bx(b, V(xc, y0 + 0.45, z + 0.42), (6.3, 0.55, 0.12), CORAL, zm=None)
-            for k in range(3):
-                bx(b, V(sx * (0.7 + 1.05 + 2.1 * k + 0.0), y0 + 0.82, z + 0.68), (2.0, 0.1, 0.5), CORAL, zm=None)
-    # half steps up the aisle and two rails
-    for i, (z, y0) in enumerate(GS_TIERS):
-        bx(b, V(0, y0 - 0.55, (z - 0.6) / 2), (1.2, 1.1, z - 0.6), CREAM, zm=None, zp="stone_light")
+            bx(b, V(xc, yc - 0.18, t + 0.12), (6.3, 0.8, 0.24), "iron", zm=None, yp=None)
+            bx(b, V(xc, yc - 0.18, t + 0.33), (6.3, 1.0, 0.18), col, zm=None)
+            for k in range(4):
+                x = sx * (0.7 + 1.575 * (k + 0.5))
+                bx(b, V(x, yc + 0.38, t + 0.62), (1.475, 0.12, 0.7), col, zm=None)
+    # aisle hand rails: a sloped bar on three posts each side of the aisle steps
+    slope = 2 * GS_STEP / GS_P
+
+    def z_line(y):
+        return GS_T[0] + slope * (y - yB[0])
+
     for sx in (-1, 1):
-        bar(b, V(sx * 0.65, -5.4, 2.2), V(sx * 0.65, 1.2, 7.4), 0.07, "iron_hi", up=(1, 0, 0))
+        bar(b, V(sx * 0.65, -4.9, z_line(-4.9) + 0.95), V(sx * 0.65, 4.7, z_line(4.7) + 0.95), 0.07, "iron_hi", up=(1, 0, 0))
         for i in (0, 2, 4):
-            z, y0 = GS_TIERS[i]
-            bx(b, V(sx * 0.65, y0 - 0.2, z + 0.5), (0.08, 0.08, 1.0), "iron_hi", zm=None)
+            y = yB[i] + 0.15
+            top = z_line(y) + 0.95
+            bx(b, V(sx * 0.65, y, (GS_T[i] + top) / 2), (0.08, 0.08, top - GS_T[i]), "iron_hi", zm=None)
     # back wall with bands, two back columns, the cantilevered canopy and its beams
     bx(b, V(0, 5.2, 4.75), (14.0, 0.5, 9.5), CREAM, ym=CREAM, zm=None, zp=NAVY)
     for z0, z1, sw in ((6.4, 6.9, NAVY), (8.7, 9.2, "teal")):
@@ -1028,12 +1102,18 @@ def grandstand_bay(name):
               "teal" if k % 2 == 0 else CREAM, V((xa + xb) / 2, 0, 0))
     for x in (-3.5, 3.5):
         bar(b, V(x, 5.2, ztop(5.2) - 0.65), V(x, -5.0, ztop(-5.0) - 0.65), 0.35, NAVY, w2=0.5, up=(1, 0, 0))
-    # front rail and apron
-    bx(b, V(0, -4.9, 1.85), (14.0, 0.12, 0.9), CREAM, zm=None, zp=NAVY, ym=CREAM)
-    bx(b, V(0, -5.25, 0.1), (14.0, 0.5, 0.2), "concrete", zm=None)
-    rows = [{"seat_z": round(z + 0.48, 3), "y": round(y0 + 0.45, 3), "x0": -6.85, "x1": 6.85, "aisle": [-0.7, 0.7]} for z, y0 in GS_TIERS]
+    # sponsor hoarding along the whole front (joins flush with the next bay): navy board, cream cap,
+    # a plain navy plate (0.04 proud) for the text
+    HY, HH = -5.5, 1.4
+    bx(b, V(0, HY + 0.1, HH / 2), (14.0, 0.2, HH), NAVY, zm=None, yp=None)
+    bx(b, V(0, HY + 0.04, HH + 0.04), (14.0, 0.32, 0.08), CREAM, zm=None)
+    plate = {"x": 13.4, "z0": 0.2, "z1": 1.2}
+    bx(b, V(0, HY - 0.02, (plate["z0"] + plate["z1"]) / 2), (plate["x"], 0.04, plate["z1"] - plate["z0"]), NAVY, yp=None)
+    rows = [{"seat_z": round(t + GS_SEAT, 3), "y": round(yc, 3), "x0": -6.85, "x1": 6.85, "aisle": [-0.7, 0.7]} for yc, t in zip(GS_YC, GS_T)]
     return b, {"origin": "footprint centre on the ground", "front": "-y", "module": [14.0, 11.0], "height": 13.0, "join": "flush at x = +/-7, repeat every 14 along x",
-               "rows": rows, "canopy_underside_front": round(ztop(-5.3) - 0.4, 3), "columns_x": [-3.5, 3.5], "note": "back columns repeat every 7 studs across modules"}
+               "rows": rows, "canopy_underside_front": round(ztop(-5.3) - 0.4, 3), "columns_x": [-3.5, 3.5], "note": "back columns repeat every 7 studs across modules; seat_z is the top of the seat pan, y the seat centre (seat from y - 0.68 to y + 0.32), a fan origin sits at (x, y, seat_z) and its feet land on the foot tread in front of the seat deck; keep fans out of the aisle (x within +/-1.3)",
+               "sponsor": {"centre": [0.0, round((plate["z0"] + plate["z1"]) / 2, 3)], "size": [plate["x"], round(plate["z1"] - plate["z0"], 3)],
+                           "plane_y": round(HY - 0.04, 3), "normal": [0, -1, 0], "note": "plain navy board along the front, text goes on it"}}
 
 
 # ---------------------------------------------------------------- announcer booth
@@ -1283,55 +1363,6 @@ def orange_barrier(name):
     for x in (-1.0, 1.0):
         lat(b, V(x, 0, 1.6), [(0.15, 0), (0.12, 0.06)], 6, "cart_white", cap_top="black")
     return b, {"length": 4.0, "depth": 0.8, "height": 1.7, "origin": "footprint centre on the ground", "front": "-y", "note": "fruit_orange / cart_white bands"}
-
-
-# ---------------------------------------------------------------- jump ramps
-def ramp(name, W, L, zs, ze, tag):
-    """A solid deck wedge: surface height zs at y = -L/2 and ze at y = +L/2 (one of them 0)."""
-    b = Builder(name)
-    hw, hl = W / 2, L / 2
-
-    def z_at(y):
-        return zs + (ze - zs) * (y + hl) / L
-
-    poly = [(-hl, 0.0), (hl, 0.0)] + ([(hl, ze)] if ze > 0 else []) + ([(-hl, zs)] if zs > 0 else [])
-    cy = sum(p[0] for p in poly) / len(poly)
-    cz = sum(p[1] for p in poly) / len(poly)
-    for sx in (-1, 1):
-        pts = [V(sx * hw, y, z) for y, z in poly]
-        oface(b, pts, "cart_white", V(0, cy, cz))
-        inner = [V(sx * (hw + 0.012), cy + (y - cy) * 0.78, cz + (z - cz) * 0.78) for y, z in poly]
-        oface(b, inner, "cart_red", V(0, cy, cz))
-    oface(b, [V(-hw, -hl, 0), V(hw, -hl, 0), V(hw, hl, 0), V(-hw, hl, 0)], "navy", V(0, 0, 1))
-    if ze > 0:
-        oface(b, [V(-hw, hl, 0), V(hw, hl, 0), V(hw, hl, ze), V(-hw, hl, ze)], "concrete", V(0, 0, ze / 2))
-    if zs > 0:
-        oface(b, [V(-hw, -hl, 0), V(hw, -hl, 0), V(hw, -hl, zs), V(-hw, -hl, zs)], "concrete", V(0, 0, zs / 2))
-    hi = 1 if ze > zs else -1
-    span = L - 0.5
-    asph0, asph1 = (-hl, hl - 0.5) if hi > 0 else (-hl + 0.5, hl)
-    ce = 0.5
-    oface(b, [V(-hw + ce, asph0, z_at(asph0)), V(hw - ce, asph0, z_at(asph0)), V(hw - ce, asph1, z_at(asph1)), V(-hw + ce, asph1, z_at(asph1))],
-          "inlay_off", V(0, 0, -1))
-    n = int(round(math.hypot(L, ze - zs)))
-    for sx in (-1, 1):
-        x0, x1 = (hw - ce, hw) if sx > 0 else (-hw, -hw + ce)
-        for k in range(n):
-            ya, yb = -hl + L * k / n, -hl + L * (k + 1) / n
-            oface(b, [V(x0, ya, z_at(ya)), V(x1, ya, z_at(ya)), V(x1, yb, z_at(yb)), V(x0, yb, z_at(yb))],
-                  "cart_red" if k % 2 == 0 else "cart_white", V(0, 0, -1))
-    ya, yb = (hl - 0.5, hl) if hi > 0 else (-hl, -hl + 0.5)
-    segs = 10
-    for k in range(segs):
-        xa, xb = -hw + ce + (W - 2 * ce) * k / segs, -hw + ce + (W - 2 * ce) * (k + 1) / segs
-        oface(b, [V(xa, ya, z_at(ya)), V(xb, ya, z_at(ya)), V(xb, yb, z_at(yb)), V(xa, yb, z_at(yb))], "cart_red" if k % 2 == 0 else "cart_white", V(0, 0, -1))
-    for k in range(4):
-        y0 = asph0 + (asph1 - asph0) * (0.1 + 0.22 * k)
-        y1 = y0 + 0.9
-        oface(b, [V(-0.12, y0, z_at(y0) + 0.01), V(0.12, y0, z_at(y0) + 0.01), V(0.12, y1, z_at(y1) + 0.01), V(-0.12, y1, z_at(y1) + 0.01)], "cart_white", V(0, 0, -1))
-    # no chevrons or arrows on the jump: those belong to the Hop (brief section 3, level 11)
-    return b, {"width": W, "length": L, "start_height": zs, "end_height": ze, "origin": "footprint centre on the ground", "front": "-y",
-               "lip_height": max(zs, ze), "length_along_slope": round(math.hypot(L, ze - zs), 3), "note": tag}
 
 
 # ---------------------------------------------------------------- flame decal
@@ -1612,12 +1643,12 @@ CAPS = {
     "SwHayRun": 220, "SwTyreRun": 320, "SwTyreWall": 520, "SwRopeFence": 220, "SwOwnerSign": 220, "SwWonkyStick": 80,
     "SwRustyShed": 650, "SwPaintedShed": 750, "SwLemonadeStand": 520, "SwFoldingChair": 120, "SwStartBoard": 320,
     "SwPennantPole": 100, "SwWaterBarrel": 160, "SwWheelbarrow": 220,
-    "SwBleachers": 700, "SwFanA": 260, "SwFanB": 260, "SwFanC": 260, "SwFanD": 260, "SwFanArmA": 60, "SwFanArmB": 60, "SwFanArmC": 60,
+    "SwBleachers": 900, "SwFanA": 260, "SwFanB": 260, "SwFanC": 260, "SwFanD": 260, "SwFanArmA": 60, "SwFanArmB": 60, "SwFanArmC": 60,
     "SwFanArmD": 60, "SwOfficialPodium": 320, "SwOfficialBody": 420, "SwOfficialArm": 220, "SwMechanic": 420, "SwWrench": 60,
     "SwSnackCart": 620, "SwLapBoard": 260, "SwStartLights": 320, "SwPitGarage": 1200, "SwRollDoor": 120, "SwToolChest": 200,
-    "SwTyreStackTall": 220, "SwGrandstandBay": 1500, "SwAnnouncerBooth": 820, "SwFloodTower": 950, "SwGantry": 1200, "SwGantryGold": 420,
+    "SwTyreStackTall": 220, "SwGrandstandBay": 1600, "SwAnnouncerBooth": 820, "SwFloodTower": 950, "SwGantry": 1200, "SwGantryGold": 420,
     "SwBigScreen": 520, "SwCatchFence": 320, "SwColumn": 40, "SwColumnCap": 80, "SwGuardRail": 220, "SwOrangeBarrier": 120,
-    "SwJumpRamp": 220, "SwJumpLanding": 220, "SwFlameDecal": 60, "SwBlimp": 950, "SwLoopTrack": 1600, "SwStatuePedestal": 320,
+    "SwFlameDecal": 60, "SwBlimp": 950, "SwLoopTrack": 1600, "SwStatuePedestal": 320,
     "SwStatueCar": 800, "SwRoofSection": 1000, "SwConfettiCannon": 200, "SwFireworkRack": 160, "SwPreviewCar": 600,
 }
 
@@ -1679,8 +1710,6 @@ def build_all(emit):
     go(column_cap("SwColumnCap"), "Late")
     go(guard_rail("SwGuardRail"), "Late")
     go(orange_barrier("SwOrangeBarrier"), "Late")
-    go(ramp("SwJumpRamp", 14.0, 8.0, 0.0, 2.2, "kicker: deck top rises 0 at y=-4 to 2.2 at the lip y=+4"), "Late")
-    go(ramp("SwJumpLanding", 14.0, 10.0, 1.6, 0.0, "landing: deck top falls from 1.6 at y=-5 to 0 at y=+5"), "Late")
     go(flame_decal("SwFlameDecal"), "Late")
     go(blimp("SwBlimp"), "Late")
     go(loop_track("SwLoopTrack"), "Late")

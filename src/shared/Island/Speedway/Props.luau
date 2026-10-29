@@ -361,7 +361,15 @@ local function seatFans(parent: Folder, ctx: Ctx, mesh: string, base: CFrame, co
 	local r = 1
 	while meta[string.format("rows.%d.seat_z", r)] do
 		local k = string.format("rows.%d.", r)
-		table.insert(rows, { z = meta[k .. "seat_z"], y = meta[k .. "y"], x0 = meta[k .. "x0"], x1 = meta[k .. "x1"] })
+		table.insert(rows, {
+			z = meta[k .. "seat_z"],
+			y = meta[k .. "y"],
+			x0 = meta[k .. "x0"],
+			x1 = meta[k .. "x1"],
+			-- the grandstand's central aisle (its rails): no fan within 0.8 of it
+			a0 = meta[k .. "aisle.1"],
+			a1 = meta[k .. "aisle.2"],
+		})
 		r += 1
 	end
 	if #rows == 0 then
@@ -389,6 +397,9 @@ local function seatFans(parent: Folder, ctx: Ctx, mesh: string, base: CFrame, co
 			end
 			taken[slot] = true
 			local x = row.x0 + (slot + 0.5) * span / slots
+			if row.a0 and row.a1 and x > row.a0 - 0.8 and x < row.a1 + 0.8 then
+				continue
+			end
 			local v = FAN_VARIANTS[rng:NextInteger(1, #FAN_VARIANTS)]
 			-- recipe (x, y, z) -> mesh-local (x, z, -y); the fan faces the mesh front (+Z local)
 			local seat = base * CFrame.new(x, row.z, -row.y)
@@ -418,6 +429,15 @@ end
 
 -- ------------------------------------------------------------------ level 3
 
+-- The fictional sponsor on a stand's navy front panel (the mesh's "sponsor" face, if it has one).
+local SPONSORS = { "PIP'S POPS", "COMET COLA", "HAUL BUDDY TIRES" }
+local function sponsorPanel(folder: Folder, mesh: string, base: CFrame, which: number)
+	local face = meshFace(folder, mesh, "sponsor", base)
+	if face then
+		label(surface(face, 40), SPONSORS[(which - 1) % #SPONSORS + 1], { 0.03, 0.08, 0.94, 0.84 }, 48, CREAM, NAVY)
+	end
+end
+
 function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 	local base = Ctx.face(ctx, A.Bleachers.X, A.Bleachers.Y, EAST)
 	local stand = Kit.place("SwBleachers", base)
@@ -425,6 +445,7 @@ function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 		stand.CanCollide = true
 		stand.CanQuery = true
 		stand.Parent = major
+		sponsorPanel(major, "SwBleachers", base, 1)
 	end
 	seatFans(life, ctx, "SwBleachers", base, 9, 3)
 end
@@ -670,6 +691,7 @@ function Props.grandstand(major: Folder, life: Folder, ctx: Ctx)
 			bay.CanCollide = true
 			bay.CanQuery = true
 			bay.Parent = major
+			sponsorPanel(major, "SwGrandstandBay", base, k)
 		end
 		seatFans(life, ctx, "SwGrandstandBay", base, 12, 10 + k)
 	end

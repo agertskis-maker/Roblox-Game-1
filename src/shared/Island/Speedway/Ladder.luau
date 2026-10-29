@@ -36,8 +36,8 @@ Ladder.Levels = {
 		signature = "Gantry",
 	},
 	{ level = 9, name = "Banked Turns", adds = "Tilted turns with high walls", signature = "BankedWalls" },
-	{ level = 10, name = "The Overpass", adds = "A spiral ramp and a raised track", signature = "Spiral" },
-	{ level = 11, name = "Jump and Blimp", adds = "A jump and a blimp overhead", signature = "Jump" },
+	{ level = 10, name = "The Overpass", adds = "A raised far turn and a ramp back down", signature = "Raised" },
+	{ level = 11, name = "Jump and Blimp", adds = "A hump to hop and a blimp overhead", signature = "Jump" },
 	{ level = 12, name = "Loop of Legends", adds = "A loop, a champion statue, fireworks", signature = "Loop" },
 } :: { Level }
 

@@ -3,7 +3,7 @@
 --
 -- Preview Lineup cars on the plots' Speedways: placeholder preview cars (the SwPreviewCar fixture
 -- mesh, or plain blocks) lap each plot along its current look level's lap path (Shared.Island
--- .Speedway.Path: flat oval, banked turns, the spiral overpass, the jump and the loop), the way
+-- .Speedway.Path: flat oval, banked turns, the raised far turn, the hump and the loop), the way
 -- Lineup cars were proposed to run. Every car keeps a lap phase, so a lap takes `lapSeconds` at
 -- every level: a longer path only means a faster visual car, and a level change keeps each car's
 -- place in the lap. Each car is anchored and moved by CFrame on this client only (one loop,

@@ -88,15 +88,6 @@ Look.Features = {
 	f("BankWallFar", 9, 9, function(p, c)
 		Track.bankWalls(p.major, p.minor, c, "far")
 	end),
-	f("Spiral", 10, 12, function(p, c)
-		Track.spiral(p.major, p.minor, c)
-	end),
-	f("RaisedStraight", 10, 11, function(p, c)
-		Track.raisedStraight(p.major, p.minor, c)
-	end),
-	f("RaisedStraightLoop", 12, 12, function(p, c)
-		Track.raisedStraightLoop(p.major, p.minor, c)
-	end),
 	f("FarCurveRaised", 10, 12, function(p, c)
 		Track.farCurve(p.major, p.minor, c)
 	end),
@@ -104,10 +95,10 @@ Look.Features = {
 		Track.descent(p.major, p.minor, c)
 	end),
 	f("Loop", 12, 12, function(p, c)
-		Track.loop(p.major, c)
+		Track.loop(p.major, p.minor, c)
 	end),
-	f("Jump", 11, 12, function(p, c)
-		Track.jump(p.major, p.minor, c)
+	f("Hump", 11, 12, function(p, c)
+		Track.hump(p.major, p.minor, c)
 	end),
 	-- props
 	f("OwnerSignWood", 1, 3, function(p, c)
@@ -218,8 +209,8 @@ Look.SignatureFeature = {
 	Grandstand = "Grandstand",
 	Gantry = "Gantry",
 	BankedWalls = "BankWallNear",
-	Spiral = "Spiral",
-	Jump = "Jump",
+	Raised = "FarCurveRaised",
+	Jump = "Hump",
 	Loop = "Loop",
 } :: { [string]: string }
 

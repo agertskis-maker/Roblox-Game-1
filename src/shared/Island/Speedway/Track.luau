@@ -3,7 +3,8 @@
 -- builds one feature of the look ladder (Look.Features) into its folder. The road follows the
 -- level's lap path (Path), so the cars and the road always agree. The asphalt layers are the
 -- island's approved Task 3 base track (moved here from Hub/Recipes/Plot), which now arrives at
--- level 4 (Adam, 2026-10-28; decision 0025).
+-- level 4 (Adam, 2026-10-28; decision 0025). The raised part (levels 10 to 12) is a far turn that
+-- climbs as it turns and a straight ramp back down; no spiral (Adam: simpler ramps).
 
 local Ctx = require(script.Parent.Ctx)
 local Kit = require(script.Parent.Kit)
@@ -328,11 +329,11 @@ function Track.asphaltBanked(folder: Folder, ctx: Ctx)
 end
 
 -- Levels 10 to 12: the asphalt that stays on the ground (the main straight from the descent's
--- landing through the finish, the near turn and the right straight up to the spiral).
+-- landing through the finish, the near turn and the whole right straight up to the far turn).
 function Track.groundRanges(path: LapPath): { { number } }
 	local d = path.marks.descent
-	local sp = path.marks.spiral
-	return { { d[2], path.length }, { 0, sp[1] + 2 } }
+	local far = path.marks.farCurve
+	return { { d[2], path.length }, { 0, far[1] + 2 } }
 end
 
 function Track.asphaltGround(folder: Folder, ctx: Ctx)
@@ -489,7 +490,7 @@ local function onGroundRoad(p: Vector2): boolean
 	if math.abs(p.X + R) < reach and p.Y < Path.DescentLandU + 3 then
 		return true
 	end
-	if math.abs(p.X - R) < reach and p.Y < Path.SpiralStartU + 4 then
+	if math.abs(p.X - R) < reach and p.Y < uS + Path.Straight + 1 then
 		return true
 	end
 	return false
@@ -662,174 +663,94 @@ function Track.deck(major: Folder, minor: Folder, ctx: Ctx, path: LapPath, s0: n
 	end
 end
 
-local function loopWidth(path: LapPath): (number) -> number
-	-- the S-bends either side of the loop narrow the road from 16 to the loop's 10
-	local lo = Path.Loop
-	local m = path.marks.loop
-	local inA, inB = m[1] - lo.Runout - lo.SBend, m[1] - lo.Runout
-	local outA, outB = m[2] + lo.Runout, m[2] + lo.Runout + lo.SBend
-	return function(s: number): number
-		local f = 0
-		if s > inA and s < inB then
-			f = (s - inA) / (inB - inA)
-		elseif s >= inB and s <= outA then
-			f = 1
-		elseif s > outA and s < outB then
-			f = 1 - (s - outA) / (outB - outA)
-		end
-		f = f * f * (3 - 2 * f)
-		return HALF_W * 2 + (lo.Width - HALF_W * 2) * f
-	end
-end
-
-function Track.spiral(major: Folder, minor: Folder, ctx: Ctx)
-	local path = Path.forLevel(10)
-	local m = path.marks.spiral
-	Track.deck(major, minor, ctx, path, m[1], m[2])
-end
-
-function Track.raisedStraight(major: Folder, minor: Folder, ctx: Ctx)
-	local path = Path.forLevel(10)
-	local m = path.marks.raisedStraight
-	Track.deck(major, minor, ctx, path, m[1], m[2])
-end
-
+-- Levels 10 to 12: the far turn climbs from the ground to the deck as it turns.
 function Track.farCurve(major: Folder, minor: Folder, ctx: Ctx)
 	local path = Path.forLevel(10)
 	local m = path.marks.farCurve
 	Track.deck(major, minor, ctx, path, m[1], m[2])
 end
 
+-- Levels 10 to 12: the straight ramp back down the main straight.
 function Track.descent(major: Folder, minor: Folder, ctx: Ctx)
 	local path = Path.forLevel(10)
 	local m = path.marks.descent
 	Track.deck(major, minor, ctx, path, m[1], m[2])
 end
 
--- Level 12: the raised straight with the loop. The S-bends and the platform under the loop; the
--- loop track itself is the SwLoopTrack mesh (its own run-outs included), which does not collide:
--- visitors walk across the platform under it, never up the loop.
-function Track.raisedStraightLoop(major: Folder, minor: Folder, ctx: Ctx)
+-- Level 12: the loop on the ground right straight. The loop track is the SwLoopTrack mesh (its
+-- own run-outs included), which does not collide: visitors walk under and through it. A wider
+-- asphalt pad under the S-bends and the loop carries the shifted racing line; its top sits a hair
+-- under the road so the road's paint stays on top.
+function Track.loop(major: Folder, minor: Folder, ctx: Ctx)
 	local path = Path.forLevel(12)
-	local m = path.marks.raisedStraight
 	local lo = Path.Loop
-	local l = path.marks.loop
-	local width = loopWidth(path)
-	Track.deck(major, minor, ctx, path, m[1], l[1] - lo.Runout, { width = width })
-	Track.deck(major, minor, ctx, path, l[2] + lo.Runout, m[2], { width = width })
-	-- the platform under the loop, between the two run-outs (plot frame)
-	local entry = Path.planPoint(path, l[1] - lo.Runout)
-	local exit = Path.planPoint(path, l[2] + lo.Runout)
-	local top = Path.TrackTop + Path.DeckHeight
-	local x0, x1 = entry.X - lo.Width / 2 - 1, exit.X + lo.Width / 2 + 1
-	local u0, u1 = entry.Y - 0.3, exit.Y + 0.3
-	-- the loop leans past the run-outs by its radius
-	u0 = math.min(u0, entry.Y + lo.Runout - lo.Radius - 1)
-	u1 = math.max(u1, exit.Y - lo.Runout + lo.Radius + 1)
-	local function slab(name: string, colour: Color3, thick: number, rise: number, collide: boolean)
-		local a = Ctx.at(ctx, (x0 + x1) / 2, u0, top + rise)
-		local b = Ctx.at(ctx, (x0 + x1) / 2, u1, top + rise)
-		Kit.slab(major, a, b, Vector3.yAxis, x1 - x0, thick, {
-			name = name,
-			color = colour,
-			material = if name == "LoopPad" then Enum.Material.Asphalt else nil,
-			collide = collide,
-		}, 0)
-	end
-	slab("LoopPad", C.Asphalt, 0.4, 0, true)
-	slab("LoopPadBody", C.DeckBody, DECK_THICK, -0.4, true)
-	-- parapets round the pad, open where the S-bends join
-	local function rail(xa: number, ua: number, xb: number, ub: number)
-		local a = Ctx.at(ctx, xa, ua, top + 1.25)
-		local b = Ctx.at(ctx, xb, ub, top + 1.25)
-		Kit.slab(minor, a, b, Vector3.yAxis, 0.4, 1.65, {
-			name = "GuardRail",
-			color = C.Rail,
-			collide = true,
-			castShadow = false,
-		}, 0)
-	end
-	rail(x0, u0, x0, u1)
-	rail(x1, u0, x1, u1)
-	rail(entry.X + lo.Width / 2 + 0.3, u0, x1, u0)
-	rail(x0, u1, exit.X - lo.Width / 2 - 0.3, u1)
-	-- four columns under the pad corners
-	for _, x in { x0 + 1.5, x1 - 1.5 } do
-		for _, u in { u0 + 1.5, u1 - 1.5 } do
-			local foot = Ctx.at(ctx, x, u, 0)
-			local h = top - 0.4 - DECK_THICK
-			local base = CFrame.lookAt(foot, foot + Ctx.dir(ctx, Vector2.new(0, 1)))
-			local column = Kit.place("SwColumn", base, Vector3.new(1, h - 1.2, 1))
-			if column then
-				column.CanCollide = true
-				column.CanQuery = true
-				column.Parent = major
-			end
-			local cap = Kit.place("SwColumnCap", base + Vector3.yAxis * h)
-			if cap then
-				cap.Parent = major
-			end
-		end
-	end
-end
-
-function Track.loop(major: Folder, ctx: Ctx)
-	local path = Path.forLevel(12)
 	local l = path.marks.loop
 	local pos, look = Path.sample(path, l[1])
 	local flat = Vector3.new(look.X, 0, look.Z).Unit
 	local wp = Ctx.world(ctx, pos)
 	local base = CFrame.lookAt(wp, wp + Ctx.vector(ctx, flat))
-	local loop = Kit.place("SwLoopTrack", base)
-	if loop then
-		loop.Parent = major
+	local mesh = Kit.place("SwLoopTrack", base)
+	if mesh then
+		mesh.Parent = major
+	end
+	local entry = Path.planPoint(path, l[1])
+	local exit = Path.planPoint(path, l[2])
+	local x0, x1 = entry.X - lo.Width / 2 - 0.5, exit.X + lo.Width / 2 + 0.5
+	local u0, u1 = lo.SBendU, entry.Y + lo.Runout + lo.SBend
+	local a = Ctx.at(ctx, (x0 + x1) / 2, u0, Path.TrackTop - 0.02)
+	local b = Ctx.at(ctx, (x0 + x1) / 2, u1, Path.TrackTop - 0.02)
+	Kit.slab(major, a, b, Vector3.yAxis, x1 - x0, 0.38, {
+		name = "LoopPad",
+		color = C.Asphalt,
+		material = Enum.Material.Asphalt,
+		collide = true,
+		castShadow = false,
+	}, 0)
+	-- a white edge line round the pad (minor detail)
+	for _, x in { x0 + 0.4, x1 - 0.4 } do
+		local ea = Ctx.at(ctx, x, u0 + 0.5, Path.TrackTop + 0.01)
+		local eb = Ctx.at(ctx, x, u1 - 0.5, Path.TrackTop + 0.01)
+		Kit.slab(minor, ea, eb, Vector3.yAxis, 0.3, 0.04, {
+			name = "PadLine",
+			color = C.White,
+			castShadow = false,
+		}, 0)
 	end
 end
 
--- Level 11: the jump on the ground right straight, flame decals on the run-up (flames, never
--- arrows or chevrons: those belong to the Hop), and invisible ramp colliders under the meshes.
-function Track.jump(major: Folder, minor: Folder, ctx: Ctx)
-	local j = Path.Jump
-	local heading = Vector2.new(0, 1)
-	local function ramp(name: string, u0: number, u1: number, h0: number, h1: number)
-		local mid = (u0 + u1) / 2
-		local base = Ctx.at(ctx, R, mid, Path.TrackTop)
-		local mesh = Kit.place(name, CFrame.lookAt(base, base + Ctx.dir(ctx, heading)))
-		if mesh then
-			mesh.Parent = major
-		end
-		-- the walkable slope: a thin collider along the ramp top, and a block filling under it
-		local a = Ctx.at(ctx, R, u0, Path.TrackTop + h0)
-		local b = Ctx.at(ctx, R, u1, Path.TrackTop + h1)
-		Kit.slab(major, a, b, Vector3.yAxis, 14, 0.5, {
-			name = "JumpCollider",
-			collide = true,
-			transparency = 1,
+-- Levels 11 and 12: a low eased hump on the ground right straight (a hop, no gap, no flying),
+-- solid underneath and walkable, with one flame decal on the run-up (flames, never arrows or
+-- chevrons: those belong to the Hop).
+function Track.hump(major: Folder, minor: Folder, ctx: Ctx)
+	local path = Path.forLevel(11)
+	local m = path.marks.hump
+	local list = samples(path, m[1], m[2], 1.5)
+	layer(major, ctx, path, list, 0, HALF_W * 2, 0.4 + Path.Hump.Height, 0, {
+		name = "Hump",
+		color = C.Asphalt,
+		material = Enum.Material.Asphalt,
+		collide = true,
+		castShadow = false,
+	}, 0.3)
+	for _, side in { -1, 1 } do
+		layer(minor, ctx, path, list, side * (HALF_W - 0.6), 0.3, 0.04, 0.03, {
+			name = "HumpLine",
+			color = C.White,
 			castShadow = false,
-		}, 0)
-		local low = math.min(h0, h1)
-		if low > 0.3 then
-			local c0, c1 = Ctx.at(ctx, R, u0, Path.TrackTop + low), Ctx.at(ctx, R, u1, Path.TrackTop + low)
-			Kit.slab(major, c0, c1, Vector3.yAxis, 14, low, {
-				name = "JumpCollider",
-				collide = true,
-				transparency = 1,
+		}, 0.1)
+		-- red and white side bands so the hump reads from the plaza
+		layer(major, ctx, path, list, side * (HALF_W + 0.05), 0.12, 0.4 + Path.Hump.Height, 0, function(i)
+			return {
+				name = "HumpSide",
+				color = if i % 2 == 0 then C.CurbRed else C.White,
 				castShadow = false,
-			}, 0)
-		end
+			}
+		end, 0)
 	end
-	ramp("SwJumpRamp", j.KickerU, j.KickerU + j.KickerLength, 0, j.Lip)
-	local landU = j.KickerU + j.KickerLength + j.Gap
-	ramp("SwJumpLanding", landU, landU + j.LandingLength, j.LandingTop, 0)
-	-- flames on the run-up, a pair side by side, pointing along travel
-	for _, x in { R - 3.6, R + 3.6 } do
-		for _, u in { j.KickerU - 12, j.KickerU - 5 } do
-			local at = Ctx.at(ctx, x, u, Path.TrackTop + 0.03)
-			local decal = Kit.place("SwFlameDecal", CFrame.lookAt(at, at + Ctx.dir(ctx, heading)))
-			if decal then
-				decal.Parent = minor
-			end
-		end
+	local at = Ctx.at(ctx, R, Path.Hump.U - 7, Path.TrackTop + 0.03)
+	local decal = Kit.place("SwFlameDecal", CFrame.lookAt(at, at + Ctx.dir(ctx, Vector2.new(0, 1))))
+	if decal then
+		decal.Parent = minor
 	end
 end
 

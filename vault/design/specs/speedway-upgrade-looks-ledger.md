@@ -52,6 +52,9 @@ Answers from Adam in the question batch (2026-10-28): group ID **not yet** (keep
 | SPW-26 | Review page with every listed section; STOP | §7 | `Car-Hop-Art/review/speedway-upgrades/` | to do |
 | SPW-27 | Studio Play on desktop and landscape phone/tablet frames; tested vs read-only separated | §7 | review page | to do |
 | SPW-28 | check.ps1, commit, push, draft PR (builds on the island branch), board, log | §7 | | to do |
+| SPW-29 | Simpler ramps: no spiral, no track over track; the jump becomes a low hump (Adam 2026-10-28, "Both") | Adam mid-task | Path, Track, Look, Ladder, kit_speedway.py | built; to verify in Studio |
+| SPW-30 | Bleachers and grandstand in the painted island style: navy / coral / cream rows, navy sponsor panel (fictional), hand rails, fans seated properly (Adam 2026-10-28) | Adam mid-task | kit_speedway.py, Props | Sonnet worker restyling the meshes; sponsor text wired |
+| SPW-31 | Play previews of kit meshes need the experience's "Allow Mesh / Image APIs" (Adam switched it on in his private place, 2026-10-28); the Studio client's EditableMesh memory budget is shared with edit-mode previews, so Play is tested from a fresh Studio | found in Studio | KitIds (uploads remove the need) | noted |
 
 ## Performance
 _(filled from Studio measurements)_

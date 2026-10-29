@@ -13,12 +13,13 @@
 --
 -- Path families (levels from Ladder):
 --   oval     levels 1 to 9: the island's stadium oval (Layout.Segments), flat; banked turns at 9.
---   overpass levels 10 and 11: the near half stays on the ground; the right straight climbs a
---            360 degree spiral ramp in the infield that passes back over its own entry (track over
---            track), runs raised over the right straight and the far curve, and comes down the
---            main (left) straight on a 1 in 6 ramp that lands 6 studs before the finish line.
---   loop     level 12: as overpass, with a vertical loop on the raised right straight (two
---            S-bends move the line onto the loop's entry and back from its offset exit).
+--   raised   levels 10 and 11: the near half and the right straight stay on the ground; the far
+--            turn climbs gently as it turns, up to the raised deck, and the lap comes back down the
+--            main (left) straight on a 1 in 6 ramp that lands 6 studs before the finish line. No
+--            spiral and no track over track (Adam, 2026-10-28: "make the ramps a little simpler").
+--            Level 11 adds a low hump on the ground right straight (no gap, no flying).
+--   loop     level 12: as raised, with a vertical loop on the ground right straight (two S-bends
+--            move the line onto the loop's entry and back from its offset exit).
 
 local Path = {}
 
@@ -34,19 +35,17 @@ Path.StartU = Path.StraightsStart + 0.25 * Path.Straight
 -- Raised section (levels 10 to 12). Tunable, all visual.
 Path.DeckHeight = 12 -- road top of the raised deck above the ground track
 Path.DeckHalfWidth = 8 -- the raised road is as wide as the ground road (16)
-Path.SpiralStartU = 440
-Path.SpiralRadius = 17.5
 Path.DescentLandU = 421 -- the descent reaches the ground here, 6 before the finish line
 -- degrees, into the turn. The near turn (the one facing the plaza) banks gently so its outer wall
 -- stays low enough to see the track over from the plaza.
-Path.Bank = { Near = 8, Ground = 14, Spiral = 10, Raised = 14 }
+Path.Bank = { Near = 8, Ground = 14, Raised = 14 }
 Path.BankEase = 12 -- studs over which a bank fades in or out at each turn end
 -- Loop (level 12): matches SwLoopTrack (kit_speedway.py): radius 10, lateral offset 12, run-outs 6.
-Path.Loop = { Radius = 10, Offset = 12, Runout = 6, EntryX = 28, SBend = 16, Width = 10 }
--- Jump (level 11 on): matches SwJumpRamp / SwJumpLanding. Kicker 8 long rising to the lip, a 4-stud
--- gap, the landing 10 long falling from 1.6; the car flies a parabola from the lip and touches
--- down 8 past it. Plot-frame u of the kicker foot on the ground right straight.
-Path.Jump = { KickerU = 404, KickerLength = 8, Lip = 2.2, Gap = 4, LandingLength = 10, LandingTop = 1.6, Touchdown = 8 }
+-- SBendU: plot-frame u where the first S-bend starts on the ground right straight. EntryX 26 keeps
+-- the loop (x 21 to 43) clear of the outer tyre wall.
+Path.Loop = { Radius = 10, Offset = 12, Runout = 6, EntryX = 26, SBend = 16, Width = 10, SBendU = 422 }
+-- Hump (level 11 on): a low eased bump on the ground right straight, after the pit lane join.
+Path.Hump = { U = 408, Length = 12, Height = 1 }
 
 export type Segment = {
 	kind: "line" | "arc" | "loop",
@@ -211,39 +210,20 @@ local function build(level: number): LapPath
 	local nearA = t.s
 	arc(t, R, 180)
 	bankTurn(banks, nearA, t.s, Path.Bank.Near)
-	-- the ground right straight up to the spiral (the jump at level 11 sits on it)
+	-- the ground right straight (the hump at level 11 and the loop at level 12 sit on it)
 	local rightA = t.s
-	line(t, Path.SpiralStartU - uS)
-	marks.groundRight = { rightA, t.s }
-	if level >= 11 then
-		-- the jump: a straight kicker, a parabola from the lip, touchdown on the landing's slope
-		local j = Path.Jump
-		local foot = rightA + (j.KickerU - uS)
-		local lipS = foot + j.KickerLength
-		local slope = j.Lip / j.KickerLength
-		local landS = lipS + j.Gap
-		local landSlope = j.LandingTop / j.LandingLength
-		local touchY = j.LandingTop - landSlope * (j.Touchdown - j.Gap)
-		local k = (j.Lip + slope * j.Touchdown - touchY) / (j.Touchdown * j.Touchdown)
-		table.insert(heights, { s = foot, v = 0, linear = true })
-		for d = 0, j.Touchdown - 1 do
-			table.insert(heights, { s = lipS + d, v = j.Lip + slope * d - k * d * d, linear = true })
-		end
-		table.insert(heights, { s = lipS + j.Touchdown, v = touchY, linear = true })
-		table.insert(heights, { s = landS + j.LandingLength, v = 0 })
-		marks.jump = { foot, landS + j.LandingLength }
-	end
-	-- the spiral: one full left turn climbing from the ground to the deck
-	local spiralA = t.s
-	arc(t, Path.SpiralRadius, 360)
-	marks.spiral = { spiralA, t.s }
-	bankTurn(banks, spiralA, t.s, Path.Bank.Spiral)
-	table.insert(heights, { s = spiralA, v = 0 })
-	table.insert(heights, { s = t.s, v = H })
-	local raisedA = t.s
 	local farStartU = uS + L
+	if level >= 11 then
+		local h = Path.Hump
+		local foot = rightA + (h.U - uS)
+		table.insert(heights, { s = foot, v = 0 })
+		table.insert(heights, { s = foot + h.Length / 2, v = h.Height })
+		table.insert(heights, { s = foot + h.Length, v = 0 })
+		marks.hump = { foot, foot + h.Length }
+	end
 	if level >= 12 then
 		local lo = Path.Loop
+		line(t, lo.SBendU - uS)
 		-- S-bend left onto the loop entry line, run-out, loop, run-out, S-bend back right
 		sbend(t, R - lo.EntryX, lo.SBend)
 		line(t, lo.Runout)
@@ -256,12 +236,15 @@ local function build(level: number): LapPath
 		sbend(t, back, lo.SBend)
 		line(t, farStartU - t.p.Y)
 	else
-		line(t, farStartU - t.p.Y)
+		line(t, L)
 	end
-	marks.raisedStraight = { raisedA, t.s }
+	marks.groundRight = { rightA, t.s }
+	-- the far turn climbs from the ground to the deck as it turns (eased at both ends)
 	local farA = t.s
 	arc(t, R, 180)
 	bankTurn(banks, farA, t.s, Path.Bank.Raised)
+	table.insert(heights, { s = farA, v = 0 })
+	table.insert(heights, { s = t.s, v = H })
 	marks.farCurve = { farA, t.s }
 	-- the descent down the main straight, landing 6 before the finish line
 	local descentA = t.s
@@ -274,7 +257,7 @@ local function build(level: number): LapPath
 	-- a closed lap: the turtle is back at the start line
 	assert((t.p - START).Magnitude < 0.05, "Speedway path does not close")
 	return {
-		family = if level >= 12 then "loop" else "overpass",
+		family = if level >= 12 then "loop" else "raised",
 		length = t.s,
 		segments = t.segments,
 		heights = heights,
