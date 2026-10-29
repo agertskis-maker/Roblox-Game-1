@@ -5,6 +5,7 @@
 -- are Lane 2's; no amount is shown). At the top level the board shows a completed state instead
 -- of an invalid next level. Spec: vault/design/ui/speedway-upgrade-board.md.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("Speedway")
@@ -26,12 +27,16 @@ local function text(parent: Instance, value: string, y: number, h: number, size:
 	t.Size = UDim2.fromScale(0.9, h)
 	t.FontFace = Tokens.font()
 	t.Text = value
-	t.TextSize = size
-	t.TextColor3 = colour
+	-- scaled to fit the small board (a long level name shrinks instead of being cut), up to `size`
+	t.TextScaled = true
 	t.TextWrapped = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = size
+	limit.Parent = t
+	t.TextColor3 = colour
 	local s = Instance.new("UIStroke")
 	s.Color = INK
-	s.Thickness = math.max(2, math.floor(size / 12))
+	s.Thickness = math.max(1, math.floor(size / 14))
 	s.Parent = t
 	t.Parent = parent
 	return t
@@ -78,11 +83,13 @@ local function picture(parent: Instance, plot: Model, level: number, options: Lo
 	local cam = Instance.new("Camera")
 	local centre = (lo + hi) / 2
 	local radius = math.max(4, (hi - lo).Magnitude / 2)
-	-- look from the plaza side (toward the plot's track centre), a little above
-	local toward = (Vector3.new(0, 0, 0) - centre) * Vector3.new(1, 0, 1)
+	-- a three-quarter view from the plot's track centre (the side the pieces face), a little above
+	local trackCentre = CFrame.Angles(0, -math.rad(options.bearing), 0) * Vector3.new(0, 0, -441)
+	local toward = (trackCentre - centre) * Vector3.new(1, 0, 1)
 	toward = if toward.Magnitude > 1e-3 then toward.Unit else Vector3.new(0, 0, 1)
+	toward = (CFrame.Angles(0, math.rad(35), 0) * toward).Unit
 	cam.FieldOfView = 40
-	cam.CFrame = CFrame.lookAt(centre + toward * radius * 2.6 + Vector3.yAxis * radius * 1.1, centre)
+	cam.CFrame = CFrame.lookAt(centre + toward * radius * 1.9 + Vector3.yAxis * radius * 0.8, centre)
 	cam.Parent = frame
 	frame.CurrentCamera = cam
 end
@@ -103,16 +110,44 @@ function Kiosk.fill(plot: Model, level: number, options: Look.Options)
 	if not face then
 		return
 	end
-	local gui = face:FindFirstChildOfClass("SurfaceGui")
-	if not gui then
+	-- The board's SurfaceGui lives in PlayerGui, adorned to the face: a ViewportFrame on a SurfaceGui
+	-- parented in the Workspace does not draw (found in a Studio playtest, 2026-10-28). It goes
+	-- when the face does.
+	local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if not playerGui then
 		return
 	end
-	gui:ClearAllChildren()
+	local inWorld = face:FindFirstChildOfClass("SurfaceGui")
+	local name = "Lane3KioskBoard_" .. plot.Name
+	local existing = playerGui:FindFirstChild(name) :: SurfaceGui?
+	if not existing then
+		local made = Instance.new("SurfaceGui")
+		made.Name = name
+		made.Face = Enum.NormalId.Front
+		made.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		made.PixelsPerStud = if inWorld then inWorld.PixelsPerStud else 50
+		made.LightInfluence = 1
+		made.MaxDistance = 400
+		made.ResetOnSpawn = false
+		made.Parent = playerGui
+		existing = made
+	end
+	local board = existing :: SurfaceGui
+	board.Adornee = face
+	board:ClearAllChildren()
+	if inWorld then
+		inWorld:Destroy()
+	end
+	face.Destroying:Once(function()
+		if board.Adornee == face or board.Adornee == nil then
+			board:Destroy()
+		end
+	end)
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.fromScale(1, 1)
 	bg.BackgroundColor3 = Color3.fromRGB(36, 58, 98)
 	bg.BorderSizePixel = 0
-	bg.Parent = gui
+	bg.Parent = board
 	local current = Ladder.get(level)
 	text(bg, "SPEEDWAY LEVEL " .. current.level, 0.03, 0.09, 26, YELLOW)
 	text(bg, current.name, 0.12, 0.08, 20, CREAM)
