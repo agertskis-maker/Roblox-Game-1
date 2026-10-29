@@ -25,6 +25,7 @@
 
 local Catalog = require(script.Parent.Catalog)
 local Route = require(script.Parent.Route)
+local WorldPlan = require(script.Parent.WorldPlan)
 
 local Sequencer = {}
 
@@ -150,6 +151,26 @@ export type MassPlan = {
 }
 export type LifeSpot = { kind: string, station: number, side: number, cframe: CFrame, segment: number }
 
+-- World build V2 (Dusty Highway / Summit Pass, decision 0026): a placed kit piece that is not a lot, landmark, prop or
+-- mass of the base planner (backdrop massifs, gorge walls, ground patches, lake tiles, tunnel bays, lift cable, garlands).
+-- Made by WorldPlan.apply after the base plan, from the World's `v2` table, with its own per-district sub-seeds; empty for
+-- Downtown and for a World without `v2`.
+export type Extra = {
+	kind: string, -- backdrop | mass | ground | edge | fol | sign | gorge | lake | tunnel | lift | garland | warning | yard ...
+	module: string, -- kit mesh name
+	label: string, -- shown on the proxy when the mesh is missing
+	cframe: CFrame, -- the mesh's pivot frame (bottom centre for authored meshes)
+	scale: number, -- uniform scale, 1 = authored size
+	size: Vector3, -- proxy size, used when the mesh is missing
+	colour: Color3, -- proxy colour
+	band: string, -- "near" (the lot window) | "far" (the skyline window)
+	segment: number,
+	station: number,
+	side: number,
+	district: string,
+}
+export type WorldInfo = { notes: { string }, stats: { [string]: number }, gorges: { { [string]: any } } }
+
 export type Checks = {
 	passed: boolean,
 	routeLength: number,
@@ -198,6 +219,8 @@ export type Plan = {
 	hazards: { HazardPlan },
 	masses: { MassPlan },
 	life: { LifeSpot },
+	extras: { Extra },
+	world: WorldInfo?, -- WorldPlan's notes, counts and gorge rectangles (nil without a World `v2` table)
 	checks: Checks,
 }
 
@@ -1067,10 +1090,29 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		return choices[rng:NextInteger(1, #choices)]
 	end
 
+	-- World build V2: with `v2.subSeeds` the lot phase draws from one stream per district span, seeded by
+	-- hash(seed, cycle, district), so cycle 2 of a district is not a replay of cycle 1 and one district's lots never shift
+	-- another's (the later phases go back to the main stream)
+	local mainRng = rng
+	local subSeeds = catalog.world ~= nil and catalog.world.v2 ~= nil and catalog.world.v2.subSeeds == true
+	local spanRngs: { [number]: Random } = {}
+	local function spanRng(spanIndex: number): Random
+		local r = spanRngs[spanIndex]
+		if not r then
+			local sp = spans[spanIndex]
+			r = Random.new(WorldPlan.seedFor(seedValue, sp.cycle, sp.order, "lots"))
+			spanRngs[spanIndex] = r
+		end
+		return r :: Random
+	end
+
 	local function stepSide(state: SideState): boolean
 		local iv = state.intervals[state.ii]
 		if not iv then
 			return false
+		end
+		if subSeeds then
+			rng = spanRng(spanAt(Route.tToS(maps[state.side], math.max(state.cursor, iv.from)) + 12))
 		end
 		if state.cursor < iv.from then
 			state.cursor = iv.from
@@ -1213,6 +1255,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		end
 		stepSide(pick)
 	end
+	rng = mainRng
 
 	-- 6. Spans (sparse) -------------------------------------------------------------------------
 	local spanPlans: { SpanPlan } = {}
@@ -1600,8 +1643,15 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		hazards = hazards,
 		masses = masses,
 		life = life,
+		extras = {},
+		world = nil,
 		checks = nil :: any,
 	}
+	-- World build V2: the World's own layered additions (never run for Downtown or a World without a `v2` table)
+	local world = catalog.world
+	if world and world.v2 then
+		WorldPlan.apply(plan, catalog, seedValue, { frame = frame, segAt = segAt, spanAt = spanAt })
+	end
 	plan.checks = Sequencer.check(plan, catalog, notes)
 	return plan
 end

@@ -116,6 +116,8 @@ export type Catalog = {
 	kitCount: number,
 	manifestCount: number,
 	notes: { string },
+	world: any?, -- the Worlds/<id> definition this catalogue was built from (nil for Downtown); WorldPlan reads its `v2` table
+	sizes: { [string]: Vector3 }?, -- kit mesh name -> authored size (bounds), for the names in the World's `v2` pools
 }
 
 local function rgb(r: number, g: number, b: number): Color3
@@ -857,6 +859,7 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 		kitCount = 0,
 		manifestCount = 0,
 		notes = {},
+		world = def,
 	}
 	index(cat)
 	-- the World's own mesh folders (road pieces still come from the shared kit, so `kit` is searched too)
@@ -912,6 +915,39 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 			lm.depth = tonumber(meta.depth) or lm.depth
 			lm.height = tonumber(meta.height) or lm.height
 		end
+	end
+	-- World build V2: the authored size of every mesh the World's scatter rules and gorge name, so the planner clears and
+	-- chains real extents (the `v2.sizes` table is only the nominal fallback while a mesh is still missing)
+	if def.v2 then
+		local sizes: { [string]: Vector3 } = {}
+		local function want(name: string?)
+			if not name then
+				return
+			end
+			local meta, bounds = metaOf(name)
+			if meta and type(bounds) == "table" and type(bounds[1]) == "table" and type(bounds[2]) == "table" then
+				local lo, hi = bounds[1], bounds[2]
+				sizes[name] = Vector3.new(
+					(tonumber(hi[1]) or 0) - (tonumber(lo[1]) or 0),
+					(tonumber(hi[2]) or 0) - (tonumber(lo[2]) or 0),
+					(tonumber(hi[3]) or 0) - (tonumber(lo[3]) or 0)
+				)
+			end
+		end
+		for _, rule in def.v2.rules or {} do
+			for _, entry in rule.pool do
+				want(entry.m)
+			end
+		end
+		local g = def.v2.gorge
+		if g then
+			for _, name in g.wall do
+				want(name)
+			end
+			want(g.wallEnd)
+			want(g.pylon)
+		end
+		cat.sizes = sizes
 	end
 	if cat.kitCount > 0 then
 		cat.source = string.format("%s + kit (%d world meshes found)", def.name, cat.kitCount)

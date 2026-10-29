@@ -246,6 +246,8 @@ type Bucket = {
 	mid: { Sequencer.MassPlan },
 	sky: { Sequencer.MassPlan },
 	skyLandmarks: { Sequencer.LandmarkPlan },
+	extrasNear: { Sequencer.Extra }, -- World build V2: WorldPlan's backdrop, gorge, ground, edge and prop pieces
+	extrasFar: { Sequencer.Extra }, -- the same, in the skyline window
 }
 
 type Fields = {
@@ -591,8 +593,18 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 	end
 	-- plan items by segment
 	for i = 1, #plan.segments do
-		self.buckets[i] =
-			{ lots = {}, landmarks = {}, props = {}, spans = {}, hazards = {}, mid = {}, sky = {}, skyLandmarks = {} }
+		self.buckets[i] = {
+			lots = {},
+			landmarks = {},
+			props = {},
+			spans = {},
+			hazards = {},
+			mid = {},
+			sky = {},
+			skyLandmarks = {},
+			extrasNear = {},
+			extrasFar = {},
+		}
 	end
 	local function bucket(i: number): Bucket
 		return self.buckets[math.clamp(i, 1, #plan.segments)]
@@ -618,6 +630,9 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 	end
 	for _, m in plan.masses do
 		table.insert(if m.band == "skyline" then bucket(m.segment).sky else bucket(m.segment).mid, m)
+	end
+	for _, e in plan.extras do
+		table.insert(if e.band == "far" then bucket(e.segment).extrasFar else bucket(e.segment).extrasNear, e)
 	end
 	root:SetAttribute("Kit", if kit then kit:GetFullName() else "none (proxies only)")
 	return obj
@@ -656,6 +671,9 @@ function Assembler.prepare(self: Assembler)
 	end
 	for _, name in hazardMeshesOf(self.world) do
 		want(name)
+	end
+	for _, e in self.plan.extras do
+		want(e.module)
 	end
 	table.sort(names)
 	local editableCount = 0
@@ -974,6 +992,77 @@ local function massSpec(self: Assembler, m: Sequencer.MassPlan, label: string, a
 	}
 end
 
+-- World build V2: the folder an extra's instance goes into
+local EXTRA_FOLDER: { [string]: string } =
+	{ ground = "Ground", edge = "Props", fol = "Props", garland = "Props", sign = "Signs" }
+
+-- A WorldPlan extra as a kit mesh at its authored size (uniform scale only; never stretched). The kit meshes are drawn
+-- about their bounds centre (KitMesh, Merge), so the part sits at the pivot frame offset by the scaled centre. Edit: one
+-- sized MeshPart; Play: merged into the segment. A mesh that is missing is a labelled block of the planned size.
+local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolean): Spec
+	local kind = EXTRA_FOLDER[e.kind] or "Masses"
+	local t = template(self, e.module)
+	local s = e.scale
+	if t then
+		local ext = t.hi - t.lo
+		local at = e.cframe * CFrame.new((t.lo + t.hi) / 2 * s)
+		if t.data and not t.part and allowMerge then
+			return {
+				key = "merge:" .. e.module,
+				kind = kind,
+				tris = t.triangles,
+				mesh = true,
+				make = function()
+					return Proxies.block(e.label)
+				end,
+				place = function() end,
+				merge = {
+					data = t.data :: KitMesh.Data,
+					cframe = function(): CFrame
+						return at
+					end,
+					scale = Vector3.one * s,
+				},
+			}
+		end
+		if t.part then
+			local part = t.part :: MeshPart
+			return {
+				key = "mesh:" .. e.module,
+				kind = kind,
+				tris = t.triangles,
+				mesh = true,
+				make = function()
+					return part:Clone()
+				end,
+				place = function(inst: Instance)
+					local p = inst :: MeshPart
+					p.Size = ext * s
+					p.CastShadow = false
+					p.CFrame = at * t.turn
+				end,
+			}
+		end
+	end
+	return {
+		key = "extra:" .. e.kind,
+		kind = kind,
+		tris = 0,
+		mesh = false,
+		make = function()
+			return Proxies.block(e.label)
+		end,
+		place = function(inst: Instance)
+			local part = inst :: BasePart
+			part.Name = e.label
+			part.Size = e.size
+			part.Color = e.colour
+			part.CastShadow = false
+			part.CFrame = e.cframe * CFrame.new(0, e.size.Y / 2, 0)
+		end,
+	}
+end
+
 local function segmentSpecs(self: Assembler, index: number): { Spec }
 	local cached = self.specCache[index]
 	if cached then
@@ -1015,7 +1104,10 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	for _, lot in b.lots do
 		local lotLook = look(self, lot.palette)
 		local key: string
-		if lot.module == "GAP" then
+		if lot.module == "GAP" and self.world and self.world.v2 then
+			-- World build V2: open ground is open ground (no city stone pad, planter or tree in the desert or the snow)
+			continue
+		elseif lot.module == "GAP" then
 			local w = math.max(1, math.floor(lot.width + 0.5))
 			key = "gap:" .. w
 			table.insert(specs, {
@@ -1139,7 +1231,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 				return lm.pivot * fit(t, lm.width)
 			end, lm.pivot, true)
 		)
-		if lm.placement == "bridge" then
+		-- World build V2: a true gorge (WorldPlan) has its own deep floor and cut ground (updateGround), so no flat strip
+		local hasGorge = plan.world ~= nil and #plan.world.gorges > 0
+		if lm.placement == "bridge" and not hasGorge then
 			-- harbour water under the deck (reviewer, 2026-10-23: no water at Harbor Bridge); a plain
 			-- part just above the ground tiles, so it costs no EditableMesh. A World names its own floor (a dry
 			-- canyon wash, an ice crevasse): still a flat strip, not a depth.
@@ -1258,6 +1352,15 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 			table.insert(specs, massSpec(self, m, "Skyline", true))
 		end
 	end
+	-- World build V2: backdrop, gorge, ground, edge and prop pieces (far ones ride with the segment in Play, like the sky masses)
+	for _, e in b.extrasNear do
+		table.insert(specs, extraSpec(self, e, true))
+	end
+	if self.merge then
+		for _, e in b.extrasFar do
+			table.insert(specs, extraSpec(self, e, true))
+		end
+	end
 	self.specCache[index] = specs
 	return specs
 end
@@ -1272,6 +1375,9 @@ local function skySpecs(self: Assembler, index: number): { Spec }
 	if not self.merge then
 		for _, m in b.sky do
 			table.insert(specs, massSpec(self, m, "Skyline", false))
+		end
+		for _, e in b.extrasFar do
+			table.insert(specs, extraSpec(self, e, false))
 		end
 	end
 	for _, lm in b.skyLandmarks do
@@ -1380,6 +1486,73 @@ local function groundKey(cx: number, cz: number): string
 	return cx .. "," .. cz
 end
 
+-- World build V2 (true gorge): does an axis-aligned ground tile (centre `at`, half-size GROUND_CELL / 2 + 24 for the
+-- 2,048-stud slab overlap) touch the gorge's oriented rectangle (grown by `grow`)? The gorge is far smaller than a tile, so
+-- one corner or edge midpoint inside the tile, or the tile centre inside the rectangle, is a full test.
+local GORGE_SLAB = 4096 -- how far the four replacement slabs reach around a gorge
+local function tileHitsGorge(at: Vector3, g: { [string]: any }, grow: number): boolean
+	local centre = g.centre :: CFrame
+	local hl, hw = (g.halfLength :: number) + grow, (g.halfWidth :: number) + grow
+	local half = 1024 + 8
+	local function inTile(p: Vector3): boolean
+		return math.abs(p.X - at.X) <= half and math.abs(p.Z - at.Z) <= half
+	end
+	for _, u in { -hl, 0, hl } do
+		for _, v in { -hw, 0, hw } do
+			if inTile(centre:PointToWorldSpace(Vector3.new(v, 0, u))) then
+				return true
+			end
+		end
+	end
+	local rel = centre:PointToObjectSpace(Vector3.new(at.X, centre.Position.Y, at.Z))
+	return math.abs(rel.X) <= hw and math.abs(rel.Z) <= hl
+end
+
+-- The four slabs and the deep floor that replace the tiles a gorge touches: front and back of the span, and the two
+-- sides, all in the gorge's own frame (so the hole's edges are straight along the walls), plus the floor far below.
+local function gorgeParts(
+	self: Assembler,
+	g: { [string]: any }
+): { { name: string, cframe: CFrame, size: Vector3, colour: Color3 } }
+	local centre = g.centre :: CFrame
+	local hl, hw = g.halfLength :: number, g.halfWidth :: number
+	local e = GORGE_SLAB
+	local ground = self.groundColour
+	local floorColour = if self.world and self.world.under then self.world.under.colour else Color3.fromRGB(112, 62, 54)
+	return {
+		{
+			name = "GorgeFront",
+			cframe = centre * CFrame.new(0, -0.8, -(hl + e / 2)),
+			size = Vector3.new(2 * e, 1, e),
+			colour = ground,
+		},
+		{
+			name = "GorgeBack",
+			cframe = centre * CFrame.new(0, -0.8, hl + e / 2),
+			size = Vector3.new(2 * e, 1, e),
+			colour = ground,
+		},
+		{
+			name = "GorgeLeft",
+			cframe = centre * CFrame.new(-(hw + e / 2), -0.8, 0),
+			size = Vector3.new(e, 1, 2 * hl),
+			colour = ground,
+		},
+		{
+			name = "GorgeRight",
+			cframe = centre * CFrame.new(hw + e / 2, -0.8, 0),
+			size = Vector3.new(e, 1, 2 * hl),
+			colour = ground,
+		},
+		{
+			name = "GorgeFloor",
+			cframe = centre * CFrame.new(0, (g.floorY :: number) - 0.5, 0),
+			size = Vector3.new(2 * hw + 4, 1, 2 * hl + 4),
+			colour = floorColour,
+		},
+	}
+end
+
 local function updateGround(self: Assembler, points: { Vector3 })
 	local wanted: { [string]: Vector3 } = {}
 	for _, p in points do
@@ -1391,10 +1564,57 @@ local function updateGround(self: Assembler, points: { Vector3 })
 			end
 		end
 	end
+	-- World build V2: a tile that a gorge touches is not built; the gorge's slabs and floor stand in for it
+	local gorges = if self.plan.world then self.plan.world.gorges else {}
+	local gorgeWanted: { [string]: boolean } = {}
+	if #gorges > 0 then
+		for key, at in wanted do
+			for i, g in gorges do
+				if tileHitsGorge(at, g, 40) then
+					wanted[key] = nil
+					for _, part in gorgeParts(self, g) do
+						gorgeWanted["gorge:" .. i .. ":" .. part.name] = true
+					end
+					break
+				end
+			end
+		end
+	end
 	for key, item in self.groundLive do
-		if not wanted[key] then
+		if not wanted[key] and not gorgeWanted[key] then
 			release(self, { items = { item }, specs = {}, nextSpec = 1 })
 			self.groundLive[key] = nil
+		end
+	end
+	for key in gorgeWanted do
+		if not self.groundLive[key] then
+			local i = tonumber(string.match(key, "^gorge:(%d+):")) :: number
+			for _, part in gorgeParts(self, gorges[i]) do
+				if "gorge:" .. i .. ":" .. part.name == key then
+					local spec: Spec = {
+						key = "gorge:" .. part.name,
+						kind = "Ground",
+						tris = 0,
+						mesh = false,
+						make = function()
+							local p = Proxies.block(part.name)
+							p.Size = part.size
+							p.Color = part.colour
+							p.CastShadow = false
+							return p
+						end,
+						place = function(inst: Instance)
+							local p = inst :: BasePart
+							p.Size = part.size
+							p.Color = part.colour
+							p.CFrame = part.cframe
+						end,
+					}
+					local inst = acquire(self, spec)
+					inst.Parent = self.folders.Ground
+					self.groundLive[key] = { key = spec.key, inst = inst, kind = "Ground", tris = 0, mesh = false }
+				end
+			end
 		end
 	end
 	for key, at in wanted do
