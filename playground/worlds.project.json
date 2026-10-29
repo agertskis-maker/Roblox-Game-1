@@ -16,6 +16,11 @@
       "Lane3Playground": {
         "$path": "downtown/Lane3Playground.model.json"
       },
+      "WorldsAudio": {
+        "$className": "Folder",
+        "Music": { "$path": "../src/client/UI/Prototype/Music.luau" },
+        "Sounds": { "$path": "../src/client/UI/Prototype/Sounds.luau" }
+      },
       "Lane3_DowntownCityInfo": {
         "$className": "Configuration",
         "$attributes": {

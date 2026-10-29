@@ -30,6 +30,14 @@ local Downtown = ReplicatedStorage:WaitForChild("LookDev"):WaitForChild("Downtow
 local Ambient = require(Downtown:WaitForChild("Ambient"))
 local ChaseCamera = require(Downtown:WaitForChild("ChaseCamera"))
 
+-- World build V2: review clips carry the World's music (Adam's rule, 2026-10-28). Only the Worlds place maps the Music module
+-- (ReplicatedStorage.WorldsAudio); the Downtown look-dev place has none and stays silent.
+local function worldMusic(): any?
+	local folder = ReplicatedStorage:FindFirstChild("WorldsAudio")
+	local module = folder and folder:FindFirstChild("Music")
+	return if module then require(module) else nil
+end
+
 local function report(verb: string, value: any)
 	local ok, json = pcall(function()
 		return HttpService:JSONEncode(value)
@@ -96,7 +104,21 @@ local function run(command: string)
 			report("city stats", City.stats())
 		elseif sub == "stop" then
 			City.stop()
+			local Music = worldMusic()
+			if Music then
+				Music.stop()
+			end
 			report("city stop", "ok")
+		elseif sub == "music" then
+			-- city music <World|off>: the World's loop (DustyHighway | SummitPass | Downtown) or silence
+			local Music = worldMusic()
+			if Music and value and value ~= "off" then
+				Music.enable(true)
+				Music.setWorld(value)
+			elseif Music then
+				Music.stop()
+			end
+			report("city music", value or "off")
 		elseif sub == "camera" then
 			City.camera(value or "FIXTURE")
 			report("city camera", value or "FIXTURE")
@@ -108,6 +130,10 @@ local function run(command: string)
 			report("city width", result.rows)
 		elseif sub == "reset" then
 			City.reset()
+			local Music = worldMusic()
+			if Music then
+				Music.stop()
+			end
 		else
 			report("unknown", command)
 		end
