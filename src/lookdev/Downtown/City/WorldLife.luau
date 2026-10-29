@@ -494,17 +494,14 @@ function WorldLife.new(options: Options): WorldLife
 						Color3.fromRGB(60, 62, 70)
 					)
 					body.CastShadow, skis.CastShadow = false, false
-					table.insert(
-						self.skiers,
-						{
-							body = body,
-							skis = skis,
-							route = #self.skiRoutes,
-							u = (k - 1) / 4,
-							offset = (k - 2.5) * 4,
-							speed = 6 + k,
-						}
-					)
+					table.insert(self.skiers, {
+						body = body,
+						skis = skis,
+						route = #self.skiRoutes,
+						u = (k - 1) / 4,
+						offset = (k - 2.5) * 4,
+						speed = 6 + k,
+					})
 				end
 			end
 		end
