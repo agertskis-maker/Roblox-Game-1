@@ -12,7 +12,8 @@
 --   touch     no key label (the button is the control)
 --   gamepad   the bound button's chip. No real binding exists in the preview: ButtonA is the
 --             documented ASSUMPTION ("A"), overridable with options.gamepadKey.
--- Round 3 (R3-C2): the icon is HopCar (an original side-view car with ONE bold upward arc and arrowhead). It names
+-- Round 3 (R3-C2): the icon is HopCar, an original side-view car. Since 2026-10-28 it draws no arrow (Adam: the car
+-- is the main focus) and gets a larger slot (iconSizeFor); the arrow candidates stay switchable in Icons2. It names
 -- the action only; the production character or car may or may not leave the ground. It supersedes the Round 2
 -- HopFigure (a character between two roofs). The display state still follows HopState (precedence
 -- OutOfStamina > Cooldown > NoTarget > BestTiming > Ready), filtered by Run/HopCue when one is mounted (best timing
@@ -22,17 +23,19 @@
 --   BestTiming   + a STEADY gold ring around the button, one brief pop when the window opens (none in reduced motion)
 --   Cooldown     teal under a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
 --   NoTarget     cool blue-grey fill + dimmed icon + diagonal hatching + "NO CAR"; not pressable
---   OutOfStamina dusty rose fill + a large grey cracked bolt crossed by a red slash (the car icon steps aside) +
+--   OutOfStamina dusty rose fill + a large grey cracked bolt crossed by a red slash (the car icon steps aside; the
+--                bolt is the Stamina meter's own StaminaBolt since 2026-10-28) +
 --                "NO STAMINA" on two lines; not pressable; never shows best timing or the sweep
 --
 --   local hop = HopButton.new(ctx, { onHopIntent = fn?, gamepadKey = "A"? })
 --   hop:setHopIntent(fn)        -- preview: called on press; no gameplay
 --   hop:setInputKind(kind?)     -- "Keyboard" | "Touch" | "Gamepad" | nil (auto) for review
 --   hop:layout(), hop:setVisible(on), hop:destroy(), hop:getDebugState()
---   HopButton.buildSpecimenFace(parent, display, cooldown01?) -> Frame   -- playground specimen: the SAME face and
---                                                                         look as the live button, no store, no input
+--   HopButton.buildSpecimenFace(parent, display, cooldown01?, iconName?) -> Frame -- playground specimen: the SAME face
+--                                                                         and look as the live button, no store, no input
 --   HopButton.measureLabel(display) -> (widestLinePx, fits)            -- design px, Fredoka One, with the outline
---   HopButton.Size, HopButton.IconSize                                  -- design px
+--   HopButton.Size, HopButton.IconSize, HopButton.CarIconSize           -- design px
+--   HopButton.iconSizeFor(iconName) -> number                           -- the slot size that icon gets on the face
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
@@ -41,11 +44,13 @@ local UserInputService = game:GetService("UserInputService")
 local Arc = require(script.Parent.Arc)
 local Arcade = require(script.Parent.Parent.Arcade)
 local HopState = require(script.Parent.HopState)
+local Icons2 = require(script.Parent.Parent.Icons2)
 local Motion = require(script.Parent.Parent.Motion)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local RunBus = require(script.Parent.RunBus)
 local RunLayout = require(script.Parent.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
+local StaminaBolt = require(script.Parent.StaminaBolt)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -54,6 +59,11 @@ local make = Arcade.make
 
 local SIZE = PreviewTokens.Size.HopButton -- 96 design px body
 local ICON_SIZE = SIZE * 0.58
+-- The car alone (Icons2.HopArrow "None", Adam 2026-10-28: the car "the main focus", "the majority of the button"):
+-- an 84 px slot, so the car is about 74 px of the 96 px button wide and about 50 px tall, between the top edge and
+-- the word. TOKEN CANDIDATE (lead's choice, reversible).
+local CAR_ICON_SIZE = SIZE * 0.875
+local ICON_CENTRE_Y = 6 + ICON_SIZE / 2 -- every icon slot is centred where the 56 px slot always was
 local KEY_CHIP_H = 26
 local GOLD = Color3.fromRGB(255, 204, 48) -- the one timing accent (Keys gold stays a different, nearby shape)
 
@@ -69,6 +79,7 @@ end
 local FILL_NO_TARGET = fill(Color3.fromRGB(176, 190, 212), Color3.fromRGB(132, 150, 180), Color3.fromRGB(98, 116, 148))
 local FILL_NO_STAMINA = fill(Color3.fromRGB(190, 150, 152), Color3.fromRGB(146, 100, 108), Color3.fromRGB(104, 66, 78))
 local BOLT_SIZE = 44 -- the crossed bolt that replaces the car when Stamina is empty
+local BOLT_GREY = Color3.fromRGB(170, 176, 190) -- the Stamina meter's Empty grey (StaminaMeter GREY)
 local BOLT_TOP = 5
 local SLASH_RED = Color3.fromRGB(226, 52, 62)
 local SLASH_LENGTH = 58
@@ -163,6 +174,12 @@ HopButton.__index = HopButton
 
 HopButton.Size = SIZE
 HopButton.IconSize = ICON_SIZE
+HopButton.CarIconSize = CAR_ICON_SIZE
+
+-- The slot size an icon gets on the face: the larger car slot for HopCar while it draws no arrow, else ICON_SIZE.
+function HopButton.iconSizeFor(iconName: string): number
+	return if iconName == "HopCar" and Icons2.HopArrow == "None" then CAR_ICON_SIZE else ICON_SIZE
+end
 
 -- The widest line of a state's word at its size in design px (Fredoka One, the label's font, measured with
 -- TextService), and whether it fits the label's text area with its outline.
@@ -193,7 +210,7 @@ type Parts = {
 	sweep: Arc.Arc,
 }
 
-local function buildFace(body: GuiObject): Parts
+local function buildFace(body: GuiObject, iconName: string?): Parts
 	local lip = make("Frame", {
 		Name = "Lip",
 		Position = UDim2.fromOffset(0, A.Button.DepthOffset),
@@ -215,16 +232,18 @@ local function buildFace(body: GuiObject): Parts
 	Arcade.outline(face, "Button")
 	local grad = make("UIGradient", { Color = A.Fill.Home, Rotation = 90, Parent = face })
 	Arcade.gloss(face)
+	local name = iconName or "HopCar"
+	local iconSize = HopButton.iconSizeFor(name)
 	local icon = make("Frame", {
 		Name = "Icon",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(ICON_SIZE, ICON_SIZE),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0, ICON_CENTRE_Y),
+		Size = UDim2.fromOffset(iconSize, iconSize),
 		BackgroundTransparency = 1,
 		ZIndex = 7,
 		Parent = face,
 	})
-	Arcade.icon(icon, "HopCar")
+	Arcade.icon(icon, name)
 	-- Out of Stamina: the car steps aside for a big grey cracked bolt with a red slash across it
 	local bolt = make("Frame", {
 		Name = "Bolt",
@@ -236,7 +255,12 @@ local function buildFace(body: GuiObject): Parts
 		ZIndex = 7,
 		Parent = face,
 	})
-	Arcade.icon(bolt, "BoltEmpty")
+	-- the Stamina meter's own sharp bolt, grey and cracked as the meter shows it at zero (Adam, 2026-10-28: the
+	-- Icons2 BoltEmpty blob "isnt shaped like a lightning bolt")
+	local boltArt = StaminaBolt.new(bolt, { height = BOLT_SIZE, colour = BOLT_GREY, crack = true, name = "Art", z = 7 })
+	boltArt.root.AnchorPoint = Vector2.new(0.5, 0.5)
+	boltArt.root.Position = UDim2.fromScale(0.5, 0.5)
+	boltArt:setCracked(true)
 	-- dim veil over the icon (structure cue for cooldown / no target)
 	local veil = make("Frame", {
 		Name = "Dim",
@@ -328,14 +352,16 @@ local function applyLook(parts: Parts, display: string, cooldown: number)
 end
 
 -- Playground specimen: one face in `display`, with no store, input or sounds. The caller owns (and destroys) it.
-function HopButton.buildSpecimenFace(parent: Instance, display: string, cooldown01: number?): Frame
+-- `iconName` (optional) draws another Icons2 name in the icon slot, e.g. "HopCar_B" to compare the arrow candidates;
+-- the live button never passes it and always draws "HopCar".
+function HopButton.buildSpecimenFace(parent: Instance, display: string, cooldown01: number?, iconName: string?): Frame
 	local body = make("Frame", {
 		Name = "HopSpecimen_" .. HopState.key(display),
 		Size = UDim2.fromOffset(SIZE, SIZE),
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
-	local parts = buildFace(body)
+	local parts = buildFace(body, iconName)
 	applyLook(parts, display, math.clamp(cooldown01 or 0, 0, 1))
 	return body
 end

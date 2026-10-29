@@ -7,8 +7,8 @@
 -- Creator Store tracks from the APMOfficial partner account: free, public, IsPublicDomain, ids taken from API responses
 -- (vault/design/research/run-music-candidates.md). Round 3: Adam APPROVED these eight; they stay as they are. Nothing here
 -- has been listened to: no claim is made that any of it sounds good, fits, or loops cleanly. Music is OFF by default
--- (Music.enable(true) is the audition switch; the A/B controls live only in the private audition harness), and review
--- exports stay muted until the rights for video are established.
+-- (Music.enable(true) is the audition switch; the A/B controls live only in the private audition harness). From
+-- 2026-10-28 private review videos carry the game audio, music included, so Adam can judge it (his rule, CLAUDE.md).
 --
 -- Signal path (one parent the user controls, one duck, two groups; this module never touches the parent's volume):
 --   Lane3PreviewMusic (Settings level / Home toggle, MusicSetting)
@@ -67,6 +67,14 @@ Music.BASE_DIP = 0.35 -- how far the base bed sinks under a full tension layer
 local BED = Sounds.MIX.musicBed -- every track plays at the mix's music bed level (about -8 dB under Cash)
 local MAX_DYING = 2 -- a burst of World changes never leaves more than the live loop and two fading ones
 
+-- BALANCE PASS (round 3 close-out, 2026-10-28; lead's call, reversible). Measured from the private review recordings
+-- (Studio's own output, process loopback, ffmpeg ebur128 integrated LUFS over 15 s of each track at the same bed level):
+-- Downtown A -33.6, B -33.9; Dusty Highway A -37.6, B -35.3; Summit Pass A -40.2, B -35.4. Each World track more than
+-- 1 LU from the Downtown pair's mean (-33.8) gets a trim in dB so every World sits at about the same loudness.
+local function trimmed(db: number): number
+	return BED * 10 ^ (db / 20)
+end
+
 local TRACKS: { [string]: { Track } } = {
 	Downtown = {
 		{
@@ -89,14 +97,14 @@ local TRACKS: { [string]: { Track } } = {
 			id = "rbxassetid://9042728995",
 			title = "That Summer (JGM Music, APM)",
 			seconds = 30,
-			volume = BED,
+			volume = trimmed(3.8), -- measured -37.6 LUFS
 			note = "relaxed acoustic guitar picks, warm bass, handclap-like percussion; not twangy",
 		},
 		{
 			id = "rbxassetid://9042459623",
 			title = "Goodnight Ladies (Soho, APM)",
 			seconds = 30,
-			volume = BED,
+			volume = trimmed(1.5), -- measured -35.3 LUFS
 			note = "bouncy country-western; may read comic",
 		},
 	},
@@ -105,14 +113,14 @@ local TRACKS: { [string]: { Track } } = {
 			id = "rbxassetid://9045486243",
 			title = "Songbird (a 30) (Ded Good, APM)",
 			seconds = 32,
-			volume = BED,
+			volume = trimmed(6.4), -- measured -40.2 LUFS
 			note = "fingerpicked guitar and twinkling glockenspiel; very gentle",
 		},
 		{
 			id = "rbxassetid://1842008042",
 			title = "Into the Blue Sky (a 30) (A. J. King, APM)",
 			seconds = 31,
-			volume = BED,
+			volume = trimmed(1.6), -- measured -35.4 LUFS
 			note = "animation-style uplifting orchestral",
 		},
 	},

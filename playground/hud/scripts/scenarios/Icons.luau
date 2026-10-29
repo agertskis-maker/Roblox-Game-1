@@ -7,12 +7,23 @@
 -- in any case, so a cancelled scenario never leaves it behind for good.
 --
 --   Icons: Cash specimen               approved CashIcon (Run view) and CashStack (Home line): HUD size, zoom x4
---   Icons: Hop icon specimen           HopCar on the Hop face colour: HUD size, zoom x4, colour and greyscale
+--   Icons: Hop icon specimen           HopCar (the car alone since 2026-10-28) on the Hop face colour: HUD size,
+--                                      zoom x4, colour and greyscale
 --   Icons: Hop button states specimen  the four button looks (ready, cooldown, no target, no Stamina) at phone size,
 --                                      at this screen's HUD size, and in greyscale
+--   Icons: Hop arrow matrix specimen   the four Hop arrow candidates (A to D) x the four button looks (ready, no target,
+--                                      cooldown, no Stamina) at the REAL button size of this screen, as a small panel over
+--                                      whatever is behind it (play it over a Downtown run frame and take the screenshot)
+--   Icons: Hop arrow candidates specimen  the four arrows at phone size, at this screen's HUD size and in greyscale
 --   Icons: specimen off                removes the sheet
 --   Icons: Cash icon geometry          the band crosses the whole bundle; art size and holder size did not change
 --   Icons: Icon names and budgets      HopCar drawn, HopFigure gone, frame budgets
+--   Icons: Hop arrow candidates        each candidate draws within 40 frames, the shipped constant is None or A to D,
+--                                      the car is identical in all of them, the arrows differ, stay inside the face, no
+--                                      thin strokes; with None (shipped, Adam 2026-10-28) HopCar is the car alone,
+--                                      filling most of the button
+--   Icons: Hop arrow states            every candidate keeps the four button looks different; the live button still
+--                                      draws "HopCar"
 --   Icons: Hop label fit               every state's word fits the 96 px button at 16 px or more
 --   Icons: Hop button states           the live button: ready / noTarget / cooldown / noStamina all differ
 --   Icons: Hop precedence              the order OutOfStamina > Cooldown > NoTarget > BestTiming > Ready is unchanged
@@ -305,31 +316,35 @@ local function buildCashStack(inner: Frame)
 	Arcade.icon(box, "CashStack")
 end
 
-local HOP_PLATE = Vector2.new(HopButton.IconSize + 12, HopButton.IconSize + 12)
+local HOP_PLATE = Vector2.new(HopButton.iconSizeFor("HopCar") + 12, HopButton.iconSizeFor("HopCar") + 12)
 
--- The Hop icon on the button's own face colour, the size it has on the real button.
-local function buildHopIcon(inner: Frame)
-	local plate = Instance.new("Frame")
-	plate.Name = "Plate"
-	plate.Size = UDim2.fromScale(1, 1)
-	plate.BackgroundColor3 = Color3.new(1, 1, 1)
-	plate.Parent = inner
-	Arcade.corner(plate, 12)
-	Arcade.outline(plate, "Button")
-	local gradient = Instance.new("UIGradient")
-	gradient.Color = A.Fill.Home
-	gradient.Rotation = 90
-	gradient.Parent = plate
-	local icon = Instance.new("Frame")
-	icon.Name = "Icon"
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.Position = UDim2.fromScale(0.5, 0.5)
-	icon.Size = UDim2.fromOffset(HopButton.IconSize, HopButton.IconSize)
-	icon.BackgroundTransparency = 1
-	icon.ZIndex = 2
-	icon.Parent = plate
-	Arcade.icon(icon, "HopCar")
+-- The named Hop icon on the button's own face colour, the size it has on the real button.
+local function hopIconBuilder(name: string): (Frame) -> ()
+	return function(inner: Frame)
+		local plate = Instance.new("Frame")
+		plate.Name = "Plate"
+		plate.Size = UDim2.fromScale(1, 1)
+		plate.BackgroundColor3 = Color3.new(1, 1, 1)
+		plate.Parent = inner
+		Arcade.corner(plate, 12)
+		Arcade.outline(plate, "Button")
+		local gradient = Instance.new("UIGradient")
+		gradient.Color = A.Fill.Home
+		gradient.Rotation = 90
+		gradient.Parent = plate
+		local icon = Instance.new("Frame")
+		icon.Name = "Icon"
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.Size = UDim2.fromOffset(HopButton.iconSizeFor(name), HopButton.iconSizeFor(name))
+		icon.BackgroundTransparency = 1
+		icon.ZIndex = 2
+		icon.Parent = plate
+		Arcade.icon(icon, name)
+	end
 end
+
+local buildHopIcon = hopIconBuilder("HopCar")
 
 local HOP_DISPLAYS = {
 	{ display = "Ready", cooldown = 0, text = "ready" },
@@ -337,6 +352,31 @@ local HOP_DISPLAYS = {
 	{ display = "NoTarget", cooldown = 0, text = "no target" },
 	{ display = "OutOfStamina", cooldown = 0, text = "no Stamina" },
 }
+
+-- The Hop arrow candidates (Icons2 "HopCar_A" .. "HopCar_D"; Icons2.HopArrow picks the one HopCar draws) and the four
+-- button looks the matrix shows, in the order of the brief.
+local HOP_LETTERS = { "A", "B", "C", "D" }
+local HOP_ARROW_TEXT: { [string]: string } = {
+	A = "tall hop",
+	B = "hop and streaks",
+	C = "springy kink",
+	D = "steep launch",
+}
+local MATRIX_STATES = {
+	{ display = "Ready", cooldown = 0 },
+	{ display = "NoTarget", cooldown = 0 },
+	{ display = "Cooldown", cooldown = 0.6 },
+	{ display = "OutOfStamina", cooldown = 0 },
+}
+local MATRIX_GAP = 8 -- device px between two faces
+local MATRIX_LETTER_WIDTH = 36
+local MATRIX_CAPTION_HEIGHT = 60 -- three lines of 16 px
+-- What the arrows are measured against: the car inside the icon must never move, and an arrow keeps clear of the face.
+local CAR_POSITION = UDim2.fromScale(0.5, 0.675)
+local CAR_SIZE = UDim2.fromScale(0.66, 0.66)
+local FACE_CLEARANCE = 5 -- design px an arrow keeps from the edge of the button face
+local ICON_TOP = 6 -- HopButton puts the icon 6 design px below the top edge of the face
+local MIN_STROKE = 4.5 -- design px: the thinnest bar of an arrow at the button's icon size (the lip layer)
 
 -- SPECIMEN SCENARIOS -------------------------------------------------------------------------------------------
 
@@ -423,6 +463,156 @@ S["Icons: Hop button states specimen"] = function(host: Host)
 			)
 		)
 	end
+end
+
+-- The four arrow candidates against the four button looks at the REAL button size of this screen (the HUD scale),
+-- in a small panel over whatever is behind it, so a Downtown run frame shows through. If the panel does not fit
+-- the safe area it is shrunk and the log says by how much.
+local function showHopMatrix(host: Host, letters: { string })
+	clearSpecimen(host)
+	local scale = host.api.screen:uiScale()
+	local face = Vector2.new(HopButton.Size, HopButton.Size + 4)
+	local cellW, cellH = face.X * scale + MATRIX_GAP, face.Y * scale + MATRIX_GAP
+	local needed =
+		Vector2.new(MATRIX_LETTER_WIDTH + #MATRIX_STATES * cellW - MATRIX_GAP, #letters * cellH + MATRIX_CAPTION_HEIGHT)
+	local safe = host.api.screen.safe
+	local fit = math.min(1, safe.Size.X.Offset / (needed.X + 2 * PAD), safe.Size.Y.Offset / (needed.Y + 2 * PAD))
+	local root = Instance.new("Frame")
+	root.Name = SPECIMEN_NAME
+	root.BackgroundTransparency = 1
+	root.Size = UDim2.fromScale(1, 1)
+	root.Parent = host.api.layers.Modal
+	Debris:AddItem(root, SPECIMEN_SECONDS)
+	local panel = Instance.new("Frame")
+	panel.Name = "Matrix"
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromOffset(
+		safe.Position.X.Offset + safe.Size.X.Offset / 2,
+		safe.Position.Y.Offset + safe.Size.Y.Offset / 2
+	)
+	panel.Size = UDim2.fromOffset(needed.X + 2 * PAD, needed.Y + 2 * PAD)
+	panel.BackgroundColor3 = A.Ink
+	panel.BackgroundTransparency = 0.3
+	panel.BorderSizePixel = 0
+	panel.Parent = root
+	Arcade.corner(panel, 12)
+	local panelScale = Instance.new("UIScale")
+	panelScale.Scale = fit
+	panelScale.Parent = panel
+	local white = Color3.new(1, 1, 1)
+	for r, letter in letters do
+		local y = PAD + (r - 1) * cellH
+		local mark = label(panel, letter, white, Vector2.new(PAD, y), Vector2.new(MATRIX_LETTER_WIDTH, face.Y * scale))
+		mark.TextSize = 24
+		mark.TextXAlignment = Enum.TextXAlignment.Center
+		mark.TextYAlignment = Enum.TextYAlignment.Center
+		for c, state in MATRIX_STATES do
+			local holder = scaled(panel, face, scale, function(inner: Frame)
+				HopButton.buildSpecimenFace(inner, state.display, state.cooldown, "HopCar_" .. letter)
+			end)
+			holder.Name = "Hop_" .. letter .. "_" .. HopState.key(state.display)
+			holder.Position = UDim2.fromOffset(PAD + MATRIX_LETTER_WIDTH + (c - 1) * cellW, y)
+		end
+	end
+	local profile = host.api.screen:profile().name
+	label(
+		panel,
+		string.format(
+			"Real button size x%.2f on %s. Rows: A tall hop, B hop and streaks, C springy kink, D steep launch. Shipped: %s.",
+			scale,
+			profile,
+			tostring(Icons2.HopArrow)
+		),
+		white,
+		Vector2.new(PAD, PAD + #letters * cellH),
+		Vector2.new(needed.X, MATRIX_CAPTION_HEIGHT)
+	)
+	host.log(
+		string.format(
+			"Icons Hop arrow matrix shown: %d faces at real size x%.2f on %s, fitted x%.2f (1.00 = real pixels; pick a bigger profile if it is below 1)",
+			#letters * #MATRIX_STATES,
+			scale,
+			profile,
+			fit
+		)
+	)
+end
+
+S["Icons: Hop arrow matrix specimen"] = function(host: Host)
+	showHopMatrix(host, HOP_LETTERS)
+end
+
+-- One candidate row at a time: four faces fit every landscape frame at real size (fit 1.00), so these are the native
+-- size proof; the full matrix shrinks on phones.
+for _, letter in HOP_LETTERS do
+	S["Icons: Hop arrow matrix row " .. letter] = function(host: Host)
+		showHopMatrix(host, { letter })
+	end
+end
+
+-- Review clip (round 3 close-out): the LIVE Hop button pressed the way a finger or mouse presses it (the press scale
+-- tween, then the intent, which plays the Hop sound), three times while ready, then once each while there is no car
+-- and while Stamina is empty, where nothing may play. Uses the button's own press path; no gameplay.
+S["Icons: Hop press with sound (review clip)"] = function(host: Host)
+	host.api.setSpeed(0)
+	freshRun(host)
+	host.api.setHopTarget(2)
+	local hop = comp(host, "hop")
+	if not hop then
+		host.log("FAIL: Hop press clip: no live Hop button")
+		return
+	end
+	local function press(name: string)
+		local scale = hop._press :: UIScale?
+		if scale then
+			Motion.tween(scale, "press", Motion.info(A.Motion.Press), { Scale = 0.94 })
+		end
+		host.wait(0.12)
+		hop:_intent()
+		if scale then
+			Motion.tween(scale, "press", Motion.info(A.Motion.Release), { Scale = 1 })
+		end
+		host.log("Hop press clip: " .. name .. ", intents " .. tostring(hop._intents))
+	end
+	setRun(host, { hop = "Available", hopCooldown01 = 0, stamina = "__nil" })
+	host.wait(1.2)
+	for i = 1, 3 do
+		press("ready " .. i)
+		host.wait(1.1)
+	end
+	setRun(host, { hop = "Unavailable", hopCooldown01 = 0 })
+	host.wait(1)
+	press("no car (silent)")
+	host.wait(1.2)
+	setRun(host, { hop = "Available", stamina = stamina(0) })
+	host.wait(1)
+	press("no Stamina (silent)")
+	host.wait(1.2)
+	setRun(host, { hop = "Available", stamina = "__nil" })
+	host.wait(0.8)
+end
+-- The four arrows as bare icons on the button's face colour: phone design size, this screen's HUD size, greyscale.
+S["Icons: Hop arrow candidates specimen"] = function(host: Host)
+	local function row(scale: number, grey: boolean, text: string): { Cell }
+		local cells: { Cell } = {}
+		for _, letter in HOP_LETTERS do
+			table.insert(cells, {
+				design = HOP_PLATE,
+				scale = scale,
+				build = hopIconBuilder("HopCar_" .. letter),
+				grey = grey,
+				caption = letter .. " " .. HOP_ARROW_TEXT[letter] .. ", " .. text,
+			})
+		end
+		return cells
+	end
+	local rows: { { Cell } } = { row(1, false, "x1 (phone size)") }
+	local hud = host.api.screen:uiScale()
+	if math.abs(hud - 1) > 0.01 then
+		table.insert(rows, row(hud, false, string.format("x%.2f (this screen)", hud)))
+	end
+	table.insert(rows, row(1, true, "greyscale x1"))
+	showSpecimen(host, "Hop arrow candidates", rows)
 end
 
 S["Icons: specimen off"] = function(host: Host)
@@ -556,6 +746,310 @@ S["Icons: Icon names and budgets"] = function(host: Host)
 		)
 		holder:Destroy()
 	end
+end
+
+-- HOP ARROW CHECKS ---------------------------------------------------------------------------------------------
+
+-- Draws one named icon into a fresh holder (kept off screen): returns whether it drew, the holder and its Art frame.
+local function drawIcon(name: string, side: number): (boolean, Frame, Frame?)
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.fromOffset(side, side)
+	local drawn = Icons2.draw(holder, name)
+	return drawn, holder, holder:FindFirstChild("Art") :: Frame?
+end
+
+-- What decides how a drawing looks (frames, corners, gradients) as one string, so two drawings can be compared.
+-- ZIndex is left out when the trees sit at different depths (the car after one or two arc groups).
+local function signature(roots: { Instance }, withZ: boolean): string
+	local parts: { string } = {}
+	local function add(inst: Instance)
+		local o = inst :: any
+		if inst:IsA("Frame") then
+			table.insert(
+				parts,
+				string.format(
+					"F|%s|%s|%.3f|%s|%.2f|%s",
+					tostring(o.Position),
+					tostring(o.Size),
+					o.Rotation,
+					o.BackgroundColor3:ToHex(),
+					o.BackgroundTransparency,
+					if withZ then tostring(o.ZIndex) else ""
+				)
+			)
+		elseif inst:IsA("UICorner") then
+			table.insert(parts, "C|" .. tostring(o.CornerRadius))
+		elseif inst:IsA("UIGradient") then
+			local colours: { string } = {}
+			for _, key in o.Color.Keypoints do
+				table.insert(colours, key.Value:ToHex())
+			end
+			table.insert(parts, string.format("G|%.1f|%s", o.Rotation, table.concat(colours, ",")))
+		end
+	end
+	for _, root in roots do
+		add(root)
+		for _, d in root:GetDescendants() do
+			add(d)
+		end
+	end
+	return table.concat(parts, ";")
+end
+
+-- The pieces of an icon that are not the car.
+local function arrowRoots(art: Frame): { Instance }
+	local roots: { Instance } = {}
+	for _, child in art:GetChildren() do
+		if child.Name ~= "Car" then
+			table.insert(roots, child)
+		end
+	end
+	return roots
+end
+
+-- The box (design px, relative to the icon holder) that the arrow's own frames cover, rotation included (the corners of
+-- a pill reach a little past its curve, so this is a safe over-estimate), and the thinnest bar (the lip layer is the
+-- one frame of a bar with no outline growth or shrink).
+local function arrowBox(art: Frame, side: number): (number, number, number, number, number)
+	local x0, y0, x1, y1, thin = math.huge, math.huge, -math.huge, -math.huge, math.huge
+	for _, child in arrowRoots(art) do
+		if child:IsA("Frame") then
+			local f = child :: Frame
+			local cx = f.Position.X.Scale * side + f.Position.X.Offset
+			local cy = f.Position.Y.Scale * side + f.Position.Y.Offset
+			local w = f.Size.X.Scale * side + f.Size.X.Offset
+			local h = f.Size.Y.Scale * side + f.Size.Y.Offset
+			local angle = math.rad(f.Rotation)
+			local cos, sin = math.cos(angle), math.sin(angle)
+			for _, corner in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
+				local lx, ly = corner[1] * w / 2, corner[2] * h / 2
+				local px, py = cx + lx * cos - ly * sin, cy + lx * sin + ly * cos
+				x0, x1 = math.min(x0, px), math.max(x1, px)
+				y0, y1 = math.min(y0, py), math.max(y1, py)
+			end
+			if f.Size.X.Offset == 0 and f.Size.Y.Offset == 0 then
+				thin = math.min(thin, math.min(w, h))
+			end
+		end
+	end
+	return x0, y0, x1, y1, thin
+end
+
+S["Icons: Hop arrow candidates"] = function(host: Host)
+	local selected = Icons2.HopArrow
+	local valid = selected == "None"
+	for _, letter in HOP_LETTERS do
+		if letter == selected then
+			valid = true
+		end
+	end
+	verdict(host, "Shipped arrow is None or one of A, B, C, D", valid, "Icons2.HopArrow = " .. tostring(selected))
+	local carSigns: { [string]: boolean } = {}
+	local arrowSigns: { [string]: boolean } = {}
+	for _, letter in HOP_LETTERS do
+		local name = "HopCar_" .. letter
+		local drawn, holder, art = drawIcon(name, math.round(HopButton.IconSize))
+		local side = holder.Size.X.Offset
+		local frames = if art then art:GetAttribute("Frames") else nil
+		verdict(
+			host,
+			name .. " draws within the frame budget",
+			drawn
+				and art ~= nil
+				and art:GetAttribute("Icon") == name
+				and type(frames) == "number"
+				and frames <= ICON_BUDGET,
+			string.format("drawn %s, frames %s of %d", tostring(drawn), tostring(frames), ICON_BUDGET)
+		)
+		if art then
+			local car = art:FindFirstChild("Car") :: Frame?
+			verdict(
+				host,
+				name .. " leaves the car where it was",
+				car ~= nil and car.Position == CAR_POSITION and car.Size == CAR_SIZE and car.Rotation == 0,
+				if car
+					then string.format(
+						"%s, %s, rotation %.1f",
+						tostring(car.Position),
+						tostring(car.Size),
+						car.Rotation
+					)
+					else "no Car frame"
+			)
+			if car then
+				carSigns[signature({ car }, false)] = true
+			end
+			arrowSigns[signature(arrowRoots(art), true)] = true
+			local x0, y0, x1, _, thin = arrowBox(art, side)
+			local faceLeft = -(HopButton.Size - side) / 2
+			local faceRight = side + (HopButton.Size - side) / 2
+			verdict(
+				host,
+				name .. " keeps clear of the button's edge",
+				x0 >= faceLeft + FACE_CLEARANCE and x1 <= faceRight - FACE_CLEARANCE and y0 >= FACE_CLEARANCE - ICON_TOP,
+				string.format(
+					"x %.1f to %.1f of the face's %.1f to %.1f, top %.1f of %.1f (%d px clear needed)",
+					x0,
+					x1,
+					faceLeft,
+					faceRight,
+					y0,
+					-ICON_TOP,
+					FACE_CLEARANCE
+				)
+			)
+			verdict(
+				host,
+				name .. " has no thin strokes",
+				thin >= MIN_STROKE,
+				string.format("thinnest bar %.2f px at the %d px icon (needs %.1f)", thin, side, MIN_STROKE)
+			)
+		end
+		holder:Destroy()
+	end
+	-- HopCar itself. "None" (shipped since Adam's 2026-10-28 call): the car alone, nothing else, filling most of the
+	-- button. A letter: exactly that candidate, with the same car.
+	if selected == "None" then
+		local slot = math.round(HopButton.iconSizeFor("HopCar"))
+		local drawnH, holderH, artH = drawIcon("HopCar", slot)
+		local car = if artH then artH:FindFirstChild("Car") :: Frame? else nil
+		local others = if artH then #arrowRoots(artH) else -1
+		-- the car drawing spans 0.92 of its box across (Icons2 carShape)
+		local carWide = if car then car.Size.X.Scale * 0.92 * slot else 0
+		verdict(
+			host,
+			"HopCar is the car alone, filling most of the button",
+			drawnH and car ~= nil and others == 0 and carWide >= 0.7 * HopButton.Size,
+			string.format(
+				"%d other pieces, car about %.0f px wide of the %d px button in a %d px slot",
+				others,
+				carWide,
+				HopButton.Size,
+				slot
+			)
+		)
+		holderH:Destroy()
+	else
+		local drawnA, holderA, artA = drawIcon("HopCar", math.round(HopButton.IconSize))
+		local drawnB, holderB, artB = drawIcon("HopCar_" .. tostring(selected), math.round(HopButton.IconSize))
+		if artA then
+			local carA = artA:FindFirstChild("Car") :: Frame?
+			if carA then
+				carSigns[signature({ carA }, false)] = true
+			end
+		end
+		verdict(
+			host,
+			"HopCar draws the shipped candidate",
+			drawnA
+				and drawnB
+				and artA ~= nil
+				and artB ~= nil
+				and signature(artA:GetChildren(), true) == signature(artB:GetChildren(), true),
+			"HopCar against HopCar_" .. tostring(selected)
+		)
+		holderA:Destroy()
+		holderB:Destroy()
+	end
+	verdict(
+		host,
+		"The car is identical in all four candidates (and HopCar when it draws one)",
+		count(carSigns) == 1,
+		string.format("%d different car drawings (needs 1)", count(carSigns))
+	)
+	verdict(
+		host,
+		"The four arrows are different drawings",
+		count(arrowSigns) == #HOP_LETTERS,
+		string.format("%d different arrows of %d", count(arrowSigns), #HOP_LETTERS)
+	)
+end
+
+local function faceSignature(body: Frame): string
+	local face = body:FindFirstChild("Face") :: Frame
+	local fill = face:FindFirstChildOfClass("UIGradient")
+	local function shown(name: string): string
+		local f = face:FindFirstChild(name) :: GuiObject?
+		return if f then tostring(f.Visible) else "none"
+	end
+	local dim = face:FindFirstChild("Dim") :: Frame?
+	local word = face:FindFirstChild("Label") :: TextLabel?
+	return table.concat({
+		if fill then fill.Color.Keypoints[2].Value:ToHex() else "none",
+		shown("Icon"),
+		shown("Bolt"),
+		shown("Hatch"),
+		shown("Slash"),
+		if dim then tostring(dim.BackgroundTransparency) else "none",
+		if word then word.Text else "none",
+	}, "|")
+end
+
+-- The icon the face draws in its icon slot ("" when there is none).
+local function faceIcon(root: Instance): string
+	local slot = root:FindFirstChild("Icon", true)
+	local art = if slot then slot:FindFirstChild("Art") else nil
+	local name = if art then art:GetAttribute("Icon") else nil
+	return if type(name) == "string" then name else ""
+end
+
+S["Icons: Hop arrow states"] = function(host: Host)
+	local expectedIcon = UDim2.fromOffset(HopButton.IconSize, HopButton.IconSize)
+	for _, letter in HOP_LETTERS do
+		local name = "HopCar_" .. letter
+		local scratch = Instance.new("Frame")
+		local looks: { [string]: boolean } = {}
+		local slotOk = true
+		for _, state in MATRIX_STATES do
+			local body = HopButton.buildSpecimenFace(scratch, state.display, state.cooldown, name)
+			looks[faceSignature(body)] = true
+			local slot = body:FindFirstChild("Icon", true) :: Frame?
+			if faceIcon(body) ~= name or slot == nil or slot.Size ~= expectedIcon then
+				slotOk = false
+			end
+		end
+		verdict(
+			host,
+			name .. " keeps the four button looks different",
+			count(looks) == #MATRIX_STATES and slotOk,
+			string.format(
+				"%d different looks of %d, icon slot draws %s at the same size: %s",
+				count(looks),
+				#MATRIX_STATES,
+				name,
+				tostring(slotOk)
+			)
+		)
+		scratch:Destroy()
+	end
+	-- no icon name: the specimen (like the live button) draws HopCar
+	local plain = Instance.new("Frame")
+	local body = HopButton.buildSpecimenFace(plain, "Ready", 0)
+	verdict(host, "A specimen with no icon name draws HopCar", faceIcon(body) == "HopCar", "icon " .. faceIcon(body))
+	plain:Destroy()
+	-- the live button
+	host.api.setSpeed(0)
+	freshRun(host)
+	local live = comp(host, "hop")
+	if live and live.root then
+		verdict(
+			host,
+			"The live Hop button still draws HopCar",
+			faceIcon(live.root) == "HopCar",
+			"icon " .. faceIcon(live.root)
+		)
+		local slot = live.root:FindFirstChild("Icon", true) :: Frame?
+		local want = HopButton.iconSizeFor("HopCar")
+		verdict(
+			host,
+			"The live Hop icon slot has HopCar's size",
+			slot ~= nil and slot.Size == UDim2.fromOffset(want, want),
+			string.format("slot %s, wanted %d px", if slot then tostring(slot.Size) else "none", want)
+		)
+	else
+		verdict(host, "Hop button mounted", false, "components.hop is missing")
+	end
+	host.api.setSpeed(nil)
 end
 
 S["Icons: Hop label fit"] = function(host: Host)
@@ -765,6 +1259,28 @@ S["Icons: leaks"] = function(host: Host)
 		"One sheet at a time, none after off",
 		sheets == 1 and after == 0,
 		string.format("on screen %d, after off %d", sheets, after)
+	)
+	-- the arrow matrix: one panel at a time as well, none after off
+	S["Icons: Hop arrow matrix specimen"](host)
+	S["Icons: Hop arrow matrix specimen"](host)
+	local panels = 0
+	for _, child in host.api.layers.Modal:GetChildren() do
+		if child.Name == SPECIMEN_NAME then
+			panels += 1
+		end
+	end
+	clearSpecimen(host)
+	local panelsAfter = 0
+	for _, child in host.api.layers.Modal:GetChildren() do
+		if child.Name == SPECIMEN_NAME then
+			panelsAfter += 1
+		end
+	end
+	verdict(
+		host,
+		"One arrow matrix at a time, none after off",
+		panels == 1 and panelsAfter == 0,
+		string.format("on screen %d, after off %d", panels, panelsAfter)
 	)
 	-- the live button: cycling states must not add instances or connections
 	host.api.setSpeed(0)

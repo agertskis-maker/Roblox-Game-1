@@ -8,6 +8,9 @@
 --   Icons2.draw(holder, name, opts?) -> boolean   -- false for an unknown name (Arcade falls back)
 --   Icons2.keyLock(holder) -> { shackle, key, body } -- the Keys centre with movable parts
 --   Icons2.Names                                   -- every supported name
+--   Icons2.HopArrow                                -- "None" (shipped: the car alone) | "A" | "B" | "C" | "D": the arrow
+--                                                     "HopCar" draws (see HopCar below); "HopCar_A" .. "HopCar_D"
+--                                                     always draw that one candidate
 --
 -- opts = { tint: Color3? (replaces the main fill), tilt: number? (degrees; replaces the icon's
 -- default sticker tilt) }. The art is one child Frame "Art" of the holder with attributes
@@ -593,38 +596,161 @@ end
 
 -- RUN / FEEDBACK -----------------------------------------------------------------------------
 
--- HopCar (Hop, Round 3, R3-C2): an original side-view CAR (roof, dark window, two wheels) low in the box with ONE
--- bold arc rising from above it to an arrowhead that points up and forward. It supersedes HopFigure (a character
--- between two roofs). The icon names the action; it does not say whether the car or the driver leaves the ground.
--- At about 56 px the silhouette reads first: one car, one arc, one arrowhead, nothing else; every shape has the
--- dark outline, so it holds in greyscale. About 38 frames (budget 40).
+-- HopCar (Hop, Round 3, R3-C2). SHIPPED NOW: the car alone, no arrow (Adam, 2026-10-28; see "NO ARROW" below). What
+-- follows describes the arrow candidates, kept switchable.
+-- The arrow was redone in the round 3 close-out after "the arrow looks really weird": an original
+-- side-view CAR (roof, dark window, two wheels) low in the box, drawn exactly as before, with ONE bold YELLOW arc that
+-- leaves the roof, climbs high, then DROPS onto a landing spot up and to the right of the car, ending in a solid
+-- arrowhead that points down at the landing: a car hopping over to another car. The yellow keeps it from reading as
+-- smoke from the roof (a white plume did) and matches the illustrated Garage and Shop icons; the dim veil of the
+-- unavailable states darkens it like the rest of the icon. It supersedes HopFigure (a character between two roofs).
+-- Silhouette rules (lead, judged at 56 px and at the PhoneSmall size): the head sits BELOW the arc's top (a head
+-- poking above it read as a lightning bolt), the last stretch is straight so the head sits square on the line, and
+-- the head is a solid fan of bars (two thin barbs read as a check mark). Strokes 0.082 of the icon (4.6 px at 56 px,
+-- plus the outline); consecutive bars share their end nodes, so the line has no gaps.
+--
+-- FOUR CANDIDATE ARROWS share the car, the colour and the landing (40 frames at most = the icon budget):
+--   A  one tall hop: up from the roof, over, and down onto the landing spot (solid three-bar head)
+--   B  the same hop plus two short, thick motion streaks behind the car (two-bar head, to stay in budget)
+--   C  a springy "boing" kink at take-off above the rear of the roof, then the hop
+--   D  a steep nose-up launch from the front of the roof and a shorter drop (the car itself is never tilted;
+--      the launch is told by the take-off angle only)
+-- `Icons2.HopArrow` is the ONE constant that picks the shipped arrow: "HopCar" (the Hop button) draws it.
+-- "HopCar_A" .. "HopCar_D" always draw one candidate so a specimen can show all four side by side.
+-- NO ARROW (Adam, 2026-10-28, before the review recording: "remove the arrow entirely from the hop icon and just make
+-- the car in the icon the main focus, have it take up the majority of the button"): the shipped value is "None", so
+-- HopCar draws the car alone, filling its box (HopButton gives it a larger slot, HopButton.iconSizeFor). The four
+-- arrows stay as switchable alternatives: set the constant to a letter to bring one back.
+export type HopArrow = "None" | "A" | "B" | "C" | "D"
+
 local HOP_GLASS = rgb(52, 108, 176) -- a dark pane: the roofline reads on the white body and in greyscale
-defaults.HopCar = WHITE
-painters.HopCar = function(pen)
-	-- the arc: a quadratic curve from above the car's rear, flat at first, then climbing steeply to the upper right
-	local p0x, p0y, p1x, p1y, p2x, p2y = 0.2, 0.33, 0.68, 0.35, 0.77, 0.14
-	local width = 0.11
+local HOP_ARC = rgb(255, 210, 60) -- TOKEN CANDIDATE: the hop arrow's yellow (reads as an action arrow on the teal face)
+local HOP_STROKE = 0.082 -- the arc's width (fraction of the icon)
+local HOP_HEAD_LENGTH = 0.15 -- an outer barb, from the tip back
+local HOP_HEAD_SPREAD = 40 -- degrees between an outer barb and the head's axis
+
+Icons2.HopArrow = "None" :: HopArrow
+
+type HopPath = {
+	nodes: { { number } }, -- the arc's centre line from the roof to the tip (x, y); the last bar ends in the head
+	head: { number }, -- the head's bars as fractions of the spread: { 1, 0, -1 } = solid, { 1, -1 } = two barbs
+	headWidth: number,
+	spread: number?, -- degrees; HOP_HEAD_SPREAD when nil
+	streaks: { { number } }?, -- short thick bars behind the car (ax, ay, bx, by)
+}
+
+local HOP_ARROWS: { [string]: HopPath } = {
+	A = {
+		nodes = {
+			{ 0.36, 0.55 },
+			{ 0.489, 0.256 },
+			{ 0.615, 0.123 },
+			{ 0.739, 0.151 },
+			{ 0.86, 0.34 },
+			{ 0.879, 0.397 },
+		},
+		head = { 1, 0, -1 },
+		headWidth = 0.09,
+	},
+	B = {
+		nodes = { { 0.36, 0.55 }, { 0.531, 0.193 }, { 0.698, 0.123 }, { 0.86, 0.34 }, { 0.879, 0.397 } },
+		head = { 1, -1 },
+		headWidth = 0.1,
+		spread = 42,
+		streaks = { { 0.02, 0.62, 0.11, 0.62 }, { 0.05, 0.78, 0.12, 0.78 } },
+	},
+	C = {
+		nodes = {
+			{ 0.44, 0.56 },
+			{ 0.3, 0.47 },
+			{ 0.4, 0.37 },
+			{ 0.558, 0.14 },
+			{ 0.711, 0.13 },
+			{ 0.86, 0.34 },
+			{ 0.879, 0.397 },
+		},
+		head = { 1, -1 },
+		headWidth = 0.1,
+		spread = 42,
+	},
+	D = {
+		nodes = { { 0.5, 0.55 }, { 0.612, 0.224 }, { 0.736, 0.141 }, { 0.87, 0.3 }, { 0.896, 0.354 } },
+		head = { 1, -1 },
+		headWidth = 0.1,
+		spread = 42,
+	},
+}
+
+-- The arc as bars between consecutive nodes, then the head: bars fanning back from the tip, all ending on one line
+-- across the head's axis, so a three-bar head fills into a solid triangle. The head points along the last bar.
+local function hopArrowSpecs(path: HopPath): { Spec }
 	local specs: { Spec } = {}
-	local px, py = p0x, p0y
-	for i = 1, 5 do
-		local t = i / 5
-		local u = 1 - t
-		local x = u * u * p0x + 2 * u * t * p1x + t * t * p2x
-		local y = u * u * p0y + 2 * u * t * p1y + t * t * p2y
-		table.insert(specs, bar(px, py, x, y, width))
-		px, py = x, y
+	local nodes = path.nodes
+	for i = 2, #nodes do
+		local a, b = nodes[i - 1], nodes[i]
+		table.insert(specs, bar(a[1], a[2], b[1], b[2], HOP_STROKE, HOP_ARC))
 	end
-	-- the arrowhead: the tip a little past the end of the curve, two barbs sweeping back from it
-	local heading = math.atan2(p2y - p1y, p2x - p1x)
-	local tx, ty = p2x + 0.05 * math.cos(heading), p2y + 0.05 * math.sin(heading)
-	for _, side in { 1, -1 } do
-		local back = heading + side * math.rad(140)
-		table.insert(specs, bar(tx, ty, tx + 0.19 * math.cos(back), ty + 0.19 * math.sin(back), width))
+	local tip, before = nodes[#nodes], nodes[#nodes - 1]
+	local heading = math.atan2(tip[2] - before[2], tip[1] - before[1])
+	local spread = math.rad(path.spread or HOP_HEAD_SPREAD)
+	local depth = HOP_HEAD_LENGTH * math.cos(spread)
+	for _, k in path.head do
+		local a = spread * k
+		local back = heading + math.pi + a
+		local length = depth / math.cos(a)
+		table.insert(
+			specs,
+			bar(
+				tip[1],
+				tip[2],
+				tip[1] + length * math.cos(back),
+				tip[2] + length * math.sin(back),
+				path.headWidth,
+				HOP_ARC
+			)
+		)
 	end
-	group(pen, specs)
+	return specs
+end
+
+-- The car alone: its drawing spans 0.04 to 0.96 across and 0.29 to 0.91 down its box, so a 0.96 box raised by 0.1 of
+-- its size centres it in the icon, about 0.88 of the icon wide.
+local CAR_ALONE_SIZE = 0.96
+local CAR_ALONE_Y = 0.5 - 0.1 * CAR_ALONE_SIZE
+
+local function hopCar(pen: Pen, arrow: HopArrow)
+	if arrow == "None" then
+		within(pen, 0.5, CAR_ALONE_Y, CAR_ALONE_SIZE, 0, "Car", function()
+			carShape(pen, pen.main, true, HOP_GLASS)
+		end)
+		return
+	end
+	local path = HOP_ARROWS[arrow] or HOP_ARROWS.A
+	group(pen, hopArrowSpecs(path))
+	local streaks = path.streaks
+	if streaks then
+		local specs: { Spec } = {}
+		for _, s in streaks do
+			table.insert(specs, bar(s[1], s[2], s[3], s[4], HOP_STROKE, HOP_ARC))
+		end
+		group(pen, specs)
+	end
 	within(pen, 0.5, 0.675, 0.66, 0, "Car", function()
 		carShape(pen, pen.main, true, HOP_GLASS)
 	end)
+end
+
+defaults.HopCar = WHITE
+painters.HopCar = function(pen)
+	hopCar(pen, Icons2.HopArrow)
+end
+
+local HOP_LETTERS: { HopArrow } = { "A", "B", "C", "D" }
+for _, letter in HOP_LETTERS do
+	defaults["HopCar_" .. letter] = WHITE
+	painters["HopCar_" .. letter] = function(pen)
+		hopCar(pen, letter)
+	end
 end
 
 -- FAMILY ICONS (Round 2, cards): the eight vehicle families as side silhouettes that share one weight (a body, a
@@ -1359,6 +1485,10 @@ Icons2.Names = {
 	"Padlock",
 	"CarJump",
 	"HopCar",
+	"HopCar_A",
+	"HopCar_B",
+	"HopCar_C",
+	"HopCar_D",
 	"Family_Compact",
 	"Family_Sedan",
 	"Family_Pickup",
