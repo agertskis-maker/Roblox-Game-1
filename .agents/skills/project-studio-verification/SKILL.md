@@ -104,6 +104,12 @@ supplement motion evidence. If recording is blocked, report that and request
 the minimum user assistance needed; do not mark motion visually verified from
 screenshots alone. Ask before installing a recorder.
 
+Review videos carry the game's audio (music, sound effects, fanfares) at normal
+speed (Adam, 2026-10-28). Keep a muted version only when a clip has a specific
+reason to be silent, and label it muted with that reason. Verify that the file
+really has audible, synchronized sound. When a review judges the mix, measure
+peak and average loudness from the recordings with one stated method.
+
 ## 6. Clean up
 
 Stop play, delete temporary test scripts and instances you created, and confirm
