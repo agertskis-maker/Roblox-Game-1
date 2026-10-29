@@ -253,6 +253,33 @@ local function attach(root: Instance): Trove.Trove
 			trove:Add(cleanup)
 		end
 		panelRefresh = refreshPanel
+
+		-- Studio test hook: a playtest script calls Invoke("timing", s), Invoke("measure", s),
+		-- Invoke("state") or Invoke("life") (this script's own module copies hold the live state)
+		local control = trove:Add(Instance.new("BindableFunction"))
+		control.Name = "Lane3SpeedwayControl"
+		control.OnInvoke = function(command: string, ...: any): any
+			if command == "timing" then
+				return LappingPreview.timing(...)
+			elseif command == "measure" then
+				return LappingPreview.measure(...)
+			elseif command == "life" then
+				return Life.stats()
+			elseif command == "state" then
+				local out = {}
+				for plot, info in infos do
+					out[info.index] = {
+						name = plot.Name,
+						level = info.level,
+						near = info.near,
+						revealing = Reveal.active(plot),
+					}
+				end
+				return out
+			end
+			error("unknown command " .. tostring(command))
+		end
+		control.Parent = player
 	end
 
 	trove:Add(function()

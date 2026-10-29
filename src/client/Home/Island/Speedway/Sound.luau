@@ -15,10 +15,12 @@ local SoundService = game:GetService("SoundService")
 local Sound = {}
 
 Sound.Ids = {
-	Breeze = "",
-	Murmur = "",
-	Cheer = "",
-	Horn = "",
+	-- Pro Sound Effects (free Creator Store, "Courtesy of Pro Sound Effects"); picked by name and
+	-- length in Studio search, quiet volumes below
+	Breeze = "rbxassetid://9113286782", -- Barstow Wind, Light, Blustery, Low Howl 1 (11.9 s loop)
+	Murmur = "rbxassetid://9119996106", -- Theatre Crowd, Subdued Walla, Rises and Falls (36 s loop)
+	Cheer = "rbxassetid://9120974378", -- Wrestling Crowd, Mezzanine Level, Crowd Surges (4.3 s)
+	Horn = "rbxassetid://9120385769", -- Vehicle Horn, Short and Long Honks 4 (0.7 s)
 }
 
 local group: SoundGroup? = nil

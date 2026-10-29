@@ -13,8 +13,9 @@
 --   sector: parts outside the plot's sector less its 8-stud buffer, or past the outer radius
 --   protected: parts over the entrance court, the plot walk, the Paddock, the kiosk, or taller
 --     than 0.3 over the pit lanes (with names)
---   plazaView: of 40 sample points on the ground track, the share visible from five eye points
---     on the plaza edge (eye height 5), with this plot's Speedway parts as the only blockers.
+--   plazaView: of 40 sample points along the lap (1.5 above the road), the share visible from five
+--     points on the plaza edge, with this plot's Speedway parts as the only blockers: at standing eye
+--     height (5) and at a usual third-person camera height (12).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -89,10 +90,13 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 
 	-- plaza eye points: the plaza edge toward this plot, five points across
 	local plazaR = Layout.Data.park.plazaRadius
-	local eyes = {}
-	for k = -2, 2 do
-		local p = Layout.plotToPlan(bearing, Vector2.new(k * 8, plazaR - 2))
-		table.insert(eyes, Layout.planToWorld(p, 5))
+	local function eyesAt(height: number): { Vector3 }
+		local list = {}
+		for k = -2, 2 do
+			local p = Layout.plotToPlan(bearing, Vector2.new(k * 8, plazaR - 2))
+			table.insert(list, Layout.planToWorld(p, height))
+		end
+		return list
 	end
 
 	local levels = o.levels or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
@@ -151,22 +155,25 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 		if level >= 12 then
 			top = math.max(top, 28 + 12) -- the firework bloom: 28 up, about 12 across
 		end
-		-- plaza view of the ground track
+		-- plaza view of the lap
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Include
 		params.FilterDescendantsInstances = { look }
 		local path = Path.forLevel(level)
-		local seen, total = 0, 0
-		for k = 0, 39 do
-			local pos = path and Path.sample(path, path.length * k / 40)
-			local target = Path.plotFrame(bearing) * (pos :: Vector3) + Vector3.yAxis * 1.5
-			for _, eye in eyes do
-				total += 1
-				local hit = workspace:Raycast(eye, target - eye, params)
-				if not hit or (hit.Position - target).Magnitude < 2 then
-					seen += 1
+		local function view(height: number): number
+			local seen, total = 0, 0
+			for k = 0, 39 do
+				local pos = path and Path.sample(path, path.length * k / 40)
+				local target = Path.plotFrame(bearing) * (pos :: Vector3) + Vector3.yAxis * 1.5
+				for _, eye in eyesAt(height) do
+					total += 1
+					local hit = workspace:Raycast(eye, target - eye, params)
+					if not hit or (hit.Position - target).Magnitude < 2 then
+						seen += 1
+					end
 				end
 			end
+			return math.round(seen / total * 1000) / 10
 		end
 		report[level] = {
 			parts = parts,
@@ -176,7 +183,8 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 			top = math.round(top * 10) / 10,
 			sectorViolations = sector,
 			protectedViolations = protected,
-			plazaViewPercent = math.round(seen / total * 1000) / 10,
+			plazaViewPercent = view(5),
+			plazaViewCamera = view(12),
 		}
 		task.wait()
 	end

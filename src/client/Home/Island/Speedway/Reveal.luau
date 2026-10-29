@@ -60,6 +60,12 @@ function Reveal.finish(plot: Model)
 	end
 end
 
+-- True while a reveal is still running on `plot`.
+function Reveal.active(plot: Model): boolean
+	local run = runs[plot]
+	return run ~= nil and not run.done
+end
+
 -- Spring-like ease out with one overshoot (back out), 0..1.
 local function backOut(x: number): number
 	local c1 = 1.9

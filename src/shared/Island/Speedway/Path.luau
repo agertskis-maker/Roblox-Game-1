@@ -37,7 +37,9 @@ Path.DeckHalfWidth = 8 -- the raised road is as wide as the ground road (16)
 Path.SpiralStartU = 440
 Path.SpiralRadius = 17.5
 Path.DescentLandU = 421 -- the descent reaches the ground here, 6 before the finish line
-Path.Bank = { Ground = 14, Spiral = 10, Raised = 14 } -- degrees, into the turn
+-- degrees, into the turn. The near turn (the one facing the plaza) banks gently so its outer wall
+-- stays low enough to see the track over from the plaza.
+Path.Bank = { Near = 8, Ground = 14, Spiral = 10, Raised = 14 }
 Path.BankEase = 12 -- studs over which a bank fades in or out at each turn end
 -- Loop (level 12): matches SwLoopTrack (kit_speedway.py): radius 10, lateral offset 12, run-outs 6.
 Path.Loop = { Radius = 10, Offset = 12, Runout = 6, EntryX = 28, SBend = 16, Width = 10 }
@@ -183,9 +185,11 @@ local function build(level: number): LapPath
 		local t = oval()
 		local banks: { Knot } = {}
 		if level >= 9 then
+			local near = true
 			for _, seg in t.segments do
 				if seg.kind == "arc" then
-					bankTurn(banks, seg.s0, seg.s0 + seg.length, Path.Bank.Ground)
+					bankTurn(banks, seg.s0, seg.s0 + seg.length, if near then Path.Bank.Near else Path.Bank.Ground)
+					near = false
 				end
 			end
 		end
@@ -206,7 +210,7 @@ local function build(level: number): LapPath
 	line(t, Path.StartU - uS)
 	local nearA = t.s
 	arc(t, R, 180)
-	bankTurn(banks, nearA, t.s, Path.Bank.Ground)
+	bankTurn(banks, nearA, t.s, Path.Bank.Near)
 	-- the ground right straight up to the spiral (the jump at level 11 sits on it)
 	local rightA = t.s
 	line(t, Path.SpiralStartU - uS)

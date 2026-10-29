@@ -43,7 +43,7 @@ Props.Anchors = {
 	Bleachers = Vector2.new(-52.6, 438),
 	SnackCart = Vector2.new(-57, 474),
 	LapBoard = Vector2.new(-48.2, 423.5),
-	Podium = Vector2.new(-22.6, START_U),
+	Podium = Vector2.new(-19.8, START_U), -- clear of the gantry leg (outer edge x -22.8)
 	StartLights = Vector2.new(-46.8, 407),
 	PitGarage = Vector2.new(70, 370),
 	GrandstandX = -55.6,
@@ -725,9 +725,18 @@ function Props.gantry(major: Folder, minor: Folder, ctx: Ctx, gold: boolean)
 	end
 	local gantry = Kit.place("SwGantry", base)
 	if gantry then
-		gantry.CanCollide = true
-		gantry.CanQuery = true
+		-- the mesh's box would close the road under the arch: invisible colliders on the legs only
 		gantry.Parent = major
+		for _, key in { "legs_x.1", "legs_x.2" } do
+			local x = Kit.meta("SwGantry", key, 0)
+			local height = Kit.meta("SwGantry", "clear_height", 16)
+			Kit.part(major, Vector3.new(2.8, height, 3), base * CFrame.new(x, height / 2, 0), {
+				name = "GantryLegCollider",
+				transparency = 1,
+				collide = true,
+				castShadow = false,
+			})
+		end
 		for _, key in { "face", "face_back" } do
 			local face = meshFace(major, "SwGantry", key, base, key == "face_back")
 			if face then

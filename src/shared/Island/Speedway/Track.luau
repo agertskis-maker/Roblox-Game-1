@@ -43,7 +43,7 @@ Track.Colours = {
 local C = Track.Colours
 
 -- Distances along `path` from s0 to s1 for building strips: whole straights where nothing
--- changes, every `step` studs where the height or bank changes, chord steps on flat arcs.
+-- changes, every `step` studs where the height or bank changes, chord steps on steady arcs.
 local function samples(path: LapPath, s0: number, s1: number, step: number?): { number }
 	local out = { s0 }
 	local fine = step or 3
@@ -59,28 +59,30 @@ local function samples(path: LapPath, s0: number, s1: number, step: number?): { 
 		end
 		local segEnd = if seg then seg.s0 + seg.length else s1
 		local stop = math.min(segEnd, s1)
-		local n = 1
-		if seg and seg.kind == "arc" then
-			local flat = Path.height(path, s) == 0
-				and Path.height(path, stop) == 0
-				and Path.bank(path, s) == 0
-				and Path.bank(path, stop) == 0
-				and Path.bank(path, (s + stop) / 2) == 0
-			local chord = 2 * math.acos(1 - 0.15 / (seg.radius + HALF_W + 1)) * seg.radius
-			n = math.ceil((stop - s) / (if flat then chord else math.min(chord, fine)))
-		elseif seg then
-			local varies = false
-			local h0, b0 = Path.height(path, s), Path.bank(path, s)
-			for k = 1, 8 do
-				local q = s + (stop - s) * k / 8
-				if math.abs(Path.height(path, q) - h0) > 1e-4 or math.abs(Path.bank(path, q) - b0) > 1e-4 then
-					varies = true
-					break
+		-- also break at the height and bank knots, so only the easing pieces are sampled finely
+		for _, knots in { path.heights, path.banks } do
+			for _, knot in knots do
+				if knot.s > s + 1e-3 and knot.s < stop then
+					stop = knot.s
 				end
 			end
-			if varies then
-				n = math.ceil((stop - s) / fine)
+		end
+		local n = 1
+		-- whether the height or bank changes over this piece (constant bank is fine at chord steps)
+		local varies = false
+		local h0, b0 = Path.height(path, s), Path.bank(path, s)
+		for k = 1, 8 do
+			local q = s + (stop - s) * k / 8
+			if math.abs(Path.height(path, q) - h0) > 1e-4 or math.abs(Path.bank(path, q) - b0) > 1e-4 then
+				varies = true
+				break
 			end
+		end
+		if seg and seg.kind == "arc" then
+			local chord = 2 * math.acos(1 - 0.15 / (seg.radius + HALF_W + 1)) * seg.radius
+			n = math.ceil((stop - s) / (if varies then math.min(chord, fine) else chord))
+		elseif seg and varies then
+			n = math.ceil((stop - s) / fine)
 		end
 		for k = 1, n do
 			table.insert(out, s + (stop - s) * k / n)
@@ -403,6 +405,8 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 	local path = Path.forLevel(9)
 	local seg = if turn == "near" then path.segments[2] else path.segments[4]
 	local a, b = seg.s0 - Path.BankEase, seg.s0 + seg.length + Path.BankEase
+	-- the near turn faces the plaza: a lower lip and no catch fence, so the track reads over it
+	local lip = if turn == "near" then 0.9 else 2.2
 	local list = samples(path, a, b, 3)
 	for i = 1, #list - 1 do
 		local sa, sb = list[i], list[i + 1]
@@ -413,7 +417,7 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		if not inPitGap((oa + ob) / 2) then
 			local bank = math.rad(Path.bank(path, (sa + sb) / 2))
 			local edge = Path.TrackTop + 2 * HALF_W * math.sin(bank)
-			local height = edge + 2.2
+			local height = edge + lip
 			local wa, wb = Ctx.at(ctx, oa.X, oa.Y, height), Ctx.at(ctx, ob.X, ob.Y, height)
 			Kit.slab(major, wa, wb, Vector3.yAxis, 0.9, height, {
 				name = "BankWall",
@@ -429,9 +433,8 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		end
 	end
 	-- catch fence runs on the wall top, along the full-bank part of the turn
-	local spacing = Kit.meta("SwCatchFence", "length", 9) + 0.1
-	local count = math.floor(seg.length / spacing)
-	local step = seg.length / count
+	local count = if turn == "near" then 0 else math.floor(seg.length / (Kit.meta("SwCatchFence", "length", 9) + 0.1))
+	local step = seg.length / math.max(count, 1)
 	for k = 0, count - 1 do
 		local s = seg.s0 + step * (k + 0.5)
 		local p, d = Path.planPoint(path, s)
@@ -439,7 +442,7 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		local at = p + out * (HALF_W + 0.9)
 		if not inPitGap(at) then
 			local bank = math.rad(Path.bank(path, s))
-			local top = Path.TrackTop + 2 * HALF_W * math.sin(bank) + 2.2 + 0.16
+			local top = Path.TrackTop + 2 * HALF_W * math.sin(bank) + lip + 0.16
 			Ctx.place(ctx, minor, "SwCatchFence", at.X, at.Y, -out, top)
 		end
 	end
@@ -451,13 +454,15 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		local out = Vector2.new(d.Y, -d.X)
 		local at = p + out * (HALF_W + 0.35)
 		local bank = math.rad(Path.bank(path, s))
-		local y = Path.TrackTop + 2 * HALF_W * math.sin(bank) + 1.1
+		local tall = math.min(1.5, lip - 0.15)
+		local y = Path.TrackTop + 2 * HALF_W * math.sin(bank) + 0.05 + tall / 2
 		local centre = Ctx.at(ctx, at.X, at.Y, y)
-		local board = Kit.part(major, Vector3.new(9, 1.5, 0.08), CFrame.lookAt(centre, centre - Ctx.dir(ctx, out)), {
-			name = "Banner",
-			color = C.Wall,
-			castShadow = false,
-		})
+		local board =
+			Kit.part(major, Vector3.new(tall * 6, tall, 0.08), CFrame.lookAt(centre, centre - Ctx.dir(ctx, out)), {
+				name = "Banner",
+				color = C.Wall,
+				castShadow = false,
+			})
 		local art = (KitIds.Textures :: any)[arts[(k + ctx.index) % #arts + 1]]
 		if art then
 			local decal = Instance.new("Decal")
@@ -499,14 +504,14 @@ export type DeckOptions = {
 }
 
 -- The raised road between s0 and s1 on `path`: asphalt road, navy deck body, orange edge stripes
--- and guard rails (minor detail; the rails are also the visitors' guard), columns where the
+-- and parapets (minor detail; they are also the visitors' guard), columns where the
 -- underside is high, a solid fill where it is low.
 function Track.deck(major: Folder, minor: Folder, ctx: Ctx, path: LapPath, s0: number, s1: number, o: DeckOptions?)
 	local opts: DeckOptions = o or {}
 	local widthAt = opts.width or function()
 		return HALF_W * 2
 	end
-	local list = samples(path, s0, s1, 2.5)
+	local list = samples(path, s0, s1, 4)
 	layer(major, ctx, path, list, 0, widthAt, 0.4, 0, {
 		name = "DeckRoad",
 		color = C.Asphalt,
@@ -555,60 +560,27 @@ function Track.deck(major: Folder, minor: Folder, ctx: Ctx, path: LapPath, s0: n
 		end
 	end
 	if opts.rails ~= false then
+		-- a solid navy parapet each side (the visitors' guard): one strip per slice, no posts
 		for _, side in { -1, 1 } do
-			-- the rail bar and a low kerb under it: visitors cannot step off the edge
 			layer(
 				minor,
 				ctx,
 				path,
 				list,
 				function(s)
-					return side * (widthAt(s) / 2 + 0.15)
+					return side * (widthAt(s) / 2 + 0.2)
 				end,
-				0.35,
-				0.45,
+				0.4,
+				1.65,
 				1.25,
 				{
 					name = "GuardRail",
 					color = C.Rail,
-					material = Enum.Material.Metal,
 					collide = true,
 					castShadow = false,
 				},
 				0.3
 			)
-			layer(
-				minor,
-				ctx,
-				path,
-				list,
-				function(s)
-					return side * (widthAt(s) / 2 + 0.15)
-				end,
-				0.3,
-				0.55,
-				0.55,
-				{
-					name = "GuardKerb",
-					color = C.Rail,
-					collide = true,
-					castShadow = false,
-				},
-				0.3
-			)
-		end
-		-- posts every other sample
-		for i = 1, #list, 2 do
-			local cf = Ctx.onPath(ctx, path, list[i])
-			for _, side in { -1, 1 } do
-				local w = widthAt(list[i])
-				Kit.part(minor, Vector3.new(0.25, 1.25, 0.25), cf * CFrame.new(side * (w / 2 + 0.15), 0.62, 0), {
-					name = "RailPost",
-					color = C.Rail,
-					material = Enum.Material.Metal,
-					castShadow = false,
-				})
-			end
 		end
 	end
 	if opts.supports == false then
@@ -766,19 +738,12 @@ function Track.raisedStraightLoop(major: Folder, minor: Folder, ctx: Ctx)
 	end
 	slab("LoopPad", C.Asphalt, 0.4, 0, true)
 	slab("LoopPadBody", C.DeckBody, DECK_THICK, -0.4, true)
-	-- rails round the pad, open where the S-bends join
+	-- parapets round the pad, open where the S-bends join
 	local function rail(xa: number, ua: number, xb: number, ub: number)
 		local a = Ctx.at(ctx, xa, ua, top + 1.25)
 		local b = Ctx.at(ctx, xb, ub, top + 1.25)
-		Kit.slab(minor, a, b, Vector3.yAxis, 0.35, 0.45, {
+		Kit.slab(minor, a, b, Vector3.yAxis, 0.4, 1.65, {
 			name = "GuardRail",
-			color = C.Rail,
-			material = Enum.Material.Metal,
-			collide = true,
-			castShadow = false,
-		}, 0)
-		Kit.slab(minor, a - Vector3.yAxis * 0.7, b - Vector3.yAxis * 0.7, Vector3.yAxis, 0.3, 0.55, {
-			name = "GuardKerb",
 			color = C.Rail,
 			collide = true,
 			castShadow = false,
