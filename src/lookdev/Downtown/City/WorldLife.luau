@@ -379,17 +379,14 @@ function WorldLife.new(options: Options): WorldLife
 					Color3.fromRGB(60, 62, 70)
 				)
 				seat.CastShadow, hanger.CastShadow = false, false
-				table.insert(
-					self.chairs,
-					{
-						seat = seat,
-						hanger = hanger,
-						leg = (i - 1) % #self.legs + 1,
-						u = ((i - 1) // #self.legs) * 0.3 + 0.1,
-						dir = if i % 2 == 0 then 1 else -1,
-						speed = 3,
-					}
-				)
+				table.insert(self.chairs, {
+					seat = seat,
+					hanger = hanger,
+					leg = (i - 1) % #self.legs + 1,
+					u = ((i - 1) // #self.legs) * 0.3 + 0.1,
+					dir = if i % 2 == 0 then 1 else -1,
+					speed = 3,
+				})
 			end
 		end
 	end

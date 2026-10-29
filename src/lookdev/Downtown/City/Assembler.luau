@@ -1211,6 +1211,12 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 
 	-- landmarks
 	for _, lm in b.landmarks do
+		-- World build V2: the glacier gallery is composed of kit bays and portals by WorldFeatures.tunnel (extras), so the
+		-- bridge landmark itself draws nothing (no 384-stud proxy block, no Round 2 monolith)
+		local v2 = if self.world then self.world.v2 else nil
+		if lm.placement == "bridge" and v2 and v2.tunnel and lm.district == v2.tunnel.district then
+			continue
+		end
 		local lmLook = look(self, lm.palette)
 		local lmSpec: Proxies.LandmarkSpec = {
 			id = lm.id,
