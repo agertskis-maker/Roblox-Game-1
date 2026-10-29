@@ -38,7 +38,7 @@ return {
 	landmarkSpacing = { 300, 440 },
 	lighting = {
 		props = {
-			ClockTime = 14.2,
+			ClockTime = 15.5,
 			Brightness = 2.1,
 			Ambient = rgb(120, 104, 92),
 			OutdoorAmbient = rgb(170, 150, 128),

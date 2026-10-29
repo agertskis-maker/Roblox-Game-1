@@ -1522,7 +1522,8 @@ end
 -- World build V2 (true gorge): does an axis-aligned ground tile (centre `at`, half-size GROUND_CELL / 2 + 24 for the
 -- 2,048-stud slab overlap) touch the gorge's oriented rectangle (grown by `grow`)? The gorge is far smaller than a tile, so
 -- one corner or edge midpoint inside the tile, or the tile centre inside the rectangle, is a full test.
-local GORGE_SLAB = 4096 -- how far the four replacement slabs reach around a gorge
+local GORGE_REACH = 2112 -- how far the replacement slabs reach past a gorge's edge: a touched tile ends at most 2,048 + 40 beyond it
+local PART_MAX = 2048 -- Roblox clamps every part to 2,048 studs a side, so a longer slab is built from pieces
 local function tileHitsGorge(at: Vector3, g: { [string]: any }, grow: number): boolean
 	local centre = g.centre :: CFrame
 	local hl, hw = (g.halfLength :: number) + grow, (g.halfWidth :: number) + grow
@@ -1541,49 +1542,54 @@ local function tileHitsGorge(at: Vector3, g: { [string]: any }, grow: number): b
 	return math.abs(rel.X) <= hw and math.abs(rel.Z) <= hl
 end
 
--- The four slabs and the deep floor that replace the tiles a gorge touches: front and back of the span, and the two
--- sides, all in the gorge's own frame (so the hole's edges are straight along the walls), plus the floor far below.
+-- Cuts [lo, hi] into the fewest equal pieces that each fit a part: { { middle, length } }.
+local function pieces(lo: number, hi: number): { { number } }
+	local n = math.max(1, math.ceil((hi - lo) / PART_MAX - 1e-6))
+	local len = (hi - lo) / n
+	local out = {}
+	for i = 1, n do
+		table.insert(out, { lo + (i - 0.5) * len, len })
+	end
+	return out
+end
+
+-- The slabs and the deep floor that replace the tiles a gorge touches: front and back of the span, and the two sides,
+-- all in the gorge's own frame (so the hole's edges are straight along the walls), each cut into parts of at most
+-- PART_MAX studs, plus the floor far below.
 local function gorgeParts(
 	self: Assembler,
 	g: { [string]: any }
 ): { { name: string, cframe: CFrame, size: Vector3, colour: Color3 } }
 	local centre = g.centre :: CFrame
 	local hl, hw = g.halfLength :: number, g.halfWidth :: number
-	local e = GORGE_SLAB
+	local reach = GORGE_REACH
 	local ground = self.groundColour
 	local floorColour = if self.world and self.world.under then self.world.under.colour else Color3.fromRGB(112, 62, 54)
-	return {
-		{
-			name = "GorgeFront",
-			cframe = centre * CFrame.new(0, -0.8, -(hl + e / 2)),
-			size = Vector3.new(2 * e, 1, e),
-			colour = ground,
-		},
-		{
-			name = "GorgeBack",
-			cframe = centre * CFrame.new(0, -0.8, hl + e / 2),
-			size = Vector3.new(2 * e, 1, e),
-			colour = ground,
-		},
-		{
-			name = "GorgeLeft",
-			cframe = centre * CFrame.new(-(hw + e / 2), -0.8, 0),
-			size = Vector3.new(e, 1, 2 * hl),
-			colour = ground,
-		},
-		{
-			name = "GorgeRight",
-			cframe = centre * CFrame.new(hw + e / 2, -0.8, 0),
-			size = Vector3.new(e, 1, 2 * hl),
-			colour = ground,
-		},
-		{
-			name = "GorgeFloor",
-			cframe = centre * CFrame.new(0, (g.floorY :: number) - 0.5, 0),
-			size = Vector3.new(2 * hw + 4, 1, 2 * hl + 4),
-			colour = floorColour,
-		},
-	}
+	local parts: { { name: string, cframe: CFrame, size: Vector3, colour: Color3 } } = {}
+	-- x across the span (the gorge's width axis), z along it
+	local function slab(name: string, x0: number, x1: number, z0: number, z1: number)
+		for i, px in pieces(x0, x1) do
+			for j, pz in pieces(z0, z1) do
+				table.insert(parts, {
+					name = string.format("%s%d_%d", name, i, j),
+					cframe = centre * CFrame.new(px[1], -0.8, pz[1]),
+					size = Vector3.new(px[2], 1, pz[2]),
+					colour = ground,
+				})
+			end
+		end
+	end
+	slab("GorgeFront", -(hw + reach), hw + reach, -(hl + reach), -hl)
+	slab("GorgeBack", -(hw + reach), hw + reach, hl, hl + reach)
+	slab("GorgeLeft", -(hw + reach), -hw, -hl, hl)
+	slab("GorgeRight", hw, hw + reach, -hl, hl)
+	table.insert(parts, {
+		name = "GorgeFloor",
+		cframe = centre * CFrame.new(0, (g.floorY :: number) - 0.5, 0),
+		size = Vector3.new(2 * hw + 4, 1, 2 * hl + 4),
+		colour = floorColour,
+	})
+	return parts
 end
 
 local function updateGround(self: Assembler, points: { Vector3 })
