@@ -665,22 +665,8 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			end
 			-- World build V2: a district may fix the ORDER its landmarks appear in (Summit Lodge: the observatory, then the
 			-- snowmen, then the lodge). Only the next one not yet placed in this span is a candidate.
-			local landmarkOrder = (district :: any).landmarkOrder
-			if landmarkOrder then
-				candidates = {}
-				for _, wanted in landmarkOrder do
-					local placedHere = false
-					for _, lm in landmarks do
-						if lm.id == wanted and lm.station >= span.startS and lm.station < span.endS then
-							placedHere = true
-							break
-						end
-					end
-					if not placedHere then
-						table.insert(candidates, wanted)
-						break
-					end
-				end
+			if (district :: any).landmarkOrder then
+				candidates = {} -- an ordered district is placed by the backward pass below
 			end
 			for _, id in candidates do
 				local def = catalog.landmarkById[id]
@@ -720,6 +706,43 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			targetS += 96
 		end
 	end
+	-- World build V2: a district with a fixed landmark ORDER (Summit Lodge: observatory, snowmen, lodge) is placed from its
+	-- last entry backward: the last 90 studs inside the district's end, each earlier one at least 260 studs before the next
+	-- (plan 6: minors 250 from a major), on whichever side has free frontage
+	for spanIndex, span in spans do
+		local lmOrder = (catalog.districtById[span.id] :: any).landmarkOrder
+		if not lmOrder then
+			continue
+		end
+		local nextAt = span.endS - 90
+		for i = #lmOrder, 1, -1 do
+			local def = catalog.landmarkById[lmOrder[i]]
+			if not def or def.placement ~= "frontage" then
+				continue
+			end
+			local found: LandmarkPlan? = nil
+			for off = 0, 360, 12 do
+				local c = nextAt - off
+				for _, side in { lmSide, -lmSide } do
+					local from, to = footprint(c, side, def.width)
+					if not found and from >= span.startS + 20 and to <= span.endS and landmarkFree(from, to, side) then
+						found = makeIn(span, def, c, side, from, to)
+					end
+				end
+				if found then
+					break
+				end
+			end
+			if found then
+				table.insert(landmarks, found)
+				if found.id == catalog.districtById[span.id].signature then
+					usedSignature[spanIndex] = true
+				end
+				nextAt = found.station - 260
+				lmSide = -found.side
+			end
+		end
+	end
 	-- every district span shows its signature landmark (seed 2207 ended Skyline Park with the car
 	-- wash and no fountain): a missing one goes to the free frontage nearest the span centre
 	for spanIndex, span in spans do
@@ -734,8 +757,24 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			placed = makeIn(span, def, centre, lmSide, centre, centre)
 		else
 			local reach = (span.endS - span.startS) / 2
+			-- World build V2: a district with a fixed landmark order puts its signature AFTER the others in the order, at
+			-- least 250 studs past the last of them (plan 6: minors 250 from a major), searching forward only
+			local lmOrder = (district :: any).landmarkOrder
+			local startAt = centre
+			if lmOrder then
+				for _, id in lmOrder do
+					if id ~= district.signature then
+						for _, lm in landmarks do
+							if lm.id == id and lm.station >= span.startS and lm.station < span.endS then
+								startAt = math.max(startAt, lm.station + 250)
+							end
+						end
+					end
+				end
+			end
 			for off = 0, reach, 12 do
-				for _, c in { centre + off, centre - off } do
+				local tries = if lmOrder then { startAt + off } else { centre + off, centre - off }
+				for _, c in tries do
 					for _, side in { 1, -1 } do
 						local from, to = footprint(c, side, def.width)
 						if not placed and from >= span.startS and to <= span.endS and landmarkFree(from, to, side) then
@@ -1736,6 +1775,9 @@ function Sequencer.check(plan: Plan, catalog: Catalog.Catalog?, extraNotes: { st
 		local prev: LotPlan? = nil
 		local prevSign = ""
 		for _, lot in plan.lots do
+			if lot.side == side and lot.module == "GAP" and plan.world ~= nil then
+				prev = nil -- World build V2: open ground between two lots is a real gap, not an adjacency
+			end
 			if lot.side == side and lot.module ~= "GAP" then
 				if prev and prev.module == lot.module then
 					checks.immediateLotRepeats += 1

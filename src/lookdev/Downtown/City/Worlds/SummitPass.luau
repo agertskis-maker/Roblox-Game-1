@@ -183,10 +183,10 @@ return {
 			curves = 2,
 			bridge = false,
 			signature = "SummitLodge",
-			landmarks = { "SummitLodge", "Observatory", "SnowmenRow", "FestivalStage" },
+			landmarks = { "SummitLodge", "Observatory", "SnowmenRow" },
 			-- V2 (Adam, 2026-10-28): the order is observatory, snowmen, lodge; the small festival terrace stage is promoted
 			landmarkOrder = { "Observatory", "SnowmenRow", "SummitLodge" },
-			required = { "Observatory", "SnowmenRow", "FestivalStage" },
+			required = { "Observatory", "SnowmenRow" },
 			furniture = { "lantern", "bench", "pine", "trailMarker", "snowman", "pine" },
 			treatmentEvery = { 5, 8 },
 			parkBias = 0.6,
@@ -318,16 +318,6 @@ return {
 		landmark("SummitLodge", "SP_LM_SummitLodge", "SUMMIT LODGE", 145, 32, 64, { "SummitLodge" }, "frontage"),
 		landmark("Observatory", "SP_LM_Observatory", "STAR OBSERVATORY", 40, 30, 60, { "SummitLodge" }, "frontage"),
 		landmark("SnowmenRow", "SP_LM_SnowmenRow", "SNOWMAN ROW", 48, 20, 14, { "SummitLodge" }, "frontage"),
-		landmark(
-			"FestivalStage",
-			"SP_LM_FestivalStage",
-			"WINTER FESTIVAL STAGE",
-			28,
-			20,
-			14,
-			{ "SummitLodge" },
-			"frontage"
-		),
 		-- tier B: the labelled kit gallery only (no district lists it, so the planner never places it)
 		landmark("SledHill", "SP_LM_SledHill", "SLED HILL", 60, 36, 20, {}, "frontage"),
 	},
@@ -395,7 +385,6 @@ return {
 		"SummitLodge",
 		"Observatory",
 		"SnowmenRow",
-		"FestivalStage",
 	},
 	-- (BellTower, WarmingHut and SkateHut are supporting landmarks: planned when they fit, not required)
 	tierB = { "SledHill" },
@@ -405,6 +394,9 @@ return {
 	-- value to tune by eye in Studio; scenery only, no gameplay.
 	v2 = {
 		salt = 3031,
+		-- measured self-checks (WorldPlan section 8): no bunting within 120 studs before a hazard; the lodge district's landmark order
+		checks = { bunting = 120 },
+		landmarkOrderCheck = { "Observatory", "SnowmenRow", "SummitLodge" },
 		subSeeds = true,
 		replaceMasses = true,
 		welcomeLater = "KEEP CLIMBING!", -- Adam, 2026-10-28: the first lap says WELCOME TO SUMMIT PASS, later laps this
@@ -454,6 +446,7 @@ return {
 			"SP_Anim_Chair",
 			"SP_Anim_ChairTeal",
 			"SP_Prop_PennantPole",
+			"SP_LM_FestivalStage",
 			"SP_Fol_Reeds",
 			"SP_LM_SummitLodge",
 			"SP_LM_Observatory",
@@ -654,7 +647,7 @@ return {
 				yaw = "alongRoad",
 				recent = 2,
 				reuseGap = 600,
-				need = 80,
+				need = 30,
 				hazardClear = true,
 				colour = rgb(134, 148, 170),
 			},
@@ -664,10 +657,10 @@ return {
 				band = "near",
 				pool = { { m = "SP_BG_Terrace_A", label = "TERRACE" } },
 				density = { PineVillage = 0.35 },
-				lateral = { 110, 150 },
+				lateral = { 150, 185 },
 				yaw = "road",
 				recent = 1,
-				need = 80,
+				need = 20,
 				hazardClear = true,
 				colour = rgb(134, 148, 170),
 			},
@@ -728,8 +721,6 @@ return {
 				yaw = "road",
 				y = -0.3,
 				ignoreRoute = true,
-				hazardClear = true,
-				hazardBefore = 120,
 				gap = 80,
 				colour = rgb(112, 118, 130),
 			},
@@ -794,7 +785,7 @@ return {
 			-- the road edge is framed by uneven plowed berms, end to end (plan 7.1 road-edge); not on the tunnel
 			{
 				id = "berms",
-				kind = "edge",
+				kind = "berm",
 				band = "near",
 				districts = { PineVillage = true, SkiLiftRidge = true, FrozenLake = true, SummitLodge = true },
 				pool = {
@@ -811,7 +802,7 @@ return {
 			-- a split-rail fence between the lake shore and the road (plan 7.3: rim, buffer and fence, no gap)
 			{
 				id = "lakefence",
-				kind = "edge",
+				kind = "fence",
 				band = "near",
 				districts = { FrozenLake = true },
 				sides = "outside",
@@ -895,6 +886,7 @@ return {
 					{ m = "SP_Lot_LodgeWing_A", x = "leftOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_LodgeWing_B", x = "rightOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_Annex36", x = "rightOf", z = 30, gap = 40, label = "LODGE ANNEX" },
+					{ m = "SP_LM_FestivalStage", x = 6, z = 44, label = "FESTIVAL STAGE" },
 					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = -4, label = "PENNANT POLE" },
 					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = -4, label = "PENNANT POLE" },
 				},

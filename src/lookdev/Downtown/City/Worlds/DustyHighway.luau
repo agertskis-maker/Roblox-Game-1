@@ -363,6 +363,8 @@ return {
 	-- yaw, and the true gorge. Every number is a PREVIEW value to tune by eye in Studio; scenery only, no gameplay.
 	v2 = {
 		salt = 2026,
+		-- measured self-checks (WorldPlan section 8): scenery 40 studs clear before a hazard, rock groups 60 before a rockslide
+		checks = { sceneryClear = 40, rockClear = 60 },
 		subSeeds = true,
 		replaceMasses = true,
 		-- share of building lots kept (plan section 5 density curve: breathe in, human peak, mass peak, squeeze, airy)
@@ -383,10 +385,10 @@ return {
 		},
 		-- the thick arch stands off the road (no part within 50 studs of the road edge) and turns toward oncoming cars
 		landmarks = {
-			RockArch = { setback = 42, yaw = 28 },
+			RockArch = { setback = 66, yaw = 28 },
 			-- the windmill is isolated in open ground, set back 40 to 60 behind the frontage line (plan 6.1)
 			WindmillTower = { setback = 44 },
-			RockArchSmall = { setback = 30, yaw = -24 },
+			RockArchSmall = { setback = 52, yaw = -24 },
 		},
 		gorge = {
 			district = "CanyonBridge",

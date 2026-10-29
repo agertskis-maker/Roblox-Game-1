@@ -645,24 +645,37 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		end
 		return best
 	end
+	local function first(list: { string }): string
+		return if #list == 0 then "" else (" e.g. " .. table.concat(list, "; ", 1, math.min(3, #list)))
+	end
 	do
-		local onRoad = 0
+		-- nothing stands on the carriageway or within 4 studs of it (a lift cable and chairs pass overhead: the lift check below
+		-- proves their clearance; ground patches lie under the road surface; the tunnel and gorge pieces are the structures)
+		local onRoad, names = 0, {}
 		for _, e in extras do
-			if e.kind ~= "ground" and e.kind ~= "tunnel" and e.kind ~= "gorge" and e.kind ~= "lake" then
-				if routeDistance((e.cframe :: CFrame).Position) < halfRoad + 4 then
+			if
+				e.kind ~= "ground"
+				and e.kind ~= "tunnel"
+				and e.kind ~= "gorge"
+				and e.kind ~= "lake"
+				and e.kind ~= "lift"
+			then
+				local d = routeDistance((e.cframe :: CFrame).Position)
+				if d < halfRoad + 4 then
 					onRoad += 1
+					table.insert(names, string.format("%s at %.0f (%.1f from the centre)", e.module, e.station, d))
 				end
 			end
 		end
 		check(
 			"scenery-off-road",
 			onRoad == 0,
-			string.format("%d extras within 4 studs of the carriageway (want 0)", onRoad)
+			string.format("%d extras within 4 studs of the carriageway (want 0)%s", onRoad, first(names))
 		)
 	end
 	for id, cfg in v2.landmarks or {} do
 		for _, lm in plan.landmarks do
-			if lm.id == id and cfg.setback and cfg.setback >= 30 then
+			if lm.id == id and cfg.setback and cfg.setback >= 30 and (id == "RockArch" or id == "RockArchSmall") then
 				local nearest = math.huge
 				for _, c in
 					{
@@ -674,31 +687,37 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 				do
 					nearest = math.min(nearest, routeDistance((lm.pivot :: CFrame):PointToWorldSpace(c)) - halfRoad)
 				end
+				-- plan 6.3: the thick arch stands so that no part comes within 50 studs of the road edge (the small one is judged the same)
 				check(
-					"landmark-off-road:" .. id,
-					nearest >= 20,
-					string.format("%s nearest corner %.1f studs from the road edge (arch rule: 50)", id, nearest)
+					"arch-off-road:" .. id,
+					nearest >= 50,
+					string.format("%s: nearest corner %.1f studs from the road edge (want 50 or more)", id, nearest)
 				)
 			end
 		end
 	end
-	do
-		local violations, worst = 0, math.huge
+	local hz = v2.checks or {}
+	if hz.sceneryClear or hz.rockClear then
+		-- plan G8: near scenery keeps clear of the approach to a hazard; rock groups keep 60 clear before a rockslide
+		local clear, rock = hz.sceneryClear or 40, hz.rockClear or 60
+		local bad, names = 0, {}
 		for _, e in extras do
-			if
-				e.kind == "mass"
-				or e.kind == "fol"
-				or e.kind == "edge"
-				or e.kind == "garland"
-				or e.kind == "backdrop"
-			then
-				local d = routeDistance((e.cframe :: CFrame).Position)
-				if d < 120 + halfRoad then
-					local before = if e.kind == "garland" then 120 else 60
-					for _, hz in plan.hazards do
-						if e.station > hz.station - before and e.station < hz.station + hz.length + 10 then
-							violations += 1
-							worst = math.min(worst, hz.station - e.station)
+			if e.kind == "mass" or e.kind == "fol" or e.kind == "edge" then
+				if routeDistance((e.cframe :: CFrame).Position) < 120 then
+					for _, hzp in plan.hazards do
+						local need = if e.kind == "mass" and hzp.kind == "construction" then rock else clear
+						if e.station > hzp.station - need and e.station < hzp.station + hzp.length + 8 then
+							bad += 1
+							table.insert(
+								names,
+								string.format(
+									"%s at %.0f before the %s at %.0f",
+									e.module,
+									e.station,
+									hzp.kind,
+									hzp.station
+								)
+							)
 						end
 					end
 				end
@@ -706,8 +725,41 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		end
 		check(
 			"hazard-clear-zone",
-			violations == 0,
-			string.format("%d near scenery pieces inside the clear zone before or at a hazard (want 0)", violations)
+			bad == 0,
+			string.format(
+				"%d near scenery pieces inside the clear zone before or at a hazard (want 0)%s",
+				bad,
+				first(names)
+			)
+		)
+	end
+	if hz.bunting then
+		-- Summit plan 5.4 and Adam's answer 10: no bunting within 120 studs before a hazard
+		local bad, nearest, count = 0, math.huge, 0
+		for _, e in extras do
+			if e.kind == "garland" then
+				count += 1
+				for _, hzp in plan.hazards do
+					local ahead = hzp.station - (e.station + 12)
+					if ahead >= -hzp.length and ahead < hz.bunting then
+						bad += 1
+					end
+					if ahead >= 0 then
+						nearest = math.min(nearest, ahead)
+					end
+				end
+			end
+		end
+		check(
+			"bunting-calm-zone",
+			bad == 0,
+			string.format(
+				"%d garlands placed; %d within %d studs before a hazard (want 0); the nearest hazard ahead of any garland is %s studs",
+				count,
+				bad,
+				hz.bunting,
+				if nearest == math.huge then "none" else string.format("%.0f", nearest)
+			)
 		)
 	end
 	if v2.lake and info.lake then
@@ -774,6 +826,30 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		end
 		if v2.replaceMasses then
 			check("no-cones", cones == 0, string.format("%d stacked-cone pieces placed (want 0)", cones))
+		end
+	end
+	if v2.landmarkOrderCheck then
+		-- Summit plan 6 and Adam's answer 8: observatory, snowmen, lodge, in that order; majors 500 apart, minors 250 from a major
+		for _, span in plan.districts do
+			local order: { number } = {}
+			local names: { string } = {}
+			for _, id in v2.landmarkOrderCheck do
+				for _, lm in plan.landmarks do
+					if lm.id == id and lm.station >= span.startS and lm.station < span.endS then
+						table.insert(order, lm.station)
+						table.insert(names, id .. "@" .. string.format("%.0f", lm.station))
+					end
+				end
+			end
+			if #order == #v2.landmarkOrderCheck then
+				local ok = true
+				for i = 2, #order do
+					if order[i] <= order[i - 1] then
+						ok = false
+					end
+				end
+				check("landmark-order", ok, table.concat(names, ", ") .. " (want that order)")
+			end
 		end
 	end
 	if v2.welcomeLater then

@@ -993,8 +993,15 @@ local function massSpec(self: Assembler, m: Sequencer.MassPlan, label: string, a
 end
 
 -- World build V2: the folder an extra's instance goes into
-local EXTRA_FOLDER: { [string]: string } =
-	{ ground = "Ground", edge = "Props", fol = "Props", garland = "Props", sign = "Signs" }
+local EXTRA_FOLDER: { [string]: string } = {
+	ground = "Ground",
+	edge = "Props",
+	berm = "Props",
+	fence = "Props",
+	fol = "Props",
+	garland = "Props",
+	sign = "Signs",
+}
 
 -- A WorldPlan extra as a kit mesh at its authored size (uniform scale only; never stretched). The kit meshes are drawn
 -- about their bounds centre (KitMesh, Merge), so the part sits at the pivot frame offset by the scaled centre. Edit: one
