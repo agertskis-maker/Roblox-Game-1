@@ -738,7 +738,8 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				if found.id == catalog.districtById[span.id].signature then
 					usedSignature[spanIndex] = true
 				end
-				nextAt = found.station - 260
+				-- a major (the signature) keeps 260 studs from the next one before it; two minors only need to clear each other
+				nextAt = found.station - (if found.id == catalog.districtById[span.id].signature then 260 else 70)
 				lmSide = -found.side
 			end
 		end
