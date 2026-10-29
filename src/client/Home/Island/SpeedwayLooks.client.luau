@@ -279,14 +279,21 @@ local function attach(root: Instance): Trove.Trove
 				continue
 			end
 			local body = keeper.PrimaryPart :: BasePart
+			local frame = keeper:GetAttribute("BaseCFrame")
+			-- the placement frame's +Z is the keeper's front (kit meshes face their local +Z)
+			local front = if typeof(frame) == "CFrame" then frame.ZVector else -body.CFrame.LookVector
 			local eye = body.Position + Vector3.yAxis * 1.4
 			local offset = head.Position - eye
 			local flat = offset * Vector3.new(1, 0, 1)
 			if flat.Magnitude > GREET_REARM then
 				info.greetArmed = true
-			elseif info.greetArmed and flat.Magnitude < GREET_RADIUS and flat:Dot(body.CFrame.LookVector) > 0 then
-				-- in front of the counter (the keeper faces the park); no wall or prop in between
-				sightParams.FilterDescendantsInstances = { character, keeper }
+			elseif info.greetArmed and flat.Magnitude < GREET_RADIUS and flat:Dot(front) > 0 then
+				-- in front of the counter (the keeper faces the park); no wall or prop in between (the
+				-- booth's own body collider surrounds the keeper, so it does not count)
+				local collider = look and look:FindFirstChild("ShopCollider", true)
+				sightParams.FilterDescendantsInstances = if collider
+					then { character, keeper, collider }
+					else { character, keeper }
 				if not Workspace:Raycast(eye, offset, sightParams) and Life.greet(plot) then
 					info.greetArmed = false
 				end

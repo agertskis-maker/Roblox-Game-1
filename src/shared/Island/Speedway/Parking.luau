@@ -217,7 +217,8 @@ local function sign(folder: Folder, ctx: Ctx, out: Built)
 		})
 	face:SetAttribute("ParkingSignFace", true)
 	out.signFace = face
-	local anchor = Kit.part(folder, Vector3.one * 0.4, base * CFrame.new(0, 2.4, 1.2), {
+	-- 0.7 in front of the board: still inside the Paddock edge (u 263.187), which the sign stands 1 from
+	local anchor = Kit.part(folder, Vector3.one * 0.4, base * CFrame.new(0, 2.4, 0.7), {
 		name = "ParkingPromptAnchor",
 		transparency = 1,
 		castShadow = false,

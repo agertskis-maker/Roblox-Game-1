@@ -548,6 +548,24 @@ Known issue from an earlier upload: `GrassTuftWide` (85162093459834, Task 2) beg
 | SwWonkyStick | 107697770547663 |
 | SwWrench | 75450568807779 |
 
+## Raceway round 2 meshes (2026-10-29, waiting for the guided import)
+
+Recipe `assets/island/kit/kit_speedway.py`, existing palette only (no new image). Package `Car-Hop-Art/island-kit-speedway/raceway-round2.obj` (written by `export_subset.py`, only the 9 changed or new meshes). Until the import, they load from the session preview mesh data (`Lane3_SpeedwayKitData`, Adam's island preview project only). Ledger: `vault/design/specs/raceway-round2-ledger.md`.
+
+| Mesh | Triangles | Why | Id |
+|---|---|---|---|
+| SwBleachers | 366 | repainted: plain cream fascia, navy lower stripe, teal end stripes; the sponsor plate removed | waiting (old 116247810996339 kept in `KitIds.Superseded`) |
+| SwGrandstandBay | 932 | repainted: plain cream inset on the navy fascia; the sponsor plate removed | waiting (old 80000123062400 kept) |
+| SwBlimp | 532 | repainted: cream, navy underside, coral side stripe, teal fins; the two text plaques removed | waiting (old 90422652853307 kept) |
+| SwRacewayShop | 698 | new: the Raceway shop booth (9 x 7 x 8.5) | waiting |
+| SwKeeperBody | 248 | new: the shopkeeper's body and head | waiting |
+| SwKeeperArm | 56 | new: the shopkeeper's arm (both sides) | waiting |
+| SwParkingSign | 142 | new: the parking sign board and post | waiting |
+| SwBayBarrierPost | 88 | new: the next bay's barrier post | waiting |
+| SwBayBarrierArm | 396 | new: the barrier arm with the ADD SPOT plaque | waiting |
+
+No uploaded mesh in the Speedway kit carries lettering: every sponsor name and the blimp's CAR HOP were SurfaceGui text. The four banked-wall banner images (ZOOPA FIZZ, CRUNCHKIN PUFFS, STICKYTOE TYRES, WOBBLEBOT TOYS) have their names baked in; they stay uploaded but nothing references them.
+
 ## Speedway sounds under test (2026-10-28; Creator Store audio, not uploaded)
 
 | Use | Asset | Id | Source | In game |

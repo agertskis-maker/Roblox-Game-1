@@ -143,21 +143,23 @@ end
 
 -- The Speedway look module from a fresh copy of ReplicatedStorage.Shared (edit mode keeps an
 -- already-required module cached after Rojo syncs a change, as with ServerStorage.Island).
-local function speedwayLook(): any
+local function speedwayModules(): (any, any, any)
 	local shared = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
 	assert(shared, "ReplicatedStorage.Shared is not synced")
-	return (require :: any)((shared:Clone() :: any).Island.Speedway.Look)
+	local s = (shared:Clone() :: any).Island.Speedway
+	return (require :: any)(s.Look), (require :: any)(s.Parking), (require :: any)(s.Ctx)
 end
 
 -- Assembles the Speedway looks in edit mode, for views and fit checks (in Play each client
 -- assembles its own; Home/Island/SpeedwayLooks). `levels` is one level for every plot or a list
 -- per plot; by default each plot's SpeedwayPreviewLevel. Remove with clearSpeedway() before
--- saving the place, so Play starts from the clients' own assembly.
-function HubBuild.previewSpeedway(levels: (number | { number })?): { [string]: any }
+-- saving the place, so Play starts from the clients' own assembly. Each plot's parking (Raceway
+-- round 2) is drawn too, for `spots` owned bays (default the 2 every plot starts with).
+function HubBuild.previewSpeedway(levels: (number | { number })?, spots: number?): { [string]: any }
 	guard()
 	local root = workspace:FindFirstChild(ROOT_NAME)
 	assert(root and root:GetAttribute("PreviewOf") == PREVIEW_OF, "Build the hub preview first")
-	local Look = speedwayLook()
+	local Look, Parking, Ctx = speedwayModules()
 	local plots = (root :: any).Island.Plots
 	local report = {}
 	for index = 1, Layout.PlotCount do
@@ -169,6 +171,11 @@ function HubBuild.previewSpeedway(levels: (number | { number })?): { [string]: a
 		Look.clear(plot)
 		local started = os.clock()
 		Look.apply(plot, level or 1, { index = index, bearing = Layout.plotBearing(index), owner = "" })
+		Parking.build(
+			plot,
+			Ctx.new(plot, index, Layout.plotBearing(index), level or 1, ""),
+			spots or Parking.StartSpots
+		)
 		report[index] = { level = level, seconds = math.round((os.clock() - started) * 100) / 100 }
 		task.wait()
 	end
@@ -181,7 +188,7 @@ function HubBuild.clearSpeedway(): number
 	local n = 0
 	if root then
 		for _, d in root:GetDescendants() do
-			if d.Name == "SpeedwayLook" or d.Name == "SpeedwayGhost" then
+			if d.Name == "SpeedwayLook" or d.Name == "SpeedwayGhost" or d.Name == "ParkingLook" then
 				d:Destroy()
 				n += 1
 			end

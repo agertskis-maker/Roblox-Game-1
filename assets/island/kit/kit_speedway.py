@@ -1423,7 +1423,9 @@ def blimp(name):
         e = 90 - thm
         up = e >= 0
         lvl = int(round((abs(e) - 11.25) / 22.5))
-        if lvl == 0:
+        # one coral stripe: only the band just above the equator (the two equator bands together read
+        # as half the body from the side, Studio 2026-10-29); navy below the equator, cream above
+        if lvl == 0 and up:
             return "coral"
         return "cream" if up else "navy"
 
