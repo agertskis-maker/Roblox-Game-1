@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d">
+  <title id="t">Dusty Highway layer bands, side elevation (concept diagram)</title>
+  <desc id="d">Concept diagram, not a render of the built map. Side view from the road centre line outward to the right: road, verge, near, mid and far bands, with example shapes. Horizontal scale is compressed and not to scale beyond 100 studs.</desc>
+  <rect x="0" y="0" width="960" height="400" fill="#f3e3c4"/>
+  <rect x="0" y="0" width="960" height="170" fill="#9cc0d4"/>
+  <rect x="0" y="130" width="960" height="40" fill="#e9d6b4" opacity="0.8"/>
+  <!-- ground -->
+  <rect x="0" y="280" width="960" height="120" fill="#e2bc8a"/>
+  <!-- bands: x positions are a compressed scale -->
+  <rect x="60" y="60" width="110" height="220" fill="#f6eacc" opacity="0.75"/>
+  <rect x="170" y="60" width="30" height="220" fill="#a8785a" opacity="0.8"/>
+  <rect x="200" y="60" width="100" height="220" fill="#d69a6c" opacity="0.35"/>
+  <rect x="300" y="60" width="220" height="220" fill="#c2623e" opacity="0.18"/>
+  <rect x="520" y="60" width="380" height="220" fill="#d6a08a" opacity="0.2"/>
+  <!-- road surface and verge on the ground line -->
+  <rect x="60" y="276" width="110" height="6" fill="#e6d4b0"/>
+  <rect x="170" y="276" width="30" height="6" fill="#a87858"/>
+  <line x1="60" y1="60" x2="60" y2="300" stroke="#5b3a2a" stroke-width="2" stroke-dasharray="6 4"/>
+  <!-- near band shapes: cactus cluster, adobe, fence -->
+  <rect x="215" y="262" width="34" height="18" fill="#d6966c"/>
+  <rect x="215" y="258" width="34" height="4" fill="#f6eacc"/>
+  <rect x="226" y="268" width="8" height="12" fill="#36b0aa"/>
+  <rect x="262" y="240" width="7" height="40" rx="3" fill="#5d9a6c"/>
+  <rect x="254" y="252" width="8" height="5" fill="#5d9a6c"/>
+  <rect x="269" y="248" width="8" height="5" fill="#5d9a6c"/>
+  <rect x="279" y="266" width="12" height="14" rx="5" fill="#6aa476"/>
+  <!-- mid band: stepped butte and fin -->
+  <polygon points="330,280 330,200 350,200 350,170 380,170 380,200 400,200 400,280" fill="#c2623e"/>
+  <polygon points="330,280 330,236 400,236 400,280" fill="#96422e"/>
+  <polygon points="440,280 452,180 474,180 486,280" fill="#b0522f"/>
+  <!-- far band: layered mesa wall, hazed -->
+  <polygon points="540,280 540,215 570,215 575,195 640,195 646,170 740,170 748,200 820,200 826,225 900,225 900,280" fill="#d9a690"/>
+  <polygon points="540,280 540,245 900,245 900,280" fill="#c98f78"/>
+  <!-- labels -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#3a2418">
+    <text x="64" y="52">ROAD (0 to 38)</text>
+    <text x="172" y="52">VERGE</text>
+    <text x="172" y="68">(38 to 50)</text>
+    <text x="204" y="52">NEAR (50 to about 100)</text>
+    <text x="304" y="52">MID (about 100 to 300)</text>
+    <text x="524" y="52">FAR (300 to 900, compressed)</text>
+    <text x="64" y="300">cream road</text>
+    <text x="64" y="316">4 lanes x 17 + shoulders</text>
+    <text x="172" y="300">packed-clay verge</text>
+    <text x="172" y="316">(proposed)</text>
+    <text x="204" y="300">groups: cactus cluster,</text>
+    <text x="204" y="316">adobe, fence, markers</text>
+    <text x="304" y="300">layered buttes, fins,</text>
+    <text x="304" y="316">caps, dune ridges</text>
+    <text x="524" y="300">tabletop mesa walls and ridges</text>
+    <text x="524" y="316">readable with haze switched off</text>
+  </g>
+  <text x="20" y="378" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#3a2418">Concept diagram, not a render of the built map. Distances are from the road centre line in studs; the horizontal scale is compressed.</text>
+  <text x="20" y="394" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#5b3a2a">Source of the numbers: half road 38 and frontage line 50 from Sequencer.luau; mid and far bands from the Downtown plan and Sequencer mass placement.</text>
+</svg>
