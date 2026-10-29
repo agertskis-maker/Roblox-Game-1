@@ -10,6 +10,10 @@
 #
 # Pure Python (no bpy), like kit_b2_palette, so the build and plain-Python checks can both import it.
 
+import importlib
+import os
+import sys
+
 import kit_b2_palette as P2
 
 GRID = P2.GRID
@@ -118,6 +122,25 @@ WORLD_SWATCHES = [
     ("sk_trim", (240, 214, 184), (226, 236, 246)),
 ]
 
+# V2 (Dusty Highway / Summit Pass build, 2026-10-28, decision 0026): a build with KIT_WORLD_V2=1 in the environment (or
+# --v2 on the command line) also merges two extension modules, each owned by one World's kit author:
+#   kit_world_palette_dh2.py   NEW_SWATCHES = [(name, (DH r, g, b), (SU r, g, b)), ...]  and  OVERRIDES = {name: {"DH": rgb}}
+#   kit_world_palette_su2.py   the same, for the Summit Pass column
+# New swatches are appended after the Round 2 list, so every Round 2 index is unchanged; OVERRIDES recolour an existing
+# swatch (a ROAD cell or a World swatch) in that World's column only. Without V2 nothing here changes, so the Round 2
+# kit (Car-Hop-Art\downtown-kit-worlds) can still be rebuilt exactly.
+V2 = os.environ.get("KIT_WORLD_V2") == "1" or "--v2" in sys.argv
+OVERRIDES = {}
+if V2:
+    for _modname in ("kit_world_palette_dh2", "kit_world_palette_su2"):
+        try:
+            _ext = importlib.import_module(_modname)
+        except ImportError:
+            continue
+        WORLD_SWATCHES.extend(_ext.NEW_SWATCHES)
+        for _n, _c in getattr(_ext, "OVERRIDES", {}).items():
+            OVERRIDES.setdefault(_n, {}).update(_c)
+
 # cells: the shared road names stay at their B2 index; World swatches fill the other cells in order
 _road_cells = {P2.SW[n]: n for n in ROAD}
 NAMES = [None] * (GRID * GRID)
@@ -134,6 +157,8 @@ SW = {n: i for i, n in enumerate(NAMES) if n}
 
 def colour(name, world):
     k = 0 if world == "DH" else 1
+    if name in OVERRIDES and world in OVERRIDES[name]:
+        return tuple(OVERRIDES[name][world])
     if name in ROAD:
         return ROAD[name][k]
     for w in WORLD_SWATCHES:

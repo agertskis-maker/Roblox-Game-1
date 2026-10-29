@@ -64,10 +64,26 @@ def main():
     manifest = []
     seen = set()
     row = {"dusty": 0, "summit": 0}
-    group = {"g": None}
+    group = {"g": None, "v2": False}
+    # V2 build (--v2 / KIT_WORLD_V2=1): the v2 recipe modules add meshes, and may retire Round 2 meshes they supersede
+    # (DROP_OLD) or redraw under the same name (REPLACES); the Round 2 recipe is then skipped for those names.
+    v2mods = {}
+    skip = set()
+    if W.V2:
+        import importlib
+
+        for g, modname in (("dusty", "kit_dusty2"), ("summit", "kit_summit2")):
+            if g in only:
+                try:
+                    v2mods[g] = importlib.import_module(modname)
+                except ImportError:
+                    continue
+                skip |= set(getattr(v2mods[g], "DROP_OLD", ())) | set(getattr(v2mods[g], "REPLACES", ()))
 
     def emit(builder, meta):
         name = builder.name
+        if name in skip and not group["v2"]:
+            return
         assert name not in seen, f"duplicate mesh name {name}"
         assert name.startswith(PREFIX[group["g"]]), f"{name} does not start with {PREFIX[group['g']]}"
         seen.add(name)
@@ -101,11 +117,19 @@ def main():
         import kit_dusty
 
         kit_dusty.build_all(emit)
+        if "dusty" in v2mods:
+            group["v2"] = True
+            v2mods["dusty"].build_all(emit)
+            group["v2"] = False
     if "summit" in only:
         group["g"] = "summit"
         import kit_summit
 
         kit_summit.build_all(emit)
+        if "summit" in v2mods:
+            group["v2"] = True
+            v2mods["summit"].build_all(emit)
+            group["v2"] = False
 
     # keep entries of groups not rebuilt this run
     path = os.path.join(out, "manifest.json")
