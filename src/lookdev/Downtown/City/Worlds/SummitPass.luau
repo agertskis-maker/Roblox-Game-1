@@ -353,7 +353,7 @@ return {
 		),
 		-- V2: the stepped lodge is 120 studs of frontage (the great hall in the middle, two wings and an annex are
 		-- WorldFeatures.companions); the observatory stands on a plinth; the festival terrace stage is promoted from tier B
-		landmark("SummitLodge", "SP_LM_SummitLodge", "SUMMIT LODGE", 120, 30, 58, { "SummitLodge" }, "frontage"),
+		landmark("SummitLodge", "SP_LM_SummitLodge", "SUMMIT LODGE", 145, 32, 64, { "SummitLodge" }, "frontage"),
 		landmark("Observatory", "SP_LM_Observatory", "STAR OBSERVATORY", 40, 30, 60, { "SummitLodge" }, "frontage"),
 		landmark("SnowmenRow", "SP_LM_SnowmenRow", "SNOWMAN ROW", 48, 20, 14, { "SummitLodge" }, "frontage"),
 		landmark(
@@ -411,12 +411,12 @@ return {
 	},
 	midMeshes = {
 		PineVillage = { "SP_Mid_Slope_1", "SP_Mid_Slope_2" },
-		SkiLiftRidge = { "SP_Mid_Peak_1", "SP_Mid_Slope_2" },
-		FrozenLake = { "SP_Mid_Slope_1", "SP_Mid_Peak_2" },
-		GlacierTunnel = { "SP_Mid_Glacier_1", "SP_Mid_Peak_2" },
-		SummitLodge = { "SP_Mid_Peak_1", "SP_Mid_Peak_2", "SP_Mid_Slope_1" },
+		SkiLiftRidge = { "SP_Mid_Slope_2" },
+		FrozenLake = { "SP_Mid_Slope_1" },
+		GlacierTunnel = { "SP_Mid_Glacier_1" },
+		SummitLodge = { "SP_Mid_Slope_1", "SP_Mid_Slope_2" },
 	},
-	skyMeshes = { "SP_Sky_Peak_1", "SP_Sky_Peak_2", "SP_Sky_Peak_3", "SP_Sky_Ridge_1", "SP_Sky_Ridge_2", "SP_Sky_Horn" },
+	skyMeshes = { "SP_BG_Ridge_A", "SP_BG_Ridge_B", "SP_BG_Ridge_C", "SP_BG_Ridge_D", "SP_BG_Massif_Horn" },
 	-- planner hazard kind -> kit mesh: a frost crack, an ice patch and a snowbank with plow debris stand in for pothole /
 	-- oil / construction
 	hazardMeshes = {
@@ -447,18 +447,20 @@ return {
 		replaceMasses = true,
 		welcomeLater = "KEEP CLIMBING!", -- Adam, 2026-10-28: the first lap says WELCOME TO SUMMIT PASS, later laps this
 		occupancy = { PineVillage = 0.82, SkiLiftRidge = 0.45, FrozenLake = 0.15, SummitLodge = 0.72 },
-		-- chimney tops in each lot's frame (x along the facade, y up, z back): the smoke pool of five attaches to the nearest
-		chimneys = {
-			SP_Lot_ChaletLog24 = { Vector3.new(7, 16, 13) },
-			SP_Lot_ChaletBoard36 = { Vector3.new(11, 22, 13) },
-			SP_Lot_ChaletAFrame24 = { Vector3.new(7, 30, 13) },
-			SP_Lot_ChaletHip36 = { Vector3.new(11, 24, 13) },
-			SP_Lot_Bakery36 = { Vector3.new(11, 20, 13) },
-			SP_Lot_Duplex36 = { Vector3.new(11, 22, 13) },
-			SP_Lot_Inn48 = { Vector3.new(14, 34, 14), Vector3.new(34, 34, 14) },
-			SP_Lot_Hall48 = { Vector3.new(14, 28, 14) },
-			SP_LM_SkateHut = { Vector3.new(26, 18, 11) },
-			SP_LM_SummitLodge = { Vector3.new(18, 60, 14), Vector3.new(84, 60, 14) },
+		-- the lots and landmarks whose chimneys give smoke: the roof_a socket of each kit mesh (read in Catalog.forWorld)
+		chimneyNames = {
+			"SP_Lot_ChaletLog24",
+			"SP_Lot_ChaletBoard36",
+			"SP_Lot_ChaletAFrame24",
+			"SP_Lot_ChaletHip36",
+			"SP_Lot_Bakery36",
+			"SP_Lot_Duplex36",
+			"SP_Lot_Inn48",
+			"SP_Lot_Hall48",
+			"SP_LM_SummitLodge",
+			"SP_LM_WarmingHut",
+			"SP_LM_ChaletCluster",
+			"SP_LM_FrozenLake",
 		},
 		meshes = {
 			"SP_BG_Massif_Horn",
@@ -488,6 +490,9 @@ return {
 			"SP_LM_LiftTop",
 			"SP_LM_LiftCable24",
 			"SP_Anim_Chair",
+			"SP_Anim_ChairTeal",
+			"SP_Prop_PennantPole",
+			"SP_Fol_Reeds",
 			"SP_LM_SummitLodge",
 			"SP_LM_Observatory",
 			"SP_Lot_LodgeWing_A",
@@ -567,7 +572,20 @@ return {
 			SP_Lot_LodgeWing_B = Vector3.new(40, 30, 24),
 			SP_Lot_Annex36 = Vector3.new(36, 20, 20),
 		},
+		skiers = { "SP_BG_PisteGlade_A", "SP_BG_PisteGlade_B" },
 		pins = {
+			-- a second ski glade for the skiers (the lift's own glade is placed by WorldFeatures.lift)
+			{
+				id = "glade2",
+				m = "SP_BG_PisteGlade_B",
+				kind = "backdrop",
+				band = "near",
+				district = "SkiLiftRidge",
+				t = 0.78,
+				side = "outside",
+				lateral = 210,
+				yaw = "alongRoad",
+			},
 			-- the recurring summit horn: ONE per lap, on the outside of the lodge district's bend, seen full-size at the lodge
 			{
 				id = "horn",
@@ -579,30 +597,7 @@ return {
 				side = "outside",
 				lateral = 1000,
 				scale = 1,
-				yaw = "along",
-			},
-			-- two cleared ski glades on the far side of the road from the lift base
-			{
-				id = "glade1",
-				m = "SP_BG_PisteGlade_A",
-				kind = "backdrop",
-				band = "near",
-				district = "SkiLiftRidge",
-				t = 0.3,
-				side = -1,
-				lateral = 190,
-				yaw = "along",
-			},
-			{
-				id = "glade2",
-				m = "SP_BG_PisteGlade_B",
-				kind = "backdrop",
-				band = "near",
-				district = "SkiLiftRidge",
-				t = 0.72,
-				side = -1,
-				lateral = 200,
-				yaw = "along",
+				yaw = "alongRoad",
 			},
 			-- the glacier body beside the gallery (the tunnel's own shell is the opening; these are the mass around it)
 			{
@@ -614,7 +609,7 @@ return {
 				t = 0.5,
 				side = -1,
 				lateral = 190,
-				yaw = "along",
+				yaw = "alongRoad",
 			},
 			{
 				id = "snoutR",
@@ -625,7 +620,7 @@ return {
 				t = 0.5,
 				side = 1,
 				lateral = 190,
-				yaw = "along",
+				yaw = "alongRoad",
 			},
 		},
 		rules = {
@@ -648,7 +643,7 @@ return {
 				},
 				lateral = { 800, 1300 },
 				scale = { 0.9, 1.25 },
-				yaw = "along",
+				yaw = "alongRoad",
 				recent = 2,
 				reuseGap = 800,
 				need = 600,
@@ -675,7 +670,7 @@ return {
 				},
 				lateral = { 330, 700 },
 				scale = { 0.9, 1.3 },
-				yaw = "along",
+				yaw = "alongRoad",
 				recent = 3,
 				reuseGap = 600,
 				need = 250,
@@ -694,7 +689,7 @@ return {
 				density = { PineVillage = 0.5, SkiLiftRidge = 0.9, FrozenLake = 0.4, SummitLodge = 0.8 },
 				lateral = { 130, 240 },
 				scale = { 0.9, 1.25 },
-				yaw = "along",
+				yaw = "alongRoad",
 				recent = 2,
 				reuseGap = 600,
 				need = 80,
@@ -751,7 +746,7 @@ return {
 				},
 				density = { FrozenLake = 1.4 },
 				lateral = { 340, 380 },
-				yaw = "along",
+				yaw = "alongRoad",
 				recent = 1,
 				need = 100,
 				colour = rgb(58, 104, 98),
@@ -894,7 +889,7 @@ return {
 			tileAlongX = true,
 			t = 0.5,
 			y = -0.3,
-			rim = { "SP_FL_Rim_A", "SP_FL_Rim_B", "SP_FL_Rim_C" },
+			rim = { "SP_FL_Rim_A", "SP_Fol_Reeds", "SP_FL_Rim_B", "SP_FL_Rim_C", "SP_Fol_Reeds" },
 			rimInset = 2,
 			huts = 2,
 			hutPool = { "SP_FL_FishHut_A", "SP_FL_FishHut_B" },
@@ -907,32 +902,27 @@ return {
 			gallery = "SP_GT_BayGallery",
 			portalIn = "SP_GT_PortalIn",
 			portalOut = "SP_GT_PortalOut",
-			wall = { "SP_GT_Wall_A", "SP_GT_Wall_B" },
+			portalDepth = 28, -- the portal-in stands this far in front of the span (its pivot is its outer face)
+			wall = { "SP_GT_Wall_A", "SP_GT_Wall_B" }, -- A's tall end is at +x (left of the opening), B's at -x (right)
 			iceFall = "SP_GT_IceFall",
-			iceFallLateral = 44,
-			wallLateral = 62,
-			wallReach = 64,
+			iceFallLateral = 68,
 		},
 		lift = {
 			district = "SkiLiftRidge",
-			side = 1,
-			t = 0.3,
-			stationStep = 22,
+			baseLandmark = "SkiLift", -- the line starts at the base station landmark, on whichever side it was planned
 			sag = 5,
 			minClearance = 64,
-			-- nodes: { lateral from the centre line (+ = the base side), cable height above the ground, tower mesh or false }
-			nodes = {
-				{ 118, 16, false },
-				{ 84, 46, "SP_LM_LiftTower_A" },
-				{ 52, 74, "SP_LM_LiftTower_B" },
-				{ -52, 76, "SP_LM_LiftTower_B" },
-				{ -112, 86, "SP_LM_LiftTower_C" },
-				{ -172, 98, "SP_LM_LiftTower_C" },
-				{ -232, 112, "SP_LM_LiftTower_A" },
-				{ -290, 126, "SP_LM_LiftTop" },
-			},
+			towers = { "SP_LM_LiftTower_A", "SP_LM_LiftTower_B", "SP_LM_LiftTower_C" },
+			top = "SP_LM_LiftTop",
 			cable = "SP_LM_LiftCable24",
-			chair = "SP_Anim_Chair",
+			chairs = { "SP_Anim_Chair", "SP_Anim_ChairTeal" },
+			-- the far-side glade the line climbs (its `surface_path` gives the slope the towers stand on)
+			glade = "SP_BG_PisteGlade_A",
+			gladeStation = 18,
+			gladeLateral = 190,
+			-- flat nodes: { lateral (+ = the base side), cable height above the ground, tower ("auto" picks by height) or false }
+			flat = { { 104, 20, false }, { 80, 44, "auto" }, { 52, 74, "auto" }, { -52, 76, "auto" } },
+			slopeClear = { 36, 36, 32, 30 }, -- cable height above the glade's ground at each path point; the last is the top station
 		},
 		companions = {
 			-- the stepped lodge: the great hall (the landmark) in the middle, a wing each side set back a little, an annex behind
@@ -943,6 +933,8 @@ return {
 					{ m = "SP_Lot_LodgeWing_A", x = "leftOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_LodgeWing_B", x = "rightOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_Annex36", x = "rightOf", z = 30, gap = 40, label = "LODGE ANNEX" },
+					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = -4, label = "PENNANT POLE" },
+					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = -4, label = "PENNANT POLE" },
 				},
 			},
 			-- the observatory stands on a rock knoll

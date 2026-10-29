@@ -118,6 +118,8 @@ export type Catalog = {
 	notes: { string },
 	world: any?, -- the Worlds/<id> definition this catalogue was built from (nil for Downtown); WorldPlan reads its `v2` table
 	sizes: { [string]: Vector3 }?, -- kit mesh name -> authored size (bounds), for the names in the World's `v2` pools
+	meta: { [string]: { [string]: any } }?, -- kit mesh name -> its meta table (surface paths, hub points), same names
+	chimneys: { [string]: { Vector3 } }?, -- v2 chimney lots and landmarks: smoke origins in the slot frame (roof_a socket, fitted)
 }
 
 local function rgb(r: number, g: number, b: number): Color3
@@ -920,6 +922,7 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 	-- chains real extents (the `v2.sizes` table is only the nominal fallback while a mesh is still missing)
 	if def.v2 then
 		local sizes: { [string]: Vector3 } = {}
+		local metas: { [string]: { [string]: any } } = {}
 		local function want(name: string?)
 			if not name then
 				return
@@ -932,8 +935,46 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 					(tonumber(hi[2]) or 0) - (tonumber(lo[2]) or 0),
 					(tonumber(hi[3]) or 0) - (tonumber(lo[3]) or 0)
 				)
+				metas[name] = meta
 			end
 		end
+		-- smoke origins: the roof_a socket of each chimney lot or landmark, moved into the slot frame the planner places it in
+		-- (a kit mesh is centred in its slot by its bounds, so the socket shifts by slot / 2 - bounds centre)
+		local chimneys: { [string]: { Vector3 } } = {}
+		for _, name in def.v2.chimneyNames or {} do
+			local meta, bounds = metaOf(name)
+			local slotW, slotD = 0, 0
+			for _, l in cat.lots do
+				if l.name == name then
+					slotW, slotD = l.width, l.depth
+				end
+			end
+			for _, lm in cat.landmarks do
+				if lm.name == name then
+					slotW, slotD = lm.width, lm.depth
+				end
+			end
+			if
+				meta
+				and type(meta.sockets) == "table"
+				and type(meta.sockets.roof_a) == "table"
+				and type(bounds) == "table"
+			then
+				local s = meta.sockets.roof_a
+				local lo, hi = bounds[1], bounds[2]
+				local cx, cz =
+					((tonumber(lo[1]) or 0) + (tonumber(hi[1]) or 0)) / 2,
+					((tonumber(lo[3]) or 0) + (tonumber(hi[3]) or 0)) / 2
+				chimneys[name] = {
+					Vector3.new(
+						(tonumber(s.x or s[1]) or 0) + slotW / 2 - cx,
+						(tonumber(s.y or s[2]) or 0) + 1.5,
+						(tonumber(s.z or s[3]) or 0) + slotD / 2 - cz
+					),
+				}
+			end
+		end
+		cat.chimneys = chimneys
 		for _, rule in def.v2.rules or {} do
 			for _, entry in rule.pool do
 				want(entry.m)
@@ -952,6 +993,7 @@ function Catalog.forWorld(def: any, options: LoadOptions?): Catalog
 			want(name)
 		end
 		cat.sizes = sizes
+		cat.meta = metas
 	end
 	if cat.kitCount > 0 then
 		cat.source = string.format("%s + kit (%d world meshes found)", def.name, cat.kitCount)

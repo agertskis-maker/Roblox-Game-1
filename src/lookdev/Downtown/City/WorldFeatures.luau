@@ -17,9 +17,18 @@ export type Ctx = {
 	v2: any,
 	h: { frame: (number, number?, number?) -> CFrame, segAt: (number) -> number, spanAt: (number) -> number },
 	extras: { any },
-	info: { notes: { string }, stats: { [string]: number }, gorges: { any }, lift: any?, lake: any?, motion: any? },
+	info: {
+		notes: { string },
+		stats: { [string]: number },
+		gorges: { any },
+		lift: any?,
+		lake: any?,
+		motion: any?,
+		skiPaths: any?,
+	},
 	halfRoad: number,
 	sizeOf: (any) -> Vector3,
+	metaOf: (string?) -> { [string]: any }?, -- a kit mesh's meta table (cable_height, surface_path, ...)
 	rngFor: (any, string) -> Random,
 	onBridge: (number, number) -> boolean,
 	nearHazard: (number, number, number) -> boolean,
@@ -64,7 +73,8 @@ local function yawOf(mode: any, side: number, rng: Random): number
 	elseif mode == "alongAway" then
 		return -side * math.pi / 2
 	elseif mode == "road" then
-		return if side > 0 then -math.pi / 2 else math.pi / 2
+		-- front (-Z) toward the road: the same turn as "alongRoad" (a mesh whose front faces the road has its long axis along it)
+		return side * math.pi / 2 + math.rad(rng:NextNumber(-6, 6))
 	elseif mode == "quarter" then
 		return rng:NextInteger(0, 3) * math.pi / 2
 	elseif type(mode) == "number" then
@@ -72,6 +82,7 @@ local function yawOf(mode: any, side: number, rng: Random): number
 	end
 	return 0
 end
+WorldFeatures.yawOf = yawOf
 
 -- pins ----------------------------------------------------------------------------------------------------
 function WorldFeatures.pins(ctx: Ctx)
@@ -289,7 +300,10 @@ end
 -- tunnel --------------------------------------------------------------------------------------------------
 -- The Glacier Tunnel (plan 7.4): an opaque horseshoe gallery of 32-stud bays along the bridge-style span, a seeded pattern
 -- of sky-window and gallery bays (at least three openings in twelve, never three in a row), portals at both ends and flank
--- walls of 64 studs each way, so the opening is cut into a mass.
+-- walls, so the opening is cut into a mass. Kit conventions (kit_summit2.py): the route runs toward -Z and every tunnel
+-- piece's FRONT is its +Z face. A bay's pivot is the bottom centre of its START face (it fills z 0 to -32); the portal-in's
+-- pivot is its outer face plane (it fills 28 studs on from there, so it stands in front of the span); the portal-out's pivot
+-- joins the last bay's end (it fills 28 studs beyond the span); a flank wall is 64 wide with its front plate at z = 0.
 function WorldFeatures.tunnel(ctx: Ctx)
 	local cfg = ctx.v2.tunnel
 	if not cfg then
@@ -297,6 +311,22 @@ function WorldFeatures.tunnel(ctx: Ctx)
 	end
 	local bays = 0
 	local openings = 0
+	local function put(name: string, label: string, station: number, lateral: number, yaw: number, spanId: string)
+		local size = ctx.sizeOf({ m = name })
+		add(ctx, {
+			kind = "tunnel",
+			module = name,
+			label = label,
+			cframe = ctx.h.frame(station, lateral, cfg.y or 0) * CFrame.Angles(0, yaw, 0),
+			scale = 1,
+			size = size,
+			colour = Color3.fromRGB(150, 190, 220),
+			band = "near",
+			station = station,
+			side = if lateral == 0 then 0 elseif lateral > 0 then 1 else -1,
+			district = spanId,
+		})
+	end
 	for _, lm in ctx.plan.landmarks do
 		if lm.placement ~= "bridge" or lm.district ~= cfg.district then
 			continue
@@ -306,11 +336,9 @@ function WorldFeatures.tunnel(ctx: Ctx)
 		local n = math.floor((lm.to - lm.from) / cfg.bayLength + 0.5)
 		-- the opening pattern: a seeded variation of the plan's example (bays 2, 5, 6, 9, 11 of 12)
 		local open: { [number]: boolean } = {}
-		local base = cfg.pattern or { 2, 5, 6, 9, 11 }
 		local shift = rng:NextInteger(-1, 1)
-		for _, i in base do
-			local k = math.clamp(i + shift, 1, n - 1)
-			open[k] = true
+		for _, i in cfg.pattern or { 2, 5, 6, 9, 11 } do
+			open[math.clamp(i + shift, 1, n - 1)] = true
 		end
 		for i = 1, n - 2 do
 			if open[i] and open[i + 1] and open[i + 2] then
@@ -325,7 +353,7 @@ function WorldFeatures.tunnel(ctx: Ctx)
 		local kOpen = 0
 		for i = 1, n do
 			local name: string
-			local yaw = 0
+			local mirrored = false
 			if open[i] then
 				kOpen += 1
 				if kOpen % 2 == 1 then
@@ -333,93 +361,35 @@ function WorldFeatures.tunnel(ctx: Ctx)
 				else
 					name = cfg.gallery
 					flip = not flip
-					yaw = if flip then math.pi else 0
+					mirrored = flip
 				end
 				openings += 1
 			else
 				name = cfg.bays[(i + rng:NextInteger(0, 2)) % #cfg.bays + 1]
 			end
-			local st = lm.from + (i - 0.5) * cfg.bayLength
-			local size = ctx.sizeOf({ m = name })
-			local at = if cfg.startPivot then lm.from + (i - 1) * cfg.bayLength else st
-			local f = ctx.h.frame(at, 0, cfg.y or 0)
-			add(ctx, {
-				kind = "tunnel",
-				module = name,
-				label = "TUNNEL BAY",
-				cframe = f * CFrame.Angles(0, yaw + (cfg.bayYaw or 0), 0),
-				scale = 1,
-				size = size,
-				colour = Color3.fromRGB(150, 190, 220),
-				band = "near",
-				station = st,
-				side = 0,
-				district = span.id,
-			})
+			local start = lm.from + (i - 1) * cfg.bayLength
+			-- a mirrored gallery bay is turned half a circle about its far face so it still fills its own 32 studs
+			if mirrored then
+				put(name, "TUNNEL BAY", start + cfg.bayLength, 0, math.pi, span.id)
+			else
+				put(name, "TUNNEL BAY", start, 0, 0, span.id)
+			end
 			bays += 1
 		end
+		local portalHalf = ctx.sizeOf({ m = cfg.portalIn }).X / 2
 		for _, which in { "in", "out" } do
 			local name = if which == "in" then cfg.portalIn else cfg.portalOut
-			local st = if which == "in" then lm.from else lm.to
-			local f = ctx.h.frame(
-				st + (if which == "in" then (cfg.portalInOffset or 0) else (cfg.portalOutOffset or 0)),
-				0,
-				cfg.y or 0
-			)
-			local yaw = if which == "in" then 0 else math.pi
-			local size = ctx.sizeOf({ m = name })
-			add(ctx, {
-				kind = "tunnel",
-				module = name,
-				label = if which == "in" then "GLACIER TUNNEL" else "TUNNEL EXIT",
-				cframe = f * CFrame.Angles(0, yaw + (cfg.portalYaw or 0), 0),
-				scale = 1,
-				size = size,
-				colour = Color3.fromRGB(150, 190, 220),
-				band = "near",
-				station = st,
-				side = 0,
-				district = span.id,
-			})
+			local st = if which == "in" then lm.from - cfg.portalDepth else lm.to
+			put(name, if which == "in" then "GLACIER TUNNEL" else "TUNNEL EXIT", st, 0, 0, span.id)
+			-- flank walls beside the portal plate: the tall end of each toward the opening
 			for _, side in { -1, 1 } do
-				local wall = cfg.wall[((if side > 0 then 1 else 0) + (if which == "in" then 0 else 1)) % #cfg.wall + 1]
-				local wsize = ctx.sizeOf({ m = wall })
-				local wf = ctx.h.frame(
-					st + (if which == "in" then -1 else 1) * (cfg.wallReach or 64) / 2,
-					side * (cfg.wallLateral or 62),
-					cfg.y or 0
-				)
-				add(ctx, {
-					kind = "tunnel",
-					module = wall,
-					label = "TUNNEL FLANK",
-					cframe = wf * CFrame.Angles(0, yawOf("alongRoad", side, rng), 0),
-					scale = 1,
-					size = wsize,
-					colour = Color3.fromRGB(110, 124, 146),
-					band = "near",
-					station = st,
-					side = side,
-					district = span.id,
-				})
+				local wall = if side < 0 then cfg.wall[1] else cfg.wall[#cfg.wall]
+				local half = ctx.sizeOf({ m = wall }).X / 2
+				put(wall, "TUNNEL FLANK", st, side * (portalHalf + half - (cfg.wallOverlap or 0)), 0, span.id)
 			end
-			if cfg.iceFall then
+			if which == "in" and cfg.iceFall then
 				for _, side in { -1, 1 } do
-					local isize = ctx.sizeOf({ m = cfg.iceFall })
-					local f2 = ctx.h.frame(st, side * (cfg.iceFallLateral or 40), cfg.y or 0)
-					add(ctx, {
-						kind = "tunnel",
-						module = cfg.iceFall,
-						label = "ICE FALL",
-						cframe = f2 * CFrame.Angles(0, yaw, 0),
-						scale = 1,
-						size = isize,
-						colour = Color3.fromRGB(176, 214, 238),
-						band = "near",
-						station = st,
-						side = side,
-						district = span.id,
-					})
+					put(cfg.iceFall, "ICE FALL", st, side * (cfg.iceFallLateral or 68), 0, span.id)
 				end
 			end
 		end
@@ -430,9 +400,10 @@ function WorldFeatures.tunnel(ctx: Ctx)
 end
 
 -- lift ----------------------------------------------------------------------------------------------------
--- The ski lift line (plan 7.2): a base station beside the road, towers, ONE static crossing at least 64 studs above the
--- deck, a cable that climbs on the far side to the top station and carries on, chairs fixed on the crossing; the path is
--- handed to WorldLife, whose moving chairs stay on the legs at least 60 studs from the road edge (Option M is a proposal).
+-- The ski lift line (plan 7.2): from the base station on the frontage, a static crossing at least 64 studs above the deck, then
+-- up the far side's glade slope to the top station. Towers stand on the ground (flat nodes) or on the glade's own slope
+-- (read from the glade mesh's `surface_path`), the cable is chained straight 24-stud pieces along a sagging curve, chairs
+-- are fixed on the crossing; the far-leg path goes to WorldLife, whose moving chairs stay at least 60 studs from the road.
 function WorldFeatures.lift(ctx: Ctx)
 	local cfg = ctx.v2.lift
 	if not cfg then
@@ -444,70 +415,130 @@ function WorldFeatures.lift(ctx: Ctx)
 			continue
 		end
 		local rng = ctx.rngFor(span, "lift")
-		local side = cfg.side or 1
-		local s0 = span.startS + (span.endS - span.startS) * (cfg.t or 0.3)
-		-- nodes: { lateral (+ = base side), height of the cable above the ground, tower module or false }
-		local nodes: { { any } } = {}
-		for _, n in cfg.nodes do
-			table.insert(nodes, n)
+		local base: any = nil
+		for _, lm in ctx.plan.landmarks do
+			if lm.id == cfg.baseLandmark and lm.station >= span.startS and lm.station < span.endS then
+				base = lm
+			end
 		end
+		local side = if base then base.side else 1
+		local far = -side
+		local s0 = if base then base.station else span.startS + (span.endS - span.startS) * 0.3
+		local routeFrame = ctx.h.frame(s0)
+		local function lateralOf(p: Vector3): number
+			return routeFrame:PointToObjectSpace(p).X
+		end
+		-- the far-side glade the line climbs
+		local glade: CFrame? = nil
+		local meta = ctx.metaOf(cfg.glade)
+		if cfg.glade and meta then
+			local gst = s0 + (cfg.gladeStation or 18)
+			glade = ctx.h.frame(gst, far * cfg.gladeLateral, -1) * CFrame.Angles(0, yawOf("alongRoad", far, rng), 0)
+			add(ctx, {
+				kind = "backdrop",
+				module = cfg.glade,
+				label = "SKI GLADE",
+				cframe = glade,
+				scale = 1,
+				size = ctx.sizeOf({ m = cfg.glade }),
+				colour = Color3.fromRGB(58, 104, 98),
+				band = "near",
+				station = gst,
+				side = far,
+				district = span.id,
+			})
+		end
+		-- node list: { position (ground point), cable height above that ground, tower module or false }
+		local nodes: { { any } } = {}
+		for _, n in cfg.flat do
+			local ground = ctx.h.frame(s0 + (n[4] or 0), side * n[1], -0.3).Position
+			table.insert(nodes, { ground, n[2], n[3] })
+		end
+		if glade and meta and type(meta.surface_path) == "table" then
+			local clears = cfg.slopeClear or {}
+			for i, pt in meta.surface_path do
+				local p: Vector3 = (glade :: CFrame):PointToWorldSpace(Vector3.new(pt[1], pt[2], pt[3]))
+				local last = i == #meta.surface_path
+				table.insert(nodes, { p, clears[i] or 34, if last then cfg.top else "auto" })
+			end
+		end
+		-- towers
 		local points: { Vector3 } = {}
+		local lat: { number } = {}
 		for i, n in nodes do
-			local st = s0 + (i - 1) * cfg.stationStep
-			local f = ctx.h.frame(st, side * n[1], 0)
-			table.insert(points, f.Position + Vector3.new(0, n[2], 0))
-			if n[3] then
-				local size = ctx.sizeOf({ m = n[3] })
-				local sc = math.clamp(n[2] / math.max(size.Y, 1), 0.7, 1.6)
+			local ground: Vector3, height: number, tower: any = n[1], n[2], n[3]
+			table.insert(points, ground + Vector3.new(0, height, 0))
+			table.insert(lat, lateralOf(ground))
+			if tower then
+				local name = tower :: string
+				local sc = 1
+				if name == "auto" then
+					local best = math.huge
+					for _, cand in cfg.towers do
+						local ch = (ctx.metaOf(cand) or {}).cable_height or 60
+						local s = height / ch
+						local score = math.abs(math.log(s))
+						if s >= 0.75 and s <= 1.35 and score < best then
+							best, name, sc = score, cand, s
+						end
+					end
+					if name == "auto" then
+						name = cfg.towers[2]
+						sc = math.clamp(height / ((ctx.metaOf(name) or {}).cable_height or 60), 0.75, 1.35)
+					end
+				end
+				local isTop = name == cfg.top
 				add(ctx, {
 					kind = "lift",
-					module = n[3],
-					label = "LIFT TOWER",
-					cframe = ctx.h.frame(st, side * n[1], -1) * CFrame.Angles(0, yawOf("road", side, rng), 0),
+					module = name,
+					label = if isTop then "LIFT TOP STATION" else "LIFT TOWER",
+					cframe = CFrame.new(ground)
+						* CFrame.Angles(0, yawOf("alongRoad", if lat[i] >= 0 then 1 else -1, rng), 0),
 					scale = sc,
-					size = size * sc,
+					size = ctx.sizeOf({ m = name }) * sc,
 					colour = Color3.fromRGB(110, 124, 146),
 					band = "near",
-					station = st,
-					side = side,
+					station = s0,
+					side = if lat[i] >= 0 then 1 else -1,
 					district = span.id,
 				})
 			end
 		end
-		-- the cable: straight 24-stud pieces along the sagging curve between consecutive nodes
-		local cableSize = ctx.sizeOf({ m = cfg.cable })
-		local pieceLen = math.max(cableSize.Z, cableSize.X, 8)
+		-- the cable: straight pieces along the sagging curve between consecutive nodes (the mesh is long on X)
+		local cableMeta = ctx.metaOf(cfg.cable) or {}
+		local cableAt = cableMeta.cable_height or 4.2
+		local pieceLen = math.max(ctx.sizeOf({ m = cfg.cable }).X, 8)
 		local lowest = math.huge
 		local crossing: { number } = {}
 		for i = 1, #points - 1 do
 			local a, b = points[i], points[i + 1]
 			local length = (b - a).Magnitude
 			local count = math.max(1, math.floor(length / pieceLen + 0.5))
-			local sag = (cfg.sag or 6) * length / 100
+			local sag = (cfg.sag or 5) * length / 100
 			local prev = a
 			for k = 1, count do
 				local u = k / count
 				local p = a:Lerp(b, u) - Vector3.new(0, sag * 4 * u * (1 - u), 0)
+				local d = p - prev
+				local pieceSc = d.Magnitude / pieceLen
+				local x = d.Unit
+				local z = x:Cross(Vector3.yAxis).Unit
+				local y = z:Cross(x)
 				local mid = (prev + p) / 2
-				local cf = CFrame.lookAt(mid, p)
-				local pieceSc = (p - prev).Magnitude / pieceLen
 				add(ctx, {
 					kind = "lift",
 					module = cfg.cable,
 					label = "LIFT CABLE",
-					cframe = cf,
+					cframe = CFrame.fromMatrix(mid - y * cableAt * pieceSc, x, y, z),
 					scale = pieceSc,
-					size = Vector3.new(1, 1, pieceLen * pieceSc),
+					size = Vector3.new(pieceLen * pieceSc, 1, 1),
 					colour = Color3.fromRGB(60, 62, 70),
 					band = "near",
-					station = s0 + (i - 1) * cfg.stationStep + u * cfg.stationStep,
+					station = s0,
 					side = side,
 					district = span.id,
 				})
-				-- height of the cable above the deck where it passes over the carriageway
-				local pf = ctx.h.frame(s0 + (i - 1) * cfg.stationStep + u * cfg.stationStep)
-				local rel = pf:PointToObjectSpace(p)
-				if math.abs(rel.X) < ctx.halfRoad + 2 then
+				if math.abs(lateralOf(p)) < ctx.halfRoad + 2 then
 					lowest = math.min(lowest, p.Y)
 					table.insert(crossing, i)
 				end
@@ -515,24 +546,24 @@ function WorldFeatures.lift(ctx: Ctx)
 			end
 		end
 		-- fixed chairs on the crossing (static: Option M, moving chairs over the road, is a proposal for Brian R)
-		if cfg.chair and #crossing > 0 then
+		if cfg.chairs and #crossing > 0 then
 			local i = crossing[math.ceil(#crossing / 2)]
 			local a, b = points[i], points[i + 1]
-			for _, u in { 0.3, 0.7 } do
-				local p = a:Lerp(b, u) - Vector3.new(0, (cfg.sag or 6) * 4 * u * (1 - u), 0)
-				local size = ctx.sizeOf({ m = cfg.chair })
-				local st = s0 + (i - 1) * cfg.stationStep + u * cfg.stationStep
+			for k, u in { 0.3, 0.7 } do
+				local p = a:Lerp(b, u) - Vector3.new(0, (cfg.sag or 5) * (b - a).Magnitude / 100 * 4 * u * (1 - u), 0)
+				local name = cfg.chairs[k % #cfg.chairs + 1]
+				local grip = (ctx.metaOf(name) or {}).grip_height or 6
 				add(ctx, {
 					kind = "lift",
-					module = cfg.chair,
+					module = name,
 					label = "CHAIR",
-					cframe = CFrame.new(p - Vector3.new(0, size.Y * 0.95, 0))
-						* CFrame.Angles(0, yawOf("road", side, rng), 0),
+					cframe = CFrame.new(p - Vector3.new(0, grip, 0))
+						* CFrame.Angles(0, yawOf("alongRoad", side, rng), 0),
 					scale = 1,
-					size = size,
+					size = ctx.sizeOf({ m = name }),
 					colour = Color3.fromRGB(204, 72, 66),
 					band = "near",
-					station = st,
+					station = s0,
 					side = side,
 					district = span.id,
 				})
@@ -542,19 +573,18 @@ function WorldFeatures.lift(ctx: Ctx)
 		local legs: { { Vector3 } } = {}
 		local run: { Vector3 } = {}
 		local runSign = 0
-		for i, n in nodes do
-			local lateral = n[1] * side
-			local sign = if lateral >= 0 then 1 else -1
-			if math.abs(lateral) >= ctx.halfRoad + 60 and (runSign == 0 or runSign == sign) then
+		for i = 1, #points do
+			local sign = if lat[i] >= 0 then 1 else -1
+			local ok = math.abs(lat[i]) >= ctx.halfRoad + 60
+			if ok and (runSign == 0 or runSign == sign) then
 				table.insert(run, points[i])
 				runSign = sign
 			else
 				if #run >= 2 then
 					table.insert(legs, run)
 				end
-				run = {}
-				runSign = 0
-				if math.abs(lateral) >= ctx.halfRoad + 60 then
+				run, runSign = {}, 0
+				if ok then
 					table.insert(run, points[i])
 					runSign = sign
 				end
@@ -569,11 +599,40 @@ function WorldFeatures.lift(ctx: Ctx)
 			side = side,
 			district = span.id,
 			crossingHeight = lowest,
-			clearance = ctx.v2.lift.minClearance or 64,
+			clearance = cfg.minClearance or 64,
 		})
 		ctx.info.stats.liftCrossing = if lowest == math.huge then 0 else lowest
+		ctx.info.stats.liftNodes = #points
 	end
 	ctx.info.lift = paths
+end
+
+-- skiers --------------------------------------------------------------------------------------------------
+-- The centre line of every ski glade the plan placed, in world space (read from the glade mesh's `surface_path`): WorldLife
+-- runs up to eight distant skiers down them (120+ studs from the road, never near the carriageway).
+function WorldFeatures.skiers(ctx: Ctx)
+	local modules = ctx.v2.skiers
+	if not modules then
+		return
+	end
+	local paths: { any } = {}
+	for _, e in ctx.extras do
+		if table.find(modules, e.module) then
+			local meta = ctx.metaOf(e.module)
+			if meta and type(meta.surface_path) == "table" then
+				local points: { Vector3 } = {}
+				for _, pt in meta.surface_path do
+					table.insert(
+						points,
+						(e.cframe :: CFrame):PointToWorldSpace(Vector3.new(pt[1], pt[2], pt[3]) * e.scale)
+					)
+				end
+				table.insert(paths, { points = points, station = e.station })
+			end
+		end
+	end
+	ctx.info.skiPaths = paths
+	ctx.info.stats.skiPaths = #paths
 end
 
 -- motion --------------------------------------------------------------------------------------------------
@@ -626,15 +685,12 @@ function WorldFeatures.motion(ctx: Ctx)
 				local side = sideOf(ctx, span, cfg.shimmer.side or "outside")
 				local st = span.startS + (span.endS - span.startS) * (cfg.shimmer.t or 0.5)
 				local f = ctx.h.frame(st, side * cfg.shimmer.lateral, 0.05)
-				table.insert(
-					out.shimmers,
-					{
-						cframe = f * CFrame.Angles(0, math.pi / 2, 0),
-						length = cfg.shimmer.length,
-						width = cfg.shimmer.width,
-						station = st,
-					}
-				)
+				table.insert(out.shimmers, {
+					cframe = f * CFrame.Angles(0, math.pi / 2, 0),
+					length = cfg.shimmer.length,
+					width = cfg.shimmer.width,
+					station = st,
+				})
 			end
 		end
 	end

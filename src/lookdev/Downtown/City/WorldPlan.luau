@@ -321,6 +321,9 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		sizeOf = function(entry: any): Vector3
 			return sizeOf(entry :: PoolEntry)
 		end,
+		metaOf = function(name: string?): { [string]: any }?
+			return if name and catalog.meta then catalog.meta[name] else nil
+		end,
 		rngFor = rngFor,
 		onBridge = onBridge,
 		nearHazard = nearHazard,
@@ -519,16 +522,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 						local lateral = rng:NextNumber(rule.lateral[1], rule.lateral[2])
 						local station = st
 						local f = h.frame(station, side * lateral, rule.y or -1)
-						local yawRad = 0
-						if rule.yaw == "quarter" then
-							yawRad = rng:NextInteger(0, 3) * math.pi / 2
-						elseif rule.yaw == "along" then
-							yawRad = (if rng:NextNumber() < 0.5 then 1 else -1) * math.pi / 2
-								+ math.rad(rng:NextNumber(-6, 6))
-						elseif rule.yaw == "road" then
-							yawRad = (if side > 0 then -math.pi / 2 else math.pi / 2)
-								+ math.rad(rng:NextNumber(-10, 10))
-						end
+						local yawRad = Features.yawOf(rule.yaw, side, rng)
 						local cf = f * CFrame.Angles(0, yawRad, 0)
 						local radius = math.max(size.X, size.Z) * sc / 2
 						local need = rule.need or (halfRoad + 50)
@@ -602,10 +596,29 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	Features.lake(ctx)
 	Features.tunnel(ctx)
 	Features.lift(ctx)
+	Features.skiers(ctx)
 	Features.companions(ctx)
 	Features.signs(ctx)
 	Features.warnings(ctx)
 	Features.motion(ctx)
+
+	-- 6c. smoke origins: every chimney lot and landmark of the plan, in world space (WorldLife re-homes five emitters among them)
+	do
+		local list: { Vector3 } = {}
+		local spots: { [string]: { Vector3 } } = catalog.chimneys or {}
+		for _, lot in plan.lots do
+			for _, s in spots[lot.module] or {} do
+				table.insert(list, (lot.pivot :: CFrame):PointToWorldSpace(s))
+			end
+		end
+		for _, lm in plan.landmarks do
+			for _, s in spots[lm.module] or {} do
+				table.insert(list, (lm.pivot :: CFrame):PointToWorldSpace(s))
+			end
+		end
+		info.chimneys = list
+		stats.chimneys = #list
+	end
 
 	-- 7. later laps carry a different welcome span (Summit Pass: "KEEP CLIMBING!") --------------------------
 	if v2.welcomeLater then

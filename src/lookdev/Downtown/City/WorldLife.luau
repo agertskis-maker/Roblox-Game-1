@@ -67,6 +67,7 @@ type Skater = { body: Part, head: Part, loop: number, phase: number, speed: numb
 type Chair = { seat: Part, hanger: Part, leg: number, u: number, dir: number, speed: number }
 type Loop = { centre: CFrame, radiusX: number, radiusZ: number }
 type Leg = { points: { Vector3 }, length: number }
+type Skier = { body: Part, skis: Part, route: number, u: number, offset: number, speed: number }
 -- World build V2 (Dusty): the windmill wheel (0.1 turns per second), two pennant strings of eight, a far shimmer strip
 type Wheel = { hub: Vector3, normal: Vector3, radius: number, blades: { Part }, hubPart: Part }
 type PennantString = { a: Vector3, b: Vector3, flags: { Part }, poles: { Part } }
@@ -93,6 +94,8 @@ type Fields = {
 	loops: { Loop },
 	chairs: { Chair },
 	legs: { Leg },
+	skiers: { Skier },
+	skiRoutes: { Leg },
 	wheels: { Wheel },
 	strings: { PennantString },
 	shimmers: { Shimmer },
@@ -172,6 +175,8 @@ function WorldLife.new(options: Options): WorldLife
 		loops = {},
 		chairs = {},
 		legs = {},
+		skiers = {},
+		skiRoutes = {},
 		wheels = {},
 		strings = {},
 		shimmers = {},
@@ -354,22 +359,9 @@ function WorldLife.new(options: Options): WorldLife
 	if id == "SummitPass" and options.world.v2 then
 		-- World build V2 (decision 0026): a smoke pool of five that re-homes to the nearest chimneys (plan 5.9), skaters on
 		-- two loops on the lake, and chairs that move only on the lift's far legs, never over the road (Option M is a proposal)
-		local chimneys: { [string]: { Vector3 } } = options.world.v2.chimneys or {}
-		for _, lm in options.plan.landmarks do
-			local spots = SMOKE[lm.id] or chimneys[lm.module]
-			if spots and lm.placement ~= "bridge" then
-				for _, spot in spots do
-					table.insert(self.chimneys, (lm.pivot * CFrame.new(spot)).Position)
-				end
-			end
-		end
-		for _, lot in options.plan.lots do
-			local spots = chimneys[lot.module]
-			if spots then
-				for _, spot in spots do
-					table.insert(self.chimneys, (lot.pivot * CFrame.new(spot)).Position)
-				end
-			end
+		-- the chimney tops come from the kit meshes' roof_a sockets (WorldPlan reads them), already in world space
+		for _, p in if options.plan.world then options.plan.world.chimneys or {} else {} do
+			table.insert(self.chimneys, p)
 		end
 		for _ = 1, 5 do
 			local part = anchoredPart(folder, "ChimneyOrigin", Vector3.new(1, 1, 1))
@@ -470,6 +462,50 @@ function WorldLife.new(options: Options): WorldLife
 					dir = if i % 2 == 0 then 1 else -1,
 					speed = 3,
 				})
+			end
+		end
+	end
+	if id == "SummitPass" and options.world.v2 and options.plan.world and options.plan.world.skiPaths then
+		-- up to eight distant skiers (two parts each) running down the ski glades' centre lines, 120+ studs from the road,
+		-- colours from the bunting set (never orange); at rest in reduced motion
+		local colours = {
+			Color3.fromRGB(70, 170, 170),
+			Color3.fromRGB(204, 72, 66),
+			Color3.fromRGB(242, 190, 78),
+			Color3.fromRGB(52, 112, 84),
+		}
+		local made = 0
+		for _, path in options.plan.world.skiPaths do
+			local length = 0
+			for i = 1, #path.points - 1 do
+				length += (path.points[i + 1] - path.points[i]).Magnitude
+			end
+			table.insert(self.skiRoutes, { points = path.points, length = length })
+			for k = 1, 4 do
+				if made < 8 then
+					made += 1
+					local body =
+						Parts.block(folder, "Skier", Vector3.new(0.9, 2.8, 0.9), CFrame.new(0, -500, 0), colours[k])
+					local skis = Parts.block(
+						folder,
+						"Skis",
+						Vector3.new(1.1, 0.2, 4.2),
+						CFrame.new(0, -500, 0),
+						Color3.fromRGB(60, 62, 70)
+					)
+					body.CastShadow, skis.CastShadow = false, false
+					table.insert(
+						self.skiers,
+						{
+							body = body,
+							skis = skis,
+							route = #self.skiRoutes,
+							u = (k - 1) / 4,
+							offset = (k - 2.5) * 4,
+							speed = 6 + k,
+						}
+					)
+				end
 			end
 		end
 	end
@@ -637,6 +673,40 @@ function WorldLife.step(self: WorldLife, dt: number)
 	end
 	for _, s in self.smoke do
 		s.emitter.Enabled = nearest(points, s.part.Position) <= NEAR
+	end
+	-- Summit (V2): distant skiers on the glades, at rest in reduced motion
+	if #self.skiers > 0 then
+		local list: { BasePart }, cfs: { CFrame } = {}, {}
+		for _, sk in self.skiers do
+			local route = self.skiRoutes[sk.route]
+			if not reduced then
+				sk.u = (sk.u + sk.speed * 0.1 / route.length) % 1
+			end
+			local want = (1 - sk.u) * route.length
+			local p = route.points[#route.points]
+			local dir = Vector3.new(0, -0.3, -1)
+			for i = 1, #route.points - 1 do
+				local seg = (route.points[i + 1] - route.points[i]).Magnitude
+				if want <= seg then
+					p = route.points[i]:Lerp(route.points[i + 1], want / math.max(seg, 1e-3))
+					dir = -(route.points[i + 1] - route.points[i]).Unit
+					break
+				end
+				want -= seg
+			end
+			if nearest(points, p) <= SKY_NEAR then
+				local side = dir:Cross(Vector3.yAxis).Unit
+				local at = p + side * sk.offset + Vector3.new(0, 1.6, 0)
+				local facing = CFrame.lookAt(at, at + dir)
+				table.insert(list, sk.body)
+				table.insert(cfs, facing)
+				table.insert(list, sk.skis)
+				table.insert(cfs, facing * CFrame.new(0, -1.5, 0))
+			end
+		end
+		if #list > 0 then
+			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
 	end
 	-- Dusty (V2): the windmill wheel, the pennant strings and the shimmer strip
 	for _, w in self.wheels do

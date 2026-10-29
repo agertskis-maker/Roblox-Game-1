@@ -178,6 +178,8 @@ export type WorldInfo = {
 	lake: any?, -- the measured lake plane(s)
 	checks: { { id: string, ok: boolean, detail: string } }?, -- WorldPlan's measured proofs of the approved rules
 	motion: any?, -- windmill hubs, pennant strings and shimmer strips for WorldLife (Dusty)
+	chimneys: { Vector3 }?, -- smoke origins in world space (Summit): every chimney lot and landmark of the plan
+	skiPaths: any?, -- the ski glades' centre lines in world space (Summit): paths for the distant skiers
 }
 
 export type Checks = {
