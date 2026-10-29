@@ -402,7 +402,9 @@ return {
 			pylon = "DH_LM_BridgePylon",
 			pylonEvery = 96,
 			under = "DH_LM_BridgeUnder",
-			underDrop = 8.5,
+			-- the cross frames' top struts sat exactly at deck level and poked through the road as bars across the lanes
+			-- (reviewer, 2026-10-29): the mesh's girder underside is 8.5 above its pivot, so the frames hang 2.5 further down
+			underDrop = 11,
 		},
 		-- nominal sizes, used until the kit's own bounds are read (Catalog.sizes)
 		sizes = {

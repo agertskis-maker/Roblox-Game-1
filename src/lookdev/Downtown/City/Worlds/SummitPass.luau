@@ -797,6 +797,9 @@ return {
 				y = -0.3,
 				yaw = "alongRoad",
 				bridgePad = 4,
+				-- plan 8.2: Summit reached 484 live parts with traffic and the chase car (ceiling about 440); gaps between the low
+				-- berms keep the snow-bank reading and cut about 40 parts at the busiest station
+				gap = { 90, 130 },
 				colour = rgb(214, 224, 238),
 			},
 			-- a split-rail fence between the lake shore and the road (plan 7.3: rim, buffer and fence, no gap)

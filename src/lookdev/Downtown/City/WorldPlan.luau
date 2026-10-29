@@ -801,9 +801,10 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 	end
 	if #info.gorges > 0 then
 		local g = info.gorges[1]
+		-- plan 6.4: a floor 45 to 90 studs down, a cut long enough for the 384-stud span, and walls at least 50 studs off axis
 		check(
 			"gorge",
-			true,
+			g.halfLength * 2 >= 384 and -g.floorY >= 45 and -g.floorY <= 90 and g.halfWidth >= 50,
 			string.format(
 				"gorge %.0f long, %.0f half-wide, floor %.0f below the deck",
 				g.halfLength * 2,
