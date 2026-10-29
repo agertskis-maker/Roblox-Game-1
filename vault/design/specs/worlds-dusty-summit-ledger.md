@@ -10,7 +10,7 @@ status: in progress (started 2026-10-28; status column is updated as work lands)
 
 # Requirement ledger: Dusty Highway and Summit Pass build
 
-Source of every row: Adam's brief [[worlds-dusty-summit-build]] (section 1 answers, 2026-10-28), the plans [[world-plan-dusty-highway]] and [[world-plan-summit-pass]], decision [[0026-world-plans-approved]]. Status words: **planned**, **code written** (Selene and StyLua pass, not yet run in Studio), **built and checked in Studio**, **blocked**, **not done**. "Evidence" names the check that will prove it; nothing is marked built until that evidence exists.
+Source of every row: Adam's brief [[worlds-dusty-summit-build]] (section 1 answers, 2026-10-28), the plans [[world-plan-dusty-highway]] and [[world-plan-summit-pass]], decision [[0026-world-plans-approved]]. Kit status (2026-10-28 23:22): both V2 kits are built from the Blender recipes (Dusty 94 meshes / 19,508 triangles and Summit 125 meshes / 35,792 triangles referenced by the data, within the 110 and about-130 ceilings), authored by two Sonnet workers (each reported claude-sonnet-5-5) and reviewed by the lead on gallery sheets; the planner code passes Selene, StyLua and the Rojo build. Nothing has run in Studio yet (the Studio lock is held by the Speedway window). Status words: **planned**, **code written** (Selene and StyLua pass, not yet run in Studio), **built and checked in Studio**, **blocked**, **not done**. "Evidence" names the check that will prove it; nothing is marked built until that evidence exists.
 
 Modules: kit recipes `assets/downtown/kit/kit_dusty2.py`, `kit_summit2.py` (+ palette extensions `kit_world_palette_dh2.py`, `kit_world_palette_su2.py`); planner `src/lookdev/Downtown/City/WorldPlan.luau`, `WorldFeatures.luau`, `Assembler.luau`, `WorldLife.luau`; data `City/Worlds/DustyHighway.luau`, `SummitPass.luau`.
 
@@ -38,7 +38,7 @@ Modules: kit recipes `assets/downtown/kit/kit_dusty2.py`, `kit_summit2.py` (+ pa
 | D8 | Budgets in 8.2 are ceilings | 8.2 | measurement | performance table | planned |
 | D9 | Motion: at most two pennant strings, windmill wheel, shimmer strip, within limits | 7 | WorldLife (P3) | real-time video with sound | planned (P3) |
 | D10 | Build P1 and P2; P3 only inside the ceilings; list skipped P3 and why | 8.1 | scope | skipped list on review page | planned |
-| D11 | Guided OBJ uploads, Creator the Car Hop group | 8.4 | `downtown-kit-worlds-v2` OBJ package | asset ids in `vault/design/assets.md` | **blocked on the group name and id** |
+| D11 | Guided OBJ uploads, Creator the Car Hop group | 8.4 | `downtown-kit-worlds-v2` OBJ package | asset ids in `vault/design/assets.md` | **blocked: the group is not created yet (Adam, 2026-10-28 23:2x); previews only until it exists** |
 
 ## Summit Pass (answers S1 to S15)
 
@@ -57,7 +57,7 @@ Modules: kit recipes `assets/downtown/kit/kit_dusty2.py`, `kit_summit2.py` (+ pa
 | S11 | Name refinements: clock tower label, "Terrace Chalets", new sign names | 11 | data labels and `signs` | stills | code written (the clock tower label wording is a reversible choice) |
 | S12 | Lighting test: warm sun tint, road-contrast retune in a private place | 5.2, 5.3 | Lighting test; palette | stills; measured contrast | planned |
 | S13 | Budgets in 8.2 are ceilings | 8.2 | measurement | performance table | planned |
-| S14 | Uploads under the standing approval, Creator the Car Hop group, OBJ, Adam clicks the importer | 8.4 | OBJ package | asset ids | **blocked on the group name and id** |
+| S14 | Uploads under the standing approval, Creator the Car Hop group, OBJ, Adam clicks the importer | 8.4 | OBJ package | asset ids | **blocked: the group is not created yet (Adam, 2026-10-28 23:2x); previews only until it exists** |
 | S15 | Send Brian R the open contracts | 8.4 | vault message | pushed to main | **done** |
 
 ## Brief requirements (sections 2 to 5 and added details)
