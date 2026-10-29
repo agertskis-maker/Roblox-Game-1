@@ -49,7 +49,8 @@ Props.Anchors = {
 	GrandstandX = -55.6,
 	GrandstandU = { 427, 441, 455 },
 	Announcer = Vector2.new(-56.5, 467.5),
-	Floods = { Vector2.new(91, 394), Vector2.new(91, 488), Vector2.new(-91, 394), Vector2.new(-91, 488) },
+	-- floodlight towers close enough to frame the track (they read as part of it, not as field poles)
+	Floods = { Vector2.new(60, 394), Vector2.new(60, 488), Vector2.new(-60, 394), Vector2.new(-60, 488) },
 	Screen = Vector2.new(-70, 380),
 	Statue = Vector2.new(0, 385),
 	Cannons = { Vector2.new(-23.6, START_U - 6.5), Vector2.new(-23.6, START_U + 6.5) },
@@ -101,8 +102,13 @@ local function label(
 	t.FontFace = FONT
 	t.Text = text
 	t.TextColor3 = colour or CREAM
+	-- scaled to fit the board (a long owner name wraps instead of clipping), up to twice sizePx
 	t.TextSize = sizePx
 	t.TextWrapped = true
+	t.TextScaled = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = sizePx * 2
+	limit.Parent = t
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = outline or INK
 	stroke.Thickness = math.max(2, math.floor(sizePx / 12))
