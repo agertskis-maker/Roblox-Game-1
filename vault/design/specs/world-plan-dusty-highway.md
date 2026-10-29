@@ -1,7 +1,7 @@
 ---
 title: Dusty Highway redesign plan
 tags: [design, world-plan, lane3]
-status: proposed (needs Adam's approval)
+status: approved by Adam on 2026-10-28 (answers under "Approval requested"); build in progress on feature/lane3-worlds-dusty-summit
 date: 2026-10-26
 ---
 
@@ -428,6 +428,22 @@ P0 decisions (below). P1 "no-new-mesh pass": verge palette, aerial ramp, sky and
 9. **Motion.** Approve at most two pennant strings, an optional windmill wheel and an optional shimmer strip under the stated limits.
 10. **Scope.** Which of the P1, P2 and P3 inventory rows to cut.
 11. **Uploads.** Confirm the guided OBJ batches after approval and who drives the importer.
+
+### Adam's answers, 2026-10-28 (recorded for the build; decision [[0026-world-plans-approved]])
+
+Adam approved this plan on 2026-10-28 with the answers below (source: `vault/design/specs/worlds-dusty-summit-build.md`, section 1).
+
+1. **Direction:** the visual grammar G1 to G10 and the five-district template are approved as written.
+2. **Names:** keep all five district names. Do NOT rename Sandstone Arch. DO add the small second arch so "Red Rock Arches" earns its plural.
+3. **Canyon Bridge:** Option A, the true gorge. Build it in the Lane 3 look-dev preview. Anything that changes gameplay (falling, collision, hop height or the road and ground contract) is Brian R's: a message goes to him through the vault and his code is not changed.
+4. **Arch:** approve the thick arch beside the road. The drive-through version is written as a proposal for Brian R and is not built now.
+5. **Verge palette swap** (clay verge, road meshes unchanged) and the **sky and light tests** in a private place: approved.
+6. **Planner changes** (Lane 3 look-dev code only): all approved: grouped lots, district density weights, irregular pole rhythm, per-district sub-seeds, landmark yaw, tumbleweeds skipping bridges.
+7. **Scenery vehicles:** none in v1. A later item that will use Brian L's finished cars.
+8. **Budgets:** the provisional targets in 8.2 are accepted as ceilings to test against.
+9. **Motion:** all three approved: at most two pennant strings, the windmill wheel and the shimmer strip, within the stated limits.
+10. **Scope:** build P1 and P2. Build P3 only if the measured performance stays inside the 8.2 ceilings; list any P3 item that is skipped and why.
+11. **Uploads:** guided OBJ batches, Adam clicks the importer. Creator is the Car Hop Roblox group ([[0024-roblox-group-ownership]]).
 
 ## Evidence list
 
