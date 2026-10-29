@@ -82,10 +82,16 @@ OVERRIDES = {
     # plan 5.1: no large area reaches 245
     "g_hi": {"SU": (240, 246, 252)},
     "m_white": {"SU": (243, 247, 252)},
+    # plan 5.3 / S12 road-contrast retune: the Round 2 slate (90,98,114) measured 2.67 to 2.95 to 1 against the snow verge in
+    # Studio stills (plan asks 3 to 1); each road swatch is about 20 percent darker, the same blue-grey hue
+    "asphalt": {"SU": (72, 80, 98)},
+    "asphalt_gutter": {"SU": (60, 68, 84)},
+    "asphalt_patch": {"SU": (68, 76, 92)},
+    "asphalt_side": {"SU": (66, 74, 90)},
 }
 
 HAZE = (206, 222, 244)
-ASPHALT = (90, 98, 114)  # the Summit road swatch (kit_world_palette.ROAD["asphalt"], SU column); the lead retunes it after a Studio measurement
+ASPHALT = (72, 80, 98)  # the Summit road swatch after the retune (OVERRIDES above; kit_world_palette.ROAD["asphalt"] SU column was (90, 98, 114))
 
 
 def _hsv(c):

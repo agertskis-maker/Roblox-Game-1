@@ -26,6 +26,8 @@ WorldLife.__index = WorldLife
 
 local NEAR = 350
 local SKY_NEAR = 900
+local WHEEL_NEAR = 240
+local PENNANT_NEAR = 190
 local AHEAD = 420
 local BEHIND = 50
 
@@ -57,6 +59,7 @@ export type Stats = {
 	smokeEmitters: number,
 	smokeOn: number,
 	parts: number,
+	animated: number, -- parts moved by the last 0.1 s tick plus the tumbleweeds and a running dust devil
 }
 
 type Tumbleweed = { part: Part, station: number, side: number, speed: number, phase: number, angle: number }
@@ -102,6 +105,7 @@ type Fields = {
 	reduced: boolean,
 	clock: number,
 	accumulator: number,
+	moved: number,
 	rng: Random,
 	running: boolean,
 }
@@ -183,6 +187,7 @@ function WorldLife.new(options: Options): WorldLife
 		reduced = Util.reducedMotion(),
 		clock = 0,
 		accumulator = 0,
+		moved = 0,
 		rng = Random.new(options.plan.seed + 77),
 		running = false,
 	}
@@ -285,8 +290,10 @@ function WorldLife.new(options: Options): WorldLife
 	end
 	if id == "DustyHighway" and options.world.v2 and options.plan.world and options.plan.world.motion then
 		-- World build V2 (decision 0026): the approved Dusty motion, within its limits: one windmill wheel (0.1 turns per
-		-- second, on within 600 studs), at most two pennant strings of eight (sway about 6 degrees at 0.4 Hz, on within 350
-		-- studs, parallel to the road and never over it) and one far shimmer strip (alpha drift at most 0.4 Hz, within 900)
+		-- second, on within WHEEL_NEAR studs), at most two pennant strings of eight (sway about 6 degrees at 0.4 Hz, on within
+		-- PENNANT_NEAR studs, parallel to the road and never over it) and one far shimmer strip (alpha drift at most 0.4 Hz,
+		-- within 900). The two ranges are chosen so the wheel and the strings are never on together (their hub and strings
+		-- are about 500 studs apart), which keeps the animated parts of the 30-part ceiling (plan 8.2) at 30 at most
 		local motion = options.plan.world.motion
 		for _, w in motion.windmills do
 			local hubPart = Parts.block(
@@ -576,6 +583,7 @@ function WorldLife.step(self: WorldLife, dt: number)
 		return
 	end
 	self.accumulator = 0
+	local moved = 0 -- parts moved this 0.1 s tick (the "animated parts" of the plan's 8.2 ceiling, with the tumbleweeds)
 	if #self.flock > 0 then
 		local centre = Route.point(
 			segments,
@@ -606,6 +614,7 @@ function WorldLife.step(self: WorldLife, dt: number)
 				table.insert(list, b.body)
 				table.insert(cfs, at)
 			end
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
@@ -702,12 +711,13 @@ function WorldLife.step(self: WorldLife, dt: number)
 			end
 		end
 		if #list > 0 then
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
 	-- Dusty (V2): the windmill wheel, the pennant strings and the shimmer strip
 	for _, w in self.wheels do
-		if nearest(points, w.hub) <= 600 then
+		if nearest(points, w.hub) <= WHEEL_NEAR then
 			local angle = if reduced then 0 else self.clock * 0.1 * math.pi * 2
 			local n = w.normal
 			local up = (Vector3.yAxis - n * n:Dot(Vector3.yAxis)).Unit
@@ -719,11 +729,12 @@ function WorldLife.step(self: WorldLife, dt: number)
 				table.insert(list, blade)
 				table.insert(cfs, CFrame.fromMatrix(w.hub + d * (w.radius * 0.5), n, d))
 			end
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
 	for _, s in self.strings do
-		if nearest(points, (s.a + s.b) / 2) <= 350 then
+		if nearest(points, (s.a + s.b) / 2) <= PENNANT_NEAR then
 			local list: { BasePart }, cfs: { CFrame } = {}, {}
 			local dir = (s.b - s.a).Unit
 			local across = dir:Cross(Vector3.yAxis).Unit
@@ -734,10 +745,14 @@ function WorldLife.step(self: WorldLife, dt: number)
 				table.insert(list, flag)
 				table.insert(cfs, CFrame.lookAt(p, p + across) * CFrame.Angles(sway, 0, 0))
 			end
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
 	for _, sh in self.shimmers do
+		if not reduced and nearest(points, sh.base.Position) <= 900 then
+			moved += 1
+		end
 		sh.part.Transparency = if reduced or nearest(points, sh.base.Position) > 900
 			then 0.6
 			else 0.55 + 0.1 * math.sin(self.clock * 0.25 * math.pi * 2)
@@ -760,6 +775,7 @@ function WorldLife.step(self: WorldLife, dt: number)
 			end
 		end
 		if #list > 0 then
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
@@ -794,9 +810,11 @@ function WorldLife.step(self: WorldLife, dt: number)
 			end
 		end
 		if #list > 0 then
+			moved += #list
 			Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end
+	self.moved = moved
 end
 
 function WorldLife.start(self: WorldLife)
@@ -836,6 +854,7 @@ function WorldLife.stats(self: WorldLife): Stats
 		smokeEmitters = #self.smoke,
 		smokeOn = smokeOn,
 		parts = parts,
+		animated = #self.tumbleweeds + self.moved + (if devilEmitter ~= nil and devilEmitter.Enabled then 1 else 0),
 	}
 end
 

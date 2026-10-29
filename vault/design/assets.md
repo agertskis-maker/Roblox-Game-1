@@ -212,4 +212,13 @@ Import settings verified on screen before uploading: Scale Unit Stud, Scale Fact
 Play check: the Downtown city (seed 2207, 3,094 studs, one road width L4W17) was walked end to end in a Studio Play client: **88 of 180 meshes loaded** with the palette texture and no proxy boxes; the other **92** are uploaded and size-checked but this route does not place them (other lane widths L4W16/L4W18, harbor pieces, unused lots and signs), so their loading is **untested**. Colour: the old session-only preview and the uploaded meshes both use the Main Street palette; there is no side-by-side capture of the two.
 
 ## Not uploaded
-Dusty Highway and Summit Pass kit art (53 and 56 meshes) and the car models: not uploaded. The World redesign plans propose their kits ([[world-plan-dusty-highway]], [[world-plan-summit-pass]]); uploading them waits for Adam's approval of those plans.
+Dusty Highway and Summit Pass kit art (Round 2: 53 and 56 meshes) and the car models: not uploaded.
+
+**World kits V2 (2026-10-29): built, not uploaded.** Adam approved both plans and the guided OBJ uploads on 2026-10-28 with the Creator set to the Car Hop group, but the group does not exist yet, so nothing was uploaded and no asset id exists. The Worlds run as EditableMesh previews from the mesh JSON in `Car-Hop-Art\downtown-kit-worlds-v2` (all 272 meshes) so the look can be reviewed. Ready for the guided import: `Car-Hop-Art\downtown-kit-worlds-v2-upload` (used-only OBJ packages, 1 unit = 1 stud, never FBX):
+
+| Package | Meshes | Triangles (referenced) | Palette image | Ceiling |
+|---|---|---|---|---|
+| `worlds-DustyHighway.obj` | 94 | 19,508 | `palette-DH.png` | 110 |
+| `worlds-SummitPass.obj` | 125 | 35,792 | `palette-SU.png` | about 130 |
+
+When the group exists: Adam clicks the Studio importer with the group as Creator; record each id and size here; wire the ids in the mesh table of the Worlds place; verify loading in Play; teammates re-import nothing. The Round 2 B2 kit has the same wait. Asset ids: none yet.
