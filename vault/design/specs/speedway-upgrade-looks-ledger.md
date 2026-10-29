@@ -34,7 +34,7 @@ Answers from Adam in the question batch (2026-10-28): group ID **not yet** (keep
 | SPW-08 | Slots stay a separate ladder (assumption recorded) | §1 | Brian L message | done |
 | SPW-09 | One additive module, plot + level 1 to 12; clean upgrade, downgrade, repeat | §2.1, added | Look | **Studio-tested** (Play): up 1 to 12 and down 12 to 1 give identical part counts and feature folders per level; rapid 7, 8, 9, 10 equals a direct 1 to 10; re-applying a level changes nothing |
 | SPW-10 | Same ~15 s lap at every level, crossing synced with the cue, no reward from crossings; measured per level | §2.2, added | Path, LappingPreview | **Studio-tested**: 14.998 to 15.000 s laps at every level, cue 2 to 18 ms after the crossing (Lap timing table) |
-| SPW-11 | Fits the plot; never blocks gate, paths, Paddock, nameplate, plaza view; measured | §2.3, added | Preview/SpeedwayChecks | **Studio-measured**: no part outside the sector or over gate, walk, Paddock, kiosk or pit lanes at any level; plaza view in the Performance table (levels 9 to 12 partly hidden from a standing eye) |
+| SPW-11 | Fits the plot; never blocks gate, paths, Paddock, nameplate, plaza view; measured | §2.3, added | Preview/SpeedwayChecks | **Studio-measured**: no part outside the sector or over gate, walk, Paddock, kiosk or pit lanes at any level; plaza view in the Performance table (re-measured with every part as a blocker after the final review) |
 | SPW-12 | Visitors safe on raised parts, loop, overpass; cars harmless | §2.4, added | Track | **Studio-tested** (Play, scripted walker): the whole level-12 lap incl. hump, loop pad, raised far turn, deck and descent walked without getting stuck; walked under the descent (6.6 headroom over the root) and under the far turn; parapets 1.65 high on every raised edge; gantry collides at its legs only; loop mesh does not collide |
 | SPW-13 | Island style, symmetric prop placement, fictional names only | §2.5 | kit, Props | island palette only; fictional names (PIP'S POPS, COMET COLA, HAUL BUDDY TIRES, the existing banner brands); stills reviewed |
 | SPW-14 | Readable from the plaza | §2.6 | captures | captured from the plaza at every level (review page) |
@@ -64,19 +64,19 @@ Measured in Studio on Adam's laptop, private island place, 2026-10-28, with the 
 | Level | Parts | Mesh parts | Triangles | Highest point | Plaza view, eye 5 | Plaza view, camera 12 | Outside sector / protected |
 |---|---|---|---|---|---|---|---|
 | 1 | 313 | 89 | 24,684 | 6.9 | 94.5% | 97.5% | 0 / 0 |
-| 2 | 321 | 95 | 25,916 | 8.1 | 94.5% | 97.5% | 0 / 0 |
-| 3 | 353 | 125 | 28,844 | 8.1 | 94.5% | 97.5% | 0 / 0 |
-| 4 | 444 | 80 | 28,404 | 8.1 | 99.0% | 99.0% | 0 / 0 |
-| 5 | 493 | 83 | 29,796 | 10.4 | 98.0% | 99.0% | 0 / 0 |
-| 6 | 518 | 91 | 31,706 | 10.4 | 98.0% | 99.0% | 0 / 0 |
-| 7 | 587 | 159 | 39,180 | 13.0 | 98.0% | 99.0% | 0 / 0 |
-| 8 | 601 | 164 | 43,246 | 40.1 | 96.5% | 97.5% | 0 / 0 |
-| 9 | 868 | 153 | 38,652 | 40.1 | 23.0% | 59.0% | 0 / 0 |
-| 10 | 901 | 157 | 33,822 | 40.1 | 38.5% | 59.5% | 0 / 0 |
-| 11 | 945 | 159 | 34,994 | 65.0 | 38.5% | 62.0% | 0 / 0 |
-| 12 | 958 | 168 | 38,380 | 65.0 | 42.5% | 67.0% | 0 / 0 |
+| 2 | 321 | 95 | 25,916 | 8.1 | 94.5% | 97.0% | 0 / 0 |
+| 3 | 353 | 125 | 28,844 | 8.1 | 94.5% | 97.0% | 0 / 0 |
+| 4 | 444 | 80 | 28,404 | 8.1 | 77.0% | 91.5% | 0 / 0 |
+| 5 | 493 | 83 | 29,796 | 10.4 | 76.5% | 91.5% | 0 / 0 |
+| 6 | 518 | 91 | 31,706 | 10.4 | 76.5% | 91.5% | 0 / 0 |
+| 7 | 587 | 159 | 39,180 | 13.0 | 76.5% | 91.5% | 0 / 0 |
+| 8 | 601 | 164 | 43,246 | 40.1 | 55.5% | 71.5% | 0 / 0 |
+| 9 | 844 | 153 | 38,364 | 40.1 | 73.5% | 77.5% | 0 / 0 |
+| 10 | 877 | 157 | 33,534 | 40.1 | 78.5% | 78.5% | 0 / 0 |
+| 11 | 921 | 159 | 34,706 | 65.0 | 78.5% | 78.5% | 0 / 0 |
+| 12 | 934 | 168 | 38,092 | 65.0 | 45.5% | 46.0% | 0 / 0 |
 
-Highest point includes the blimp's orbit envelope (11 on) and the firework bloom (12). Levels 9 to 12: the banked near-turn wall and the raised far turn hide the far side of the lap from a standing eye on the plaza; the tall pieces (gantry, grandstand roof, loop, blimp) read from there. The level 1 to 3 triangle counts include the meshes of the hay, tyre and rope runs (the most mesh parts).
+Highest point includes the blimp's orbit envelope (11 on) and the firework bloom (12). Re-measured after the final review: every Speedway part now counts as a blocker (decoration was skipped before, which overstated levels 4 to 8), and the near turn banks 3 degrees with a 0.4 lip and no cap. Still blocking: the tyre wall at the near turn (levels 4 to 8). The gantry and the loop are measured as solid boxes (their mesh collision is Box), so levels 8 and 12 read lower than the eye sees through the open arch and loop. The level 1 to 3 triangle counts include the meshes of the hay, tyre and rope runs (the most mesh parts).
 
 **Six plots** (Play, client, Studio window in front, camera on the plaza looking at plot 3; the laptop was on battery and Studio held a flat 15.0 fps at both levels, so frame rate does not separate them; the render and memory numbers do):
 
@@ -99,4 +99,17 @@ Play, client, `LappingPreview.timing(32)` via the Studio test hook (`Lane3Speedw
 | 10 and 11 | raised far turn (11: hump) | 427.1 | 28.5 | 14.998 s (14.987 to 15.011) | 1.9 to 17.2 ms |
 | 12 | raised far turn + loop | 494.6 | 33.0 | 14.998 s (14.987 to 15.010) | 3.2 to 17.8 ms |
 
-The cue fires in the same frame the car's phase wraps (one clock), so the offset is under one frame (at most 66.7 ms at the battery-capped 15 fps; measured under 18 ms). Rewards never come from crossings (cars are client-only and not replicated).
+The cue fires in the same frame the car's phase wraps (one clock), so the offset is under one frame (at most 66.7 ms at the battery-capped 15 fps; measured under 18 ms). Re-run after the final review fixes (levels 9, 10, 11, 12, 1, 5 on the six plots, Studio behind other windows): 14.996 to 14.997 s mean, 14.948 to 15.024 s, cue 11 to 65 ms after the crossing, still under one frame. Rewards never come from crossings (cars are client-only and not replicated).
+
+## Final review (fresh Sonnet reviewer, 2026-10-28) and what was done
+1. Near-turn wall hid the lap at 9 to 12: **fixed** (bank 3, lip 0.4, no cap, no banners there); levels 9 to 11 now 73 to 79% from the plaza.
+2. Plaza view overstated (decoration not queried): **fixed** in SpeedwayChecks; table re-measured.
+3. Cars switched to the new path before the reveal built it: **fixed** (`SpeedwayPathLevel` set when the reveal ends; Studio-tested: path 9 at +0.3 s, 10 at +1.9 s).
+4. Colliding parts moved during the reveal: **fixed** (collision off while falling, back on landing, a visitor inside is lifted on top; Studio-tested).
+5. Refreshes not serialized, owner changes ignored: **fixed** (one build per plot at a time, changes queued; listening before the first build; owner change rebuilds; Studio-tested: a seven-change burst ends like a clean change, the sign updates to JUNO'S SPEEDWAY).
+6. Some levels hard to tell apart from the plaza (2, 3, 5, 6, 11; the loop edge-on): **open**, for Adam's review.
+7. Big screen empty: **fixed** with PREVIEW rows from the car fixture (no amounts).
+8. Loop entry yaw kink and car sag on a radius-10 loop: **open** (visual only; easing the loop needs the mesh rebuilt and re-uploaded).
+9. Leaks: figure list after a reveal (**fixed**: rescan after the reveal, skip gone figures), kiosk watcher per fill (**fixed**), island TrackMotion rescans the whole preview every 3 s (**open**, outside this diff), held folders of removed features (**open**, small).
+10. Cheer pop (**fixed**, separate cheer start), cheer sound every 5 s (**fixed**, at most every 15 s), blimp jumps when a plot turns near (**open**).
+Also: preview level overrides are honoured in Studio only (**fixed**); a failed mesh id silently omits the piece (open, noted).

@@ -32,6 +32,8 @@ status: proposed
 6. **Visitor safety:** solid parapets on every raised edge, columns only where the deck is at least 7 studs up and never on the ground road, a solid fill under lower deck (no gap to crawl into), the hump solid and walkable, decoration that does not collide, and the start gantry colliding only at its legs.
 7. **Rigid figures animated in code** (fans, the flag official, the mechanic, the blimp), each animated in its placement frame; only near plots animate. Celebrations follow the preview rarity fixture and are coalesced per plot.
 8. **Kit meshes** from a Git-tracked headless Blender recipe (`assets/island/kit/kit_speedway.py`), the island's existing palette only (no new image), previews from mesh data until Adam's guided import.
+9. **The near (plaza-side) turn banks 3 degrees with a 0.4-stud white lip** (no cap, catch fence or banners); the far turn keeps 14 degrees and the tall wall. Reason: the brief says never block the plaza's view of the track; at 8 degrees with a 0.9 lip the wall hid most of the lap (independent review, 2026-10-28). Levels 9 to 11 now show 73 to 79% of the lap from a standing eye on the plaza.
+10. **The cars follow the new lap path only when the level-up reveal has built the new road** (plot attribute `SpeedwayPathLevel`, set when the reveal ends; at once on a downgrade or a far plot), and falling pieces do not collide until they land.
 
 ## Consequences
 - The island preview build now shows no track in edit mode until `HubBuild.previewSpeedway()` is called (or Play starts); `clearSpeedway()` before saving the place.

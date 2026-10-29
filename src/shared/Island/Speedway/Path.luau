@@ -38,7 +38,7 @@ Path.DeckHalfWidth = 8 -- the raised road is as wide as the ground road (16)
 Path.DescentLandU = 421 -- the descent reaches the ground here, 6 before the finish line
 -- degrees, into the turn. The near turn (the one facing the plaza) banks gently so its outer wall
 -- stays low enough to see the track over from the plaza.
-Path.Bank = { Near = 8, Ground = 14, Raised = 14 }
+Path.Bank = { Near = 3, Ground = 14, Raised = 14 }
 Path.BankEase = 12 -- studs over which a bank fades in or out at each turn end
 -- Loop (level 12): matches SwLoopTrack (kit_speedway.py): radius 10, lateral offset 12, run-outs 6.
 -- SBendU: plot-frame u where the first S-bend starts on the ground right straight. EntryX 26 keeps

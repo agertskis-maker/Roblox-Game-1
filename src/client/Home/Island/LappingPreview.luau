@@ -90,8 +90,13 @@ local function previewPlots(): Folder
 	return island:FindFirstChild("Plots") :: Folder
 end
 
+-- The path the cars follow: SpeedwayPathLevel (set by SpeedwayLooks once a level-up reveal has
+-- built the new road), else the assembled look level.
 local function levelOf(plot: Model): number
-	local l = plot:GetAttribute("SpeedwayLookLevel")
+	local l = plot:GetAttribute("SpeedwayPathLevel")
+	if type(l) ~= "number" then
+		l = plot:GetAttribute("SpeedwayLookLevel")
+	end
 	return if type(l) == "number" then l else 4
 end
 

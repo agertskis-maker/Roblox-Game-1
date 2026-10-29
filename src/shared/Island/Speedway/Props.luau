@@ -812,6 +812,19 @@ function Props.bigScreen(major: Folder, ctx: Ctx)
 	list.Position = UDim2.fromScale(0.04, 0.24)
 	list.Size = UDim2.fromScale(0.92, 0.72)
 	list.Parent = bg
+	-- PREVIEW rows: the preview cars' slots and rarity fixture (LappingPreview); Lane 2's Lineup data
+	-- (car names, Lap Pay) replaces them later. No amounts.
+	local rows = {
+		{ "1", "COMMON", Color3.fromRGB(110, 170, 230) },
+		{ "2", "RARE", Color3.fromRGB(90, 200, 120) },
+		{ "4", "EPIC", Color3.fromRGB(170, 110, 230) },
+		{ "6", "LEGENDARY", Color3.fromRGB(250, 190, 60) },
+	}
+	for i, row in rows do
+		local y = (i - 1) * 0.25
+		label(list, "CAR " .. row[1], { 0, y, 0.4, 0.22 }, 28, CREAM)
+		label(list, row[2], { 0.42, y, 0.58, 0.22 }, 28, row[3])
+	end
 	face:SetAttribute("LineupScreen", true)
 end
 

@@ -40,6 +40,7 @@ type PlotLife = {
 	racks: { BasePart },
 	clapUntil: number,
 	cheerUntil: number,
+	cheerStart: number, -- when the current cheer began (a second cheer extends it without a dip)
 	waveAt: number,
 	celebrateAt: number,
 	laps: number,
@@ -71,6 +72,7 @@ local function collect(plot: Model): PlotLife
 			racks = {},
 			clapUntil = 0,
 			cheerUntil = 0,
+			cheerStart = 0,
 			waveAt = -100,
 			celebrateAt = -100,
 			laps = 0,
@@ -315,6 +317,9 @@ function Life.onCrossed(plot: Model, car: BasePart?, rarity: string, carIndex: n
 	pl.waveAt = now
 	pl.clapUntil = math.max(pl.clapUntil, now + 1.2)
 	if rarity == "Rare" or rarity == "Epic" or rarity == "Legendary" then
+		if now >= pl.cheerUntil then
+			pl.cheerStart = now
+		end
 		pl.cheerUntil = math.max(pl.cheerUntil, now + 2.4)
 	end
 	if carIndex == 1 then
@@ -341,12 +346,15 @@ local function animate(pl: PlotLife, now: number, calm: boolean, parts: { BasePa
 	local clapping = now < pl.clapUntil
 	local cheering = now < pl.cheerUntil
 	for _, fig in pl.figures do
+		if not fig.model.Parent then
+			continue -- a replaced piece, gone until the next rescan
+		end
 		local base = fig.base
 		if fig.kind == "Fan" then
 			local bob = if calm then 0.04 * math.sin(now * 0.8 + fig.phase) else 0.08 * math.sin(now * 2 + fig.phase)
 			local rise = 0
 			if cheering and not calm then
-				rise = 0.7 * math.min(1, (pl.cheerUntil - now) * 3, (now - (pl.cheerUntil - 2.4)) * 4)
+				rise = 0.7 * math.min(1, (pl.cheerUntil - now) * 3, (now - pl.cheerStart) * 4)
 			end
 			local body = base * CFrame.new(0, bob + math.max(0, rise), 0)
 			table.insert(parts, fig.model.PrimaryPart :: BasePart)

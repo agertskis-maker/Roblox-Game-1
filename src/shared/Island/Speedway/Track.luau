@@ -401,13 +401,14 @@ end
 -- ------------------------------------------------------------------ banked turns (level 9 on)
 
 -- Raised outer walls on a banked turn (white with a navy cap), catch fencing on top (minor
--- detail) and fictional banners on the wall's inner face. `turn` is "near" or "far".
+-- detail) and fictional banners on the wall's inner face. `turn` is "near" or "far"; the near turn
+-- (facing the plaza) gets only a low white lip, so the plaza sees the track over it.
 function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 	local path = Path.forLevel(9)
 	local seg = if turn == "near" then path.segments[2] else path.segments[4]
 	local a, b = seg.s0 - Path.BankEase, seg.s0 + seg.length + Path.BankEase
 	-- the near turn faces the plaza: a lower lip and no catch fence, so the track reads over it
-	local lip = if turn == "near" then 0.9 else 2.2
+	local lip = if turn == "near" then 0.4 else 2.2
 	local list = samples(path, a, b, 3)
 	for i = 1, #list - 1 do
 		local sa, sb = list[i], list[i + 1]
@@ -426,11 +427,13 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 				collide = true,
 				castShadow = false,
 			}, 0.5)
-			Kit.slab(major, wa + Vector3.yAxis * 0.16, wb + Vector3.yAxis * 0.16, Vector3.yAxis, 1.15, 0.16, {
-				name = "BankWallCap",
-				color = C.WallCap,
-				castShadow = false,
-			}, 0.5)
+			if turn ~= "near" then
+				Kit.slab(major, wa + Vector3.yAxis * 0.16, wb + Vector3.yAxis * 0.16, Vector3.yAxis, 1.15, 0.16, {
+					name = "BankWallCap",
+					color = C.WallCap,
+					castShadow = false,
+				}, 0.5)
+			end
 		end
 	end
 	-- catch fence runs on the wall top, along the full-bank part of the turn
@@ -447,7 +450,10 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 			Ctx.place(ctx, minor, "SwCatchFence", at.X, at.Y, -out, top)
 		end
 	end
-	-- three fictional banners on each turn wall's inner face (flat boards, the wall curves gently)
+	if turn == "near" then
+		return -- the near wall is a low lip, too short for banners
+	end
+	-- three fictional banners on the far wall's inner face (flat boards, the wall curves gently)
 	local arts = { "BannerA", "BannerB", "BannerC", "BannerD" }
 	for k, f in { 0.25, 0.5, 0.75 } do
 		local s = seg.s0 + seg.length * f

@@ -133,16 +133,19 @@ function Kiosk.fill(plot: Model, level: number, options: Look.Options)
 		existing = made
 	end
 	local board = existing :: SurfaceGui
-	board.Adornee = face
+	if board.Adornee ~= face then
+		-- one watcher per face (the face lasts through every level change)
+		board.Adornee = face
+		face.Destroying:Once(function()
+			if board.Adornee == face or board.Adornee == nil then
+				board:Destroy()
+			end
+		end)
+	end
 	board:ClearAllChildren()
 	if inWorld then
 		inWorld:Destroy()
 	end
-	face.Destroying:Once(function()
-		if board.Adornee == face or board.Adornee == nil then
-			board:Destroy()
-		end
-	end)
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.fromScale(1, 1)
 	bg.BackgroundColor3 = Color3.fromRGB(36, 58, 98)

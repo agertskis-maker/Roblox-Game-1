@@ -4,7 +4,7 @@
 -- switches far plots to their still silhouette, plays the level-up reveal, fills the kiosk's
 -- next-level board, draws the next level's ghost outline, animates the figures and plays the
 -- ambience. A plot's level comes from, in order:
---   the LocalPlayer attribute "Lane3SpeedwayPreviewLevel_PlotNN", then "Lane3SpeedwayPreviewLevel"
+--   in Studio only, the LocalPlayer attribute "Lane3SpeedwayPreviewLevel_PlotNN", then "Lane3SpeedwayPreviewLevel"
 --     (Studio preview only, set by the preview panel or a playtest script),
 --   the plot's "SpeedwayLevel" attribute (the proposed Lane 2 contract: the server sets it),
 --   the plot's "SpeedwayPreviewLevel" (the island preview build), else level 1.
@@ -42,7 +42,17 @@ local player = Players.LocalPlayer
 -- preview owner names for the plots that are not "yours" (fictional, PREVIEW only)
 local FIXTURE_OWNERS = { "Pip", "Juno", "Rex", "Mo", "Kit", "Lou" }
 
-type PlotInfo = { plot: Model, index: number, bearing: number, centre: Vector3, near: boolean, level: number }
+type PlotInfo = {
+	plot: Model,
+	index: number,
+	bearing: number,
+	centre: Vector3,
+	near: boolean,
+	level: number,
+	owner: string?,
+	busy: boolean,
+	dirty: boolean,
+}
 
 local function attach(root: Instance): Trove.Trove
 	local trove = Trove.new()
@@ -54,13 +64,16 @@ local function attach(root: Instance): Trove.Trove
 	local panelRefresh: (() -> ())? = nil
 
 	local function resolve(info: PlotInfo): number
-		local own = player:GetAttribute(string.format("Lane3SpeedwayPreviewLevel_Plot%02d", info.index))
-		if type(own) == "number" then
-			return Ladder.clamp(own)
-		end
-		local all = player:GetAttribute("Lane3SpeedwayPreviewLevel")
-		if type(all) == "number" then
-			return Ladder.clamp(all)
+		if RunService:IsStudio() then
+			-- preview overrides, Studio only (a live game follows the server's SpeedwayLevel)
+			local own = player:GetAttribute(string.format("Lane3SpeedwayPreviewLevel_Plot%02d", info.index))
+			if type(own) == "number" then
+				return Ladder.clamp(own)
+			end
+			local all = player:GetAttribute("Lane3SpeedwayPreviewLevel")
+			if type(all) == "number" then
+				return Ladder.clamp(all)
+			end
 		end
 		local real = info.plot:GetAttribute("SpeedwayLevel")
 		if type(real) == "number" then
@@ -102,30 +115,49 @@ local function attach(root: Instance): Trove.Trove
 		end
 	end
 
-	local function refresh(info: PlotInfo, first: boolean)
+	local function build(info: PlotInfo, first: boolean)
 		local level = resolve(info)
+		local owner = ownerOf(info)
 		local state = Look.state(info.plot)
-		if state and state.level == level and not first then
+		if state and state.level == level and info.owner == owner and not first then
 			ghost(info)
 			return
 		end
 		Reveal.finish(info.plot)
+		if state and info.owner ~= owner then
+			-- a new owner name: rebuild the signs (and everything else) quietly
+			Look.clear(info.plot)
+			first = true
+		end
+		info.owner = owner
 		local old = info.level
 		local change = Look.apply(info.plot, level, options(info))
 		info.level = level
-		if first or level < old or not info.near then
+		local revealing = not (first or level < old or not info.near)
+		if not revealing then
 			-- first build, an inspection downgrade or a far plot: no show, just the result
 			for _, f in change.removed do
 				f:Destroy()
 			end
+			info.plot:SetAttribute("SpeedwayPathLevel", level)
+			Life.rescan(info.plot, level)
 		else
 			local calm = Calm()
 			Reveal.play(info.plot, change.added, change.removed, calm, fx)
 			if info.index == homeIndex() then
 				Reveal.banner(Ladder.banner(level), calm)
 			end
+			-- the cars move to the new road, and the crowd is rescanned, once the reveal has built it
+			-- (the replaced pieces are destroyed by then)
+			Life.rescan(info.plot, old)
+			task.delay(Reveal.Seconds + 0.05, function()
+				if info.level == level and info.plot.Parent then
+					info.plot:SetAttribute("SpeedwayPathLevel", level)
+					Life.rescan(info.plot, level)
+					Life.setActive(info.plot, info.near)
+				end
+			end)
 		end
-		Life.rescan(info.plot, level)
 		Life.setActive(info.plot, info.near)
 		Kiosk.fill(info.plot, level, options(info))
 		Sound.setLevel(info.plot, level, info.centre, fx)
@@ -136,6 +168,25 @@ local function attach(root: Instance): Trove.Trove
 		end
 		if panelRefresh then
 			panelRefresh()
+		end
+	end
+
+	-- One build at a time per plot (Look.apply yields while meshes load): a change that arrives
+	-- during a build is applied right after it, so none is lost and no feature is built twice.
+	local function refresh(info: PlotInfo, first: boolean)
+		if info.busy then
+			info.dirty = true
+			return
+		end
+		info.busy = true
+		local ok, err = pcall(build, info, first)
+		while ok and info.dirty and info.plot.Parent do
+			info.dirty = false
+			ok, err = pcall(build, info, false)
+		end
+		info.busy = false
+		if not ok then
+			warn("Speedway looks: " .. tostring(err))
 		end
 	end
 
@@ -163,14 +214,18 @@ local function attach(root: Instance): Trove.Trove
 			centre = frame * Vector3.new(0, 0, -TRACK_CENTRE_U),
 			near = true,
 			level = 0,
+			owner = nil,
+			busy = false,
+			dirty = false,
 		}
 		infos[plot] = info
-		refresh(info, true)
+		-- listen first, so a level set during the first build is not missed
 		trove:Connect(plot.AttributeChanged, function(name)
 			if name == "SpeedwayLevel" or name == "SpeedwayPreviewLevel" or name == "OwnerDisplayName" then
 				refresh(info, false)
 			end
 		end)
+		refresh(info, true)
 	end
 
 	local island = root:WaitForChild("Island", 30)

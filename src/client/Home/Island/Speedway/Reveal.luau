@@ -2,8 +2,8 @@
 -- The Speedway level-up reveal (Lane 3, client presentation only), about 1.5 seconds: a puff of
 -- construction dust at each new piece, the new pieces drop into place with a springy bounce
 -- (staggered), replaced pieces fade away, a short confetti burst and a banner
--- "SPEEDWAY LEVEL 5: THE FLAG OFFICIAL!" in the HUD style. Nothing blocks input, nothing
--- collides while moving (the pieces are anchored and placed by CFrame on this client), and a
+-- "SPEEDWAY LEVEL 5: THE FLAG OFFICIAL!" in the HUD style. Nothing blocks input; a falling piece
+-- does not collide until it lands (then a visitor standing inside it is lifted on top), and a
 -- new reveal, a reset or a downgrade first snaps any running one to its end. Reduce Motion:
 -- pieces fade in where they stand, no drop, no confetti, the banner fades.
 
@@ -20,7 +20,7 @@ Reveal.Seconds = 1.5 -- Tunable
 local DROP = 7 -- studs the pieces fall from (Tunable)
 local STAGGER = 0.45 -- spread of start times across the pieces (Tunable)
 
-type Item = { part: BasePart, final: CFrame, transparency: number, delay: number }
+type Item = { part: BasePart, final: CFrame, transparency: number, delay: number, collide: boolean }
 type Run = {
 	items: { Item },
 	removed: { Folder },
@@ -44,10 +44,30 @@ local function finish(run: Run)
 		if it.part.Parent then
 			it.part.CFrame = it.final
 			it.part.LocalTransparencyModifier = 0
+			if it.collide then
+				it.part.CanCollide = true
+			end
 		end
 	end
 	for _, f in run.removed do
 		f:Destroy()
+	end
+	-- a visitor caught inside a piece that just landed stands on top of it instead
+	local character = Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		for _, it in run.items do
+			if it.collide and it.part.Parent then
+				local p = it.part.CFrame:PointToObjectSpace(root.Position)
+				local half = it.part.Size / 2
+				if math.abs(p.X) < half.X + 1 and math.abs(p.Y) < half.Y + 2.5 and math.abs(p.Z) < half.Z + 1 then
+					local top = it.part.Position.Y + it.part.Size.Magnitude / 2
+					if root.Position.Y < top then
+						character:PivotTo(character:GetPivot() + Vector3.yAxis * (top + 3 - root.Position.Y))
+					end
+				end
+			end
+		end
 	end
 end
 
@@ -150,7 +170,11 @@ function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: 
 		local sum, n = Vector3.zero, 0
 		for _, d in folder:GetDescendants() do
 			if d:IsA("BasePart") then
-				table.insert(items, { part = d, final = d.CFrame, transparency = d.Transparency, delay = 0 })
+				table.insert(
+					items,
+					{ part = d, final = d.CFrame, transparency = d.Transparency, delay = 0, collide = d.CanCollide }
+				)
+				d.CanCollide = false
 				sum += d.Position
 				n += 1
 			end
@@ -175,7 +199,7 @@ function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: 
 	for _, f in removed do
 		for _, d in f:GetDescendants() do
 			if d:IsA("BasePart") then
-				table.insert(items, { part = d, final = d.CFrame, transparency = -1, delay = 0 })
+				table.insert(items, { part = d, final = d.CFrame, transparency = -1, delay = 0, collide = false })
 			end
 		end
 	end

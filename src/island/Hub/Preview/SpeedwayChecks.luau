@@ -155,7 +155,14 @@ function SpeedwayChecks.run(options: { plot: number?, levels: { number }? }?): {
 		if level >= 12 then
 			top = math.max(top, 28 + 12) -- the firework bloom: 28 up, about 12 across
 		end
-		-- plaza view of the lap
+		-- plaza view of the lap: every Speedway part blocks the view, decoration included (it is
+		-- CanQuery false in the game, so turn querying on for this measurement; the look is cleared
+		-- after the run)
+		for _, d in look:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.CanQuery = true
+			end
+		end
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Include
 		params.FilterDescendantsInstances = { look }

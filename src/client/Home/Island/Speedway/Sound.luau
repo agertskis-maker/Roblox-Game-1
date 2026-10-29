@@ -3,7 +3,7 @@
 -- kept under the music and never tiring on your own plot.
 --   levels 1 and 2  a soft breeze in the grass
 --   level 3 on      a small crowd murmur, a little fuller at each level (capped)
---   Rare or rarer   a short cheer when such a car finishes (level 3 on), at most every 4 seconds
+--   Rare or rarer   a short cheer when such a car finishes (level 3 on), at most every 15 seconds
 --   level 12        an announcer horn when a Legendary car finishes, at most every 12 seconds
 -- Positional at each plot's track centre; only the two nearest plots play, so six top-level
 -- plots never add up to a wall of sound. One SoundGroup ("Lane3Speedway"), nothing saved.
@@ -127,7 +127,7 @@ function Sound.onCrossed(plot: Model, rarity: string)
 		return
 	end
 	local now = os.clock()
-	if ps.level >= 3 and rarity ~= "Common" and now - ps.cheerAt > 4 then
+	if ps.level >= 3 and rarity ~= "Common" and now - ps.cheerAt > 15 then
 		ps.cheerAt = now
 		local s = make(ps.emitter, Sound.Ids.Cheer, 0.22, false)
 		if s then
