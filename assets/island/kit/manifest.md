@@ -485,3 +485,76 @@ Known issue from an earlier upload: `GrassTuftWide` (85162093459834, Task 2) beg
 | TurntableDisc | 138097925181855 |
 | WallLight | 124235524460081 |
 | WrenchTireSculpture | 129297331288501 |
+
+## Speedway kit (imported 2026-10-28, Adam, 3D Importer, island-kit-speedway/island-kit.obj)
+
+55 meshes, 16,827 triangles, recipe `assets/island/kit/kit_speedway.py`, existing palette only (no new image). Uploaded under Adam's user account (peskaface, 2393473976) on Adam's choice because the account is in no Roblox group yet; a group-owned re-import replaces these (`vault/design/specs/island-group-reimport.md`). Checked with `Hub/Preview/ImportCheck`: 55 found, none missing, extra or duplicated, sizes within 0.01. Ids also in `src/shared/Island/Speedway/KitIds.luau`.
+
+| Mesh | Id |
+|---|---|
+| SwAnnouncerBooth | 124453131187665 |
+| SwBigScreen | 136313621591068 |
+| SwBleachers | 116247810996339 |
+| SwBlimp | 90422652853307 |
+| SwCatchFence | 118467531984872 |
+| SwColumn | 117122389431761 |
+| SwColumnCap | 138360257717620 |
+| SwConfettiCannon | 86449102782819 |
+| SwFanA | 78659021360351 |
+| SwFanArmA | 78174090582827 |
+| SwFanArmB | 92288988788911 |
+| SwFanArmC | 128032313986312 |
+| SwFanArmD | 134667519052344 |
+| SwFanB | 135244994677708 |
+| SwFanC | 78827618381473 |
+| SwFanD | 78662527393225 |
+| SwFireworkRack | 125124780517169 |
+| SwFlameDecal | 93193112513464 |
+| SwFloodTower | 91154333937804 |
+| SwFoldingChair | 118657963872263 |
+| SwGantry | 74403998767331 |
+| SwGantryGold | 84586293883784 |
+| SwGrandstandBay | 80000123062400 |
+| SwGuardRail | 118243041147792 |
+| SwHayRun | 71403699224391 |
+| SwLapBoard | 82939533196986 |
+| SwLemonadeStand | 88358586428374 |
+| SwLoopTrack | 125969216625674 |
+| SwMechanic | 85414037662565 |
+| SwOfficialArm | 127574675253827 |
+| SwOfficialBody | 108302391421797 |
+| SwOfficialPodium | 99851458414418 |
+| SwOrangeBarrier | 116584146015210 |
+| SwOwnerSign | 114585653931779 |
+| SwPaintedShed | 100881923990640 |
+| SwPennantPole | 133219469923618 |
+| SwPitGarage | 85056047877073 |
+| SwPreviewCar | 114289274081549 |
+| SwRollDoor | 137736104496512 |
+| SwRoofSection | 136803859882416 |
+| SwRopeFence | 130736182708379 |
+| SwRustyShed | 74007209717289 |
+| SwSnackCart | 124620820513366 |
+| SwStartBoard | 108638704239839 |
+| SwStartLights | 91248060101322 |
+| SwStatueCar | 107153665426811 |
+| SwStatuePedestal | 84105899812591 |
+| SwToolChest | 127404059896137 |
+| SwTyreRun | 129182236325606 |
+| SwTyreStackTall | 134733406920013 |
+| SwTyreWall | 75467866278108 |
+| SwWaterBarrel | 71014321583426 |
+| SwWheelbarrow | 92646788953541 |
+| SwWonkyStick | 107697770547663 |
+| SwWrench | 75450568807779 |
+
+## Speedway sounds under test (2026-10-28; Creator Store audio, not uploaded)
+
+| Use | Asset | Id | Source | In game |
+|---|---|---|---|---|
+| Breeze (levels 1-2) | Barstow Wind Light Blustery Low Howl 1 (SFX), 11.9 s | 9113286782 | ProSoundEffects | loop, volume 0.12, two nearest plots |
+| Crowd murmur (level 3 on) | Theatre Crowd 3 (SFX), 36 s | 9119996106 | ProSoundEffects | loop, volume 0.05 to 0.2 by level |
+| Cheer (Rare or rarer finish) | Wrestling Crowd 3 (SFX), 4.3 s | 9120974378 | ProSoundEffects | one-shot, volume 0.22, at most every 4 s |
+| Horn (level 12, Legendary finish) | Vehicle Horn Short Long Honks 4 (SFX), 0.7 s | 9120385769 | ProSoundEffects | one-shot, volume 0.25, at most every 12 s |
+
+All play in SoundGroup `Lane3Speedway`; licence text **not verified** (same status as the island sounds above). Heard in the recorded review clips (mean -44 dB, peak -26 dB over the level 1 to 12 clip); Adam's listening check pending.

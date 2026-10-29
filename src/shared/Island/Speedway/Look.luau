@@ -134,7 +134,7 @@ Look.Features = {
 	f("SnackCart", 3, 12, function(p, c)
 		Props.snackCart(p.minor, c)
 	end),
-	f("LapBoard", 3, 7, function(p, c)
+	f("LapBoard", 3, 6, function(p, c)
 		Props.lapBoard(p.minor, c)
 	end),
 	f("Official", 5, 12, function(p, c)
