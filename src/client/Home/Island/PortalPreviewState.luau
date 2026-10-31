@@ -20,6 +20,10 @@ local DEFAULT: { [string]: boolean } = { Downtown = false, DustyHighway = true, 
 local PREFIX = "Lane3PortalLocked_"
 
 function PortalPreviewState.isLocked(world: string): boolean
+	-- Car Hop Beta 1 (decision 0030): every World portal is open so testers can try each run
+	if game:GetService("ReplicatedStorage"):FindFirstChild("CarHopBeta") then
+		return false
+	end
 	if RunService:IsStudio() then
 		local v = Players.LocalPlayer:GetAttribute(PREFIX .. world)
 		if type(v) == "boolean" then

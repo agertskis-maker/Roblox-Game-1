@@ -158,7 +158,7 @@ function RunFx.burst(self: RunFx, at: CFrame, colour: Color3)
 	}, 40)
 end
 
-function RunFx.sound(self: RunFx, name: string, volume: number?, pitch: number?)
+function RunFx.sound(_self: RunFx, name: string, volume: number?, pitch: number?)
 	local id = (SOUNDS :: any)[name]
 	if not id then
 		return
