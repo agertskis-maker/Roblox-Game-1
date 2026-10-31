@@ -13,84 +13,84 @@ local function id(n: number): string
 end
 
 -- the island kit palette (256 x 256 swatch image) every kit mesh is UV-mapped to
-KitIds.Palette = id(134121745235322)
+KitIds.Palette = id(128169045252325)
 
 KitIds.Textures = {
-	Pennants = id(129394675251472),
-	FlagChecker = id(113814256495528),
-	FlagStripesA = id(97908223611462),
-	FlagStripesB = id(81318556896008),
-	FlagStar = id(93044374349935),
+	Pennants = id(109986080076934),
+	FlagChecker = id(107933231350357),
+	FlagStripesA = id(109705567230453),
+	FlagStripesB = id(77641612149566),
+	FlagStar = id(96696844387606),
 }
 
--- name -> "rbxassetid://..." (61 meshes: 52 from the 2026-10-28 import and 9 from the Raceway round 2 import of 2026-10-29,
--- Car-Hop-Art/island-kit-speedway/raceway-round2.obj, same account and settings). Imported 2026-10-28 with Studio's 3D Importer from
--- Car-Hop-Art/island-kit-speedway/island-kit.obj under Adam's user account (peskaface) for now,
--- on Adam's choice, because the account is not in a group yet; a group-owned re-import replaces
--- these ids (vault/design/specs/island-group-reimport.md). Checked with Preview/ImportCheck:
--- 55 found, none missing, extra or duplicated, sizes within 0.01 of the manifest.
+-- name -> "rbxassetid://..." (61 meshes), group-owned: re-imported 2026-10-31 by Adam under the group
+-- LEGION STUDI0S (group 74306252) with Studio's 3D Importer from
+-- Car-Hop-Art/upload-legion-island-2026-10-31/3-raceway-meshes-61.obj (the full kit build of 2026-10-29).
+-- Every id checked: group creator, sizes within 0.01 of the manifest. The palette and the textures above
+-- were re-imported the same day (the same ids as Island/Hub/Environment/AssetIds). The earlier
+-- user-owned ids (peskaface, 2026-10-28 and 2026-10-29) are listed in assets/island/kit/manifest.md.
 KitIds.Meshes = {
-	SwAnnouncerBooth = id(124453131187665),
-	SwBayBarrierArm = id(99420121739252), -- Raceway round 2 (imported 2026-10-29)
-	SwBayBarrierPost = id(98664871775585), -- Raceway round 2 (imported 2026-10-29)
-	SwBigScreen = id(136313621591068),
-	SwBleachers = id(87693115942075), -- Raceway round 2 (imported 2026-10-29)
-	SwBlimp = id(80603776193517), -- Raceway round 2 (imported 2026-10-29)
-	SwCatchFence = id(118467531984872),
-	SwColumn = id(117122389431761),
-	SwColumnCap = id(138360257717620),
-	SwConfettiCannon = id(86449102782819),
-	SwFanA = id(78659021360351),
-	SwFanArmA = id(78174090582827),
-	SwFanArmB = id(92288988788911),
-	SwFanArmC = id(128032313986312),
-	SwFanArmD = id(134667519052344),
-	SwFanB = id(135244994677708),
-	SwFanC = id(78827618381473),
-	SwFanD = id(78662527393225),
-	SwFireworkRack = id(125124780517169),
-	SwFlameDecal = id(93193112513464),
-	SwFloodTower = id(91154333937804),
-	SwFoldingChair = id(118657963872263),
-	SwGantry = id(74403998767331),
-	SwGantryGold = id(84586293883784),
-	SwGrandstandBay = id(95312713352772), -- Raceway round 2 (imported 2026-10-29)
-	SwGuardRail = id(118243041147792),
-	SwHayRun = id(71403699224391),
-	SwKeeperArm = id(136090235910283), -- Raceway round 2 (imported 2026-10-29)
-	SwKeeperBody = id(129469051229063), -- Raceway round 2 (imported 2026-10-29)
-	SwLapBoard = id(82939533196986),
-	SwLemonadeStand = id(88358586428374),
-	SwLoopTrack = id(125969216625674),
-	SwMechanic = id(85414037662565),
-	SwOfficialArm = id(127574675253827),
-	SwOfficialBody = id(108302391421797),
-	SwOfficialPodium = id(99851458414418),
-	SwOrangeBarrier = id(116584146015210),
-	SwOwnerSign = id(114585653931779),
-	SwPaintedShed = id(100881923990640),
-	SwParkingSign = id(97551999119993), -- Raceway round 2 (imported 2026-10-29)
-	SwPennantPole = id(133219469923618),
-	SwPitGarage = id(85056047877073),
-	SwPreviewCar = id(114289274081549),
-	SwRacewayShop = id(136327841605965), -- Raceway round 2 (imported 2026-10-29)
-	SwRollDoor = id(137736104496512),
-	SwRoofSection = id(136803859882416),
-	SwRopeFence = id(130736182708379),
-	SwRustyShed = id(74007209717289),
-	SwSnackCart = id(124620820513366),
-	SwStartBoard = id(108638704239839),
-	SwStartLights = id(91248060101322),
-	SwStatueCar = id(107153665426811),
-	SwStatuePedestal = id(84105899812591),
-	SwToolChest = id(127404059896137),
-	SwTyreRun = id(129182236325606),
-	SwTyreStackTall = id(134733406920013),
-	SwTyreWall = id(75467866278108),
-	SwWaterBarrel = id(71014321583426),
-	SwWheelbarrow = id(92646788953541),
-	SwWonkyStick = id(107697770547663),
-	SwWrench = id(75450568807779),
+	SwAnnouncerBooth = id(85280690019741),
+	SwBayBarrierArm = id(102661645918978), -- Raceway round 2
+	SwBayBarrierPost = id(72382460044152), -- Raceway round 2
+	SwBigScreen = id(128201415244874),
+	SwBleachers = id(107432199937261), -- Raceway round 2
+	SwBlimp = id(96699312485170), -- Raceway round 2
+	SwCatchFence = id(100543478185899),
+	SwColumn = id(115247428990660),
+	SwColumnCap = id(123422088082154),
+	SwConfettiCannon = id(82865014588770),
+	SwFanA = id(83121163075535),
+	SwFanArmA = id(75049768549378),
+	SwFanArmB = id(120825261111737),
+	SwFanArmC = id(126747982610886),
+	SwFanArmD = id(115678520260583),
+	SwFanB = id(91123601332587),
+	SwFanC = id(87393623373212),
+	SwFanD = id(117245066153917),
+	SwFireworkRack = id(129517648518270),
+	SwFlameDecal = id(127373852109905),
+	SwFloodTower = id(103538610674357),
+	SwFoldingChair = id(115166621593495),
+	SwGantry = id(91999865224306),
+	SwGantryGold = id(120131138578527),
+	SwGrandstandBay = id(103599785391659), -- Raceway round 2
+	SwGuardRail = id(136867342464008),
+	SwHayRun = id(140031111271962),
+	SwKeeperArm = id(102504505914546), -- Raceway round 2
+	SwKeeperBody = id(102350514652723), -- Raceway round 2
+	SwLapBoard = id(136055088029366),
+	SwLemonadeStand = id(97741292989096),
+	SwLoopTrack = id(101864195807167),
+	SwMechanic = id(135045771420514),
+	SwOfficialArm = id(107245427682978),
+	SwOfficialBody = id(79915609641268),
+	SwOfficialPodium = id(140449945546404),
+	SwOrangeBarrier = id(127964033639594),
+	SwOwnerSign = id(124441916586855),
+	SwPaintedShed = id(91248138191970),
+	SwParkingSign = id(108613965243569), -- Raceway round 2
+	SwPennantPole = id(78922292885261),
+	SwPitGarage = id(123837917076829),
+	SwPreviewCar = id(137630075868196),
+	SwRacewayShop = id(88675832942368), -- Raceway round 2
+	SwRollDoor = id(73057985208386),
+	SwRoofSection = id(121872970793697),
+	SwRopeFence = id(138483697478646),
+	SwRustyShed = id(76838557009265),
+	SwSnackCart = id(95141887124611),
+	SwStartBoard = id(127792453703226),
+	SwStartLights = id(104205558358843),
+	SwStatueCar = id(128442367976976),
+	SwStatuePedestal = id(102560465524845),
+	SwToolChest = id(126048126880224),
+	SwTyreRun = id(132481136278127),
+	SwTyreStackTall = id(126825259786624),
+	SwTyreWall = id(86760996331774),
+	SwWaterBarrel = id(84553120810312),
+	SwWheelbarrow = id(109677414305240),
+	SwWonkyStick = id(101710054055028),
+	SwWrench = id(106420477941889),
 } :: { [string]: string }
 
 -- Raceway round 2 (Adam, 2026-10-29): no advertising. The banked-wall banner images (ZOOPA FIZZ,

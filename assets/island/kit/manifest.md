@@ -576,3 +576,372 @@ No uploaded mesh in the Speedway kit carries lettering: every sponsor name and t
 | Horn (level 12, Legendary finish) | Vehicle Horn Short Long Honks 4 (SFX), 0.7 s | 9120385769 | ProSoundEffects | one-shot, volume 0.25, at most every 12 s |
 
 All play in SoundGroup `Lane3Speedway`; licence text **not verified** (same status as the island sounds above). Heard in the recorded review clips (mean -44 dB, peak -26 dB over the level 1 to 12 clip); Adam's listening check pending.
+
+## Group-owned re-import (2026-10-31)
+
+Adam re-imported every island and Raceway asset in use under the group **LEGION STUDI0S** (group 74306252) with Studio's 3D Importer, in his private island test place: four files in `Car-Hop-Art/upload-legion-island-2026-10-31/` (151 island meshes, 97 Task 4 meshes, 61 Raceway meshes, and 53 images carried as textures of flat squares). Checked by Claude Code the same day: one copy of each import; all 362 new ids report Creator Group 74306252 on economy.roblox.com (309 meshes, 53 images); all 309 mesh sizes within 0.01 of the two KitManifests. Ids swapped in `src/island/Hub/Environment/AssetIds.luau` and `src/shared/Island/Speedway/KitIds.luau`. The earlier ids below were uploaded under peskaface and are retired (not referenced). Not re-imported because nothing uses them: SignArt BannerA to BannerD (the removed sponsor banners) and Kiosk; the Creator Store sounds are not ours to upload.
+
+| Name | Table | New id (group) | Retired id (peskaface) |
+|---|---|---|---|
+| WaterBody | Textures | 76448861868809 | 118829614143752 |
+| WaterStrandsFast | Textures | 84198602448972 | 123432307138321 |
+| WaterStrandsSlow | Textures | 126401069049014 | 80338760305637 |
+| WaterHighlights | Textures | 126946943900205 | 111578838235188 |
+| WaterSpray | Textures | 129096095057922 | 91396665960467 |
+| FoamTile | Textures | 83639401265553 | 122795342152257 |
+| FoamPatch | Textures | 133773604286652 | 99023600024403 |
+| Ripple | Textures | 110000918142561 | 106407842749322 |
+| Droplet | Textures | 104718015917348 | 109536997721772 |
+| Mist | Textures | 100353530625667 | 114900109756669 |
+| Rainbow | Textures | 92530769791430 | 72537598666370 |
+| Sparkle | Textures | 124856660251107 | 87030054749344 |
+| Glow | Textures | 104162855106857 | 109290330063558 |
+| Current | Textures | 90799224483267 | 103576178978702 |
+| Chevron | Textures | 131283501116373 | 96352143506498 |
+| PortalSwirlA | Textures | 97184972304820 | 92093492199405 |
+| PortalSwirlB | Textures | 121384250907605 | 108950429777685 |
+| PortalCloudTile | Textures | 140374123745689 | 123976736191333 |
+| PortalCore | Textures | 131487211688936 | 71006997459996 |
+| PortalVeil | Textures | 133332175362123 | 80047315268792 |
+| PortalVeilB | Textures | 106363486085507 | 122267435775183 |
+| PortalMask | Textures | 132444414799690 | 112768234647366 |
+| PortalBeam | Textures | 97082628992749 | 99849771860096 |
+| PortalDepth | Textures | 122344255111090 | 77298104491687 |
+| PortalCloudBall | Textures | 102883150299572 | 98562926959140 |
+| PortalCloudBallB | Textures | 134123364350479 | 85244900910059 |
+| PortalBand | Textures | 95138204365042 | 90038845373360 |
+| GroundPool | Textures | 130753937124264 | 100675320642077 |
+| Mote | Textures | 118165875852224 | 128577684526564 |
+| Ember | Textures | 78738981505727 | 117732180184030 |
+| Shimmer | Textures | 136941114758210 | 113969750355597 |
+| Pennants | Textures | 109986080076934 | 129394675251472 |
+| FlagChecker | Textures | 107933231350357 | 113814256495528 |
+| FlagStripesA | Textures | 109705567230453 | 97908223611462 |
+| FlagStripesB | Textures | 77641612149566 | 81318556896008 |
+| FlagStar | Textures | 96696844387606 | 93044374349935 |
+| HeaderHotDog | SignArt | 125700113190099 | 111209092984557 |
+| HeaderIceCream | SignArt | 135153505969890 | 131134583059892 |
+| HeaderLemonade | SignArt | 108197480384893 | 89775297450442 |
+| HeaderPopcorn | SignArt | 107137808128779 | 132673341754270 |
+| OwnerBanner | SignArt | 99028570616783 | 103587041167945 |
+| Nameplate | SignArt | 121326877498191 | 101228763400140 |
+| IconPortal | SignArt | 90391570744372 | 101447318056634 |
+| IconGarage | SignArt | 94562992202885 | 139283194336735 |
+| IconStunt | SignArt | 117013989776586 | 136778609492666 |
+| IconPlots | SignArt | 94122317601645 | 92929508456128 |
+| IconLake | SignArt | 120121071349820 | 135234520936833 |
+| IconArrow | SignArt | 121618950997210 | 75221826934795 |
+| IconCoin | SignArt | 83470451230913 | 99492109262754 |
+| IconTick | SignArt | 135235800672495 | 103260929176535 |
+| IconLock | SignArt | 133725466100857 | 125248424108608 |
+| IconWrench | SignArt | 92414956875461 | 125308628941246 |
+| Arrowhead | Meshes | 138244067049295 | 77734052464842 |
+| BedOval | Meshes | 136099171822469 | 75182510100315 |
+| BedRound | Meshes | 123249717980851 | 78898513024992 |
+| Bench | Meshes | 123517872546619 | 81472931283188 |
+| BerryBush | Meshes | 99914521306375 | 113381535893436 |
+| BirchA_Canopy | Meshes | 100806252422298 | 95358946867963 |
+| BirchA_Trunk | Meshes | 120487144662684 | 113392689229837 |
+| BirchB_Canopy | Meshes | 103662231513650 | 76466785156402 |
+| BirchB_Trunk | Meshes | 81836875055169 | 71794440829829 |
+| BirchC_Canopy | Meshes | 106621954448856 | 77471118350791 |
+| BirchC_Trunk | Meshes | 112381046500417 | 107504512366800 |
+| BlossomA_Canopy | Meshes | 91241113693387 | 85623663058251 |
+| BlossomA_Trunk | Meshes | 82673324179312 | 71890708802809 |
+| BlossomB_Canopy | Meshes | 91244754126777 | 115945038397849 |
+| BlossomB_Trunk | Meshes | 132557397556033 | 116376114509074 |
+| BlossomC_Canopy | Meshes | 71195676597725 | 70583076825211 |
+| BlossomC_Trunk | Meshes | 74838286273378 | 70593040224453 |
+| BlueWildflowers | Meshes | 74966194657570 | 140362334076502 |
+| BoulderA | Meshes | 123763171923437 | 73936552182889 |
+| BoulderB | Meshes | 97554163859875 | 108729967021241 |
+| BoulderC | Meshes | 135204461703163 | 99527827208631 |
+| BridgeAvenue | Meshes | 103746904933957 | 132499975394188 |
+| BridgeAvenueOpen | Meshes | 79961433123556 | 78688525290880 |
+| BridgeGarden | Meshes | 132052014907256 | 119984148857166 |
+| BridgeLakeside | Meshes | 80321789639417 | 74401136745211 |
+| BuntingString | Meshes | 137727498083978 | 90642820165813 |
+| BushLarge | Meshes | 96440781051500 | 107937719458701 |
+| BushMedium | Meshes | 84665955701915 | 112084388357819 |
+| BushSmall | Meshes | 131556303922904 | 89066567685874 |
+| ButterflyBlueWingL | Meshes | 103115458033263 | 84463884097172 |
+| ButterflyBlueWingR | Meshes | 102194139048182 | 96381297933560 |
+| ButterflyBody | Meshes | 121749629890653 | 83296309836118 |
+| ButterflyWingL | Meshes | 92790805942751 | 110344634719101 |
+| ButterflyWingR | Meshes | 111632244403294 | 77372830185761 |
+| CarTopiary | Meshes | 99765473953877 | 124108261960990 |
+| Cattails | Meshes | 78963979739123 | 96641977331650 |
+| Clover | Meshes | 130464549817210 | 119625716970260 |
+| Daisies | Meshes | 119049798406520 | 72553714073439 |
+| Dock | Meshes | 123866895240112 | 121994894630420 |
+| DragonflyBody | Meshes | 96562316547990 | 116300255540446 |
+| DragonflyWings | Meshes | 122096696191279 | 96240530729511 |
+| Driftwood | Meshes | 137946365287756 | 79754565581073 |
+| Duck | Meshes | 99537883114657 | 82641503340866 |
+| Duckling | Meshes | 135443294412364 | 114222618214481 |
+| Duckweed | Meshes | 79018509318981 | 96016381404577 |
+| FenceSegment | Meshes | 103954822123918 | 75883738881066 |
+| FernA | Meshes | 105557009091999 | 125414860170513 |
+| FernB | Meshes | 106862977771018 | 132864443197145 |
+| FishOrange | Meshes | 85267243082735 | 93198247823924 |
+| FishSilver | Meshes | 98519047787114 | 74193987938908 |
+| FloatingLeaf | Meshes | 124766280568815 | 117142848195882 |
+| FloatingPetal | Meshes | 82754658171119 | 102542786153320 |
+| FloweringShrub | Meshes | 134148931332873 | 97158756624560 |
+| FountainTiered | Meshes | 131932970374170 | 87095967163960 |
+| FountainWater | Meshes | 79696989097258 | 116528389038986 |
+| Frog | Meshes | 83838167593408 | 124872657363209 |
+| FruitA_Canopy | Meshes | 138914998198618 | 91617448874937 |
+| FruitA_Trunk | Meshes | 75236867446405 | 125813419406213 |
+| FruitB_Canopy | Meshes | 108283244964258 | 82529345438206 |
+| FruitB_Trunk | Meshes | 132892254460984 | 77808359429337 |
+| FruitC_Canopy | Meshes | 126003894759778 | 110918401683196 |
+| FruitC_Trunk | Meshes | 107940472242898 | 138730259128149 |
+| Gazebo | Meshes | 133055578432871 | 132930457317667 |
+| GrassTuft | Meshes | 108426784312972 | 87769624057571 |
+| GrassTuftWide | Meshes | 107798705738594 | 85162093459834 |
+| HedgeLow | Meshes | 136175074613591 | 94290153677107 |
+| HedgeStraight | Meshes | 112315738239450 | 115214796420911 |
+| HollowLog | Meshes | 100906492502147 | 133502513071015 |
+| HotDogCart | Meshes | 118492261494970 | 128077008495216 |
+| IceCreamStand | Meshes | 138353957710700 | 72102386161007 |
+| Irises | Meshes | 76723241488075 | 124819745705979 |
+| LampGlass | Meshes | 76899708162034 | 120377499915257 |
+| LampPost | Meshes | 125125452765458 | 139674403634313 |
+| Lavender | Meshes | 76906490732445 | 130846919850597 |
+| LeafLitter | Meshes | 129518020398457 | 134131919266803 |
+| LemonadeStand | Meshes | 76858034399256 | 125464775917653 |
+| LilyFlowerPink | Meshes | 102119291559534 | 76891640080088 |
+| LilyFlowerWhite | Meshes | 129707095646286 | 82425262882452 |
+| LilyPadL | Meshes | 132427788258766 | 111100338080785 |
+| LilyPadM | Meshes | 112030292927211 | 92817792476653 |
+| LilyPadS | Meshes | 118763336299344 | 75828509671473 |
+| MossyRockA | Meshes | 85574033919182 | 116711716740489 |
+| MossyRockB | Meshes | 126736135358175 | 100088279100790 |
+| MushroomsBrown | Meshes | 74405672058131 | 72630651084382 |
+| MushroomsRed | Meshes | 88589283701831 | 132931914368107 |
+| OakA_Canopy | Meshes | 90068725660607 | 125079363526751 |
+| OakA_Trunk | Meshes | 106828885086436 | 81838596725252 |
+| OakB_Canopy | Meshes | 134749240337474 | 114513892252367 |
+| OakB_Trunk | Meshes | 89569880898707 | 133799468476153 |
+| OakC_Canopy | Meshes | 81252642857922 | 137935820165648 |
+| OakC_Trunk | Meshes | 120072789985855 | 72640563796108 |
+| PineA_Canopy | Meshes | 92692882264575 | 86571721057312 |
+| PineA_Trunk | Meshes | 102208994723568 | 126489468362585 |
+| PineB_Canopy | Meshes | 100564242489410 | 119200173785375 |
+| PineB_Trunk | Meshes | 138157650015202 | 91453775827473 |
+| PineC_Canopy | Meshes | 79276284052740 | 96071087065535 |
+| PineC_Trunk | Meshes | 111053653938671 | 113986667544582 |
+| PineSapling_Canopy | Meshes | 131316584239813 | 108593342174832 |
+| PineSapling_Trunk | Meshes | 136990516574113 | 125052020212163 |
+| PopcornCart | Meshes | 96408021272336 | 140620817482021 |
+| Poppies | Meshes | 75527608430305 | 134198513847375 |
+| Raccoon | Meshes | 92439139003226 | 78064153570396 |
+| RaccoonHead | Meshes | 125051843028649 | 122251191819978 |
+| Reeds | Meshes | 123368172491352 | 138621409272637 |
+| RosesPink | Meshes | 75042050246474 | 133767793962188 |
+| RosesRed | Meshes | 124625690855684 | 137302351764375 |
+| Rowboat | Meshes | 122970355945451 | 111594792382992 |
+| Rushes | Meshes | 95077880123937 | 94073208976012 |
+| Signpost | Meshes | 89954063283562 | 75373199680961 |
+| SteppingStone | Meshes | 88232267625126 | 114567733775797 |
+| Stump | Meshes | 125779606546056 | 97538794770552 |
+| Sunflowers | Meshes | 74211938713050 | 70924896477467 |
+| TallGrass | Meshes | 132002952081416 | 96033594782233 |
+| TieredA_Canopy | Meshes | 100114007581824 | 72964718415062 |
+| TieredA_Trunk | Meshes | 108201404836746 | 73674256532039 |
+| TieredB_Canopy | Meshes | 115154861337602 | 88044922593595 |
+| TieredB_Trunk | Meshes | 71984161373179 | 128171113138801 |
+| TieredC_Canopy | Meshes | 72869799411568 | 70677452623426 |
+| TieredC_Trunk | Meshes | 112721320223055 | 109536531531788 |
+| TopiaryBall | Meshes | 105781276915527 | 89575297387819 |
+| TopiaryCone | Meshes | 139714947194490 | 72356799315602 |
+| TulipsRed | Meshes | 70585910939414 | 125564876170957 |
+| TulipsYellow | Meshes | 140641152811990 | 98770109311258 |
+| UmbrellaA_Canopy | Meshes | 120894937018074 | 91847269200413 |
+| UmbrellaA_Trunk | Meshes | 137649536930632 | 133742908940135 |
+| UmbrellaB_Canopy | Meshes | 97435314449821 | 74855981514851 |
+| UmbrellaB_Trunk | Meshes | 122983901532353 | 101735978642638 |
+| UmbrellaC_Canopy | Meshes | 114164761665601 | 108564507264176 |
+| UmbrellaC_Trunk | Meshes | 121305472090972 | 109121511812165 |
+| WetRockA | Meshes | 114681583860533 | 99844062490263 |
+| WetRockB | Meshes | 140616452972253 | 115292109378113 |
+| WillowA_Canopy | Meshes | 126630738198123 | 100724359605792 |
+| WillowA_Trunk | Meshes | 75933431885207 | 95619268368185 |
+| WillowB_Canopy | Meshes | 127356487466250 | 117793886163427 |
+| WillowB_Trunk | Meshes | 83709653441289 | 78855509300039 |
+| WillowC_Canopy | Meshes | 113473301166191 | 117322934216935 |
+| WillowC_Trunk | Meshes | 99167092069684 | 94489845710982 |
+| FountainGrand | Meshes | 134250858109840 | 138476226884315 |
+| FountainGrandWater | Meshes | 97077137017352 | 118135225656541 |
+| PlazaMosaic | Meshes | 137077011185169 | 92746874626451 |
+| ChainAnchorPost | Meshes | 116104471794716 | 114737667930382 |
+| ChainLink | Meshes | 114214302961113 | 99515412067221 |
+| Flagpole | Meshes | 129548914805122 | 82002796817463 |
+| HeaderBoard | Meshes | 131034066017721 | 89758117345462 |
+| KioskBooth | Meshes | 122977264336017 | 137774673874849 |
+| PadlockBody | Meshes | 126446131938774 | 114107687304189 |
+| PadlockShackle | Meshes | 80634870609051 | 97927780932934 |
+| PlotGate | Meshes | 132284962738302 | 83397197959185 |
+| PortalSign | Meshes | 96622363246047 | 75612522407601 |
+| SignpostBoard | Meshes | 71490569687047 | 128562147587889 |
+| SignpostPost | Meshes | 76170109920794 | 70440998829645 |
+| AirPump | Meshes | 85075129657610 | 110204729376180 |
+| BedAvenueArc | Meshes | 83055271600743 | 103579632050241 |
+| BedAvenueStraight | Meshes | 111747692241584 | 135442988433072 |
+| BedCornerFillet | Meshes | 99237896497111 | 118604528597435 |
+| BedFountainArc | Meshes | 138519763827753 | 134390751624734 |
+| BedJunctionRound | Meshes | 127970609183087 | 88027591948797 |
+| Bollard | Meshes | 137304579092978 | 130288057862761 |
+| BridgeRiverApproach | Meshes | 99201813850591 | 72542935568044 |
+| BridgeRiverAvenue | Meshes | 80517554710181 | 80680695628375 |
+| CarLift | Meshes | 121987728120237 | 119346173440460 |
+| CheckeredBand | Meshes | 138048567006496 | 102866985026681 |
+| DrumRed | Meshes | 71870413657309 | 138825731788822 |
+| DrumTeal | Meshes | 75797387695559 | 124127388745386 |
+| ForecourtCurb | Meshes | 76405410501889 | 93062744759345 |
+| GarageBench | Meshes | 102867336577100 | 128621570342938 |
+| GarageFlagpole | Meshes | 105177158117178 | 114307514216865 |
+| GarageGlazing | Meshes | 132157148972532 | 74974275532912 |
+| GarageInterior | Meshes | 87185201084021 | 129388325886092 |
+| GarageLights | Meshes | 124692895162585 | 83123427499636 |
+| GarageShell | Meshes | 114734875520385 | 121491509701515 |
+| GarageSign | Meshes | 77309746815929 | 97116362523762 |
+| GarageStructure | Meshes | 79270006556493 | 98702145130383 |
+| GateChainLink | Meshes | 124272794650745 | 73207672300684 |
+| GateChainRun | Meshes | 95430339517072 | 76766417787279 |
+| GateChainWrap | Meshes | 110960492207804 | 130443776899054 |
+| GateDowntownColumns | Meshes | 108532592863645 | 100622023476660 |
+| GateDowntownCrest | Meshes | 125826091705271 | 136625187784489 |
+| GateDowntownCrown | Meshes | 78065550426898 | 76948856455160 |
+| GateDowntownInlayHigh | Meshes | 138236598259286 | 126374080453878 |
+| GateDowntownInlayLow | Meshes | 73978543922047 | 121860079564829 |
+| GateDowntownInlayMid | Meshes | 122317866532106 | 129558520019215 |
+| GateDowntownPlinth | Meshes | 107278482923295 | 86735613167602 |
+| GateDustyColumns | Meshes | 117297712279771 | 86245591782804 |
+| GateDustyCrest | Meshes | 80580172831278 | 102095830213239 |
+| GateDustyCrown | Meshes | 84029568732331 | 108965219161951 |
+| GateDustyInlayHigh | Meshes | 81946948345013 | 92396752854278 |
+| GateDustyInlayLow | Meshes | 87020772643400 | 88775367360936 |
+| GateDustyInlayMid | Meshes | 121012710941260 | 83749599509288 |
+| GateDustyPlinth | Meshes | 110839059652265 | 81607640523569 |
+| GateLockedPlaque | Meshes | 91281029170193 | 85776840996865 |
+| GatePadlockBody | Meshes | 140163082771569 | 114895657400713 |
+| GatePadlockShackle | Meshes | 112064977038149 | 95042551202674 |
+| GateRequirementPlaque | Meshes | 71624689678209 | 91408729218646 |
+| GateSummitColumns | Meshes | 116585945901808 | 101537543480464 |
+| GateSummitCrest | Meshes | 75609991349650 | 72855068822850 |
+| GateSummitCrown | Meshes | 87745284432156 | 76667204899795 |
+| GateSummitInlayHigh | Meshes | 121201737129889 | 135304094950228 |
+| GateSummitInlayLow | Meshes | 132503600474169 | 107433432392469 |
+| GateSummitInlayMid | Meshes | 122432717876953 | 115384570334359 |
+| GateSummitPlinth | Meshes | 123915058031834 | 103260941940716 |
+| HazardStrip | Meshes | 131308067592934 | 129733081613401 |
+| LeaderboardCapRail | Meshes | 112756730022409 | 118478916447686 |
+| LeaderboardFrame | Meshes | 113908519666761 | 91801326868428 |
+| LeaderboardLampLens | Meshes | 74675984162564 | 135435933408871 |
+| LeaderboardTextFace | Meshes | 94740208248666 | 127784702289834 |
+| LightPost | Meshes | 136240285485160 | 122928044538401 |
+| MarqueeBulb | Meshes | 107792494255734 | 125065021393580 |
+| OilCanDisplay | Meshes | 70684156665297 | 102895488946455 |
+| Parasol | Meshes | 96290961601445 | 129523374466942 |
+| ParasolTeal | Meshes | 137648743329802 | 117941484620466 |
+| ParkBin | Meshes | 105614179605967 | 136795891733710 |
+| ParkingArrow | Meshes | 131426764702576 | 138960354307095 |
+| PicnicTable | Meshes | 70679924563183 | 140641508048127 |
+| Planter | Meshes | 74716533726124 | 110833334763085 |
+| PlotGateAccent | Meshes | 116141689733548 | 108705556612994 |
+| PlotGateBeam | Meshes | 93468975278723 | 106966488738990 |
+| PlotGateChecker | Meshes | 136149495518732 | 77387230157770 |
+| PlotGateFenceStub | Meshes | 124053386639427 | 78019452229411 |
+| PlotGateFlagpoles | Meshes | 139021453048462 | 134605803320037 |
+| PlotGateHedgeStub | Meshes | 81661540109869 | 131465059707764 |
+| PlotGateLamps | Meshes | 101357819746042 | 71683574906675 |
+| PlotGatePillars | Meshes | 89083749317837 | 105347357049574 |
+| PlotGateStartLine | Meshes | 73549160337847 | 94199148538209 |
+| RarityRing | Meshes | 75126108953276 | 107953177744195 |
+| RollUpDoor | Meshes | 108434316528609 | 91711726836059 |
+| RoofVent | Meshes | 73487211272948 | 110708731255555 |
+| StuntApron | Meshes | 133474972767713 | 71107574763446 |
+| StuntCone | Meshes | 128735165623877 | 118093047831211 |
+| StuntEndBarrier | Meshes | 136763665082578 | 95306844036294 |
+| StuntFlag | Meshes | 90426133652776 | 86517682558438 |
+| StuntGantry | Meshes | 133362520173926 | 104817121227162 |
+| StuntGridMarkings | Meshes | 133704870770169 | 93445278377528 |
+| StuntLoop | Meshes | 73133440812210 | 75327562518478 |
+| StuntPodium | Meshes | 135352583697109 | 81526632499772 |
+| StuntSignFaceBoard | Meshes | 109317817309224 | 78604543460492 |
+| StuntSignFaceComingSoon | Meshes | 77108293711707 | 73999005641583 |
+| StuntSignFaceLettering | Meshes | 109878260834399 | 79167923727867 |
+| StuntStartLightHousing | Meshes | 91530788392427 | 81815017911080 |
+| StuntStartLightLens | Meshes | 98808475067412 | 118536850189116 |
+| StuntTireRow | Meshes | 123628473301675 | 90528486626324 |
+| TireRack | Meshes | 109408017259964 | 137956286102168 |
+| TireStack | Meshes | 80992238482595 | 105539546634049 |
+| ToolCart | Meshes | 102543773473842 | 116316038567016 |
+| ToolWall | Meshes | 117340040095286 | 82901783754911 |
+| TurntableDisc | Meshes | 135928862713310 | 138097925181855 |
+| WallLight | Meshes | 102100752450863 | 124235524460081 |
+| WrenchTireSculpture | Meshes | 107898777545853 | 129297331288501 |
+| Palette | Palette | 128169045252325 | 134121745235322 |
+| SwAnnouncerBooth | Speedway Meshes | 85280690019741 | 124453131187665 |
+| SwBayBarrierArm | Speedway Meshes | 102661645918978 | 99420121739252 |
+| SwBayBarrierPost | Speedway Meshes | 72382460044152 | 98664871775585 |
+| SwBigScreen | Speedway Meshes | 128201415244874 | 136313621591068 |
+| SwBleachers | Speedway Meshes | 107432199937261 | 87693115942075 |
+| SwBlimp | Speedway Meshes | 96699312485170 | 80603776193517 |
+| SwCatchFence | Speedway Meshes | 100543478185899 | 118467531984872 |
+| SwColumn | Speedway Meshes | 115247428990660 | 117122389431761 |
+| SwColumnCap | Speedway Meshes | 123422088082154 | 138360257717620 |
+| SwConfettiCannon | Speedway Meshes | 82865014588770 | 86449102782819 |
+| SwFanA | Speedway Meshes | 83121163075535 | 78659021360351 |
+| SwFanArmA | Speedway Meshes | 75049768549378 | 78174090582827 |
+| SwFanArmB | Speedway Meshes | 120825261111737 | 92288988788911 |
+| SwFanArmC | Speedway Meshes | 126747982610886 | 128032313986312 |
+| SwFanArmD | Speedway Meshes | 115678520260583 | 134667519052344 |
+| SwFanB | Speedway Meshes | 91123601332587 | 135244994677708 |
+| SwFanC | Speedway Meshes | 87393623373212 | 78827618381473 |
+| SwFanD | Speedway Meshes | 117245066153917 | 78662527393225 |
+| SwFireworkRack | Speedway Meshes | 129517648518270 | 125124780517169 |
+| SwFlameDecal | Speedway Meshes | 127373852109905 | 93193112513464 |
+| SwFloodTower | Speedway Meshes | 103538610674357 | 91154333937804 |
+| SwFoldingChair | Speedway Meshes | 115166621593495 | 118657963872263 |
+| SwGantry | Speedway Meshes | 91999865224306 | 74403998767331 |
+| SwGantryGold | Speedway Meshes | 120131138578527 | 84586293883784 |
+| SwGrandstandBay | Speedway Meshes | 103599785391659 | 95312713352772 |
+| SwGuardRail | Speedway Meshes | 136867342464008 | 118243041147792 |
+| SwHayRun | Speedway Meshes | 140031111271962 | 71403699224391 |
+| SwKeeperArm | Speedway Meshes | 102504505914546 | 136090235910283 |
+| SwKeeperBody | Speedway Meshes | 102350514652723 | 129469051229063 |
+| SwLapBoard | Speedway Meshes | 136055088029366 | 82939533196986 |
+| SwLemonadeStand | Speedway Meshes | 97741292989096 | 88358586428374 |
+| SwLoopTrack | Speedway Meshes | 101864195807167 | 125969216625674 |
+| SwMechanic | Speedway Meshes | 135045771420514 | 85414037662565 |
+| SwOfficialArm | Speedway Meshes | 107245427682978 | 127574675253827 |
+| SwOfficialBody | Speedway Meshes | 79915609641268 | 108302391421797 |
+| SwOfficialPodium | Speedway Meshes | 140449945546404 | 99851458414418 |
+| SwOrangeBarrier | Speedway Meshes | 127964033639594 | 116584146015210 |
+| SwOwnerSign | Speedway Meshes | 124441916586855 | 114585653931779 |
+| SwPaintedShed | Speedway Meshes | 91248138191970 | 100881923990640 |
+| SwParkingSign | Speedway Meshes | 108613965243569 | 97551999119993 |
+| SwPennantPole | Speedway Meshes | 78922292885261 | 133219469923618 |
+| SwPitGarage | Speedway Meshes | 123837917076829 | 85056047877073 |
+| SwPreviewCar | Speedway Meshes | 137630075868196 | 114289274081549 |
+| SwRacewayShop | Speedway Meshes | 88675832942368 | 136327841605965 |
+| SwRollDoor | Speedway Meshes | 73057985208386 | 137736104496512 |
+| SwRoofSection | Speedway Meshes | 121872970793697 | 136803859882416 |
+| SwRopeFence | Speedway Meshes | 138483697478646 | 130736182708379 |
+| SwRustyShed | Speedway Meshes | 76838557009265 | 74007209717289 |
+| SwSnackCart | Speedway Meshes | 95141887124611 | 124620820513366 |
+| SwStartBoard | Speedway Meshes | 127792453703226 | 108638704239839 |
+| SwStartLights | Speedway Meshes | 104205558358843 | 91248060101322 |
+| SwStatueCar | Speedway Meshes | 128442367976976 | 107153665426811 |
+| SwStatuePedestal | Speedway Meshes | 102560465524845 | 84105899812591 |
+| SwToolChest | Speedway Meshes | 126048126880224 | 127404059896137 |
+| SwTyreRun | Speedway Meshes | 132481136278127 | 129182236325606 |
+| SwTyreStackTall | Speedway Meshes | 126825259786624 | 134733406920013 |
+| SwTyreWall | Speedway Meshes | 86760996331774 | 75467866278108 |
+| SwWaterBarrel | Speedway Meshes | 84553120810312 | 71014321583426 |
+| SwWheelbarrow | Speedway Meshes | 109677414305240 | 92646788953541 |
+| SwWonkyStick | Speedway Meshes | 101710054055028 | 107697770547663 |
+| SwWrench | Speedway Meshes | 106420477941889 | 75450568807779 |
