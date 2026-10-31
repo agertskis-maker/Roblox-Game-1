@@ -622,12 +622,204 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			end
 		end
 	end
+	-- World build V2: a district with a fixed landmark ORDER (Summit Lodge: the observatory, then the lodge) is placed BEFORE
+	-- the sweep, from its last entry backward: the last one 90 studs inside the district's end, each earlier one 300 to 440
+	-- studs before the next (the World's landmark spacing; Adam's S8 decision, 2026-10-29: the snowmen row moved to the next
+	-- district so every gap holds), on whichever side has free frontage. They are ANCHORS for the sweep below: it jumps past an
+	-- ordered district to its last anchor plus the spacing, and never places a landmark closer than the minimum spacing to one.
+	local anchors: { LandmarkPlan } = {}
+	local anchorSpan: { [LandmarkPlan]: number } = {}
+	local function addAnchor(found: LandmarkPlan, spanIndex: number, span: DistrictSpan)
+		table.insert(landmarks, found)
+		table.insert(anchors, found)
+		anchorSpan[found] = spanIndex
+		if found.id == catalog.districtById[span.id].signature then
+			usedSignature[spanIndex] = true
+		end
+		lmSide = -found.side
+	end
+	for spanIndex, span in spans do
+		local lmOrder = (catalog.districtById[span.id] :: any).landmarkOrder
+		if not lmOrder then
+			continue
+		end
+		local nextStation: number? = nil
+		for i = #lmOrder, 1, -1 do
+			local def = catalog.landmarkById[lmOrder[i]]
+			if not def or def.placement ~= "frontage" then
+				continue
+			end
+			local tries: { number } = {}
+			if nextStation then
+				for gap = spacing[1] + 12, spacing[2], 12 do
+					table.insert(tries, nextStation - gap)
+				end
+			else
+				for off = 0, 360, 12 do
+					table.insert(tries, span.endS - 90 - off)
+				end
+			end
+			if i == 1 and nextStation then
+				-- the earliest of the order also keeps the World's spacing from the landmark already placed before it (Summit: the
+				-- glacier tunnel before the observatory), when a try allows it; otherwise the order and the gap to the next win
+				local before: number? = nil
+				for _, lm in landmarks do
+					if lm.station < nextStation and (not before or lm.station > before) then
+						before = lm.station
+					end
+				end
+				if before then
+					local good: { number }, rest: { number } = {}, {}
+					for _, c in tries do
+						local d = c - (before :: number)
+						table.insert(if d >= spacing[1] and d <= spacing[2] then good else rest, c)
+					end
+					tries = good
+					for _, c in rest do
+						table.insert(tries, c)
+					end
+				end
+			end
+			local found: LandmarkPlan? = nil
+			for _, c in tries do
+				for _, side in { lmSide, -lmSide } do
+					local from, to = footprint(c, side, def.width)
+					if not found and from >= span.startS + 20 and to <= span.endS and landmarkFree(from, to, side) then
+						found = makeIn(span, def, c, side, from, to)
+					end
+				end
+				if found then
+					break
+				end
+			end
+			if found then
+				addAnchor(found, spanIndex, span)
+				nextStation = found.station
+			end
+		end
+	end
+	-- then the forward leads (after every end-anchored district is placed, so the first span can see across the loop)
+	for spanIndex, span in spans do
+		-- Adam's S8 decision (2026-10-29): a district may OPEN with landmarks placed FORWARD (Pine Village: the snowmen row,
+		-- moved out of Summit Lodge, then the chalet cluster), each 300 to 440 after the one before; the first one 300 to 440
+		-- after the previous district's last anchor (the lodge, across the wrap), or near the district start on the first lap.
+		-- The rest of the district stays open to the sweep.
+		local leads = (catalog.districtById[span.id] :: any).leadLandmarks
+		if leads then
+			-- the anchor before: in the previous span, or (first span) the last span's, across the route's loop, when the route ends
+			-- with an end-anchored district (whole cycles: the World's own length)
+			local floor: number? = nil
+			local routeEnd = spans[#spans].endS
+			local prevSpan = if spanIndex > 1 then spanIndex - 1 else #spans
+			local best: LandmarkPlan? = nil
+			for _, a in anchors do
+				if anchorSpan[a] == prevSpan and (not best or a.station > best.station) then
+					best = a
+				end
+			end
+			if best and spanIndex > 1 then
+				floor = best.station
+			elseif best and (catalog.districtById[spans[#spans].id] :: any).landmarkOrder then
+				floor = best.station - routeEnd
+			end
+			for _, id in leads do
+				local def = catalog.landmarkById[id]
+				if not def or def.placement ~= "frontage" then
+					continue
+				end
+				local tries: { number } = {}
+				if floor then
+					for gap = spacing[1] + 12, spacing[2], 12 do
+						table.insert(tries, floor + gap)
+					end
+				else
+					for off = 0, 360, 12 do
+						table.insert(tries, span.startS + 40 + def.width / 2 + off)
+					end
+				end
+				local found: LandmarkPlan? = nil
+				for _, c in tries do
+					for _, side in { lmSide, -lmSide } do
+						local from, to = footprint(c, side, def.width)
+						if
+							not found
+							and from >= span.startS
+							and to <= span.endS - 20
+							and landmarkFree(from, to, side)
+						then
+							found = makeIn(span, def, c, side, from, to)
+						end
+					end
+					if found then
+						break
+					end
+				end
+				if found then
+					addAnchor(found, spanIndex, span)
+					floor = found.station
+				end
+			end
+		end
+	end
+	-- a sweep station closer than the minimum spacing to an anchor is skipped (only anchors: bridges keep their old rule)
+	local function clearOfAnchors(station: number): boolean
+		for _, a in anchors do
+			if math.abs(a.station - station) < spacing[1] then
+				return false
+			end
+		end
+		return true
+	end
+	local lastPlacedS = -math.huge -- the last landmark the sweep has placed or stepped past (anchors included)
 	while targetS < length - 48 and lmGuard < 400 do
 		lmGuard += 1
 		local spanIndex = spanAt(targetS)
 		local span = spans[spanIndex]
 		local district = catalog.districtById[span.id]
 		local placed: LandmarkPlan? = nil
+		if (district :: any).landmarkOrder then
+			-- an ordered district was placed above: jump past its last anchor by the spacing (or to its end if none fitted)
+			local last = span.endS
+			local lastAnchor: LandmarkPlan? = nil
+			for _, a in anchors do
+				if
+					a.station >= span.startS
+					and a.station < span.endS
+					and (not lastAnchor or a.station > lastAnchor.station)
+				then
+					lastAnchor = a
+				end
+			end
+			if lastAnchor then
+				last = lastAnchor.station
+				lastPlacedS = lastAnchor.station
+				lastId = lastAnchor.id
+				lmSide = -lastAnchor.side
+			end
+			targetS = math.max(targetS + 96, last + rng:NextInteger(spacing[1], spacing[2]))
+			continue
+		end
+		-- an anchor the sweep has reached (or that sits within the minimum spacing ahead): resume the rhythm after it, so the
+		-- gap after an anchor is the World's spacing too (no anchors in Downtown or Dusty: nothing changes there)
+		local passed: LandmarkPlan? = nil
+		for _, a in anchors do
+			if
+				a.station > lastPlacedS
+				and a.station <= targetS + spacing[1]
+				and (not passed or a.station > passed.station)
+			then
+				passed = a
+			end
+		end
+		if passed then
+			lastPlacedS = passed.station
+			lastId = passed.id
+			if passed.side ~= 0 then
+				lmSide = -passed.side
+			end
+			targetS = passed.station + rng:NextInteger(spacing[1], spacing[2])
+			continue
+		end
 		local function make(
 			def: Catalog.Landmark,
 			station: number,
@@ -663,11 +855,6 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 					table.insert(candidates, id)
 				end
 			end
-			-- World build V2: a district may fix the ORDER its landmarks appear in (Summit Lodge: the observatory, then the
-			-- snowmen, then the lodge). Only the next one not yet placed in this span is a candidate.
-			if (district :: any).landmarkOrder then
-				candidates = {} -- an ordered district is placed by the backward pass below
-			end
 			for _, id in candidates do
 				local def = catalog.landmarkById[id]
 				if def.placement == "skyline" then
@@ -678,7 +865,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 					for _, off in { 0, 24, -24, 48, -48, 72, -72, 96, -96, 120, -120, 144, -144 } do
 						local c = targetS + off
 						local from, to = footprint(c, side, def.width)
-						if landmarkFree(from, to, side) then
+						if landmarkFree(from, to, side) and clearOfAnchors(c) then
 							placed = make(def, c, side, from, to)
 							break
 						end
@@ -697,6 +884,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			if placed.id == district.signature then
 				usedSignature[spanIndex] = true
 			end
+			lastPlacedS = placed.station
 			lastId = placed.id
 			if placed.side ~= 0 then
 				lmSide = -placed.side
@@ -704,47 +892,6 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			targetS = placed.station + rng:NextInteger(spacing[1], spacing[2])
 		else
 			targetS += 96
-		end
-	end
-	-- World build V2: a district with a fixed landmark ORDER (Summit Lodge: observatory, snowmen, lodge) is placed from its
-	-- last entry backward: the last 90 studs inside the district's end, each earlier one at least 260 studs before the next
-	-- (plan 6: minors 250 from a major), on whichever side has free frontage
-	for spanIndex, span in spans do
-		local lmOrder = (catalog.districtById[span.id] :: any).landmarkOrder
-		if not lmOrder then
-			continue
-		end
-		local nextAt = span.endS - 90
-		for i = #lmOrder, 1, -1 do
-			local def = catalog.landmarkById[lmOrder[i]]
-			if not def or def.placement ~= "frontage" then
-				continue
-			end
-			local found: LandmarkPlan? = nil
-			for off = 0, 360, 12 do
-				local c = nextAt - off
-				for _, side in { lmSide, -lmSide } do
-					local from, to = footprint(c, side, def.width)
-					if not found and from >= span.startS + 20 and to <= span.endS and landmarkFree(from, to, side) then
-						found = makeIn(span, def, c, side, from, to)
-					end
-				end
-				if found then
-					break
-				end
-			end
-			if found then
-				table.insert(landmarks, found)
-				if found.id == catalog.districtById[span.id].signature then
-					usedSignature[spanIndex] = true
-				end
-				-- a major (the signature) keeps 260 studs from the next one before it (plan 6: minors 250 from a major). Two
-				-- minors only need to clear each other (70): the plan's 300 to 440 spacing cannot hold three landmarks in a
-				-- 681-stud district with a 120-stud lodge (a 260 gap pushed the observatory out of the district and broke the
-				-- order), so the observatory and the snowmen row are about 70 studs apart. A DEVIATION from Adam's S8 answer, reported
-				nextAt = found.station - (if found.id == catalog.districtById[span.id].signature then 260 else 70)
-				lmSide = -found.side
-			end
 		end
 	end
 	-- every district span shows its signature landmark (seed 2207 ended Skyline Park with the car

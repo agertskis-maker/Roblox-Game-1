@@ -55,6 +55,18 @@ Chase.CAMERAS = table.freeze({
 		fov = 75,
 		note = "alternative composition, higher and wider (preview)",
 	}),
+	-- Worlds follow-ups (2026-10-29): a REPRODUCTION of Brian R's draft run camera numbers (RunConfig on
+	-- feature/lane1-run-prototype, read 2026-10-29: 15 behind plus half the car, 8.5 over the car, 34 ahead at car height + 2,
+	-- FOV 70 rising to 80 with speed). Not his camera code: no easing, no speed FOV, no shake. For comparable stills only.
+	RUN_DRAFT = table.freeze({
+		name = "RUN_DRAFT",
+		behind = 20,
+		up = 11,
+		look = 34,
+		lookY = 7,
+		fov = 70,
+		note = "reproduction of Brian R's draft run camera numbers (not his code)",
+	}),
 })
 Chase.DEFAULT_SPEED = 70
 Chase.DEFAULT_LANE = 2
@@ -282,6 +294,12 @@ function Chase.place(self: Chase, s: number)
 		end
 	end
 	updateLabel(self)
+end
+
+-- the lane the proxy car and the camera follow (1 = leftmost); stills of the outer lanes
+function Chase.setLane(self: Chase, lane: number)
+	self.laneD = laneCentre(self.plan, math.clamp(lane, 1, self.plan.lanes))
+	self:place(self.station)
 end
 
 function Chase.setCamera(self: Chase, name: string)

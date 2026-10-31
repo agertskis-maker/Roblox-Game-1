@@ -1589,6 +1589,58 @@ local function gorgeParts(
 		size = Vector3.new(2 * hw + 4, 1, 2 * hl + 4),
 		colour = floorColour,
 	})
+	-- Worlds follow-ups (2026-10-29): the composition dressing, on the rim (the lip, 3 studs wide) or inside the cut (|x| <= hw,
+	-- |z| <= hl); preview blocks never collide
+	local dress = g.dress
+	if dress then
+		local lip = dress.lip
+		if lip then
+			for _, side in { -1, 1 } do
+				table.insert(parts, {
+					name = if side < 0 then "GorgeLipL" else "GorgeLipR",
+					-- on the rim, its inner edge flush with the wall face, its top `rise` over the ground
+					cframe = centre * CFrame.new(side * (hw + lip.width / 2), -0.3 + lip.rise / 2 - 0.5, 0),
+					size = Vector3.new(lip.width, 1 + lip.rise, 2 * hl),
+					colour = lip.colour,
+				})
+			end
+		end
+		local shade = dress.shade
+		if shade then
+			local n = #shade.depths
+			for _, side in { -1, 1 } do
+				for i, d in shade.depths do
+					-- the mirror side runs the steps the other way, so the two walls do not match
+					local k = if side < 0 then i else n + 1 - i
+					local len = 2 * hl / n
+					table.insert(parts, {
+						name = string.format("GorgeShade%s%d", if side < 0 then "L" else "R", i),
+						cframe = centre * CFrame.new(side * (hw - 0.5), -0.3 - d / 2, -hl + (k - 0.5) * len),
+						size = Vector3.new(1, d, len),
+						colour = shade.colour,
+					})
+				end
+			end
+		end
+		local river = dress.river
+		if river then
+			-- three straight reaches that wander across the floor (opaque: no transparent water stack)
+			local xs = { -river.wander, river.wander * 0.6, -river.wander * 0.3 }
+			local len = 2 * hl / #xs
+			for i, x in xs do
+				local nextX = xs[i + 1] or x
+				local angle = math.atan2(nextX - x, len)
+				table.insert(parts, {
+					name = "GorgeRiver" .. i,
+					cframe = centre
+						* CFrame.new((x + nextX) / 2, (g.floorY :: number) + 0.05, -hl + (i - 0.5) * len)
+						* CFrame.Angles(0, angle, 0),
+					size = Vector3.new(river.width, 0.2, len / math.cos(angle) + river.width * 0.25),
+					colour = river.colour,
+				})
+			end
+		end
+	end
 	return parts
 end
 

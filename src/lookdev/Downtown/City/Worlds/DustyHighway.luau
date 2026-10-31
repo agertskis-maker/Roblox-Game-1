@@ -405,6 +405,17 @@ return {
 			-- the cross frames' top struts sat exactly at deck level and poked through the road as bars across the lanes
 			-- (reviewer, 2026-10-29): the mesh's girder underside is 8.5 above its pivot, so the frames hang 2.5 further down
 			underDrop = 11,
+			-- Worlds follow-ups (Adam, 2026-10-29, Design 8): composition inside the approved 124 x 416 x 70 envelope, no collision.
+			-- The deck is 101.7 wide, so only about 11 studs of gorge show beside it and the run camera sees at most about 2 studs
+			-- below the rim (measured from the camera numbers): those studs get a pale sandstone LIP raised over the parapet line
+			-- above a dark SHADE skirt (shadow-facing, quieter) in four uneven steps, so the edge reads as a drop. The floor gets an
+			-- opaque desaturated teal RIVER ribbon for the views that do see in (approach, HIGH camera, side views).
+			dress = {
+				lip = { colour = CREAM, width = 3, rise = 1 }, -- tuned in Studio 2026-10-29: ROCK_PALE matched the sand
+				-- a desaturated brown-mauve shadow, never black (plan 6.4); r_shadow (112, 50, 42) read as red paint on the rail in Studio
+				shade = { colour = rgb(84, 60, 62), depths = { 9, 12, 8, 11 } },
+				river = { colour = rgb(84, 140, 138), width = 16, wander = 9 },
+			},
 		},
 		-- nominal sizes, used until the kit's own bounds are read (Catalog.sizes)
 		sizes = {

@@ -18,6 +18,7 @@
       },
       "WorldsAudio": {
         "$className": "Folder",
+        "AudioMix": { "$path": "../src/client/UI/Prototype/AudioMix.luau" },
         "Music": { "$path": "../src/client/UI/Prototype/Music.luau" },
         "Sounds": { "$path": "../src/client/UI/Prototype/Sounds.luau" }
       },

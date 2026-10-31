@@ -67,6 +67,12 @@ export type Gorge = {
 	pylonEvery: number?,
 	under: string?, -- the cross-frame under each 192-stud deck
 	underDrop: number?, -- how far below deck level its pivot sits
+	-- composition dressing inside the envelope (Assembler.gorgeParts): a rim lip, a shade skirt under it, a river ribbon
+	dress: {
+		lip: { colour: Color3, width: number, rise: number }?,
+		shade: { colour: Color3, depths: { number } }?,
+		river: { colour: Color3, width: number, wander: number }?,
+	}?,
 }
 
 -- hash(seed, cycle, district order, salt) -> a Random seed: the per-district sub-seed of the approved plans
@@ -180,6 +186,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 					halfLength = (s1 - s0) / 2,
 					halfWidth = gorge.halfWidth,
 					floorY = -depth,
+					dress = gorge.dress,
 				})
 				local function scaleFor(size: Vector3): number
 					return math.clamp(depth / math.max(size.Y - 1.5, 1), 0.7, 1.6)
@@ -830,7 +837,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		end
 	end
 	if v2.landmarkOrderCheck then
-		-- Summit plan 6 and Adam's answer 8: observatory, snowmen, lodge, in that order; majors 500 apart, minors 250 from a major
+		-- Summit plan 6 and Adam's answers 8 (2026-10-28) and S8 (2026-10-29): in the lodge district the observatory, then the lodge
 		for _, span in plan.districts do
 			local order: { number } = {}
 			local names: { string } = {}
@@ -852,6 +859,152 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 				check("landmark-order", ok, table.concat(names, ", ") .. " (want that order)")
 			end
 		end
+	end
+	if v2.landmarkCycle then
+		-- S8: the named landmarks appear in this cyclic order along the whole route (across districts and the wrap)
+		local cycle: { string } = v2.landmarkCycle
+		local seq: { string } = {}
+		for _, lm in plan.landmarks do
+			if table.find(cycle, lm.id) then
+				table.insert(seq, lm.id .. "@" .. string.format("%.0f", lm.station))
+			end
+		end
+		local ok = #cycle > 0 and #seq >= #cycle -- an empty cycle or missing landmarks never pass
+		local prev: number? = nil
+		for _, lm in plan.landmarks do
+			local i = table.find(cycle, lm.id)
+			if i then
+				if prev and i ~= prev % #cycle + 1 then
+					ok = false
+				end
+				prev = i
+			end
+		end
+		check("landmark-cycle", ok, table.concat(seq, ", ") .. " (want " .. table.concat(cycle, ", ") .. ", repeating)")
+	end
+	if v2.spacingCheck then
+		-- S8: the spacing of consecutive landmarks on the route (the planner's metric: station differences), majors and minors
+		local rule = v2.spacingCheck
+		local signatures: { [string]: boolean } = {}
+		for _, span in plan.districts do
+			signatures[span.landmark] = true
+		end
+		local outside: { string } = {}
+		local gaps: { number } = {}
+		local majorsShort: { string } = {}
+		local minorsShort: { string } = {}
+		local prevLm: any = nil
+		local prevMajor: any = nil
+		for _, lm in plan.landmarks do
+			if prevLm then
+				local gap = lm.station - prevLm.station
+				table.insert(gaps, math.floor(gap + 0.5))
+				if gap < rule.min or gap > rule.max then
+					table.insert(
+						outside,
+						string.format("%s@%.0f to %s@%.0f = %.0f", prevLm.id, prevLm.station, lm.id, lm.station, gap)
+					)
+				end
+			end
+			if signatures[lm.id] then
+				if prevMajor and lm.station - prevMajor.station < rule.majors then
+					table.insert(
+						majorsShort,
+						string.format("%s@%.0f to %s@%.0f", prevMajor.id, prevMajor.station, lm.id, lm.station)
+					)
+				end
+				prevMajor = lm
+			end
+			prevLm = lm
+		end
+		-- the loop: when the route is whole cycles (it ends with the end-anchored district, as at the World's own length), the
+		-- last landmark and the first one of the next lap are neighbours too
+		local lastSpan = plan.districts[#plan.districts]
+		local firstLm, lastLm = plan.landmarks[1], plan.landmarks[#plan.landmarks]
+		local lastDistrict = if lastSpan then catalog.districtById[lastSpan.id] else nil
+		local wrapEnd: number? = nil
+		if firstLm and lastLm and firstLm ~= lastLm and lastDistrict and (lastDistrict :: any).landmarkOrder then
+			local routeEnd = lastSpan.endS
+			wrapEnd = routeEnd
+			local gap = firstLm.station + routeEnd - lastLm.station
+			table.insert(gaps, math.floor(gap + 0.5))
+			if gap < rule.min or gap > rule.max then
+				table.insert(
+					outside,
+					string.format(
+						"%s@%.0f to (wrap) %s@%.0f = %.0f",
+						lastLm.id,
+						lastLm.station,
+						firstLm.id,
+						firstLm.station,
+						gap
+					)
+				)
+			end
+			local firstMajor, lastMajor = nil, nil
+			for _, lm in plan.landmarks do
+				if signatures[lm.id] then
+					firstMajor = firstMajor or lm
+					lastMajor = lm
+				end
+			end
+			if
+				firstMajor
+				and lastMajor
+				and firstMajor ~= lastMajor
+				and firstMajor.station + routeEnd - lastMajor.station < rule.majors
+			then
+				table.insert(
+					majorsShort,
+					string.format(
+						"%s@%.0f to (wrap) %s@%.0f",
+						lastMajor.id,
+						lastMajor.station,
+						firstMajor.id,
+						firstMajor.station
+					)
+				)
+			end
+		end
+		for _, lm in plan.landmarks do
+			if not signatures[lm.id] then
+				for _, other in plan.landmarks do
+					-- across the loop too (whole cycles): a minor just after the seam sits near the last lap's major
+					local d = math.abs(other.station - lm.station)
+					if wrapEnd then
+						d = math.min(d, wrapEnd - d)
+					end
+					if signatures[other.id] and d < rule.minorFromMajor then
+						table.insert(
+							minorsShort,
+							string.format("%s@%.0f near %s@%.0f", lm.id, lm.station, other.id, other.station)
+						)
+					end
+				end
+			end
+		end
+		check(
+			"landmark-spacing",
+			#plan.landmarks >= 2 and #outside == 0, -- one or no landmark never passes vacuously
+			string.format(
+				"gaps %s (want %d to %d)%s",
+				table.concat(gaps, ", "),
+				rule.min,
+				rule.max,
+				if #outside > 0 then "; outside: " .. table.concat(outside, "; ") else ""
+			)
+		)
+		check(
+			"landmark-majors",
+			#plan.landmarks >= 2 and #majorsShort == 0 and #minorsShort == 0,
+			string.format(
+				"majors %d+ apart, minors %d+ from a major%s%s",
+				rule.majors,
+				rule.minorFromMajor,
+				if #majorsShort > 0 then "; majors short: " .. table.concat(majorsShort, "; ") else "",
+				if #minorsShort > 0 then "; minors short: " .. table.concat(minorsShort, "; ") else ""
+			)
+		)
 	end
 	if v2.welcomeLater then
 		local later, wrong = 0, 0

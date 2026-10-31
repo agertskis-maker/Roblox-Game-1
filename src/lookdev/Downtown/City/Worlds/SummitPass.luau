@@ -79,6 +79,10 @@ return {
 			bridge = false,
 			signature = "ChaletCluster",
 			landmarks = { "ChaletCluster", "BellTower" },
+			-- Adam's S8 decision (2026-10-29): the snowmen row MOVED here from Summit Lodge. Pine Village opens with it and then the
+			-- chalet cluster, each 300 to 440 after the one before (after the lodge across the wrap; near the start on lap one)
+			leadLandmarks = { "SnowmenRow", "ChaletCluster" },
+			required = { "SnowmenRow" },
 			furniture = { "woodpile", "pine", "sled", "bench", "pine", "lantern" },
 			treatmentEvery = { 5, 8 },
 			parkBias = 0.6,
@@ -183,10 +187,12 @@ return {
 			curves = 2,
 			bridge = false,
 			signature = "SummitLodge",
-			landmarks = { "SummitLodge", "Observatory", "SnowmenRow" },
-			-- V2 (Adam, 2026-10-28): the order is observatory, snowmen, lodge; the small festival terrace stage is promoted
-			landmarkOrder = { "Observatory", "SnowmenRow", "SummitLodge" },
-			required = { "Observatory", "SnowmenRow" },
+			landmarks = { "SummitLodge", "Observatory" },
+			-- V2 (Adam, 2026-10-28): observatory, snowmen, lodge. S8 (Adam, 2026-10-29): the snowmen row moved to the next district
+			-- (Pine Village, after the wrap), so here the observatory, then the lodge, 300 to 440 apart; the small festival
+			-- terrace stage is promoted
+			landmarkOrder = { "Observatory", "SummitLodge" },
+			required = { "Observatory" },
 			furniture = { "lantern", "bench", "pine", "trailMarker", "snowman", "pine" },
 			treatmentEvery = { 5, 8 },
 			parkBias = 0.6,
@@ -317,7 +323,7 @@ return {
 		-- WorldFeatures.companions); the observatory stands on a plinth; the festival terrace stage is promoted from tier B
 		landmark("SummitLodge", "SP_LM_SummitLodge", "SUMMIT LODGE", 145, 32, 64, { "SummitLodge" }, "frontage"),
 		landmark("Observatory", "SP_LM_Observatory", "STAR OBSERVATORY", 40, 30, 60, { "SummitLodge" }, "frontage"),
-		landmark("SnowmenRow", "SP_LM_SnowmenRow", "SNOWMAN ROW", 48, 20, 14, { "SummitLodge" }, "frontage"),
+		landmark("SnowmenRow", "SP_LM_SnowmenRow", "SNOWMAN ROW", 48, 20, 14, { "PineVillage" }, "frontage"),
 		-- tier B: the labelled kit gallery only (no district lists it, so the planner never places it)
 		landmark("SledHill", "SP_LM_SledHill", "SLED HILL", 60, 36, 20, {}, "frontage"),
 	},
@@ -396,7 +402,12 @@ return {
 		salt = 3031,
 		-- measured self-checks (WorldPlan section 8): no bunting within 120 studs before a hazard; the lodge district's landmark order
 		checks = { bunting = 120 },
-		landmarkOrderCheck = { "Observatory", "SnowmenRow", "SummitLodge" },
+		landmarkOrderCheck = { "Observatory", "SummitLodge" },
+		-- S8 (Adam, 2026-10-29): the order across districts and the wrap (observatory, lodge, then the next lap's snowmen row and
+		-- chalet cluster), and the spacing measured on the route (station differences, as Sequencer.check reports them): every
+		-- consecutive landmark 300 to 440 apart, majors (district signatures) 500 or more, minors 250 or more from a major
+		landmarkCycle = { "Observatory", "SummitLodge", "SnowmenRow", "ChaletCluster" },
+		spacingCheck = { min = 300, max = 440, majors = 500, minorFromMajor = 250 },
 		subSeeds = true,
 		replaceMasses = true,
 		welcomeLater = "KEEP CLIMBING!", -- Adam, 2026-10-28: the first lap says WELCOME TO SUMMIT PASS, later laps this
