@@ -12,7 +12,7 @@
 --   Layout.rootHeight(bodyHeight)            -- an Arcade button's root height (hit box + lip)
 --
 -- Placement rules (preview choices, recorded here; reversible):
---   Desktop 1920x1080 (scale 1.5): references' left-centre column — the small red Settings
+--   Desktop 1920x1080 (scale 1.5): references' left-centre column â€” the small red Settings
 --     rectangle centred above Shop / Garage / Missions (Wide), the Music toggle row under the
 --     stack; the column is centred at about 0.47 of the safe height. Stats bottom-left (no
 --     panels). Banner top centre; toasts under it; timer proposal bottom-right.
@@ -225,9 +225,11 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 		local y = smallRoot + gap
 		items.Shop = { x = 0, y = y }
 		items.Garage = { x = 0, y = y + rh + gap }
-		-- the Garage button is taller by Arcade.PillExtra (its collection pill sits under the label)
-		items.Missions = { x = 0, y = y + 2 * (rh + gap) + Arcade.PillExtra }
-		items.Music = { x = 0, y = y + 3 * (rh + gap) + 2 + Arcade.PillExtra }
+		-- Adam, 2026-10-31: equal gaps down the column. In this column the Garage's collection pill sits INSIDE the button
+		-- (measured in Studio Play: the Garage is as tall as the Shop), so no Arcade.PillExtra here; that left a 29 px gap
+		-- between Garage and Missions against 9 elsewhere. The Music switch's track is inset below its root, hence -2.5 (measured: 9 px gaps).
+		items.Missions = { x = 0, y = y + 2 * (rh + gap) }
+		items.Music = { x = 0, y = y + 3 * (rh + gap) - 2.5 }
 		return {
 			kind = "Column",
 			x = margin,
@@ -247,7 +249,7 @@ local function menuShape(name: string, safeW: number, margin: number): MenuLayou
 		local y = smallRoot + gap
 		items.Shop = { x = 0, y = y }
 		items.Garage = { x = 0, y = y + rh + gap }
-		items.Missions = { x = 0, y = y + 2 * (rh + gap) + Arcade.PillExtra }
+		items.Missions = { x = 0, y = y + 2 * (rh + gap) } -- equal gaps (Adam, 2026-10-31): the pill is inside the Garage here
 		return {
 			kind = "TabletColumn",
 			x = margin,
