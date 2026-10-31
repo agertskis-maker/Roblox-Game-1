@@ -171,6 +171,11 @@ Approved by Adam on 2026-10-19 as a direction; the built model still needs revie
 
 Sample approved by: Adam, 2026-10-20 (HUD, revision 4; open items listed under "Approvals recorded (Adam, 2026-10-20)"), _pending_ (Pip), _pending_ (Downtown scene).
 
+## Raceway round 2 UI (approved by Adam 2026-10-29)
+- "approved for all ur reccomendations  and yes upload the meshes", in reply to the approval page (https://claude.ai/artifact/97zrdVD9wkB5nnFZQXmYgQ) and the Figma page "Raceway round 2 (pending Adam)" (https://www.figma.com/design/b6z7jCt39PfBVHRrWOC2V3?node-id=25-747).
+- Covers: the Raceway upgrade panel, the parking spots panel, the level-up banner ("RACEWAY LEVEL N!"), the kiosk stats board, the big screen display, the shop fascia, the parking sign and ADD SPOT plaque, the Speedway to Raceway text, the two prompt texts. Specs: `vault/design/ui/raceway-upgrade-panel.md`, `raceway-parking-panel.md`, `raceway-level-banner.md`, `speedway-upgrade-board.md` (Round 2).
+- Choices: a new UI token **Teal #228A92** (the island kit swatch) plus light teal #51D7D1 for text on navy; the banner on one line wherever it fits; panel padding 20 desktop and tablet, 16 phone; the shop roof at 8.5. Also approved: uploading the 9 Raceway meshes under Adam's account (the Car Hop group does not exist yet).
+
 ## Choices I made (reversible)
 - Cream roof and navy trim on Pip repeat the UI's cream and navy so car and HUD read as one game.
 - Hazard orange is not used in scenery.
