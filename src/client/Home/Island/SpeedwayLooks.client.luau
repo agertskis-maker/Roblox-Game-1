@@ -19,6 +19,8 @@ local Workspace = game:GetService("Workspace")
 
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local BetaConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Beta"):WaitForChild("BetaConfig"))
+
 local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("Speedway")
 local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Look = require(Speedway:WaitForChild("Look"))
@@ -92,6 +94,13 @@ local function attach(root: Instance): Trove.Trove
 	end
 
 	local function homeIndex(): number
+		-- Car Hop Beta 1: the plot the server gave this player (BetaPlots)
+		local given = player:GetAttribute(BetaConfig.HomePlotAttribute)
+		if type(given) == "number" then
+			return given
+		elseif BetaConfig.enabled() then
+			return 0 -- not given a plot yet: no prompts anywhere
+		end
 		local h = player:GetAttribute("Lane3SpeedwayPreviewHome")
 		return if type(h) == "number" then h else 3
 	end
@@ -126,7 +135,16 @@ local function attach(root: Instance): Trove.Trove
 	-- Studio preview: BUY raises the plot's preview level or spot count (LocalPlayer attributes), with no
 	-- Cash, saving or remote. Outside Studio no price exists yet, so there is no prompt and nothing to buy.
 	local PROMPT_NAME = "Lane3RacewayPrompt"
-	local canBuy = RunService:IsStudio()
+	local canBuy = RunService:IsStudio() or BetaConfig.enabled()
+	-- Car Hop Beta 1: BUY asks the server (free, saved); the Studio preview keeps its local values
+	local function betaRemote(name: string): RemoteEvent?
+		if not BetaConfig.enabled() then
+			return nil
+		end
+		local net = ReplicatedStorage:WaitForChild(BetaConfig.NetName, 10)
+		local remote = net and net:FindFirstChild(name)
+		return if remote and remote:IsA("RemoteEvent") then remote else nil
+	end
 	local function anchorIn(container: Instance?, attribute: string): BasePart?
 		if not container then
 			return nil
@@ -153,6 +171,11 @@ local function attach(root: Instance): Trove.Trove
 				end,
 				buy = if canBuy
 					then function(target: number)
+						local remote = betaRemote(BetaConfig.Remotes.BuyRacewayLevel)
+						if remote then
+							remote:FireServer()
+							return
+						end
 						player:SetAttribute(
 							string.format("Lane3SpeedwayPreviewLevel_Plot%02d", info.index),
 							Ladder.clamp(target)
@@ -174,6 +197,11 @@ local function attach(root: Instance): Trove.Trove
 			end,
 			buy = if canBuy
 				then function(target: number)
+					local remote = betaRemote(BetaConfig.Remotes.BuyParkingSpot)
+					if remote then
+						remote:FireServer()
+						return
+					end
 					player:SetAttribute(string.format("Lane3ParkingPreviewSpots_Plot%02d", info.index), target)
 				end
 				else nil,
@@ -362,7 +390,7 @@ local function attach(root: Instance): Trove.Trove
 	trove:Connect(plotsFolder.ChildAdded, add)
 
 	trove:Connect(player.AttributeChanged, function(name)
-		if name == "Lane3SpeedwayPreviewHome" then
+		if name == "Lane3SpeedwayPreviewHome" or name == BetaConfig.HomePlotAttribute then
 			-- the preview owner changed: the purchase surface and any banner end at once
 			ShopPanel.close(true)
 			Reveal.cancelBanner()
