@@ -240,7 +240,7 @@ api.goRun = goRun
 -- client (EditableMesh kit; labelled proxies for anything missing), hides the neutral road, and
 -- moves the backdrop traffic and chase camera along the city route. Preview only.
 local city: any = nil
-api.uploadedKit = true -- Downtown only; `Invoke("useUploadedKit", false)` returns to the session-only EditableMesh preview
+api.uploadedKit = true -- Downtown and both Worlds; `Invoke("useUploadedKit", false)` returns to the session-only EditableMesh preview
 function api.useUploadedKit(on: boolean)
 	api.uploadedKit = on
 end
@@ -266,21 +266,38 @@ function api.useCity(on: boolean, seed: number?, world: string?): string
 	local Route = require((module :: Instance):WaitForChild("Route") :: ModuleScript) :: any
 	-- Round 2: a World ("DustyHighway" / "SummitPass") builds from the same planner and finds its own kit and swatches
 	local worldId = if world and world ~= "Downtown" then world else nil
-	-- Round 3: the Downtown B2 kit meshes are uploaded (src/lookdev/Downtown/KitIds.luau); the Dusty Highway and Summit Pass kits are not
-	local kitIdsModule = lookDev:FindFirstChild("Downtown") and lookDev.Downtown:FindFirstChild("KitIds")
-	local kitIds: any = if api.uploadedKit
-			and not worldId
-			and kitIdsModule
-		then require(kitIdsModule :: ModuleScript)
-		else nil
+	-- Uploaded kits (2026-10-31: all group-owned, LEGION STUDI0S): the Downtown B2 kit (KitIds.luau) and the Dusty Highway
+	-- and Summit Pass kits (WorldsKitIds.luau). A World's road pieces are B2 meshes, so its ids are merged over the B2 ones.
+	local downtownFolder = lookDev:FindFirstChild("Downtown")
+	local kitIdsModule = downtownFolder and downtownFolder:FindFirstChild("KitIds")
+	local worldIdsModule = downtownFolder and downtownFolder:FindFirstChild("WorldsKitIds")
+	local kitIds: any = if api.uploadedKit and kitIdsModule then require(kitIdsModule :: ModuleScript) else nil
+	local meshIds: { [string]: string }? = nil
+	local textureId: string? = nil
+	if kitIds then
+		meshIds = table.clone(kitIds.meshes)
+		textureId = kitIds.palettes.MainStreet
+		local worldIds: any = if worldId and worldIdsModule
+			then (require(worldIdsModule :: ModuleScript) :: any)[worldId]
+			else nil
+		if worldId and not worldIds then
+			meshIds = nil -- a World without uploaded ids keeps the session-only EditableMesh preview
+			textureId = nil
+		elseif worldIds then
+			for name, id in worldIds.meshes do
+				(meshIds :: any)[name] = id
+			end
+			textureId = worldIds.palette
+		end
+	end
 	local ok, err = pcall(function()
 		city = City.new({
 			parent = backdrop.folder,
 			kit = ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2"),
 			kitData = if worldId then nil else ReplicatedStorage:FindFirstChild("Lane3_DowntownKitB2Data"),
 			world = worldId,
-			meshIds = if kitIds then kitIds.meshes else nil,
-			textureId = if kitIds then kitIds.palettes.MainStreet else nil,
+			meshIds = meshIds,
+			textureId = textureId,
 			seed = seed or 2207,
 			preview = true,
 			lighting = true,

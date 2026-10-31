@@ -1,12 +1,27 @@
 ---
 title: Uploaded Roblox assets (manifest)
 tags: [design, assets, manifest, lane3]
-status: live
+status: live (group-owned since 2026-10-31)
 date: 2026-10-26
 ---
 # Uploaded Roblox assets
 
 Promised by [[0012-figma-ui-workflow]] (asset manifest) and created in Round 3 ([[hud-round3]]). **Asset ids are not secrets.** The runtime reads the ids from src/lookdev/Downtown/KitIds.luau (generated from this import); source files stay outside Git.
+
+## CURRENT (2026-10-31): everything re-imported under the group LEGION STUDI0S
+Adam created the Roblox group **LEGION STUDI0S** (group id **74306252**, owner peskaface) and asked for every Lane 3 import to go under it. He clicked the Studio 3D Importer with Creator = LEGION STUDI0S, Scale Unit Stud, Scale Factor 1. **Every id in use was checked on 2026-10-31 against the Roblox economy API: Creator type Group, id 74306252 (406 of 406).** Full id tables: `src/lookdev/Downtown/KitIds.luau` (B2) and `src/lookdev/Downtown/WorldsKitIds.luau` (Dusty Highway, Summit Pass); raw export outside Git: `Car-Hop-Art/upload-legion-2026-10-31/uploaded-ids-raw.json`.
+
+| Package | Meshes | Palette image (group-owned) | Studio Play check (2026-10-31, HUD playground, seed 2207, uploaded meshes on) |
+|---|---|---|---|
+| `downtown-kit-b2.obj` (re-import; replaces the 2026-10-26 user-owned copy below) | 180 | MainStreet `rbxassetid://115645565589526`, CityHall `rbxassetid://120361816797873`, HarborBridge `rbxassetid://123078658571358`, Midtown `rbxassetid://117967728274920`, SkylinePark `rbxassetid://120446738978080` | Downtown built: 134 group meshes live in the window, 0 failed to load, colours from MainStreet |
+| `worlds-DustyHighway.obj` | 94 | DH `rbxassetid://92626338032695` | Dusty Highway built: 46 group meshes live at the start, 0 failed (the canyon stretch was not walked in Play) |
+| `worlds-SummitPass.obj` | 125 | SU `rbxassetid://132433565064493` | Summit Pass built: 34 group meshes live at the start, 0 failed |
+
+- **Palettes:** uploaded as the textures of small carrier models (`palette-carriers.obj` for SU, `palette-carriers-2.obj` for the other six); the importer uploaded each PNG as a group-owned Image. The 1 + 6 carrier quad meshes are also group assets; they are not used.
+- **Mistake kept on record:** the first Summit Pass import went up with Creator "Me" (125 meshes owned by the user peskaface). Adam re-imported it under the group; only the group ids are used. The unused user-owned ids are in `Car-Hop-Art/upload-legion-2026-10-31/summit-user-owned-UNUSED.json`.
+- **Superseded:** the 2026-10-26 user-owned B2 kit (sections below) stays on Roblox but is no longer referenced.
+- **Not in this upload:** the Speedway / Raceway kit (island branch, the island session's work) and the car models (Brian L).
+- **Not verified:** loading in a published group-owned experience (nothing is published); every mesh of every route in Play (only the start windows above).
 
 ## Ownership and access
 - **Creator:** the Roblox user peskaface (userId 2393473976, Adam), the importer's Creator was "Me". Uploaded 2026-10-26 with Upload to Roblox on, Import as Package off, Merge Meshes off, Anchored off. No Robux cost was shown.
