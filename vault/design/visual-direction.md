@@ -178,3 +178,7 @@ Sample approved by: Adam, 2026-10-20 (HUD, revision 4; open items listed under "
 - Stills in the contact sheet are taken with reduced motion so a frame shows the stage, not a pulse phase. From revision 3, motion is reviewed in real-time video, with stills as a supplement.
 - The Cash gain label sits below the number (the reserved area), so it never runs into Roblox's top bar.
 - Compact Cash values are truncated, not rounded, so a shown balance is never more than the real one.
+
+## Settings sound rows and Home menu spacing (2026-10-31)
+- **Approved: the Settings sound rows** (MUSIC and SOUND EFFECTS volume with mute buttons, Design 7), by Adam on 2026-10-31 after trying them in Studio Play ("everything looks good"). Labels stay 18 px as built. Spec `vault/design/ui/settings-sound.md`, decision 0028.
+- **Home left menu, equal gaps** (Adam's request, 2026-10-31): Settings, Shop, Garage, Missions and Music sit the same distance apart on Desktop (9 px measured) and Tablet (12 px); the Garage pill allowance that left a 29 px gap was removed there. Phones unchanged (a row). `Home/Layout.luau`.

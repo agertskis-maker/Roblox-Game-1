@@ -4,7 +4,7 @@ tags:
   - design
   - ui
   - audio
-status: built, awaiting Adam's visual approval
+status: built, approved by Adam on 2026-10-31
 date: 2026-10-29
 ---
 
@@ -14,7 +14,7 @@ Ledger [[settings-sound-ledger]]. Builds Adam's Design 7 (2026-10-29 session bri
 (`src/client/UI/Prototype/Home/SettingsPanel.luau`). **No Figma mock**: making the "Car Hop UI" file needs a Figma read,
 and the read rule in [[0012-figma-ui-workflow]] allows reads only after a hand edit. Adam chose, on 2026-10-29, a
 task-scoped exception for this card only: this spec plus a Studio build, approved or changed by Adam from the review page.
-Until he approves, the card is **awaiting visual approval**, not approved. This is not a workflow change.
+**Approved by Adam on 2026-10-31** ("everything looks good", after trying it in Studio Play); the labels stay 18 px as built. This is not a workflow change.
 
 The numbers below are Adam's Design 7 proposals unless marked LEAD CHOICE (reversible).
 
