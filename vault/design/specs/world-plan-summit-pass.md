@@ -1,7 +1,7 @@
 ---
 title: Summit Pass redesign plan (Round 3)
 tags: [design, world-plan, lane3]
-status: proposed (needs Adam's approval)
+status: approved by Adam on 2026-10-28 (answers under "Approval requested"); build in progress on feature/lane3-worlds-dusty-summit
 date: 2026-10-26
 ---
 # Summit Pass redesign plan (Round 3, proposal only)
@@ -425,6 +425,26 @@ No gameplay, collision, physics, gap, ramp, shortcut or transport system. No lak
 13. **Provisional budgets** in 8.2 as ceilings to test against.
 14. **Uploads.** Confirm the standing approval applies once this plan is approved, the OBJ route, who clicks the importer, and whether the palette images may be uploaded.
 15. **Lane 1 asks.** Send Brian R the open contracts in 8.4 (nothing has been sent).
+
+### Adam's answers, 2026-10-28 (recorded for the build; decision [[0026-world-plans-approved]])
+
+Adam approved this plan on 2026-10-28 with the answers below (source: `vault/design/specs/worlds-dusty-summit-build.md`, section 1).
+
+1. **Direction:** keep the five district names and the bright alpine morning; adopt "backdrop first" and the plan's priority order.
+2. **Mountain system:** retire the stacked cones from the visible foreground; adopt far massifs, ridge curtains and spurs, and one recurring summit horn.
+3. **Scale:** the deliberate exaggeration in 5.8 is approved (pines 26 to 44, tower 64, lodge hall up to 58).
+4. **Frozen Lake:** approved as planned: plane at least 240 x 360 with rim, 40-stud buffer and fence, the small planner companion addition, and no shortcut across it.
+5. **Glacier Tunnel:** approved: opaque horseshoe gallery with sky windows and gallery bays, zero transparency, the exit-exposure rule.
+6. **Ski lift:** the Default now (static crossing at 64 studs or more, chairs move only off the road). Option M (chairs crossing over the road) is a proposal for Brian R, because it needs his hop apex.
+7. **Lodge:** approve the stepped 120-stud lodge, and promote the small festival terrace stage from tier B.
+8. **Landmark order and spacing:** approved: observatory, snowmen, lodge hint, 300 to 440 spacing, majors at least 500 apart.
+9. **WELCOME span:** "WELCOME TO SUMMIT PASS" on the first loop only; later loops show a different span, "KEEP CLIMBING!", in the same style.
+10. **Bunting:** enable it as static roadside garlands in the bunting colours (no orange), none within 120 studs before a hazard.
+11. **Name refinements:** all approved: the clock tower label, "Terrace Chalets", and the new sign names LOG PILE BAKERY, YODEL YARN, FIRESIDE BOOKS, GOGGLE GARAGE, LODGE LOG CAFE, SKATE SWAP. District names stay.
+12. **Lighting test:** approved: the warm sun tint and the road-contrast retune in a private place.
+13. **Budgets:** the provisional budgets in 8.2 are accepted as ceilings to test against.
+14. **Uploads:** the standing approval applies (Claude Code may upload its own Blender meshes and palette images for these two Worlds, listing every asset name and id). OBJ route, Adam clicks the importer. Creator is the Car Hop Roblox group ([[0024-roblox-group-ownership]]).
+15. **Lane 1 asks:** send Brian R the open contracts from 8.4 through the vault.
 
 ## Evidence list
 

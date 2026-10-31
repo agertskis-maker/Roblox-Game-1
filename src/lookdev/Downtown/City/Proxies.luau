@@ -805,4 +805,17 @@ function Proxies.sign(style: string): Model
 	return finish(m)
 end
 
+-- World build V2: a free-standing wayfinding board on two posts (a fictional district plaque, "LOOKOUT", "CANYON BRIDGE
+-- AHEAD"); its front (local -Z) carries the text, set on placement; pivot at the foot of the board's centre.
+function Proxies.board(width: number, height: number): Model
+	local m = model("PROXY_Board", "fictional wayfinding board (no real logos or road shields)")
+	local rise = 4
+	local board = box(m, "Board", Vector3.new(width, height, 0.5), CFrame.new(0, rise + height / 2, 0), CREAM)
+	Proxies.text(board, Enum.NormalId.Front, "", Color3.fromRGB(120, 60, 36))
+	for _, x in { -width / 2 + 0.8, width / 2 - 0.8 } do
+		box(m, "Post", Vector3.new(0.7, rise + height, 0.7), CFrame.new(x, (rise + height) / 2, 0.1), STEEL)
+	end
+	return finish(m)
+end
+
 return Proxies

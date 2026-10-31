@@ -25,6 +25,7 @@
 
 local Catalog = require(script.Parent.Catalog)
 local Route = require(script.Parent.Route)
+local WorldPlan = require(script.Parent.WorldPlan)
 
 local Sequencer = {}
 
@@ -150,6 +151,37 @@ export type MassPlan = {
 }
 export type LifeSpot = { kind: string, station: number, side: number, cframe: CFrame, segment: number }
 
+-- World build V2 (Dusty Highway / Summit Pass, decision 0026): a placed kit piece that is not a lot, landmark, prop or
+-- mass of the base planner (backdrop massifs, gorge walls, ground patches, lake tiles, tunnel bays, lift cable, garlands).
+-- Made by WorldPlan.apply after the base plan, from the World's `v2` table, with its own per-district sub-seeds; empty for
+-- Downtown and for a World without `v2`.
+export type Extra = {
+	kind: string, -- backdrop | mass | ground | edge | fol | sign | gorge | lake | tunnel | lift | garland | warning | yard ...
+	module: string, -- kit mesh name
+	label: string, -- shown on the proxy when the mesh is missing
+	cframe: CFrame, -- the mesh's pivot frame (bottom centre for authored meshes)
+	scale: number, -- uniform scale, 1 = authored size
+	size: Vector3, -- proxy size, used when the mesh is missing (a board's width and height when `text` is set)
+	colour: Color3, -- proxy colour
+	text: string?, -- a wayfinding board's words (drawn on a part-built board, never baked into a mesh)
+	band: string, -- "near" (the lot window) | "far" (the skyline window)
+	segment: number,
+	station: number,
+	side: number,
+	district: string,
+}
+export type WorldInfo = {
+	notes: { string },
+	stats: { [string]: number },
+	gorges: { { [string]: any } },
+	lift: any?, -- the ski lift path(s) for WorldLife
+	lake: any?, -- the measured lake plane(s)
+	checks: { { id: string, ok: boolean, detail: string } }?, -- WorldPlan's measured proofs of the approved rules
+	motion: any?, -- windmill hubs, pennant strings and shimmer strips for WorldLife (Dusty)
+	chimneys: { Vector3 }?, -- smoke origins in world space (Summit): every chimney lot and landmark of the plan
+	skiPaths: any?, -- the ski glades' centre lines in world space (Summit): paths for the distant skiers
+}
+
 export type Checks = {
 	passed: boolean,
 	routeLength: number,
@@ -198,6 +230,8 @@ export type Plan = {
 	hazards: { HazardPlan },
 	masses: { MassPlan },
 	life: { LifeSpot },
+	extras: { Extra },
+	world: WorldInfo?, -- WorldPlan's notes, counts and gorge rectangles (nil without a World `v2` table)
 	checks: Checks,
 }
 
@@ -588,12 +622,204 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			end
 		end
 	end
+	-- World build V2: a district with a fixed landmark ORDER (Summit Lodge: the observatory, then the lodge) is placed BEFORE
+	-- the sweep, from its last entry backward: the last one 90 studs inside the district's end, each earlier one 300 to 440
+	-- studs before the next (the World's landmark spacing; Adam's S8 decision, 2026-10-29: the snowmen row moved to the next
+	-- district so every gap holds), on whichever side has free frontage. They are ANCHORS for the sweep below: it jumps past an
+	-- ordered district to its last anchor plus the spacing, and never places a landmark closer than the minimum spacing to one.
+	local anchors: { LandmarkPlan } = {}
+	local anchorSpan: { [LandmarkPlan]: number } = {}
+	local function addAnchor(found: LandmarkPlan, spanIndex: number, span: DistrictSpan)
+		table.insert(landmarks, found)
+		table.insert(anchors, found)
+		anchorSpan[found] = spanIndex
+		if found.id == catalog.districtById[span.id].signature then
+			usedSignature[spanIndex] = true
+		end
+		lmSide = -found.side
+	end
+	for spanIndex, span in spans do
+		local lmOrder = (catalog.districtById[span.id] :: any).landmarkOrder
+		if not lmOrder then
+			continue
+		end
+		local nextStation: number? = nil
+		for i = #lmOrder, 1, -1 do
+			local def = catalog.landmarkById[lmOrder[i]]
+			if not def or def.placement ~= "frontage" then
+				continue
+			end
+			local tries: { number } = {}
+			if nextStation then
+				for gap = spacing[1] + 12, spacing[2], 12 do
+					table.insert(tries, nextStation - gap)
+				end
+			else
+				for off = 0, 360, 12 do
+					table.insert(tries, span.endS - 90 - off)
+				end
+			end
+			if i == 1 and nextStation then
+				-- the earliest of the order also keeps the World's spacing from the landmark already placed before it (Summit: the
+				-- glacier tunnel before the observatory), when a try allows it; otherwise the order and the gap to the next win
+				local before: number? = nil
+				for _, lm in landmarks do
+					if lm.station < nextStation and (not before or lm.station > before) then
+						before = lm.station
+					end
+				end
+				if before then
+					local good: { number }, rest: { number } = {}, {}
+					for _, c in tries do
+						local d = c - (before :: number)
+						table.insert(if d >= spacing[1] and d <= spacing[2] then good else rest, c)
+					end
+					tries = good
+					for _, c in rest do
+						table.insert(tries, c)
+					end
+				end
+			end
+			local found: LandmarkPlan? = nil
+			for _, c in tries do
+				for _, side in { lmSide, -lmSide } do
+					local from, to = footprint(c, side, def.width)
+					if not found and from >= span.startS + 20 and to <= span.endS and landmarkFree(from, to, side) then
+						found = makeIn(span, def, c, side, from, to)
+					end
+				end
+				if found then
+					break
+				end
+			end
+			if found then
+				addAnchor(found, spanIndex, span)
+				nextStation = found.station
+			end
+		end
+	end
+	-- then the forward leads (after every end-anchored district is placed, so the first span can see across the loop)
+	for spanIndex, span in spans do
+		-- Adam's S8 decision (2026-10-29): a district may OPEN with landmarks placed FORWARD (Pine Village: the snowmen row,
+		-- moved out of Summit Lodge, then the chalet cluster), each 300 to 440 after the one before; the first one 300 to 440
+		-- after the previous district's last anchor (the lodge, across the wrap), or near the district start on the first lap.
+		-- The rest of the district stays open to the sweep.
+		local leads = (catalog.districtById[span.id] :: any).leadLandmarks
+		if leads then
+			-- the anchor before: in the previous span, or (first span) the last span's, across the route's loop, when the route ends
+			-- with an end-anchored district (whole cycles: the World's own length)
+			local floor: number? = nil
+			local routeEnd = spans[#spans].endS
+			local prevSpan = if spanIndex > 1 then spanIndex - 1 else #spans
+			local best: LandmarkPlan? = nil
+			for _, a in anchors do
+				if anchorSpan[a] == prevSpan and (not best or a.station > best.station) then
+					best = a
+				end
+			end
+			if best and spanIndex > 1 then
+				floor = best.station
+			elseif best and (catalog.districtById[spans[#spans].id] :: any).landmarkOrder then
+				floor = best.station - routeEnd
+			end
+			for _, id in leads do
+				local def = catalog.landmarkById[id]
+				if not def or def.placement ~= "frontage" then
+					continue
+				end
+				local tries: { number } = {}
+				if floor then
+					for gap = spacing[1] + 12, spacing[2], 12 do
+						table.insert(tries, floor + gap)
+					end
+				else
+					for off = 0, 360, 12 do
+						table.insert(tries, span.startS + 40 + def.width / 2 + off)
+					end
+				end
+				local found: LandmarkPlan? = nil
+				for _, c in tries do
+					for _, side in { lmSide, -lmSide } do
+						local from, to = footprint(c, side, def.width)
+						if
+							not found
+							and from >= span.startS
+							and to <= span.endS - 20
+							and landmarkFree(from, to, side)
+						then
+							found = makeIn(span, def, c, side, from, to)
+						end
+					end
+					if found then
+						break
+					end
+				end
+				if found then
+					addAnchor(found, spanIndex, span)
+					floor = found.station
+				end
+			end
+		end
+	end
+	-- a sweep station closer than the minimum spacing to an anchor is skipped (only anchors: bridges keep their old rule)
+	local function clearOfAnchors(station: number): boolean
+		for _, a in anchors do
+			if math.abs(a.station - station) < spacing[1] then
+				return false
+			end
+		end
+		return true
+	end
+	local lastPlacedS = -math.huge -- the last landmark the sweep has placed or stepped past (anchors included)
 	while targetS < length - 48 and lmGuard < 400 do
 		lmGuard += 1
 		local spanIndex = spanAt(targetS)
 		local span = spans[spanIndex]
 		local district = catalog.districtById[span.id]
 		local placed: LandmarkPlan? = nil
+		if (district :: any).landmarkOrder then
+			-- an ordered district was placed above: jump past its last anchor by the spacing (or to its end if none fitted)
+			local last = span.endS
+			local lastAnchor: LandmarkPlan? = nil
+			for _, a in anchors do
+				if
+					a.station >= span.startS
+					and a.station < span.endS
+					and (not lastAnchor or a.station > lastAnchor.station)
+				then
+					lastAnchor = a
+				end
+			end
+			if lastAnchor then
+				last = lastAnchor.station
+				lastPlacedS = lastAnchor.station
+				lastId = lastAnchor.id
+				lmSide = -lastAnchor.side
+			end
+			targetS = math.max(targetS + 96, last + rng:NextInteger(spacing[1], spacing[2]))
+			continue
+		end
+		-- an anchor the sweep has reached (or that sits within the minimum spacing ahead): resume the rhythm after it, so the
+		-- gap after an anchor is the World's spacing too (no anchors in Downtown or Dusty: nothing changes there)
+		local passed: LandmarkPlan? = nil
+		for _, a in anchors do
+			if
+				a.station > lastPlacedS
+				and a.station <= targetS + spacing[1]
+				and (not passed or a.station > passed.station)
+			then
+				passed = a
+			end
+		end
+		if passed then
+			lastPlacedS = passed.station
+			lastId = passed.id
+			if passed.side ~= 0 then
+				lmSide = -passed.side
+			end
+			targetS = passed.station + rng:NextInteger(spacing[1], spacing[2])
+			continue
+		end
 		local function make(
 			def: Catalog.Landmark,
 			station: number,
@@ -639,7 +865,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 					for _, off in { 0, 24, -24, 48, -48, 72, -72, 96, -96, 120, -120, 144, -144 } do
 						local c = targetS + off
 						local from, to = footprint(c, side, def.width)
-						if landmarkFree(from, to, side) then
+						if landmarkFree(from, to, side) and clearOfAnchors(c) then
 							placed = make(def, c, side, from, to)
 							break
 						end
@@ -658,6 +884,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			if placed.id == district.signature then
 				usedSignature[spanIndex] = true
 			end
+			lastPlacedS = placed.station
 			lastId = placed.id
 			if placed.side ~= 0 then
 				lmSide = -placed.side
@@ -681,8 +908,24 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			placed = makeIn(span, def, centre, lmSide, centre, centre)
 		else
 			local reach = (span.endS - span.startS) / 2
+			-- World build V2: a district with a fixed landmark order puts its signature AFTER the others in the order, at
+			-- least 250 studs past the last of them (plan 6: minors 250 from a major), searching forward only
+			local lmOrder = (district :: any).landmarkOrder
+			local startAt = centre
+			if lmOrder then
+				for _, id in lmOrder do
+					if id ~= district.signature then
+						for _, lm in landmarks do
+							if lm.id == id and lm.station >= span.startS and lm.station < span.endS then
+								startAt = math.max(startAt, lm.station + 250)
+							end
+						end
+					end
+				end
+			end
 			for off = 0, reach, 12 do
-				for _, c in { centre + off, centre - off } do
+				local tries = if lmOrder then { startAt + off } else { centre + off, centre - off }
+				for _, c in tries do
 					for _, side in { 1, -1 } do
 						local from, to = footprint(c, side, def.width)
 						if not placed and from >= span.startS and to <= span.endS and landmarkFree(from, to, side) then
@@ -1067,10 +1310,29 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		return choices[rng:NextInteger(1, #choices)]
 	end
 
+	-- World build V2: with `v2.subSeeds` the lot phase draws from one stream per district span, seeded by
+	-- hash(seed, cycle, district), so cycle 2 of a district is not a replay of cycle 1 and one district's lots never shift
+	-- another's (the later phases go back to the main stream)
+	local mainRng = rng
+	local subSeeds = catalog.world ~= nil and catalog.world.v2 ~= nil and catalog.world.v2.subSeeds == true
+	local spanRngs: { [number]: Random } = {}
+	local function spanRng(spanIndex: number): Random
+		local r = spanRngs[spanIndex]
+		if not r then
+			local sp = spans[spanIndex]
+			r = Random.new(WorldPlan.seedFor(seedValue, sp.cycle, sp.order, "lots"))
+			spanRngs[spanIndex] = r
+		end
+		return r :: Random
+	end
+
 	local function stepSide(state: SideState): boolean
 		local iv = state.intervals[state.ii]
 		if not iv then
 			return false
+		end
+		if subSeeds then
+			rng = spanRng(spanAt(Route.tToS(maps[state.side], math.max(state.cursor, iv.from)) + 12))
 		end
 		if state.cursor < iv.from then
 			state.cursor = iv.from
@@ -1213,6 +1475,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		end
 		stepSide(pick)
 	end
+	rng = mainRng
 
 	-- 6. Spans (sparse) -------------------------------------------------------------------------
 	local spanPlans: { SpanPlan } = {}
@@ -1600,8 +1863,15 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		hazards = hazards,
 		masses = masses,
 		life = life,
+		extras = {},
+		world = nil,
 		checks = nil :: any,
 	}
+	-- World build V2: the World's own layered additions (never run for Downtown or a World without a `v2` table)
+	local world = catalog.world
+	if world and world.v2 then
+		WorldPlan.apply(plan, catalog, seedValue, { frame = frame, segAt = segAt, spanAt = spanAt })
+	end
 	plan.checks = Sequencer.check(plan, catalog, notes)
 	return plan
 end
@@ -1656,6 +1926,9 @@ function Sequencer.check(plan: Plan, catalog: Catalog.Catalog?, extraNotes: { st
 		local prev: LotPlan? = nil
 		local prevSign = ""
 		for _, lot in plan.lots do
+			if lot.side == side and lot.module == "GAP" and plan.world ~= nil then
+				prev = nil -- World build V2: open ground between two lots is a real gap, not an adjacency
+			end
 			if lot.side == side and lot.module ~= "GAP" then
 				if prev and prev.module == lot.module then
 					checks.immediateLotRepeats += 1
@@ -1931,6 +2204,17 @@ function Sequencer.describe(plan: Plan): string
 	add(string.format("  segment join error %.4f studs", c.segmentJoinError))
 	for _, n in c.notes do
 		add("  note: " .. n)
+	end
+	-- World build V2: WorldPlan's measured proofs of the approved rules
+	local world = plan.world
+	if world and world.checks then
+		add(string.format("World V2 checks (%d extras placed):", #plan.extras))
+		for _, ch in world.checks do
+			add(string.format("  [%s] %s: %s", if ch.ok then "PASS" else "FAIL", ch.id, ch.detail))
+		end
+		for _, n in world.notes do
+			add("  world note: " .. n)
+		end
 	end
 	return table.concat(lines, "\n")
 end

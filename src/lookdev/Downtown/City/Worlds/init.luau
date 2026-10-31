@@ -45,6 +45,7 @@ export type WorldDef = {
 	tierB: { string }, -- landmark ids kept as a labelled kit gallery
 	landmarkSpacing: { number },
 	length: number, -- route length asked of the planner (studs)
+	v2: any?, -- World build V2 (decision 0026): the table City/WorldPlan.luau reads (scatter rules, gorge, occupancy, poles)
 }
 
 local modules: { [string]: string } = { DustyHighway = "DustyHighway", SummitPass = "SummitPass" }

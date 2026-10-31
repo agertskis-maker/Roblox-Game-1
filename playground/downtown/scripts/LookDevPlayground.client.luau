@@ -13,6 +13,7 @@
 -- Downtown B city (LookDev.Downtown.City, client-side in Play; the fixture ambient stops first):
 --        city run [seed] | city sample [seconds] | city stats | city stop | city camera <FIXTURE|HIGH> |
 --        city frame <s> | city width | city reset
+--        (city run takes optional <seed> <world> <length>, e.g. "city run 2207 DustyHighway 6400")
 -- Results are printed as "[Lane3LookDev] <verb> <json>" (and "[Lane3City] ...") for get_console_output.
 
 local HttpService = game:GetService("HttpService")
@@ -28,6 +29,14 @@ end
 local Downtown = ReplicatedStorage:WaitForChild("LookDev"):WaitForChild("Downtown")
 local Ambient = require(Downtown:WaitForChild("Ambient"))
 local ChaseCamera = require(Downtown:WaitForChild("ChaseCamera"))
+
+-- World build V2: review clips carry the World's music (Adam's rule, 2026-10-28). Only the Worlds place maps the Music module
+-- (ReplicatedStorage.WorldsAudio); the Downtown look-dev place has none and stays silent.
+local function worldMusic(): any?
+	local folder = ReplicatedStorage:FindFirstChild("WorldsAudio")
+	local module = folder and folder:FindFirstChild("Music")
+	return if module then require(module) else nil
+end
 
 local function report(verb: string, value: any)
 	local ok, json = pcall(function()
@@ -81,7 +90,11 @@ local function run(command: string)
 			Ambient.stop()
 			ChaseCamera.stop()
 			task.spawn(function()
-				report("city run", City.run({ seed = tonumber(value) or 2207 }))
+				-- World build V2: city run [seed] [world] [length]; a route length of 6400 shows a full second cycle (the wrap)
+				report(
+					"city run",
+					City.run({ seed = tonumber(value) or 2207, world = words[5], length = tonumber(words[6]) })
+				)
 			end)
 		elseif sub == "sample" then
 			task.spawn(function()
@@ -91,7 +104,21 @@ local function run(command: string)
 			report("city stats", City.stats())
 		elseif sub == "stop" then
 			City.stop()
+			local Music = worldMusic()
+			if Music then
+				Music.stop()
+			end
 			report("city stop", "ok")
+		elseif sub == "music" then
+			-- city music <World|off>: the World's loop (DustyHighway | SummitPass | Downtown) or silence
+			local Music = worldMusic()
+			if Music and value and value ~= "off" then
+				Music.enable(true)
+				Music.setWorld(value)
+			elseif Music then
+				Music.stop()
+			end
+			report("city music", value or "off")
 		elseif sub == "camera" then
 			City.camera(value or "FIXTURE")
 			report("city camera", value or "FIXTURE")
@@ -103,6 +130,10 @@ local function run(command: string)
 			report("city width", result.rows)
 		elseif sub == "reset" then
 			City.reset()
+			local Music = worldMusic()
+			if Music then
+				Music.stop()
+			end
 		else
 			report("unknown", command)
 		end

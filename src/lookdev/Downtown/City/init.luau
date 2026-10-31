@@ -9,7 +9,7 @@
 --   City.build({ seed = 2207 })               -- plan + build (camera at s 0, no chase)
 --   City.plan({ seed = 2207 })                -- plan only, prints the sequence and checks
 --   City.chase({ camera = "HIGH", speed = 70 })   City.stop()  City.pause()  City.resume()
---   City.camera("FIXTURE" | "HIGH")   City.frame(1200)   City.sample(20)
+--   City.camera("FIXTURE" | "HIGH" | "RUN_DRAFT")   City.lane(1..4)   City.frame(1200)   City.sample(20)
 --   City.widthStudy()   City.stats()   City.describe()   City.boundaries()
 --   City.reset()  or  City.reset({ lighting = true })   -- also restores the place's lighting
 -- Module functions use one default city under Workspace.Lane3_DowntownCity and need the
@@ -460,6 +460,10 @@ end
 
 function City.camera(name: string)
 	current():rig():setCamera(name)
+end
+
+function City.lane(n: number)
+	current():rig():setLane(n)
 end
 
 function City.frame(s: number)
