@@ -11,10 +11,13 @@ Shared notes for the team. The engineering rules live in the repo root `AGENTS.m
 ## Start here
 - [[GDD]]: what we are building and why
 - [[BOARD]]: who is doing what
-- Decisions: [[0001-profilestore-source]], [[0002-roblox-brain-skill-pack]], [[0003-blocked-tool-exit-code]], [[0004-workflow-rules]], [[0005-animation-pipeline]], [[0006-studio-mcp-rules]], [[0007-concept-car-hop-and-lanes]], [[0008-heat-critical-meltdown]], [[0009-private-repository]], [[0010-vehicle-direction]], [[0012-figma-ui-workflow]], [[0015-car-modeling-to-brian-l]]
+- [[lane3-delegation]]: Lane 3 standing rules from Adam (read right after `AGENTS.md` in every Lane 3 session)
+- Decisions: [[0001-profilestore-source]], [[0002-roblox-brain-skill-pack]], [[0003-blocked-tool-exit-code]], [[0004-workflow-rules]], [[0005-animation-pipeline]], [[0006-studio-mcp-rules]], [[0007-concept-car-hop-and-lanes]], [[0008-heat-critical-meltdown]], [[0009-private-repository]], [[0010-vehicle-direction]], [[0012-figma-ui-workflow]], [[0015-car-modeling-to-brian-l]], [[0016-frameless-portal-rendering]] (proposed), [[0017-garage-stunt-not-relocated]] (decision for Adam)
 - Design outline: [[car-hop-outline-v2]] (approved), [[car-hopping-game-outline]] (v1, history)
 - Cars (Brian L): [[design/cars/README|car handover pack]], with [[rarity-style]] and [[roster]] (proposed); finished cars in `assets/cars/`
-- Log: [[2026-10-14]], [[2026-10-15]], [[2026-10-18]], [[2026-10-19]], [[2026-10-20]], [[2026-10-21]]
+- Island rework (Lane 3): [[island-rework]] (requirement ledger), [[island-signs]]
+- Island base (draft revision 2, eight plots, pending Adam): [[island-base]], [[plot-marker-contract]] (draft for Lane 2)
+- Log: [[2026-10-14]], [[2026-10-15]], [[2026-10-18]], [[2026-10-19]], [[2026-10-20]], [[2026-10-21]], [[2026-10-22]]
 
 ## Conventions
 - **design/**: the [[GDD]] and any system design notes.

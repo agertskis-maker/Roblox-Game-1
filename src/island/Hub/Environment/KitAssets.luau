@@ -1,0 +1,140 @@
+--!strict
+-- Island kit meshes as MeshPart templates (Lane 3, build-time). A mesh with an uploaded id in
+-- AssetIds.Meshes loads from that asset; until it is uploaded, a session-only preview is built
+-- from its mesh data in ServerStorage.Lane3_KitData (synced only by Adam's island preview
+-- project), so the build can be reviewed before the upload. Templates are cached and cloned.
+
+local AssetService = game:GetService("AssetService")
+local ServerStorage = game:GetService("ServerStorage")
+
+local AssetIds = require(script.Parent.AssetIds)
+local KitManifest = require(script.Parent.KitManifest)
+local KitMesh = require(script.Parent.KitMesh)
+
+local KitAssets = {}
+
+local cache: { [string]: MeshPart } = {}
+-- per template: the turn that brings its mesh into the recipe frame (uploaded meshes arrive
+-- turned 180 degrees about Y; previews need none)
+local turns: { [string]: CFrame } = {}
+local HALF_TURN = CFrame.Angles(0, math.pi, 0)
+local sources: { [string]: string } = {}
+
+function KitAssets.has(name: string): boolean
+	return (KitManifest :: any)[name] ~= nil
+end
+
+function KitAssets.info(name: string): KitManifest.Entry
+	local entry = KitManifest[name]
+	assert(entry, "no kit mesh called " .. name)
+	return entry
+end
+
+local function finish(part: MeshPart, name: string)
+	part.Name = name
+	part.TextureID = AssetIds.Palette
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = true
+	part.Material = Enum.Material.SmoothPlastic
+end
+
+-- The template MeshPart for a kit mesh (not parented; clone it).
+function KitAssets.template(name: string): MeshPart
+	local cached = cache[name]
+	if cached then
+		return cached
+	end
+	KitAssets.info(name)
+	local part: MeshPart? = nil
+	local uploaded = (AssetIds.Meshes :: { [string]: string })[name]
+	if uploaded then
+		local ok, loaded = pcall(function()
+			return AssetService:CreateMeshPartAsync(Content.fromUri(uploaded), {
+				CollisionFidelity = Enum.CollisionFidelity.Box,
+				RenderFidelity = Enum.RenderFidelity.Automatic,
+			})
+		end)
+		if ok then
+			part = loaded
+			sources[name] = uploaded
+			turns[name] = HALF_TURN
+		else
+			-- an uploaded mesh that will not load (Task 4: GrassTuftWide began failing with "Failed
+			-- to load mesh asset") falls back to its preview data, so one asset cannot stop a build
+			warn(
+				string.format(
+					"KitAssets: %s (%s) failed to load (%s); using the preview",
+					name,
+					uploaded,
+					tostring(loaded)
+				)
+			)
+		end
+	end
+	if not part then
+		local folder = ServerStorage:FindFirstChild("Lane3_KitData")
+		local module = folder and folder:FindFirstChild(name, true) -- Base and the Task 4 family folders
+		assert(
+			module and module:IsA("ModuleScript"),
+			name .. " has no uploaded id and no preview data (ServerStorage.Lane3_KitData)"
+		)
+		-- a fresh copy, so a rebuilt mesh is not served from the module cache
+		part = KitMesh.previewPart((require :: any)(module:Clone()), AssetIds.Palette)
+		sources[name] = "preview"
+		turns[name] = CFrame.identity
+	end
+	local made = part :: MeshPart
+	finish(made, name)
+	cache[name] = made
+	return made
+end
+
+-- Where each template used so far came from: an asset id, or "preview".
+function KitAssets.sources(): { [string]: string }
+	return table.clone(sources)
+end
+
+-- A clone of the template with the mesh's ground line (y 0 in mesh space) at `base`. Kit parts
+-- do not collide unless `solid` (then with box collision); dressing adds simple colliders.
+function KitAssets.place(name: string, base: CFrame, scale: number, solid: boolean?): MeshPart
+	local entry = KitAssets.info(name)
+	local part = KitAssets.template(name):Clone()
+	local centre = (entry.min + entry.max) / 2
+	part.Size = (entry.max - entry.min) * scale
+	part.CFrame = base * CFrame.new(centre * scale) * turns[name]
+	if solid then
+		part.CanCollide = true
+		part.CanQuery = true
+	end
+	return part
+end
+
+-- The plan-frame corners (x, -z) of a mesh's bounds placed at `base`, and its top height.
+function KitAssets.footprint(name: string, base: CFrame, scale: number): ({ Vector2 }, number)
+	local entry = KitAssets.info(name)
+	local lo, hi = entry.min * scale, entry.max * scale
+	local corners = {}
+	local top = -math.huge
+	for _, x in { lo.X, hi.X } do
+		for _, z in { lo.Z, hi.Z } do
+			local w = base:PointToWorldSpace(Vector3.new(x, hi.Y, z))
+			table.insert(corners, Vector2.new(w.X, -w.Z))
+			top = math.max(top, w.Y)
+		end
+	end
+	return corners, top
+end
+
+function KitAssets.clear()
+	for _, part in cache do
+		part:Destroy()
+	end
+	table.clear(cache)
+	table.clear(sources)
+	table.clear(turns)
+end
+
+return KitAssets

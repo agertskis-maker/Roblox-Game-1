@@ -4,16 +4,28 @@
 -- band around the bills); no artwork is traced or reused.
 --
 -- Three fanned bills with dark outlines, a lighter inset border on the top
--- bill, a gold band across the middle of the top bill, a small upper-left
+-- bill, a gold paper band around the whole bundle, a small upper-left
 -- shine, and a faint shadow, tilted 10 degrees. The inset border is the
 -- first detail to drop if the icon is ever shown below 32 px.
 --
--- Alignment (revision 4):
---   * The band is a child of the top bill, centred in the bill's own rotated
---     coordinates, so it stays centred at every size and rotation.
+-- The band (revision 5, Round 3 R3-C1) is one strip that goes right round the
+-- bundle, seen from above: it lies over the top note (lit gold), crosses the
+-- top note's lower edge at a thin fold line and carries on, darker, over the
+-- stepped front edges of the two lower bills down to the bottom of the stack,
+-- so their outlines pass UNDER it. Its top end stands 2 px proud of the top
+-- note's back edge and is shaded darker where it turns over and behind the
+-- stack; its bottom end is shaded darker where it turns under. It is no longer
+-- a rectangle that stops on the top note.
+--
+-- Alignment (revision 4, kept):
+--   * The band is a child of the top bill, centred across the bill in the
+--     bill's own rotated coordinates, so it stays centred at every size and
+--     rotation.
 --   * The visible bounds of the whole composition (rotated bills, outlines,
 --     band overhang and shadow) are computed from the geometry below and the
 --     stack is offset so their centre is the centre of the square holder.
+--     The revision-5 band ends inside those bounds (its bottom is the bottom
+--     of the lowest bill), so CashIcon.Size and ArtSize are unchanged.
 --   * CashIcon.ArtSize is that visible size; the counter uses it to place the
 --     icon 8 px from the digits and centred on their visible height.
 
@@ -29,7 +41,7 @@ local FAN = Vector2.new(3, 4) -- each lower bill sits this far right and down
 local RADIUS = 3
 local OUTLINE = 2
 local BAND_WIDTH = 8
-local BAND_OVERHANG = 2 -- the band wraps slightly past the bill's edges
+local BAND_OVERHANG = 2 -- the band stands this far proud of the top note's back edge (it turns over and behind there)
 local SHADOW_OFFSET = Vector2.new(1, 2) -- under the bottom bill
 local ROTATION = -10
 -- Scale chosen so the visible artwork is about 1.25 times the visible digit
@@ -38,6 +50,11 @@ local STACK_SCALE = 1.25
 
 -- Stack frame: the unrotated union of the three bills (outlines excluded).
 local STACK = Vector2.new(BILL.X + 2 * FAN.X, BILL.Y + 2 * FAN.Y)
+
+-- The band's frame, in the top bill's coordinates: from BAND_OVERHANG above the top note's back edge down to the bottom
+-- edge of the lowest bill (so it covers the stepped front edges). The fold is where the top note's lower edge crosses it.
+local BAND_HEIGHT = BAND_OVERHANG + STACK.Y
+local BAND_FOLD = BAND_OVERHANG + BILL.Y
 
 local function make(className: string, props: { [string]: any }): any
 	local instance = Instance.new(className)
@@ -72,12 +89,12 @@ local function shapes(): { IconGeometry.Shape }
 			r = RADIUS + OUTLINE,
 		})
 	end
-	-- Band on the top bill, with its overhang and outline.
+	-- Band over the whole bundle (top note to the lowest bill's edge), with its overhang and outline.
 	table.insert(list, {
 		x = (BILL.X - BAND_WIDTH) / 2 - OUTLINE,
 		y = -BAND_OVERHANG - OUTLINE,
 		w = BAND_WIDTH + 2 * OUTLINE,
-		h = BILL.Y + 2 * BAND_OVERHANG + 2 * OUTLINE,
+		h = BAND_HEIGHT + 2 * OUTLINE,
 		r = 2 + OUTLINE,
 	})
 	return list
@@ -165,24 +182,61 @@ function CashIcon.build(parent: Instance, palette: Tokens.Palette): Frame
 	make("UICorner", { CornerRadius = UDim.new(0, 2), Parent = inset })
 	make("UIStroke", { Color = palette.BillLight, Thickness = 1.5, Parent = inset })
 
-	-- Gold band across the middle of the top bill, in the bill's own
-	-- coordinates (centred by anchor, not by a measured offset).
+	-- Gold paper band round the whole bundle: a child of the top bill, centred
+	-- across it by anchor (not by a measured offset), standing BAND_OVERHANG
+	-- proud of the back edge and running down over the lower bills' stepped
+	-- front edges to the bottom of the stack. Being a child of the top bill it
+	-- is drawn after the lower bills, so their outlines pass under it.
 	local band = make("Frame", {
 		Name = "Band",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, BAND_WIDTH, 1, 2 * BAND_OVERHANG),
-		BackgroundColor3 = palette.BillBand,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, -BAND_OVERHANG),
+		Size = UDim2.fromOffset(BAND_WIDTH, BAND_HEIGHT),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0,
 		ZIndex = 7,
 		Parent = top,
 	})
 	make("UICorner", { CornerRadius = UDim.new(0, 2), Parent = band })
 	make("UIStroke", { Color = palette.CashOutline, Thickness = OUTLINE, Parent = band })
+	-- Top to bottom: darker where it turns over the back edge, lit gold over the
+	-- top note, a hard step at the fold, darker gold over the front edges, darker
+	-- again where it turns under the stack.
+	local foldAt = BAND_FOLD / BAND_HEIGHT
 	make("UIGradient", {
-		Color = ColorSequence.new(palette.BillBand, palette.BillBandShade),
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, palette.BillBandShade:Lerp(palette.CashOutline, 0.15)),
+			ColorSequenceKeypoint.new(BAND_OVERHANG / BAND_HEIGHT, palette.BillBand:Lerp(Color3.new(1, 1, 1), 0.2)),
+			ColorSequenceKeypoint.new(foldAt - 0.001, palette.BillBand),
+			ColorSequenceKeypoint.new(foldAt, palette.BillBandShade:Lerp(palette.BillBand, 0.3)),
+			ColorSequenceKeypoint.new(1, palette.BillBandShade:Lerp(palette.CashOutline, 0.2)),
+		}),
 		Parent = band,
 	})
+	-- The fold: a thin, soft line where the top note's lower edge crosses the band.
+	make("Frame", {
+		Name = "Fold",
+		Position = UDim2.fromOffset(0, BAND_FOLD),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = palette.CashOutline,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Parent = band,
+	})
+	-- A restrained upper-left highlight along the band's lit edge.
+	local edge = make("Frame", {
+		Name = "Edge",
+		Position = UDim2.fromOffset(1, BAND_OVERHANG + 2),
+		Size = UDim2.fromOffset(1.5, BILL.Y - 6),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Parent = band,
+	})
+	make("UICorner", { CornerRadius = Tokens.Radius.Pill, Parent = edge })
 
 	-- Restrained shine near the upper-left of the top bill.
 	local shine = make("Frame", {
@@ -210,6 +264,15 @@ function CashIcon.debugGeometry(): { [string]: any }
 		rotation = ROTATION,
 		stack = STACK,
 		bill = BILL,
+		fan = FAN,
+		-- the band in the top bill's coordinates: x, y (negative = past the back edge), width, height, fold line y
+		band = {
+			x = (BILL.X - BAND_WIDTH) / 2,
+			y = -BAND_OVERHANG,
+			w = BAND_WIDTH,
+			h = BAND_HEIGHT,
+			foldY = BILL.Y,
+		},
 	}
 end
 

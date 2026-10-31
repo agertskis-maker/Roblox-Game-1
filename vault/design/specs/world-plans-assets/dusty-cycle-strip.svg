@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 330" width="1000" height="330" role="img" aria-labelledby="t d">
+  <title id="t">Dusty Highway one cycle, districts, illustrative landmarks and density (concept diagram)</title>
+  <desc id="d">Concept diagram, not a render of the built map. One repeating cycle of about 3,160 studs: five districts at their fixture target lengths, illustrative landmark stations, and a proposed density curve.</desc>
+  <rect x="0" y="0" width="1000" height="330" fill="#f6ecd2"/>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#3a2418">
+    <!-- district blocks: x = 40 + s * 0.2911 -->
+    <rect x="40" y="40" width="191" height="44" fill="#e8c28a"/>
+    <rect x="231" y="40" width="170" height="44" fill="#9ed2c6"/>
+    <rect x="401" y="40" width="198" height="44" fill="#c9694a"/>
+    <rect x="599" y="40" width="168" height="44" fill="#a85c46"/>
+    <rect x="767" y="40" width="193" height="44" fill="#f0d49c"/>
+    <text x="48" y="66" font-weight="700">Cactus Flats</text>
+    <text x="239" y="66" font-weight="700">Diner Strip</text>
+    <text x="409" y="66" font-weight="700" fill="#fff4e0">Red Rock Arches</text>
+    <text x="607" y="66" font-weight="700" fill="#fff4e0">Canyon Bridge</text>
+    <text x="775" y="66" font-weight="700">Mirage Dunes</text>
+    <text x="40" y="32">0</text>
+    <text x="222" y="32">656</text>
+    <text x="388" y="32">1,240</text>
+    <text x="586" y="32">1,920</text>
+    <text x="754" y="32">2,496</text>
+    <text x="930" y="32">3,160</text>
+    <!-- bridge span -->
+    <rect x="619" y="88" width="112" height="8" fill="#5b3a2a"/>
+    <text x="622" y="108">bridge span about 384 studs</text>
+    <!-- landmarks (illustrative stations) -->
+    <g fill="#3a2418">
+      <polygon points="89,118 83,130 95,130"/>
+      <polygon points="186,118 180,130 192,130"/>
+      <polygon points="273,118 267,130 279,130"/>
+      <polygon points="369,118 363,130 375,130"/>
+      <polygon points="494,118 488,130 500,130"/>
+      <polygon points="785,118 779,130 791,130"/>
+      <polygon points="884,118 878,130 890,130"/>
+    </g>
+    <text x="64" y="144">windmill</text>
+    <text x="150" y="144">saguaro garden</text>
+    <text x="252" y="144">diner</text>
+    <text x="340" y="144">pump garage</text>
+    <text x="466" y="144">arch</text>
+    <text x="756" y="144">cactus sign</text>
+    <text x="856" y="144">ghost huts</text>
+    <!-- density curve -->
+    <line x1="40" y1="240" x2="960" y2="240" stroke="#8a6a52" stroke-width="1"/>
+    <line x1="40" y1="152" x2="40" y2="240" stroke="#8a6a52" stroke-width="1"/>
+    <polyline fill="none" stroke="#b0402a" stroke-width="3" points="40,196 135.5,204.8 231,191.6 273,147.6 331,138.8 383.5,174 401,178.4 447.6,165.2 494,152 549.4,156.4 599,147.6 636.8,174 674.6,209.2 731,204.8 766.6,196 826,211.4 884,200.4 960,198.2"/>
+    <text x="46" y="164">dense</text>
+    <text x="46" y="236">open</text>
+    <text x="40" y="262" font-weight="700">Proposed density: open flats, a compact strip, heavy rock, a squeeze then a release, airy dunes, repeat.</text>
+    <text x="40" y="290" font-weight="700">Concept diagram, not a render of the built map. Lengths are the fixture targets (656 / 584 / 680 / 576 / 664).</text>
+    <text x="40" y="308">Landmark stations are illustrative for composition planning; the planner picks real stations inside its 300 to 440 stud spacing rule.</text>
+  </g>
+</svg>

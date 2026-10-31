@@ -31,3 +31,6 @@ vault/.trash/
 
 # Playwright MCP browser-tool output (local only).
 /.playwright-mcp/
+
+# Python bytecode from the Blender kit scripts
+__pycache__/
