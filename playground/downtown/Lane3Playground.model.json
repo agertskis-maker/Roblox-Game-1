@@ -1,0 +1,7 @@
+{
+  "className": "Configuration",
+  "attributes": {
+    "Kind": "downtown",
+    "Note": "Lane 3 Downtown look-dev playground marker. Exists only in playground/downtown.project.json; the game's default.project.json never includes it."
+  }
+}

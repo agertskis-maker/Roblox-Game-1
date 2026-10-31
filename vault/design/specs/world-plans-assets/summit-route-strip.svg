@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d">
+  <title id="t">Summit Pass proposed route strip, one lap</title>
+  <desc id="d">Concept diagram of the five districts in fixture lengths with a proposed density curve and landmark beats. Not a render of the built map.</desc>
+  <rect width="960" height="400" fill="#f3f7fb"/>
+  <!-- district blocks: x = 40 + stud * 0.2775 (fixture targets 648, 600, 672, 576, 680 = 3,176) -->
+  <g>
+    <rect x="40"  y="70" width="180" height="46" fill="#d9a77c"/>
+    <rect x="220" y="70" width="166" height="46" fill="#aab9cf"/>
+    <rect x="386" y="70" width="186" height="46" fill="#b9e0f2"/>
+    <rect x="572" y="70" width="160" height="46" fill="#7fa6d4"/>
+    <rect x="732" y="70" width="189" height="46" fill="#e2c28e"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#1f2a3a">
+    <text x="48" y="97">Pine Village 648</text>
+    <text x="228" y="97">Ski Lift Ridge 600</text>
+    <text x="394" y="97">Frozen Lake 672</text>
+    <text x="580" y="97">Glacier Tunnel 576</text>
+    <text x="740" y="97">Summit Lodge 680</text>
+    <text x="40" y="30" font-size="15" font-weight="600">Summit Pass, proposed route strip for one lap (fixture lengths in studs)</text>
+    <text x="40" y="50" font-size="12">Lengths are the SummitPass.luau fixture targets (sum 3,176); the realised plan is about 3,099 and then repeats at Pine Village.</text>
+  </g>
+  <!-- density curve: built share of frontage (0 bottom, 1 top) -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#1f2a3a">
+    <text x="40" y="328">Curve: built share of frontage (proposed): high, medium, low, enclosed, peak</text>
+    <line x1="40" y1="310" x2="921" y2="310" stroke="#1f2a3a" stroke-width="1"/>
+    <line x1="40" y1="150" x2="40" y2="310" stroke="#1f2a3a" stroke-width="1"/>
+    <text x="8" y="160">80%</text><text x="8" y="233">40%</text><text x="14" y="310">0</text>
+  </g>
+  <polyline fill="none" stroke="#a8433f" stroke-width="3" points="40,166 130,158 220,160 260,232 386,242 460,288 572,296 640,306 732,306 760,206 820,177 921,182"/>
+  <g fill="#a8433f"><circle cx="130" cy="158" r="4"/><circle cx="300" cy="234" r="4"/><circle cx="470" cy="287" r="4"/><circle cx="650" cy="306" r="4"/><circle cx="830" cy="177" r="4"/></g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#1f2a3a">
+    <text x="92" y="176">80%</text><text x="268" y="226">40%</text><text x="440" y="279">12%</text><text x="610" y="296">0 (shell)</text><text x="800" y="170">70%</text>
+  </g>
+  <!-- landmark beats -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#1f2a3a">
+    <polygon points="110,126 118,142 102,142" fill="#3f5b73"/><text x="62" y="124">Terrace chalets</text>
+    <polygon points="190,126 198,142 182,142" fill="#3f5b73"/>
+    <text x="150" y="152" font-size="10">Clock tower</text>
+    <polygon points="268,126 276,142 260,142" fill="#3f5b73"/><text x="228" y="124">Warming hut</text>
+    <polygon points="340,126 348,142 332,142" fill="#3f5b73"/><text x="296" y="152" font-size="10">Ski lift</text>
+    <polygon points="470,126 478,142 462,142" fill="#3f5b73"/><text x="430" y="124">Lake + skate hut</text>
+    <polygon points="650,126 658,142 642,142" fill="#3f5b73"/><text x="604" y="124">Glacier gallery</text>
+    <polygon points="766,126 774,142 758,142" fill="#3f5b73"/><text x="738" y="124">Observatory</text>
+    <polygon points="820,126 828,142 812,142" fill="#3f5b73"/><text x="790" y="152" font-size="10">Snowmen</text>
+    <polygon points="888,126 896,142 880,142" fill="#3f5b73"/><text x="864" y="124">Lodge</text>
+  </g>
+  <!-- repeat arrow -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#1f2a3a">
+    <path d="M921,335 L945,335 L945,350 L40,350" fill="none" stroke="#1f2a3a" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <polygon points="40,350 50,345 50,355" fill="#1f2a3a"/>
+    <text x="300" y="372">The road does not end at the lodge: the lap repeats at Pine Village with different seeds, variants and palettes.</text>
+    <text x="40" y="392" font-weight="600" fill="#a8433f">Concept diagram, not a render of the built map.</text>
+  </g>
+</svg>
