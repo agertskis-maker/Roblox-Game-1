@@ -1542,6 +1542,94 @@ Icons2.Districts = {
 	"District_SummitLodge",
 }
 
+-- THE ICON FAMILY (BRIEF M9, 2026-11-01). IconsFamily.luau holds the new menu, currency, shop, tutorial and rarity
+-- painters and is installed here with the kit below (so it shares the pen, the outline, the lip and the gradient
+-- ramp with everything above). Nothing in IconsFamily requires Icons2, so there is no require cycle. A name the
+-- family registers REPLACES an older Icons or Icons2 painter of the same name; that is how every existing caller
+-- (Arcade.icon, Style.header, Overlay.closeButton, the Home menu fallbacks) picks up the new art unedited, and
+-- Icons.draw forwards the same names here (M9-03). `Icons2.Groups` is the icon sheet's order.
+do
+	local function register(name: string, painter: Painter, default: Color3?, tilt: number?)
+		painters[name] = painter
+		defaults[name] = default :: any -- nil clears: the painter's own default colour is the main fill
+		tilts[name] = tilt :: any
+		if not table.find(Icons2.Names, name) then
+			table.insert(Icons2.Names, name)
+		end
+	end
+	local function alias(name: string, existing: string, default: Color3?, tilt: number?)
+		local painter = painters[existing]
+		if not painter then
+			warn("[Icons2] alias " .. name .. " -> " .. existing .. ": no such painter")
+			return
+		end
+		register(name, painter, default or defaults[existing], tilt or tilts[existing])
+	end
+	local kit: { [string]: any } = {
+		rect = rect,
+		circle = circle,
+		bar = bar,
+		group = group,
+		flat = flat,
+		shine = shine,
+		ring = ring,
+		within = within,
+		lighten = lighten,
+		darken = darken,
+		carShape = carShape,
+		painters = painters,
+		register = register,
+		alias = alias,
+		INK = INK,
+		WHITE = WHITE,
+		rarity = PreviewTokens.Rarity,
+		colors = {
+			GOLD = GOLD,
+			SILVER = SILVER,
+			GIFT_RED = GIFT_RED,
+			BOOK_ORANGE = BOOK_ORANGE,
+			PAGE = PAGE,
+			BOARD_VIOLET = BOARD_VIOLET,
+			TICK_GREEN = TICK_GREEN,
+			CAR_CYAN = CAR_CYAN,
+			CAR_CYAN_DEEP = CAR_CYAN_DEEP,
+			GLASS = GLASS,
+			FLAME = FLAME,
+			NOTE_PINK = NOTE_PINK,
+			EVENT_ORANGE = EVENT_ORANGE,
+			ASPHALT = ASPHALT,
+			GRASS = GRASS,
+			STAMP_RED = STAMP_RED,
+			BRICK = BRICK,
+			BILL = Tokens.Color.BillFace,
+			WOOD_BROWN = WOOD,
+			TEAL = TEAL_GLASS,
+			-- family colours (TOKEN CANDIDATES, one place)
+			GEAR = rgb(190, 200, 222),
+			SIGN_BLUE = rgb(46, 120, 232),
+			PORTAL = rgb(170, 90, 255),
+			TYRE = rgb(62, 68, 88),
+			SACK = rgb(204, 160, 100),
+			STEEL = rgb(150, 164, 196),
+		},
+	}
+	Icons2.Groups = {} :: { { title: string, names: { string } } }
+	local siblingModule = script.Parent:FindFirstChild("IconsFamily")
+	if siblingModule and siblingModule:IsA("ModuleScript") then
+		local loaded, family = pcall(require, siblingModule)
+		if loaded then
+			local installed, err = pcall(family.install, kit)
+			if installed then
+				Icons2.Groups = family.Groups
+			else
+				warn("[Icons2] icon family failed to install: " .. tostring(err))
+			end
+		else
+			warn("[Icons2] icon family failed to load: " .. tostring(family))
+		end
+	end
+end
+
 local function holderSide(holder: Frame): number
 	local px = holder.Size.X.Offset
 	if px <= 0 then
