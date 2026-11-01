@@ -453,6 +453,7 @@ local function buildFountain(ctx: Ctx)
 		local b = plainPart(name, size, CFrame.new(0, y, 0) * CFrame.new(at), colour, f)
 		b.CanCollide = false
 		b.CanQuery = false
+		b:SetAttribute("SightlineEnvelope", true)
 		return b
 	end
 	disc("FountainStep", 15, 0.28, 0.4, FOUNTAIN.Stone)
@@ -483,7 +484,8 @@ local function buildFountain(ctx: Ctx)
 	-- a short steel stay under the raised nose: the statue is held, not hovering
 	local tilt = math.rad(13)
 	local toward = Vector3.new(0, 0, 1) -- the nose points down the portal row's axis (south)
-	local seat = CFrame.lookAt(Vector3.new(0, y + FOUNTAIN.PedestalTop + 0.5, 0), toward) * CFrame.Angles(tilt, 0, 0)
+	local centre = Vector3.new(0, y + FOUNTAIN.PedestalTop + 0.5, 0)
+	local seat = CFrame.lookAt(centre, centre + toward) * CFrame.Angles(tilt, 0, 0)
 	block("StatueStay", Vector3.new(1.2, 1.4, 1.2), Vector3.new(0, FOUNTAIN.PedestalTop + 0.5, 0), FOUNTAIN.Navy)
 	local Speedway = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
 	local kit: any = Speedway and (require :: any)((Speedway :: any).Island.Speedway.Kit)
@@ -495,6 +497,7 @@ local function buildFountain(ctx: Ctx)
 		car.Reflectance = 0.08
 		car.Name = "StatueCar"
 		car:SetAttribute("SightlineEnvelope", true)
+		car:SetAttribute("Hanging", true) -- held by the stay on the pedestal, not ground-standing
 		car.Parent = f
 		ctx.counts.StatueCar = 1
 	else
@@ -1515,7 +1518,7 @@ local function buildTrees(ctx: Ctx)
 			local nearStream = streamClear(p) < 16
 			local weights = if nearStream
 				then { Birch = 3, Willow = 2, Oak = 1 }
-				else { Oak = 3, Blossom = 3, Fruit = 2.2, Birch = 1.6 }
+				else { Oak = 3, Blossom = 3, Birch = 1.6 } -- no fruit trees: their mesh's apples float (Adam, M2-08)
 			local total = 0
 			local keys = {}
 			for k, w in weights do

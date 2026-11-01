@@ -511,7 +511,7 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 				},
 				0.5
 			)
-			Kit.slab(major, wa, wb, Vector3.yAxis, 1.0, edgeTall, {
+			Kit.slab(major, wa, wb, Vector3.yAxis, 1.12, edgeTall, {
 				name = "BankWallCap",
 				color = C.WallCap,
 				collide = true,
@@ -525,11 +525,20 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		for _, which in { ends[1], ends[#ends] } do
 			local along = (which.b - which.a).Unit
 			local tip = if which == ends[1] then which.a + along * 0.6 else which.b - along * 0.6
-			Kit.slab(major, tip - along * 0.7 + Vector3.yAxis * 0.1, tip + along * 0.7 + Vector3.yAxis * 0.1, Vector3.yAxis, 1.16, which.height + 0.1, {
-				name = "BankWallEnd",
-				color = C.WallEnd,
-				castShadow = false,
-			}, 0)
+			Kit.slab(
+				major,
+				tip - along * 0.7 + Vector3.yAxis * 0.1,
+				tip + along * 0.7 + Vector3.yAxis * 0.1,
+				Vector3.yAxis,
+				1.16,
+				which.height + 0.1,
+				{
+					name = "BankWallEnd",
+					color = C.WallEnd,
+					castShadow = false,
+				},
+				0
+			)
 		end
 	end
 	-- catch fence runs on the wall top, along the full-bank part of the turn

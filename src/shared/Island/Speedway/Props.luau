@@ -600,16 +600,16 @@ function Props.pitGarage(major: Folder, ctx: Ctx)
 		box("PitPier", Vector3.new(0.9, tall - 0.2, depth - 1), x, (tall - 0.2) / 2 + 0.24, 0, PIT.Trim, true)
 	end
 	-- the roof, the fascia and the canopy over the apron
-	box("PitRoof", Vector3.new(length + 1.6, 0.6, depth + 5.4), 0, tall + 0.54, 2.7, PIT.Wall, true)
-	box("PitFascia", Vector3.new(length + 2.2, 1.1, 0.5), 0, tall + 0.34, depth / 2 + 5.6, PIT.Trim)
-	box("PitFasciaTrim", Vector3.new(length + 2.6, 0.2, 0.7), 0, tall + 0.97, depth / 2 + 5.6, PIT.Accent)
+	box("PitRoof", Vector3.new(length + 1.6, 0.6, depth + 4), 0, tall + 0.54, 2, PIT.Wall, true)
+	box("PitFascia", Vector3.new(length + 2.2, 1.1, 0.5), 0, tall + 0.34, depth / 2 + 4.2, PIT.Trim)
+	box("PitFasciaTrim", Vector3.new(length + 2.6, 0.2, 0.7), 0, tall + 0.97, depth / 2 + 4.2, PIT.Accent)
 	for _, sx in { 1, -1 } do
 		box(
 			"PitCanopyPost",
 			Vector3.new(0.5, tall - 0.2, 0.5),
 			sx * (length / 2 + 0.2),
 			(tall - 0.2) / 2 + 0.24,
-			depth / 2 + 5,
+			depth / 2 + 3.6,
 			PIT.Trim,
 			true
 		)
@@ -648,17 +648,17 @@ function Props.pitGarage(major: Folder, ctx: Ctx)
 			)
 		end
 		-- the numbered bay plate on the fascia
-		local plateAt = base * CFrame.new(x, tall + 0.34, depth / 2 + 5.85) * CFrame.Angles(0, math.pi, 0)
+		local plateAt = base * CFrame.new(x, tall + 0.34, depth / 2 + 4.45) * CFrame.Angles(0, math.pi, 0)
 		SignKit.sign(major, plateAt, { style = "Race", text = string.format("%02d", k), width = 2.6, height = 0.9 })
 	end
 	-- the one primary name, above the canopy
-	local signAt = base * CFrame.new(5, tall + 3.1, depth / 2 + 2.6) * CFrame.Angles(0, math.pi, 0)
+	local signAt = base * CFrame.new(5, tall + 3.1, depth / 2 + 1.6) * CFrame.Angles(0, math.pi, 0)
 	SignKit.sign(
 		major,
 		signAt,
 		{ style = "Race", text = "PIT ROW", width = 15, height = 3.4, bulbs = true, backlight = true }
 	)
-	box("PitSignStay", Vector3.new(11, 0.4, 0.4), 5, tall + 1.05, depth / 2 + 2.3, PIT.Trim)
+	box("PitSignStay", Vector3.new(11, 0.4, 0.4), 5, tall + 1.05, depth / 2 + 1.3, PIT.Trim)
 
 	-- the pit wall: a low wall between the apron and the lane, with a gap at each end for cars
 	local wallZ = A.PitGarage.X - 57
