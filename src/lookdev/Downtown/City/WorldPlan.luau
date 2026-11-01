@@ -108,6 +108,15 @@ local OUTWARD_FURNITURE =
 	{ lamp = true, cactus = true, rock = true, barrel = true, fencePost = true, tree = true, bin = true, bench = true }
 
 function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
+	if plan.frontagePush then
+		-- the scenery-only preview: every roadside piece stands further out by the same amount
+		local base, push = h.frame, plan.frontagePush :: number
+		h = table.clone(h)
+		h.frame = function(s: number, d: number?, y: number?): CFrame
+			local lateral = d or 0
+			return base(s, lateral + (if lateral > 0 then push elseif lateral < 0 then -push else 0), y)
+		end
+	end
 	local world = catalog.world
 	local v2 = world.v2
 	local notes: { string } = {}

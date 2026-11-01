@@ -58,6 +58,9 @@ export type Options = {
 	shoulder: number?,
 	catalog: Catalog.Catalog?, -- default Catalog.load()
 	landmarkSpacing: { number }?, -- { min, max } (default 500, 700)
+	origin: CFrame?, -- where the route starts (default the world origin)
+	straightOnly: boolean?, -- every curve laid straight, for a straight road such as the run's
+	frontagePush: number?, -- studs added to every roadside lateral
 	districtTargets: { [string]: number }?,
 	hazards: boolean?, -- default true
 }
@@ -300,7 +303,8 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	local laneWidth = opts.laneWidth or Sequencer.LANE_WIDTH
 	local shoulder = opts.shoulder or Sequencer.SHOULDER
 	local halfRoad = lanes * laneWidth / 2 + shoulder
-	local frontage = halfRoad + Sequencer.SIDEWALK
+	-- frontagePush moves the roadside out (the scenery-only preview beside Brian R's road, whose own test scenery stands there)
+	local frontage = halfRoad + Sequencer.SIDEWALK + (opts.frontagePush or 0)
 	local spacing = opts.landmarkSpacing or { 500, 700 }
 	local notes: { string } = {}
 
@@ -315,7 +319,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	local segments: { Route.Segment } = {}
 	local spans: { DistrictSpan } = {}
 	local s = 0
-	local cf = CFrame.identity
+	local cf = opts.origin or CFrame.identity
 	local heading = 0
 	local function push(kind: Route.Kind, length: number, district: Catalog.District, spanIndex: number, cycle: number)
 		local bend = Route.bendOf(kind)
@@ -416,7 +420,9 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				truncated = true
 				break
 			end
-			if piece == "Curve" then
+			if piece == "Curve" and opts.straightOnly then
+				push("Straight", Route.CURVE_LENGTH, d, spanIndex, cycle)
+			elseif piece == "Curve" then
 				local dir = if rng:NextNumber() < 0.5 then -1 else 1
 				if heading + dir * Route.CURVE_DEGREES > 32 or heading + dir * Route.CURVE_DEGREES < -32 then
 					dir = -dir
@@ -1870,6 +1876,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	-- World build V2: the World's own layered additions (never run for Downtown or a World without a `v2` table)
 	local world = catalog.world
 	if world and world.v2 then
+		(plan :: any).frontagePush = opts.frontagePush
 		WorldPlan.apply(plan, catalog, seedValue, { frame = frame, segAt = segAt, spanAt = spanAt })
 	end
 	plan.checks = Sequencer.check(plan, catalog, notes)
