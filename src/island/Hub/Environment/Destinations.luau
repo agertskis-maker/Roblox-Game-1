@@ -620,7 +620,7 @@ local function previewCar(seat: CFrame, index: number, parent: Instance): Model
 		-- tyres: inside the cover's sides, the lower half showing under the hem (hem at 0.9)
 		for _, x in { -2.55, 2.55 } do
 			for _, z in { -4.1, 4.1 } do
-				piece("Tyre", Enum.PartType.Cylinder, Vector3.new(0.9, 2, 2), Vector3.new(x, 1, z), STAND_TYRE)
+				piece("Tyre", Enum.PartType.Cylinder, Vector3.new(0.8, 2, 2), Vector3.new(x, 1, z), STAND_TYRE)
 			end
 		end
 		-- the covered body: a block with rounded nose and tail, then a rounded cabin hump
@@ -633,7 +633,7 @@ local function previewCar(seat: CFrame, index: number, parent: Instance): Model
 			piece("Cover", Enum.PartType.Cylinder, Vector3.new(5, 1.4, 1.4), Vector3.new(0, 3.4, z), COVER)
 		end
 		-- a cream tie band round the middle, like a fitted cover's strap
-		piece("CoverBand", Enum.PartType.Block, Vector3.new(6.08, 1.84, 0.5), Vector3.new(0, 1.8, 0.6), CREAM)
+		piece("CoverBand", Enum.PartType.Block, Vector3.new(6.2, 1.96, 0.5), Vector3.new(0, 1.8, 0.6), CREAM)
 		model.WorldPivot = seat -- no PrimaryPart, so the pivot stays at the bottom centre
 	end
 	model:SetAttribute("Preview", true)

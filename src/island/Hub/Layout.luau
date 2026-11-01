@@ -418,19 +418,22 @@ end
 Layout.Bays = bays
 
 -- Pit lanes (plot frame, ordered in the direction cars drive). Out leaves the aisle's right end
--- for the right straight; In leaves the left straight for the aisle's left end.
+-- for the right straight; In leaves the left straight for the aisle's left end. They meet the
+-- track at a shallow angle (M4-03) and end on its edge, under the road surface.
 local uF = plot.frontEnd
 local laneV = plot.outerClearance + 5.5
 Layout.PitOut = {
 	Vector2.new(33, Layout.AisleMidU),
 	Vector2.new(31, r0 + 58),
 	Vector2.new(laneV, uF + 3),
-	Vector2.new(laneV, uS - 1),
-	Vector2.new(R + 5, uS + 14),
+	Vector2.new(laneV, uS - 25),
+	Vector2.new(46, uS + 3),
+	Vector2.new(41.5, uS + 17),
 }
 Layout.PitIn = {
-	Vector2.new(-R - 5, uS + 14),
-	Vector2.new(-laneV, uS - 1),
+	Vector2.new(-41.5, uS + 17),
+	Vector2.new(-46, uS + 3),
+	Vector2.new(-laneV, uS - 25),
 	Vector2.new(-laneV, uF + 3),
 	Vector2.new(-31, r0 + 58),
 	Vector2.new(-33, Layout.AisleMidU),

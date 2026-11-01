@@ -67,8 +67,11 @@ Look.Features = {
 	f("AsphaltBanked", 9, 9, function(p, c)
 		Track.asphaltBanked(p.major, c)
 	end),
-	f("AsphaltGround", 10, 12, function(p, c)
+	f("AsphaltGround", 10, 11, function(p, c)
 		Track.asphaltGround(p.major, c)
+	end),
+	f("AsphaltLoopWide", 12, 12, function(p, c)
+		Track.asphaltGround(p.major, c, true)
 	end),
 	f("Infield", 4, 12, function(p, c)
 		Track.infield(p.major, c)
@@ -109,18 +112,6 @@ Look.Features = {
 	end),
 	f("WonkyFlag", 1, 4, function(p, c)
 		Props.wonkyFlag(p.minor, c)
-	end),
-	f("ShedRusty", 1, 3, function(p, c)
-		Props.shed(p.major, c, false)
-	end),
-	f("ShedPainted", 4, 12, function(p, c)
-		Props.shed(p.major, c, true)
-	end),
-	f("Lemonade", 1, 12, function(p, c)
-		Props.lemonade(p.minor, c)
-	end),
-	f("BarrelBarrow", 2, 12, function(p, c)
-		Props.barrelBarrow(p.minor, c)
 	end),
 	f("StartBoard", 2, 7, function(p, c)
 		Props.startBoard(p.major, c)
