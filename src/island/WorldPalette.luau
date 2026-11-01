@@ -9,7 +9,7 @@ return {
 	DeepWater = rgb(22, 142, 188),
 	ShallowWater = rgb(81, 215, 209),
 	Sand = rgb(243, 215, 166),
-	Paving = rgb(244, 230, 203),
+	Paving = rgb(224, 208, 182), -- a warm stone: the old cream bloomed to white in the plaza (big round)
 	Grass = rgb(121, 200, 109),
 	Foliage = rgb(59, 149, 110),
 	Rock = rgb(130, 150, 162),
@@ -36,7 +36,7 @@ return {
 	HelperClearance = rgb(255, 138, 31),
 	HelperReserve = rgb(178, 73, 62),
 	HelperDivider = rgb(255, 244, 220),
-	Promenade = rgb(233, 215, 180),
+	Promenade = rgb(208, 188, 154),
 	Court = rgb(249, 223, 160),
 	Turntable = rgb(188, 199, 201),
 	BayReserved = rgb(220, 226, 230),

@@ -12,6 +12,7 @@ local Ctx = require(script.Parent.Ctx)
 local Kit = require(script.Parent.Kit)
 local KitIds = require(script.Parent.KitIds)
 local Path = require(script.Parent.Path)
+local SignKit = require(script.Parent.Parent.SignKit)
 
 local Tokens = require(script.Parent.Parent.Parent.UI.Tokens)
 
@@ -33,11 +34,6 @@ local START_U = Path.StartU
 Props.Anchors = {
 	OwnerSign = Vector2.new(-13, 339.5),
 	WonkyFlag = Vector2.new(-20.5, 340.5),
-	Shed = Vector2.new(68, 470),
-	Lemonade = Vector2.new(60, 420),
-	Chair = Vector2.new(59.6, 414.6),
-	Barrel = Vector2.new(62.6, 461.5),
-	Barrow = Vector2.new(63.5, 478),
 	StartBoard = Vector2.new(-48.4, START_U),
 	PennantU = 455,
 	Bleachers = Vector2.new(-52.6, 438),
@@ -265,27 +261,6 @@ function Props.wonkyFlag(folder: Folder, ctx: Ctx)
 	b.Parent = host
 end
 
-function Props.shed(folder: Folder, ctx: Ctx, painted: boolean)
-	local shed = Ctx.place(ctx, folder, if painted then "SwPaintedShed" else "SwRustyShed", A.Shed.X, A.Shed.Y, WEST)
-	if shed then
-		shed.CanCollide = true
-		shed.CanQuery = true
-	end
-end
-
-function Props.lemonade(folder: Folder, ctx: Ctx)
-	local base = Ctx.face(ctx, A.Lemonade.X, A.Lemonade.Y, WEST)
-	local stand = Kit.place("SwLemonadeStand", base)
-	if stand then
-		stand.Parent = folder
-		local face = meshFace(folder, "SwLemonadeStand", "face", base)
-		if face then
-			label(surface(face, 60), "LEMONADE", { 0.02, 0.05, 0.96, 0.9 }, 40, Color3.fromRGB(250, 222, 80))
-		end
-	end
-	Ctx.place(ctx, folder, "SwFoldingChair", A.Chair.X, A.Chair.Y, Vector2.new(-1, 0.35).Unit)
-end
-
 -- ------------------------------------------------------------------ level 2
 
 function Props.startBoard(folder: Folder, ctx: Ctx)
@@ -339,11 +314,6 @@ function Props.pennants(folder: Folder, ctx: Ctx)
 	b.LightInfluence = 1
 	b:SetAttribute("BuntingSag", 1.6)
 	b.Parent = host
-end
-
-function Props.barrelBarrow(folder: Folder, ctx: Ctx)
-	Ctx.place(ctx, folder, "SwWaterBarrel", A.Barrel.X, A.Barrel.Y, WEST)
-	Ctx.place(ctx, folder, "SwWheelbarrow", A.Barrow.X, A.Barrow.Y, Vector2.new(-1, -0.4).Unit)
 end
 
 -- ------------------------------------------------------------------ fans
@@ -585,42 +555,151 @@ end
 
 -- ------------------------------------------------------------------ level 6
 
+-- PIT ROW (M4-06): a real pit building, drawn with parts in the plot's PitBuilding reservation. Three
+-- numbered bays open to the pit lane, one door up, one half up, one down; a canopy over the apron,
+-- an office block breaking the roofline, racks inside the bays. In local terms z points at the
+-- lane, x runs along the building. Every surface here is inset or stepped from its neighbour by at
+-- least 0.08, so nothing shares a plane. The mesh SwPitGarage is no longer used.
+local PIT = {
+	Wall = Color3.fromRGB(226, 222, 212),
+	Trim = Color3.fromRGB(30, 50, 104),
+	Accent = Color3.fromRGB(247, 200, 58),
+	Door = Color3.fromRGB(150, 158, 170),
+	Dark = Color3.fromRGB(58, 62, 72),
+	Glass = Color3.fromRGB(120, 196, 232),
+}
+
 function Props.pitGarage(major: Folder, ctx: Ctx)
 	local base = Ctx.face(ctx, A.PitGarage.X, A.PitGarage.Y, WEST)
-	local garage = Kit.place("SwPitGarage", base)
-	if garage then
-		garage.CanCollide = true
-		garage.CanQuery = true
-		garage.Parent = major
-		local face = meshFace(major, "SwPitGarage", "face", base)
-		if face then
-			label(surface(face, 50), "PIT ROW", { 0.02, 0.05, 0.96, 0.9 }, 56)
-		end
+	local function box(
+		name: string,
+		size: Vector3,
+		x: number,
+		y: number,
+		z: number,
+		colour: Color3,
+		collide: boolean?
+	): Part
+		return Kit.part(major, size, base * CFrame.new(x, y, z), { name = name, color = colour, collide = collide })
 	end
-	-- one bay's door rolled down, the other rolled up (open to the pit lane)
-	for k, x in { -4.5, 4.5 } do
-		local lift = if k == 1 then 3.6 else 0
-		local door = Kit.place("SwRollDoor", base * CFrame.new(x, lift, 4.9))
-		if door then
-			door.Parent = major
+	local length, depth, tall = 29, 16, 9
+	box("PitFloor", Vector3.new(length + 1, 0.3, depth + 7), 0, 0.09, -2.5 + 3.5, Color3.fromRGB(206, 200, 190), true)
+	box("PitBack", Vector3.new(length, tall, 0.6), 0, tall / 2 + 0.24, -depth / 2, PIT.Wall, true)
+	for _, sx in { 1, -1 } do
+		box(
+			"PitSide",
+			Vector3.new(0.7, tall - 0.2, depth - 0.8),
+			sx * (length / 2 - 0.35),
+			(tall - 0.2) / 2 + 0.24,
+			0.1,
+			PIT.Wall,
+			true
+		)
+	end
+	for _, x in { -length / 6, length / 6 } do
+		box("PitPier", Vector3.new(0.9, tall - 0.2, depth - 1), x, (tall - 0.2) / 2 + 0.24, 0, PIT.Trim, true)
+	end
+	-- the roof, the fascia and the canopy over the apron
+	box("PitRoof", Vector3.new(length + 1.6, 0.6, depth + 4), 0, tall + 0.54, 2, PIT.Wall, true)
+	box("PitFascia", Vector3.new(length + 2.2, 1.1, 0.5), 0, tall + 0.34, depth / 2 + 4.2, PIT.Trim)
+	box("PitFasciaTrim", Vector3.new(length + 2.6, 0.2, 0.7), 0, tall + 0.97, depth / 2 + 4.2, PIT.Accent)
+	for _, sx in { 1, -1 } do
+		box(
+			"PitCanopyPost",
+			Vector3.new(0.5, tall - 0.2, 0.5),
+			sx * (length / 2 + 0.2),
+			(tall - 0.2) / 2 + 0.24,
+			depth / 2 + 3.6,
+			PIT.Trim,
+			true
+		)
+	end
+	-- the office block breaks the roofline; a stair of glass faces the lane
+	box("PitOffice", Vector3.new(12, 3.4, 7), -4, tall + 2.54, -3, PIT.Wall, true)
+	box("PitOfficeRoof", Vector3.new(13, 0.4, 8), -4, tall + 4.44, -3, PIT.Trim)
+	box("PitOfficeGlass", Vector3.new(10.6, 1.8, 0.2), -4, tall + 2.74, 0.58, PIT.Glass).Material = Enum.Material.Glass
+
+	local bay = length / 3
+	for k, x in { -bay, 0, bay } do
+		-- the roll-up door: its top rolled into a drum, its bottom at the height it stands open
+		local openTo = ({ 0, 3.4, 6.8 } :: { number })[k]
+		local doorZ = depth / 2 - 1
+		local doorTop = tall - 0.2
+		if openTo < 6.8 then
+			local h = doorTop - 0.24 - openTo
+			box("PitDoor", Vector3.new(bay - 1.3, h, 0.24), x, 0.24 + openTo + h / 2, doorZ, PIT.Door)
+			for y = 0.24 + openTo + 0.9, doorTop - 0.3, 1.2 do
+				box("PitDoorRib", Vector3.new(bay - 1.4, 0.12, 0.08), x, y, doorZ + 0.16, PIT.Dark)
+			end
 		end
+		box("PitDrum", Vector3.new(bay - 1.2, 0.7, 0.7), x, doorTop + 0.12, doorZ - 0.1, PIT.Dark)
+		-- the rack on the back wall of each bay
+		for _, y in { 2, 3.6, 5.2 } do
+			box("PitShelf", Vector3.new(bay - 2.6, 0.14, 1.1), x, y, -depth / 2 + 0.9, PIT.Dark)
+		end
+		for j, t in { -2, 0.4, 2.4 } do
+			box(
+				"PitBin",
+				Vector3.new(1.2, 0.8, 0.8),
+				x + t,
+				2 + (j % 2) * 1.6 + 0.47,
+				-depth / 2 + 0.9,
+				if j == 2 then PIT.Accent else Color3.fromRGB(214, 62, 56)
+			)
+		end
+		-- the numbered bay plate on the fascia
+		local plateAt = base * CFrame.new(x, tall + 0.34, depth / 2 + 4.45) * CFrame.Angles(0, math.pi, 0)
+		SignKit.sign(major, plateAt, { style = "Race", text = string.format("%02d", k), width = 2.6, height = 0.9 })
+	end
+	-- the one primary name, above the canopy
+	local signAt = base * CFrame.new(5, tall + 3.1, depth / 2 + 1.6) * CFrame.Angles(0, math.pi, 0)
+	SignKit.sign(
+		major,
+		signAt,
+		{ style = "Race", text = "PIT ROW", width = 15, height = 3.4, bulbs = true, backlight = true }
+	)
+	box("PitSignStay", Vector3.new(11, 0.4, 0.4), 5, tall + 1.05, depth / 2 + 1.3, PIT.Trim)
+
+	-- the pit wall: a low wall between the apron and the lane, with a gap at each end for cars
+	local wallZ = A.PitGarage.X - 57
+	box("PitWall", Vector3.new(26, 1.2, 0.8), 0, 0.84, wallZ, Color3.fromRGB(236, 232, 224), true)
+	box("PitWallCap", Vector3.new(26.2, 0.16, 0.96), 0, 1.52, wallZ, PIT.Accent)
+	for x = -11.25, 11.25, 7.5 do
+		box("PitWallPanel", Vector3.new(3.6, 0.7, 0.08), x, 0.84, wallZ + 0.46, PIT.Trim)
 	end
 end
 
+-- The pit zone only: tool chests in the bays' mouths, tyre stacks on the apron, a fuel rig at each
+-- end of the pit wall (M4-05). Nothing race-related stands anywhere else.
 function Props.pitProps(folder: Folder, ctx: Ctx)
-	Ctx.place(ctx, folder, "SwToolChest", 59.6, 362.6, WEST)
-	Ctx.place(ctx, folder, "SwTyreStackTall", 59.4, 377.6, WEST)
-	Ctx.place(ctx, folder, "SwTyreStackTall", 60.8, 379.6, WEST)
+	Ctx.place(ctx, folder, "SwToolChest", 62.6, 361, WEST)
+	Ctx.place(ctx, folder, "SwToolChest", 62.6, 379, WEST)
+	Ctx.place(ctx, folder, "SwTyreStackTall", 61.2, 365.6, WEST)
+	Ctx.place(ctx, folder, "SwTyreStackTall", 61.2, 374.4, WEST)
+	for _, u in { 354.4, 385.6 } do
+		Kit.part(folder, Vector3.new(1.3, 2.6, 1), CFrame.new(Ctx.at(ctx, 60.4, u, 1.54)), {
+			name = "FuelRig",
+			color = Color3.fromRGB(214, 62, 56),
+			collide = true,
+		})
+		Kit.part(folder, Vector3.new(1.5, 0.2, 1.2), CFrame.new(Ctx.at(ctx, 60.4, u, 2.94)), {
+			name = "FuelRigCap",
+			color = Color3.fromRGB(247, 200, 58),
+		})
+	end
 end
 
--- Painted pit lanes: white edge lines along both pit lanes (Hub/Layout PitOut / PitIn).
+-- Pit lanes painted in the track's language: white edge lines both sides, and a pit entry and exit
+-- line across the lane where it meets the track (Hub/Layout PitOut / PitIn).
 Props.PitOut = {
 	Vector2.new(33, 284.187),
 	Vector2.new(31, 305.187),
 	Vector2.new(51.5, 340.187),
-	Vector2.new(51.5, 388.187),
-	Vector2.new(40, 403.187),
+	Vector2.new(51.5, 364.187),
+	Vector2.new(46, 392.187),
+	Vector2.new(41.5, 406.187),
 }
+local PIT_LINE_TOP = 0.29 -- over the road's own paint where a lane meets the track
 function Props.pitPaint(folder: Folder, ctx: Ctx)
 	for _, sign in { 1, -1 } do
 		local pts = {}
@@ -633,27 +712,48 @@ function Props.pitPaint(folder: Folder, ctx: Ctx)
 			local n = Vector2.new(-d.Y, d.X)
 			for _, off in { -4.1, 4.1 } do
 				local pa, pb = a + n * off, b + n * off
+				local before = if i > 1
+					then math.tan(math.acos(math.clamp((a - pts[i - 1]).Unit:Dot(d), -1, 1)) / 2) * 4.1
+					else 0
+				local after = if i < #pts - 1
+					then math.tan(math.acos(math.clamp(d:Dot((pts[i + 2] - b).Unit), -1, 1)) / 2) * 4.1
+					else 0
 				Kit.slab(
 					folder,
-					Ctx.at(ctx, pa.X, pa.Y, 0.175),
-					Ctx.at(ctx, pb.X, pb.Y, 0.175),
+					Ctx.at(ctx, (pa - d * before).X, (pa - d * before).Y, PIT_LINE_TOP),
+					Ctx.at(ctx, (pb + d * after).X, (pb + d * after).Y, PIT_LINE_TOP),
 					Vector3.yAxis,
-					0.35,
-					0.03,
+					0.3,
+					0.2,
 					{
 						name = "PitLine",
 						color = Color3.new(1, 1, 1),
 						castShadow = false,
 					},
-					0.35
+					0
 				)
 			end
 		end
+		-- the pit entry or exit line: where the lane leaves the track's outer line
+		local a, b = pts[#pts - 1], pts[#pts]
+		local d = (b - a).Unit
+		local mid = b - d * 3
+		local n = Vector2.new(-d.Y, d.X)
+		Kit.slab(
+			folder,
+			Ctx.at(ctx, (mid - n * 4.1).X, (mid - n * 4.1).Y, PIT_LINE_TOP),
+			Ctx.at(ctx, (mid + n * 4.1).X, (mid + n * 4.1).Y, PIT_LINE_TOP),
+			Vector3.yAxis,
+			0.5,
+			0.2,
+			{ name = "PitLine", color = Color3.new(1, 1, 1), castShadow = false },
+			0
+		)
 	end
 end
 
 function Props.mechanic(life: Folder, ctx: Ctx)
-	local base = Ctx.face(ctx, 58.4, A.PitGarage.Y, WEST)
+	local base = Ctx.face(ctx, 60.8, A.PitGarage.Y, WEST) -- on the apron, clear of the pit wall
 	local body = Kit.place("SwMechanic", base)
 	if not body then
 		return

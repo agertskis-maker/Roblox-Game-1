@@ -37,6 +37,8 @@ local Merge = require(script.Parent.Merge)
 local Proxies = require(script.Parent.Proxies)
 local Route = require(script.Parent.Route)
 local Sequencer = require(script.Parent.Sequencer)
+local SignKit =
+	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("SignKit"))
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -155,6 +157,7 @@ export type Options = {
 	textureId: string?, -- an uploaded palette texture ("rbxassetid://...") for kit meshes
 	paletteColumn: string?, -- swatches column for vertex colours (default "B2", then "B")
 	meshIds: { [string]: string }?, -- uploaded mesh ids by name (used before EditableMesh)
+	sceneryOnly: boolean?, -- roadside only: no road, spans, hazards, bridge landmarks or gorge (the run owns all of those)
 	behind: number?,
 	ahead: number?,
 	skyBehind: number?,
@@ -266,6 +269,7 @@ type Fields = {
 	swatches: { Color3 }?,
 	swatchMode: string,
 	meshIds: { [string]: string },
+	sceneryOnly: boolean,
 	labels: boolean,
 	useKit: boolean,
 	ground: boolean,
@@ -549,6 +553,7 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 		swatches = swatches,
 		swatchMode = if textureId ~= "" then "texture " .. textureId else swatchMode,
 		meshIds = opts.meshIds or {},
+		sceneryOnly = opts.sceneryOnly == true,
 		labels = if opts.labels == nil then not RunService:IsRunning() else opts.labels,
 		useKit = opts.useKit ~= false,
 		ground = opts.ground ~= false,
@@ -995,6 +1000,7 @@ end
 -- World build V2: the folder an extra's instance goes into
 local EXTRA_FOLDER: { [string]: string } = {
 	ground = "Ground",
+	structure = "Landmarks",
 	edge = "Props",
 	berm = "Props",
 	fence = "Props",
@@ -1009,6 +1015,49 @@ local EXTRA_FOLDER: { [string]: string } = {
 local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolean): Spec
 	local kind = EXTRA_FOLDER[e.kind] or "Masses"
 	-- a wayfinding board with words on it is a part-built board (the same route the shop signs take), never merged
+	if e.structure then
+		local id = e.structure :: string
+		return {
+			key = "structure:" .. id,
+			kind = kind,
+			tris = 0,
+			mesh = false,
+			make = function()
+				return (require :: any)(script.Parent.Worlds.DustyStructures).build(id)
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
+	if e.text and e.signStyle then
+		-- a wayfinding sign in the family (big round M5): one model per words, pooled like any other
+		local text = e.text :: string
+		local style = e.signStyle :: string
+		local width, height = e.size.X, e.size.Y
+		return {
+			key = "sign:" .. style .. ":" .. text,
+			kind = "Signs",
+			tris = 0,
+			mesh = false,
+			make = function()
+				local holder = Instance.new("Model")
+				holder.Name = "WaySign"
+				local rise = 4
+				local cf = CFrame.new(0, rise + height / 2, 0)
+				SignKit.sign(
+					holder,
+					cf,
+					{ style = style, text = text, width = width, height = height, mount = "posts", ground = 0 }
+				)
+				holder.WorldPivot = CFrame.identity
+				return holder
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
 	if e.text then
 		local text = e.text :: string
 		local width, height = e.size.X, e.size.Y
@@ -1125,7 +1174,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end, function(t)
 		return seg.start * centreOffset(t)
 	end, seg.start)
-	table.insert(specs, spec)
+	if not self.sceneryOnly then
+		table.insert(specs, spec)
+	end
 
 	-- lots, forecourts and signs
 	for _, lot in b.lots do
@@ -1238,6 +1289,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 
 	-- landmarks
 	for _, lm in b.landmarks do
+		if self.sceneryOnly and lm.placement == "bridge" then
+			continue
+		end
 		-- World build V2: the glacier gallery is composed of kit bays and portals by WorldFeatures.tunnel (extras), so the
 		-- bridge landmark itself draws nothing (no 384-stud proxy block, no Round 2 monolith)
 		local v2 = if self.world then self.world.v2 else nil
@@ -1300,7 +1354,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- props
-	for _, p in b.props do
+	for _, p in if self.sceneryOnly then {} else b.props do
 		table.insert(
 			specs,
 			meshOrProxy(self, p.module, "Props", "prop:" .. p.kind, function()
@@ -1312,7 +1366,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- spans
-	for _, sp in b.spans do
+	for _, sp in if self.sceneryOnly then {} else b.spans do
 		table.insert(specs, {
 			key = string.format("span:%s:%d", sp.kind, math.floor(sp.width + 0.5)),
 			kind = "Spans",
@@ -1328,7 +1382,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- hazard previews
-	for _, h in b.hazards do
+	for _, h in if self.sceneryOnly then {} else b.hazards do
 		local kitName = hazardMeshesOf(self.world)[h.kind]
 		local function proxy(): Instance
 			return Proxies.hazard(h.kind, h.length, g.laneWidth, labels)
@@ -1387,6 +1441,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 	-- World build V2: backdrop, gorge, ground, edge and prop pieces (far ones ride with the segment in Play, like the sky masses)
 	for _, e in b.extrasNear do
+		if self.sceneryOnly and (e.kind == "gorge" or e.kind == "tunnel" or e.kind == "warning") then
+			continue
+		end
 		table.insert(specs, extraSpec(self, e, true))
 	end
 	if self.merge then
@@ -1646,17 +1703,19 @@ end
 
 local function updateGround(self: Assembler, points: { Vector3 })
 	local wanted: { [string]: Vector3 } = {}
+	-- scenery-only: the World's ground lies under the run road's own surfaces, at the road's height
+	local groundY = if self.sceneryOnly then self.plan.segments[1].start.Y - 2.2 else -0.8
 	for _, p in points do
 		local cx, cz = math.floor(p.X / GROUND_CELL + 0.5), math.floor(p.Z / GROUND_CELL + 0.5)
 		for dx = -1, 1 do
 			for dz = -1, 1 do
 				wanted[groundKey(cx + dx, cz + dz)] =
-					Vector3.new((cx + dx) * GROUND_CELL, -0.8, (cz + dz) * GROUND_CELL)
+					Vector3.new((cx + dx) * GROUND_CELL, groundY, (cz + dz) * GROUND_CELL)
 			end
 		end
 	end
 	-- World build V2: a tile that a gorge touches is not built; the gorge's slabs and floor stand in for it
-	local gorges = if self.plan.world then self.plan.world.gorges else {}
+	local gorges = if self.plan.world and not self.sceneryOnly then self.plan.world.gorges else {}
 	local gorgeWanted: { [string]: boolean } = {}
 	if #gorges > 0 then
 		for key, at in wanted do

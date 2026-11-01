@@ -52,8 +52,8 @@ local function put(
 	yaw: number,
 	scale: number
 ): MeshPart?
-	if Layout.inDestination(p, 2) then
-		return nil -- not on a hub building, forecourt, apron or leaderboard (Task 4 review N2)
+	if Layout.inDestination(p, 2) or Layout.onPaved(p, 2) then
+		return nil -- not on a hub building, forecourt, apron, leaderboard or any paving (Task 4 review N2)
 	end
 	local y = Flora.surfaceY(ctx.grid, p) - sink
 	local base = CFrame.new(p.X, y, -p.Y) * CFrame.Angles(0, yaw, 0)

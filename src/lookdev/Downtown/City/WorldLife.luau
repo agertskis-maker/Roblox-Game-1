@@ -193,16 +193,16 @@ function WorldLife.new(options: Options): WorldLife
 	}
 	local obj = setmetatable(self, WorldLife)
 	if id == "DustyHighway" then
-		for i = 1, 4 do
+		for i = 1, 2 do -- an occasional accent (Adam, big round M6-01: there were too many)
 			local p = Parts.block(
 				folder,
 				"Tumbleweed",
 				Vector3.new(3.6, 3.6, 3.6),
 				CFrame.new(0, -500, 0),
-				Color3.fromRGB(158, 120, 82),
+				Color3.fromRGB(196, 160, 112),
 				Enum.PartType.Ball
 			)
-			p.Material = Enum.Material.Fabric
+			p.Material = Enum.Material.SmoothPlastic
 			p.CastShadow = false
 			table.insert(self.tumbleweeds, {
 				part = p,
