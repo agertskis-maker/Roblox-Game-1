@@ -599,6 +599,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 
 	-- 6b. the placement features: pins, chains, lake, tunnel, lift, companions (see WorldFeatures) -----------------
 	Features.pins(ctx)
+	Features.structures(ctx)
 	Features.chains(ctx)
 	Features.lake(ctx)
 	Features.tunnel(ctx)

@@ -193,7 +193,7 @@ function WorldLife.new(options: Options): WorldLife
 	}
 	local obj = setmetatable(self, WorldLife)
 	if id == "DustyHighway" then
-		for i = 1, 4 do
+		for i = 1, 2 do -- an occasional accent (Adam, big round M6-01: there were too many)
 			local p = Parts.block(
 				folder,
 				"Tumbleweed",

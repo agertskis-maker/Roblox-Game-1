@@ -84,6 +84,45 @@ local function yawOf(mode: any, side: number, rng: Random): number
 end
 WorldFeatures.yawOf = yawOf
 
+-- structures --------------------------------------------------------------------------------------------
+-- Part-built supporting buildings (Worlds/DustyStructures, big round M6). A site that would stand in a landmark's frontage
+-- moves back behind it; anything in the gorge is dropped.
+function WorldFeatures.structures(ctx: Ctx)
+	local count = 0
+	for _, s in ctx.v2.structures or {} do
+		for _, span in ctx.plan.districts do
+			if span.id ~= s.district then
+				continue
+			end
+			local st = span.startS + s.t * (span.endS - span.startS)
+			local lateral = s.lateral
+			for _, lm in ctx.plan.landmarks do
+				if lm.placement ~= "bridge" and st > lm.from - 10 - s.size.X / 2 and st < lm.to + 10 + s.size.X / 2 then
+					lateral = math.max(lateral, 112)
+				end
+			end
+			local f = ctx.h.frame(st, s.side * lateral, 0)
+			if ctx.inGorge(f.Position, s.size.X / 2) then
+				continue
+			end
+			add(ctx, {
+				kind = "structure",
+				structure = s.id,
+				label = s.id,
+				cframe = f * CFrame.Angles(0, s.side * math.pi / 2, 0),
+				scale = 1,
+				size = s.size,
+				band = if lateral > 200 then "far" else "near",
+				station = st,
+				side = s.side,
+				district = span.id,
+			})
+			count += 1
+		end
+	end
+	ctx.info.stats.structures = count
+end
+
 -- pins ----------------------------------------------------------------------------------------------------
 function WorldFeatures.pins(ctx: Ctx)
 	local count = 0
@@ -726,6 +765,7 @@ function WorldFeatures.signs(ctx: Ctx)
 					module = "",
 					label = board.text,
 					text = board.text,
+					signStyle = board.style,
 					cframe = f * CFrame.Angles(0, math.pi + side * math.rad(14), 0),
 					scale = 1,
 					size = Vector3.new(board.w, board.h, 0.5),

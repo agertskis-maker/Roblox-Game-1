@@ -1199,9 +1199,9 @@ local BED_FLOWERS = { -- back, middle, front; all under 3 (beds sit in viewing c
 
 -- One clump every PLANT_STEP studs on a staggered grid (Task 4: thousands of clumps cost 530k
 -- triangles, so the carpet below carries the green and the clumps stay few).
-local PLANT_STEP = 3.1
+local PLANT_STEP = 2.5
 local BED_CLEARANCE = 2 -- studs from a bed's kerb to any path edge, everywhere (M2-03)
-local FLOWER_SCALES = { 1, 0.85, 0.7 } -- the largest that fits wins
+local FLOWER_SCALES = { 1.15, 1, 0.85, 0.7, 0.55 } -- the largest that fits wins
 local TALL_DEPTH, MID_DEPTH = 2.2, 1.1 -- how far in from the rim the taller bands start
 
 -- The smallest path edge distance anywhere round a bed's kerb.

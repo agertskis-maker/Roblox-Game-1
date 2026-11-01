@@ -37,6 +37,8 @@ local Merge = require(script.Parent.Merge)
 local Proxies = require(script.Parent.Proxies)
 local Route = require(script.Parent.Route)
 local Sequencer = require(script.Parent.Sequencer)
+local SignKit =
+	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("SignKit"))
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -995,6 +997,7 @@ end
 -- World build V2: the folder an extra's instance goes into
 local EXTRA_FOLDER: { [string]: string } = {
 	ground = "Ground",
+	structure = "Landmarks",
 	edge = "Props",
 	berm = "Props",
 	fence = "Props",
@@ -1009,6 +1012,49 @@ local EXTRA_FOLDER: { [string]: string } = {
 local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolean): Spec
 	local kind = EXTRA_FOLDER[e.kind] or "Masses"
 	-- a wayfinding board with words on it is a part-built board (the same route the shop signs take), never merged
+	if e.structure then
+		local id = e.structure :: string
+		return {
+			key = "structure:" .. id,
+			kind = kind,
+			tris = 0,
+			mesh = false,
+			make = function()
+				return (require :: any)(script.Parent.Worlds.DustyStructures).build(id)
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
+	if e.text and e.signStyle then
+		-- a wayfinding sign in the family (big round M5): one model per words, pooled like any other
+		local text = e.text :: string
+		local style = e.signStyle :: string
+		local width, height = e.size.X, e.size.Y
+		return {
+			key = "sign:" .. style .. ":" .. text,
+			kind = "Signs",
+			tris = 0,
+			mesh = false,
+			make = function()
+				local holder = Instance.new("Model")
+				holder.Name = "WaySign"
+				local rise = 4
+				local cf = CFrame.new(0, rise + height / 2, 0)
+				SignKit.sign(
+					holder,
+					cf,
+					{ style = style, text = text, width = width, height = height, mount = "posts", ground = 0 }
+				)
+				holder.WorldPivot = CFrame.identity
+				return holder
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
 	if e.text then
 		local text = e.text :: string
 		local width, height = e.size.X, e.size.Y

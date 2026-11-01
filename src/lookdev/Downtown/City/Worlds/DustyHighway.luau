@@ -10,6 +10,7 @@
 -- or collapsed-bridge GAP exists only in a marked hazard test area, never in this route.
 
 local Make = require(script.Parent.Make)
+local Structures = require(script.Parent.DustyStructures)
 
 local rgb = Color3.fromRGB
 local palette, lot, landmark = Make.palette, Make.lot, Make.landmark
@@ -112,7 +113,7 @@ return {
 			parkBias = 0.4,
 			midHeight = { 24, 44 },
 			skyHeight = { 90, 150 },
-			signs = true,
+			signs = false, -- big round M5: the repeated white shop boards are gone; each building carries its own sign
 			bunting = false,
 			cart = false,
 		},
@@ -192,7 +193,7 @@ return {
 			parkBias = 0.6,
 			midHeight = { 24, 50 },
 			skyHeight = { 90, 150 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			cart = false,
 		},
@@ -363,6 +364,8 @@ return {
 	-- yaw, and the true gorge. Every number is a PREVIEW value to tune by eye in Studio; scenery only, no gameplay.
 	v2 = {
 		salt = 2026,
+		-- the supporting buildings of each district (big round M6)
+		structures = Structures.Sites,
 		-- measured self-checks (WorldPlan section 8): scenery 40 studs clear before a hazard, rock groups 60 before a rockslide
 		checks = { sceneryClear = 40, rockClear = 60 },
 		subSeeds = true,
@@ -392,7 +395,7 @@ return {
 		},
 		gorge = {
 			district = "CanyonBridge",
-			halfWidth = 62,
+			halfWidth = 124, -- twice the old gorge (Adam approved going wider, big round M6-04)
 			floorDepth = 70,
 			endPad = 16,
 			wall = { "DH_Gorge_Wall_A", "DH_Gorge_Wall_B" },
@@ -414,7 +417,7 @@ return {
 				lip = { colour = CREAM, width = 3, rise = 1 }, -- tuned in Studio 2026-10-29: ROCK_PALE matched the sand
 				-- a desaturated brown-mauve shadow, never black (plan 6.4); r_shadow (112, 50, 42) read as red paint on the rail in Studio
 				shade = { colour = rgb(84, 60, 62), depths = { 9, 12, 8, 11 } },
-				river = { colour = rgb(84, 140, 138), width = 16, wander = 9 },
+				river = { colour = rgb(74, 150, 152), width = 30, wander = 22 },
 			},
 		},
 		-- nominal sizes, used until the kit's own bounds are read (Catalog.sizes)
@@ -493,27 +496,36 @@ return {
 		warnings = { board = "DH_Sign_Warning", ahead = 130, lateral = 47, sock = "DH_Haz_WindSock", sockKind = "oil" },
 		-- fixed wayfinding words (plan 6.1 to 6.5): one plaque and one board per cycle, none within 80 studs of a hazard
 		signs = {
-			{ district = "CactusFlats", t = 0.1, side = 1, lateral = 50, w = 9, h = 4, text = "CACTUS FLATS" },
 			{
 				district = "CactusFlats",
-				t = 0.82,
-				side = -1,
+				t = 0.04,
+				side = 1,
 				lateral = 50,
-				w = 14,
-				h = 4,
-				text = "SHADE AND SODA AHEAD",
+				w = 13,
+				h = 3.4,
+				text = "CACTUS FLATS",
+				style = "Trading",
 			},
-			{ district = "RedRockArches", t = 0.52, side = 1, lateral = 50, w = 9, h = 4, text = "LOOKOUT" },
+			{
+				district = "RedRockArches",
+				t = 0.52,
+				side = 1,
+				lateral = 50,
+				w = 9,
+				h = 3,
+				text = "LOOKOUT",
+				style = "Mine",
+			},
 			{
 				district = "RedRockArches",
 				t = 0.88,
 				side = -1,
 				lateral = 50,
-				w = 14,
-				h = 4,
-				text = "CANYON BRIDGE AHEAD",
+				w = 15,
+				h = 3.4,
+				text = "CANYON BRIDGE",
+				style = "Mine",
 			},
-			{ district = "MirageDunes", t = 0.6, side = 1, lateral = 50, w = 14, h = 4, text = "LAST FILL, THEN SAND" },
 		},
 		companions = {
 			-- the Diner's strong daytime pole sign stands on the verge in front of it
