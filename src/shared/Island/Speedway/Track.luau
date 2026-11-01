@@ -21,9 +21,9 @@ local uS = Path.StraightsStart
 
 -- Height layers above the road surface, so paint never shares a plane with what it lies on and the
 -- scanner stays at zero (big round M1). Paint is one coat; the checkered line sits on top of it.
-local PAINT = 0.09
-local PAINT_THICK = 0.04
-local CHECKER_TOP = 0.15
+local PAINT = 0.12
+local PAINT_THICK = 0.12
+local CHECKER_TOP = 0.18
 
 -- colours (the Task 3 base track's, plus the early dirt and the raised deck)
 Track.Colours = {
@@ -525,7 +525,7 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		for _, which in { ends[1], ends[#ends] } do
 			local along = (which.b - which.a).Unit
 			local tip = if which == ends[1] then which.a + along * 0.6 else which.b - along * 0.6
-			Kit.slab(major, tip - along * 0.7, tip + along * 0.7, Vector3.yAxis, 1.16, which.height + 0.1, {
+			Kit.slab(major, tip - along * 0.7 + Vector3.yAxis * 0.1, tip + along * 0.7 + Vector3.yAxis * 0.1, Vector3.yAxis, 1.16, which.height + 0.1, {
 				name = "BankWallEnd",
 				color = C.WallEnd,
 				castShadow = false,

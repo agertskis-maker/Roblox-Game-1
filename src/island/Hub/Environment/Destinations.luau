@@ -763,7 +763,7 @@ local function buildGarage(root: Instance, report: Report): Model
 	local by1 = shell.meta["forecourt.bays.1.y.1"] or -28
 	local by2 = shell.meta["forecourt.bays.1.y.2"] or -20
 	for i, x in { bx1, bx2 } do
-		local l1, h1 = blenderBox(x - 0.15, x + 0.15, by1, by2, 0.01, 0.04)
+		local l1, h1 = blenderBox(x - 0.15, x + 0.15, by1, by2, 0.01, 0.08)
 		local line = box("BayLine" .. i, base, l1, h1, forecourt)
 		line.Transparency = 0
 		line.Color = BAY_LINE

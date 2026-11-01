@@ -404,32 +404,108 @@ local function flatAttach(host: BasePart, pos: Vector3, along: Vector3): Attachm
 	return a
 end
 
--- The grand fountain (Adam, 2026-10-21): the island's centrepiece inside the measured sightline
--- envelope (assets/island/rework/fountain-envelope.js), with a coordinated water display: a
--- central plume from the wheel finial landing in the top bowl, spill sheets over the top bowl's
--- rim and through six of the mid bowl's scallops, eight arching jets from the mid bowl into the
--- basin, splashes where water lands, a slow shimmer on the basin and a soft underwater light.
--- The client choreographs it (Home/Island/EnvironmentMotion: a slowly rising and falling plume,
--- a gentle wave round the arcs; reduced motion holds a calm, complete display).
+local function plainPart(name: string, size: Vector3, cframe: CFrame, colour: Color3, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = colour
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanTouch = false
+	part.Parent = parent
+	return part
+end
+
+-- The car statue fountain (Adam, big round M3): a polished car on a tall pedestal rising from the
+-- basin, nose up as if launching off a ramp, with water arcing round the pedestal into the pool. The
+-- pedestal carries the car, so it never seems to hover. Built from parts and the group-owned
+-- SwStatueCar mesh (Raceway kit), so it needs no new upload. It replaces the FountainGrand mesh,
+-- which showed as a sunken car in Play (Adam's screenshot 11). Client: Home/Island/EnvironmentMotion
+-- waves the arcs; reduced motion holds them calm.
+local FOUNTAIN = {
+	Stone = Color3.fromRGB(240, 232, 214),
+	Navy = Color3.fromRGB(30, 50, 104),
+	Gold = Color3.fromRGB(240, 190, 72),
+	Water = Color3.fromRGB(72, 186, 226),
+	Rim = 12.4,
+	Pool = 1.86, -- the water's top above the plaza
+	PedestalTop = 8.1,
+}
+
 local function buildFountain(ctx: Ctx)
 	local y = Layout.PlazaTop
 	local f = folder(ctx, "Fountain")
-	-- the fountain stone and water are measured against the portals themselves (the envelope),
-	-- so the blanket 3-stud corridor rule does not apply to them; the falls view still does
-	put(ctx, "Fountain", "FountainGrand", Vector2.zero, 0, 1, { y = y, r = 16.5, envelope = true })
-	put(ctx, "Fountain", "FountainGrandWater", Vector2.zero, 0, 1, {
-		y = y,
-		material = Enum.Material.Glass,
-		transparency = 0.35,
-		envelope = true,
-	})
-	-- the mosaic slab (0.08 thick) stands 0.015 proud of the paving, so it never flickers
+	local function disc(name: string, radius: number, top: number, thick: number, colour: Color3): Part
+		local d = plainPart(
+			name,
+			Vector3.new(thick, radius * 2, radius * 2),
+			CFrame.new(0, y + top - thick / 2, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			colour,
+			f
+		)
+		d.Shape = Enum.PartType.Cylinder
+		d.CanCollide = false
+		d.CanQuery = false
+		return d
+	end
+	local function block(name: string, size: Vector3, at: Vector3, colour: Color3): Part
+		local b = plainPart(name, size, CFrame.new(0, y, 0) * CFrame.new(at), colour, f)
+		b.CanCollide = false
+		b.CanQuery = false
+		return b
+	end
+	disc("FountainStep", 15, 0.28, 0.4, FOUNTAIN.Stone)
+	disc("FountainStepHigh", 13.6, 0.56, 0.5, Color3.fromRGB(226, 216, 196))
+	disc("FountainWall", FOUNTAIN.Rim, 1.7, 1.3, FOUNTAIN.Navy)
+	disc("FountainRim", FOUNTAIN.Rim + 0.5, 1.78, 0.2, FOUNTAIN.Gold).CastShadow = false
+	local pool = disc("FountainWater", FOUNTAIN.Rim - 0.7, FOUNTAIN.Pool, 0.1, FOUNTAIN.Water)
+	pool.Material = Enum.Material.Glass
+	pool.Transparency = 0.15
+	pool.CastShadow = false
+	disc("PedestalFoot", 4.6, 2.5, 0.9, FOUNTAIN.Stone)
+	block("PedestalBase", Vector3.new(6, 1.2, 6), Vector3.new(0, 3.1, 0), FOUNTAIN.Stone)
+	block("PedestalShaft", Vector3.new(4.4, 3.6, 4.4), Vector3.new(0, 5.5, 0), FOUNTAIN.Stone)
+	for k = 0, 3 do
+		local a = k * math.pi / 2
+		local panel = plainPart(
+			"PedestalPanel",
+			Vector3.new(2.8, 2.4, 0.12),
+			CFrame.new(0, y + 5.5, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 2.24),
+			FOUNTAIN.Navy,
+			f
+		)
+		panel.CanCollide = false
+		panel.CanQuery = false
+	end
+	block("PedestalCollar", Vector3.new(5.2, 0.4, 5.2), Vector3.new(0, 7.5, 0), FOUNTAIN.Gold)
+	block("PedestalCap", Vector3.new(4, 0.4, 4), Vector3.new(0, FOUNTAIN.PedestalTop - 0.2, 0), FOUNTAIN.Stone)
+	-- a short steel stay under the raised nose: the statue is held, not hovering
+	local tilt = math.rad(13)
+	local toward = Vector3.new(0, 0, 1) -- the nose points down the portal row's axis (south)
+	local seat = CFrame.lookAt(Vector3.new(0, y + FOUNTAIN.PedestalTop + 0.5, 0), toward) * CFrame.Angles(tilt, 0, 0)
+	block("StatueStay", Vector3.new(1.2, 1.4, 1.2), Vector3.new(0, FOUNTAIN.PedestalTop + 0.5, 0), FOUNTAIN.Navy)
+	local Speedway = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+	local kit: any = Speedway and (require :: any)((Speedway :: any).Island.Speedway.Kit)
+	local car = kit and kit.place("SwStatueCar", seat, 1.05)
+	if car then
+		car.TextureID = ""
+		car.Color = FOUNTAIN.Gold
+		car.Material = Enum.Material.Metal
+		car.Reflectance = 0.08
+		car.Name = "StatueCar"
+		car:SetAttribute("SightlineEnvelope", true)
+		car.Parent = f
+		ctx.counts.StatueCar = 1
+	else
+		ctx.rejected.statueCar = 1
+	end
 	put(ctx, "Fountain", "PlazaMosaic", Vector2.zero, 0, 1, { y = y - 0.045, envelope = true })
-	local meta = KitAssets.info("FountainGrand").meta
+	local meta = { pool = FOUNTAIN.Pool, mid_pool = 2.9 }
 	-- simple colliders: the basin wall and the two walkable steps
-	invisibleCylinder(f, "BasinCollider", meta.radius + 0.05, 2.15, y)
+	invisibleCylinder(f, "BasinCollider", FOUNTAIN.Rim + 0.5, 2.15, y)
 	invisibleCylinder(f, "StepCollider", 13.6, 0.55, y)
-	invisibleCylinder(f, "LowStepCollider", meta.steps, 0.28, y)
+	invisibleCylinder(f, "LowStepCollider", 15, 0.28, y)
 
 	local host = Instance.new("Part")
 	host.Name = "JetHost"
@@ -444,53 +520,7 @@ local function buildFountain(ctx: Ctx)
 	local spray, drop = AssetIds.Textures.Mist, AssetIds.Textures.Droplet
 	local water = Color3.fromRGB(190, 228, 240)
 
-	-- the central plume from the finial nozzle, landing in the top bowl
-	local nozzle = Instance.new("Attachment")
-	nozzle.Name = "CentreJet"
-	nozzle.Position = Vector3.new(0, meta.nozzle, 0)
-	nozzle.Parent = host
-	local plume = emitter(nozzle, "Plume", {
-		Texture = spray,
-		Rate = 60,
-		Lifetime = NumberRange.new(1.35, 1.55),
-		Speed = NumberRange.new(14.5, 15.5),
-		SpreadAngle = Vector2.new(3, 3),
-		Acceleration = Vector3.new(0, -26, 0),
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1.0) }),
-		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.85) }),
-		Color = ColorSequence.new(water),
-		LightEmission = 0.12,
-	})
-	plume:SetAttribute("BaseSpeed", 15)
-	local plumeDrops = emitter(nozzle, "PlumeDroplets", {
-		Texture = drop,
-		Rate = 24,
-		Lifetime = NumberRange.new(1.3, 1.6),
-		Speed = NumberRange.new(13.5, 15),
-		SpreadAngle = Vector2.new(6, 6),
-		Acceleration = Vector3.new(0, -26, 0),
-		Size = NumberSequence.new(0.26),
-		Transparency = NumberSequence.new(0.15),
-		Color = ColorSequence.new(Color3.fromRGB(170, 214, 240)),
-	})
-	plumeDrops:SetAttribute("BaseSpeed", 14.2)
-	local topSplash = Instance.new("Attachment")
-	topSplash.Name = "TopSplash"
-	topSplash.Position = Vector3.new(0, meta.top_pool + 0.1, 0)
-	topSplash.Parent = host
-	emitter(topSplash, "TopSplash", {
-		Texture = drop,
-		Rate = 14,
-		Lifetime = NumberRange.new(0.35, 0.55),
-		Speed = NumberRange.new(2.5, 4),
-		SpreadAngle = Vector2.new(55, 55),
-		Acceleration = Vector3.new(0, -30, 0),
-		Size = NumberSequence.new(0.18),
-		Transparency = NumberSequence.new(0.2),
-		Color = ColorSequence.new(water),
-	})
-
-	-- eight arching jets from the mid bowl into the basin; each lands about r 9.4 in the basin
+	-- eight arching jets from the pedestal base into the basin; each lands about r 9.4 in the pool
 	for k = 0, 7 do
 		local a = (k + 0.5) / 8 * math.pi * 2
 		local d = Vector3.new(math.cos(a), 0, math.sin(a))
@@ -532,51 +562,6 @@ local function buildFountain(ctx: Ctx)
 			Transparency = NumberSequence.new(0.25),
 			Color = ColorSequence.new(water),
 		})
-	end
-
-	-- moving spill sheets: short scrolling strands over the top bowl's rim and the six notches
-	local function spill(name: string, from: Vector3, to: Vector3, width: number)
-		local a0 = Instance.new("Attachment")
-		a0.Position = from
-		a0.Parent = host
-		local a1 = Instance.new("Attachment")
-		a1.Position = to
-		a1.Parent = host
-		local b = Instance.new("Beam")
-		b.Name = name
-		b.Attachment0, b.Attachment1 = a0, a1
-		b.Texture = AssetIds.Textures.WaterStrandsSlow
-		b.TextureMode = Enum.TextureMode.Wrap
-		b.TextureLength = 2
-		b.TextureSpeed = 1.2
-		b.Width0, b.Width1 = width, width * 1.2
-		b.FaceCamera = true
-		b.Color = ColorSequence.new(Color3.fromRGB(120, 196, 206), Color3.fromRGB(226, 244, 246))
-		b.Transparency = NumberSequence.new(0.45, 0.6)
-		b.LightEmission = 0.15
-		b.Segments = 6
-		b:SetAttribute("BaseSpeed", 1.2)
-		b.Parent = f
-	end
-	for k = 0, 9 do
-		local a = (k + 0.5) / 10 * math.pi * 2
-		local d = Vector3.new(math.cos(a), 0, math.sin(a))
-		spill(
-			string.format("TopSpill%02d", k + 1),
-			d * 3.35 + Vector3.new(0, meta.top_rim, 0),
-			d * 3.8 + Vector3.new(0, meta.mid_pool + 0.05, 0),
-			1.3
-		)
-	end
-	for k = 0, 5 do
-		local a = k / 6 * math.pi * 2
-		local d = Vector3.new(math.cos(a), 0, math.sin(a))
-		spill(
-			string.format("MidSpill%d", k + 1),
-			d * 5.5 + Vector3.new(0, meta.mid_rim, 0),
-			d * 6.0 + Vector3.new(0, meta.pool + 0.05, 0),
-			1.0
-		)
 	end
 
 	-- a slow shimmer on the basin: flat beams round the pool
@@ -646,19 +631,6 @@ local function buildingById(id: string): any
 		end
 	end
 	return nil
-end
-
-local function plainPart(name: string, size: Vector3, cframe: CFrame, colour: Color3, parent: Instance): Part
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.CFrame = cframe
-	part.Color = colour
-	part.Material = Enum.Material.SmoothPlastic
-	part.Anchored = true
-	part.CanTouch = false
-	part.Parent = parent
-	return part
 end
 
 -- A stand's picture header (3.0 x 1.6, approved 2026-10-22; kit HeaderBoard, printable face 2.8

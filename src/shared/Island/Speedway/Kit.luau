@@ -168,60 +168,6 @@ function Kit.point(name: string, key: string, base: CFrame, scale: number?): Vec
 end
 
 function Kit.meta(name: string, key: string, default: number): number
-	-- A flat triangle with its top at height topY, corners a, b, c given as world points (their heights
-	-- are ignored): the standard two-wedge fill, split at the foot of the longest side's altitude.
-	function Kit.triangle(
-		parent: Instance,
-		a: Vector3,
-		b: Vector3,
-		c: Vector3,
-		topY: number,
-		thickness: number,
-		options: PartOptions
-	)
-		local y = topY - thickness / 2
-		local A, B, C = Vector3.new(a.X, y, a.Z), Vector3.new(b.X, y, b.Z), Vector3.new(c.X, y, c.Z)
-		local ab, ac, bc = B - A, C - A, C - B
-		local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
-		if abd > acd and abd > bcd then
-			A, C = C, A
-		elseif acd > bcd and acd > abd then
-			A, B = B, A
-		end
-		ab, ac, bc = B - A, C - A, C - B
-		local normal = ac:Cross(ab)
-		if normal.Magnitude < 1e-6 or bc.Magnitude < 0.05 then
-			return
-		end
-		local right = normal.Unit
-		local up = bc:Cross(right).Unit
-		local back = bc.Unit
-		local height = math.abs(ab:Dot(up))
-		if height < 0.05 then
-			return
-		end
-		for _, half in { { B, ab, right, back }, { C, ac, -right, -back } } do
-			local corner, edge, r, bk = half[1], half[2], half[3], half[4]
-			local len = math.abs(edge:Dot(back))
-			if len > 0.05 then
-				local w = Instance.new("WedgePart")
-				w.Name = options.name or "Fill"
-				w.Anchored = true
-				w.CanTouch = false
-				w.CanCollide = options.collide == true
-				w.CanQuery = options.collide == true
-				w.CastShadow = false
-				w.Material = options.material or Enum.Material.SmoothPlastic
-				w.Color = options.color or Color3.new(1, 1, 1)
-				w.TopSurface = Enum.SurfaceType.Smooth
-				w.BottomSurface = Enum.SurfaceType.Smooth
-				w.Size = Vector3.new(thickness, height, len)
-				w.CFrame = CFrame.fromMatrix((A + corner) / 2, r, up, bk)
-				w.Parent = parent
-			end
-		end
-	end
-
 	return Kit.info(name).meta[key] or default
 end
 
@@ -284,60 +230,6 @@ function Kit.slab(
 	local look = along.Unit
 	local upv = (up - look * up:Dot(look)).Unit
 	local centre = (a + b) / 2 - upv * thickness / 2
-	-- A flat triangle with its top at height topY, corners a, b, c given as world points (their heights
-	-- are ignored): the standard two-wedge fill, split at the foot of the longest side's altitude.
-	function Kit.triangle(
-		parent: Instance,
-		a: Vector3,
-		b: Vector3,
-		c: Vector3,
-		topY: number,
-		thickness: number,
-		options: PartOptions
-	)
-		local y = topY - thickness / 2
-		local A, B, C = Vector3.new(a.X, y, a.Z), Vector3.new(b.X, y, b.Z), Vector3.new(c.X, y, c.Z)
-		local ab, ac, bc = B - A, C - A, C - B
-		local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
-		if abd > acd and abd > bcd then
-			A, C = C, A
-		elseif acd > bcd and acd > abd then
-			A, B = B, A
-		end
-		ab, ac, bc = B - A, C - A, C - B
-		local normal = ac:Cross(ab)
-		if normal.Magnitude < 1e-6 or bc.Magnitude < 0.05 then
-			return
-		end
-		local right = normal.Unit
-		local up = bc:Cross(right).Unit
-		local back = bc.Unit
-		local height = math.abs(ab:Dot(up))
-		if height < 0.05 then
-			return
-		end
-		for _, half in { { B, ab, right, back }, { C, ac, -right, -back } } do
-			local corner, edge, r, bk = half[1], half[2], half[3], half[4]
-			local len = math.abs(edge:Dot(back))
-			if len > 0.05 then
-				local w = Instance.new("WedgePart")
-				w.Name = options.name or "Fill"
-				w.Anchored = true
-				w.CanTouch = false
-				w.CanCollide = options.collide == true
-				w.CanQuery = options.collide == true
-				w.CastShadow = false
-				w.Material = options.material or Enum.Material.SmoothPlastic
-				w.Color = options.color or Color3.new(1, 1, 1)
-				w.TopSurface = Enum.SurfaceType.Smooth
-				w.BottomSurface = Enum.SurfaceType.Smooth
-				w.Size = Vector3.new(thickness, height, len)
-				w.CFrame = CFrame.fromMatrix((A + corner) / 2, r, up, bk)
-				w.Parent = parent
-			end
-		end
-	end
-
 	return Kit.part(
 		parent,
 		Vector3.new(width, thickness, length + (overlap or 0)),
