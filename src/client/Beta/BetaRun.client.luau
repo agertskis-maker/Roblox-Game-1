@@ -23,6 +23,7 @@ local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForCh
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
+local RunScenery = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
 
 local player = Players.LocalPlayer
 local OWNER = "CarHopBetaRun"
@@ -38,6 +39,7 @@ local session: RunController.Session = {
 }
 
 local current: RunController.RunController? = nil
+local scenery: RunScenery.Handle? = nil -- the World beside the road (big round M8)
 local returnTo: CFrame? = nil
 local quietUntil = 0
 
@@ -50,6 +52,10 @@ end
 local function finish()
 	local run = current
 	current = nil
+	if scenery then
+		scenery:destroy()
+		scenery = nil
+	end
 	if run then
 		run:destroy()
 	end
@@ -82,6 +88,9 @@ local function start(world: string, field: BasePart)
 		task.defer(finish)
 	end)
 	run:start()
+	if RunScenery.enabled() then
+		scenery = RunScenery.attach(world, run)
+	end
 	print(string.format("[CarHopBeta] %s run started (seed %d)", world, run.seed))
 end
 
