@@ -359,6 +359,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	-- TABS AND SCROLL ----------------------------------------------------------------------------------------------
 
+	local function pageScale(p: ScrollingFrame): number
+		local h = p.Size.Y.Offset
+		return if h > 0 and p.AbsoluteWindowSize.Y > 0 then p.AbsoluteWindowSize.Y / h else 1
+	end
+
 	local function setActiveTab(id: string)
 		activeSection = id
 		for tabId, tab in tabs do
@@ -386,7 +391,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if not p or y == nil then
 			return
 		end
-		local goal = math.clamp(y, 0, scrollMax)
+		-- CanvasPosition is in screen pixels, the section offsets are in design pixels
+		local goal = math.clamp(y, 0, scrollMax) * pageScale(p)
 		setActiveTab(sectionId)
 		if animate and not Motion.reduced() then
 			programmaticUntil = os.clock() + M.TabScrollSeconds + 0.15
@@ -410,7 +416,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if not p then
 			return
 		end
-		local y = p.CanvasPosition.Y
+		local y = p.CanvasPosition.Y / pageScale(p)
 		local scrollCue = cue
 		if scrollCue then
 			scrollCue.Visible = y < 30 and scrollMax > 60
@@ -831,6 +837,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Parent = overlay.content,
 		}))
 		popScale = make("UIScale", { Name = "ShopPop", Parent = shell })
+
+		-- a soft dark sheet behind the page, so the game and its HUD never read through the words
+		local sheet: Frame = make("Frame", {
+			Name = "PageSheet",
+			Position = UDim2.fromOffset(L.pageX - 10, 0),
+			Size = UDim2.new(0, L.pageW + 20, 1, 0),
+			BackgroundColor3 = Color3.fromRGB(16, 22, 44),
+			BackgroundTransparency = 0.3,
+			BorderSizePixel = 0,
+			ZIndex = 2,
+			Parent = shell,
+		})
+		Arcade.corner(sheet, 18)
 
 		-- PAGE ---------------------------------------------------------------------------------------------------
 		local pageFrame: ScrollingFrame = make("ScrollingFrame", {

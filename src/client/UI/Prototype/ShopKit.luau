@@ -162,6 +162,14 @@ function ShopKit.label(parent: Instance, text: string, size: number, opts: Label
 		yAlign = o.yAlign,
 		z = o.z,
 	})
+	-- dark words on a bright tag carry no outline: a dark stroke round dark letters closes them up
+	local tint = o.colour
+	if tint and tint.R * 0.3 + tint.G * 0.6 + tint.B * 0.1 < 0.3 then
+		local stroke = label:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Enabled = false
+		end
+	end
 	if o.fit ~= false then
 		make("UITextSizeConstraint", { MaxTextSize = math.max(size, MIN_TEXT), MinTextSize = MIN_TEXT, Parent = label })
 		label.TextScaled = true
@@ -246,6 +254,13 @@ function ShopKit.chip(parent: Instance, spec: ChipSpec): Frame
 		z = z + 1,
 	})
 	label.Size = UDim2.fromOffset(0, height)
+	if spec.dark then
+		-- a dark stroke round dark letters closes them up
+		local stroke = label:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Enabled = false
+		end
+	end
 	return frame
 end
 
@@ -1107,7 +1122,7 @@ local TAB_LABEL_SIZE = 18
 -- The width a tab takes: padding, the icon, the word. The screen sums these before it lays the header out.
 function ShopKit.tabWidth(label: string, height: number?): number
 	local h = height or S.Layout.TabHeight
-	return math.ceil(12 + (h - 12) + 6 + textWidth(label, TAB_LABEL_SIZE) + 16)
+	return math.ceil(12 + (h - 12) + 6 + textWidth(label, TAB_LABEL_SIZE) * 1.12 + 22)
 end
 
 -- A pill tab: an icon and a word; the active one is a bright green pill with a thicker outline (state is never
