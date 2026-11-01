@@ -43,11 +43,8 @@ end
 -- The uploaded group-owned meshes: the B2 kit plus the World's own, and the World's palette image.
 local function kitFor(world: string): ({ [string]: string }, string?)
 	local downtown = (ReplicatedStorage :: any).LookDev.Downtown
-	local ids: { [string]: string } = {}
 	local b2 = (require :: any)(downtown.KitIds)
-	for k, v in b2.meshes do
-		ids[k] = v
-	end
+	local ids: { [string]: string } = table.clone(b2.meshes)
 	local worlds = (require :: any)(downtown.WorldsKitIds)
 	local own = worlds[world]
 	if own then
@@ -78,6 +75,7 @@ function RunScenery.attach(world: string, run: RunLike): Handle
 			city:destroy()
 			city = nil
 		end
+		City.restoreLighting() -- never leave one World's light behind
 		trove:Destroy()
 	end
 	trove:Add(task.spawn(function()

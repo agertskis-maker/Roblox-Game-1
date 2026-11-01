@@ -32,6 +32,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
 local Catalog = require(script.Parent.Catalog)
+local KitBounds = require(script.Parent.Parent.KitBounds)
 local KitMesh = require(script.Parent.Parent.KitMesh)
 local Merge = require(script.Parent.Merge)
 local Proxies = require(script.Parent.Proxies)
@@ -716,6 +717,12 @@ function Assembler.prepare(self: Assembler)
 				template.meta = data.meta
 				template.facing = if type(data.meta.facing) == "string" then data.meta.facing else "-Z"
 			end
+			-- an uploaded mesh with no JSON here (the beta): its generated bounds stand in, enough to place it
+			local known: { number }? = if not data and self.meshIds[name] then (KitBounds :: any)[name] else nil
+			if known then
+				template.lo = Vector3.new(known[1], known[2], known[3])
+				template.hi = Vector3.new(known[4], known[5], known[6])
+			end
 			local uploaded = self.meshIds[name]
 			if uploaded then
 				local ok, part = pcall(function()
@@ -724,7 +731,7 @@ function Assembler.prepare(self: Assembler)
 						RenderFidelity = Enum.RenderFidelity.Automatic,
 					})
 				end)
-				if ok and data then
+				if ok and (data or known) then
 					finishPart(part, name)
 					part.TextureID = self.textureId
 					template.part = part
