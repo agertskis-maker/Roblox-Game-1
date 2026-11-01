@@ -19,6 +19,13 @@ Layout.PlotCount = Data.plotCount -- the only plot count; written to Island.Plot
 Layout.ContractVersion = "0-draft"
 Layout.LayoutVersion = "rev3-hub"
 Layout.SurfaceY = 0
+-- The park's height layers (big round M1). No two surfaces of different colour share a height, so
+-- where they overlap the higher one simply wins and nothing flickers. 0.06 apart at the least.
+Layout.PathTop = Layout.SurfaceY + 0.08 -- avenues, ring, approaches, walks, bridges' path ends
+Layout.PadBorderTop = Layout.SurfaceY + 0.14
+Layout.PromenadeTop = Layout.SurfaceY + 0.16
+Layout.PadTop = Layout.SurfaceY + 0.2
+Layout.PlazaTop = Layout.SurfaceY + 0.24
 Layout.HalfSectorDeg = Data.sectorDeg / 2
 Layout.BufferPerSide = Data.bufferPerSide
 
@@ -237,6 +244,84 @@ function Layout.onPlazaFillet(p: Vector2, margin: number): boolean
 				if a >= -grow and b >= -grow and a + b <= 1 + grow then
 					return true
 				end
+			end
+		end
+	end
+	return false
+end
+
+-- The stage forecourt, between the plaza and the stage walk across the portal row. Its sides run
+-- along the outer edges of the two side portal approaches (Adam's screenshot 10: a square block
+-- used to run out past the approaches and left hard-edged grass shapes in the paving).
+Layout.ForecourtEdgeY = Data.park.portal.frontY + 3 + 5 -- the stage walk's plaza-side edge
+local function forecourtSpan(): (number, number, number)
+	local plazaR = Data.park.plazaRadius
+	for _, path in Data.park.paths do
+		if path.kind == "ApproachDustyHighway" then
+			local a, b = path.points[1], path.points[2]
+			local dir = (b - a).Unit
+			local n = Vector2.new(-dir.Y, dir.X)
+			if n.X < 0 then
+				n = -n
+			end
+			local e = a + n * path.width / 2
+			local bd = e:Dot(dir)
+			local t = -bd - math.sqrt(math.max(0, bd * bd - e:Dot(e) + plazaR * plazaR))
+			local top = e + dir * t
+			local run = (Layout.ForecourtEdgeY - top.Y) / dir.Y
+			return top.X, top.Y, top.X + dir.X * run
+		end
+	end
+	error("no ApproachDustyHighway path")
+end
+Layout.ForecourtTopX, Layout.ForecourtTopY, Layout.ForecourtBottomX = forecourtSpan()
+
+function Layout.onForecourt(p: Vector2, margin: number): boolean
+	if p.Y > Layout.ForecourtTopY + margin or p.Y < Layout.ForecourtEdgeY - margin then
+		return false
+	end
+	local t = (Layout.ForecourtTopY - p.Y) / (Layout.ForecourtTopY - Layout.ForecourtEdgeY)
+	return math.abs(p.X) <= Layout.ForecourtTopX + (Layout.ForecourtBottomX - Layout.ForecourtTopX) * t + margin
+end
+
+local function polylineDistance(points: { Vector2 }, p: Vector2): number
+	local best = math.huge
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local ab = b - a
+		local t = if ab.Magnitude > 1e-6 then math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1) else 0
+		best = math.min(best, (p - (a + ab * t)).Magnitude)
+	end
+	return best
+end
+
+-- True when p lies on any paving (plaza, its fillets, the forecourt, a path, a pad), grown by
+-- `margin`. Everything scattered on the lawns asks this, so nothing grows through the paving.
+function Layout.onPaved(p: Vector2, margin: number): boolean
+	if p.Magnitude <= Data.park.plazaRadius + margin then
+		return true
+	end
+	if Layout.onPlazaFillet(p, margin) or Layout.onForecourt(p, margin) then
+		return true
+	end
+	for _, path in Data.park.paths do
+		if polylineDistance(path.points, p) <= path.width / 2 + margin then
+			return true
+		end
+	end
+	for _, b in Data.park.buildings do
+		if b.id == "Gazebo" then
+			if (p - b.centre).Magnitude <= math.max(b.width, b.depth) / 2 + 4 + margin then
+				return true
+			end
+		elseif b.id == "SnackCornerEast" or b.id == "SnackCornerWest" then
+			local side = Vector2.new(-b.facing.Y, b.facing.X)
+			local d = p - b.centre
+			if
+				math.abs(d:Dot(side)) <= b.width / 2 + 1 + margin
+				and math.abs(d:Dot(b.facing)) <= b.depth / 2 + 1 + margin
+			then
+				return true
 			end
 		end
 	end

@@ -11,16 +11,18 @@
 --   Fountain      the grand fountain, inside the measured sightline envelope (revision 2)
 --   Bridges       one kit bridge per crossing (rail-less where two bridges share a junction)
 --   Buildings     gazebo; food stands (decorative only: no prices or shop prompts)
---   Furniture     benches along paths, lamp posts outside the corridors, signpost structures
---                 with blank boards (their designed content follows the Figma workflow)
+--   Furniture     paired benches facing each other across the avenues, lamp posts in matched
+--                 pairs along the paths, signpost structures with their boards
 --   Hedges        low hedges round the plaza, topiary, the car topiary, lakeside fences
---   Beds          raised flower beds in colour drifts (tulips, daisies, sunflowers, lavender, roses)
+--   Beds          raised flower beds, each parallel to its path at one clearance or centred in
+--                 its sector, planted inside the bed's true outline (BedShapes)
 --   Trees         oak, blossom, birch and fruit trees framing paths, willows and birches by the
 --                 stream, bushes beneath; forest floor under each tree
 
 local HttpService = game:GetService("HttpService")
 
 local AssetIds = require(script.Parent.AssetIds)
+local BedShapes = require(script.Parent.BedShapes)
 local Field = require(script.Parent.Field)
 local Flora = require(script.Parent.Flora)
 local KitAssets = require(script.Parent.KitAssets)
@@ -306,6 +308,7 @@ local function put(
 end
 
 type PutOptions = {
+	envelope: boolean?, -- thin enough to judge by the portal ray test, not the blanket corridor rule
 	solid: boolean?,
 	y: number?,
 	r: number?,
@@ -318,7 +321,7 @@ type PutOptions = {
 local function canPut(ctx: Ctx, name: string, p: Vector2, yaw: number, scale: number, o: PutOptions): boolean
 	local base = CFrame.new(p.X, o.y or groundY(p), -p.Y) * CFrame.Angles(0, yaw, 0)
 	local why: string? = nil
-	if not corridorSafe(name, base, scale) then
+	if not corridorSafe(name, base, scale, o.envelope) then
 		why = "corridor"
 	elseif not o.wet and not landSafe((KitAssets.footprint(name, base, scale))) then
 		why = "shore"
@@ -409,7 +412,7 @@ end
 -- The client choreographs it (Home/Island/EnvironmentMotion: a slowly rising and falling plume,
 -- a gentle wave round the arcs; reduced motion holds a calm, complete display).
 local function buildFountain(ctx: Ctx)
-	local y = SURFACE + 0.12 -- the plaza paving's top face (measured in Studio)
+	local y = Layout.PlazaTop
 	local f = folder(ctx, "Fountain")
 	-- the fountain stone and water are measured against the portals themselves (the envelope),
 	-- so the blanket 3-stud corridor rule does not apply to them; the falls view still does
@@ -897,7 +900,7 @@ local function lawnOk(p: Vector2, r: number, pathMin: number): boolean
 		and bridgeClear(p) >= r + 4
 		and buildingClear(p) >= r + 2
 		and onLand(p, r + SHORE_MARGIN)
-		and not Layout.onPlazaFillet(p, r + 0.5) -- the round plaza fillets are paving (review J7)
+		and not Layout.onPaved(p, math.min(r, pathMin) + 0.5) -- nothing on any paving, forecourt included
 end
 
 local function lawnOkPair(p: Vector2, r: number, pathMin: number): boolean
@@ -1059,43 +1062,58 @@ local function buildSignposts(ctx: Ctx)
 	end
 end
 
--- Formal furniture (Task 4, brief §6), mirrored: lamps every 36 studs (research note) where they
--- stay out of the viewing corridors, paired benches set 2 back from the path edge with 3 clear
--- behind, and a bin beside every second bench pair.
+-- Where a bench pair stands along an avenue, as a radius from the fountain. One pair on the inner
+-- lawn, one on the outer, so every avenue has the same rhythm (M2-06).
+local BENCH_RADII = { 86, 190 }
+local BENCH_SETBACK = 1.2 -- studs from the path edge to the bench's front feet
+
+-- Formal furniture, mirrored. Lamps stand in matched pairs across a path, every 36 studs. A lamp is
+-- too thin for the blanket corridor rule; PortalSight's ray test judges it. Benches are few and paired: two
+-- facing each other across an avenue, backs to the lawn, and a bin beside the inner pairs.
 local function buildFurniture(ctx: Ctx)
 	walkEast(36, 18, function(p, dir, normal, path, _n)
 		local width = (path :: any).width or 8
-		for _, s in { 1, -1 } do
-			local at = p + normal * s * (width / 2 + 1.2)
-			if lawnOkPair(at, 0.8, 0.6) and not inCorridor(at) and not inCorridor(mirrorP(at)) then
-				local lamp = putPair(ctx, "Lamps", "LampPost", at, dir, 1, { solid = true, r = 2 })
+		local a = p + normal * (width / 2 + 1.2)
+		local b = p - normal * (width / 2 + 1.2)
+		local function clear(at: Vector2): boolean
+			return lawnOkPair(at, 0.8, 0.6) and free(ctx, at, 1)
+		end
+		if clear(a) and clear(b) then
+			for _, at in { a, b } do
+				local lamp = putPair(ctx, "Lamps", "LampPost", at, dir, 1, { solid = true, r = 2, envelope = true })
 				if lamp then
 					putPair(ctx, "Lamps", "LampGlass", at, dir, 1, {
 						material = Enum.Material.Glass,
 						transparency = 0.15,
+						envelope = true,
 					})
 				end
 			end
 		end
 	end)
-	local pairsPlaced = 0
-	walkEast(36, 0, function(p, _dir, normal, path, _n)
-		local width = (path :: any).width or 8
-		for _, s in { 1, -1 } do
-			local at = p + normal * s * (width / 2 + 2 + 0.9)
-			-- 3 studs clear behind the seat for the sitter's legs and a passer-by
-			if lawnOkPair(at, 3.2, 1.0) and lawnOkPair(at + normal * s * 3, 1.5, 3) then
-				local bench = putPair(ctx, "Benches", "Bench", at, -normal * s, 1, { solid = true, r = 3.5 })
-				if bench then
-					pairsPlaced += 1
-					if pairsPlaced % 2 == 0 and KitAssets.has("ParkBin") then
-						local d = Vector2.new(normal.Y, -normal.X)
-						putPair(ctx, "Benches", "ParkBin", at + d * 2.6, -normal * s, 1, { solid = true, r = 1 })
-					end
+	for k = 4, 6 do
+		local pts, width = avenueLine(k)
+		local dir = (pts[1] - pts[#pts]).Unit -- plaza end toward the promenade
+		local normal = Vector2.new(-dir.Y, dir.X)
+		for i, r in BENCH_RADII do
+			local centre = pts[#pts] + dir * (r - (pts[#pts] - Vector2.zero).Magnitude)
+			local a = centre + normal * (width / 2 + BENCH_SETBACK + 0.9)
+			local b = centre - normal * (width / 2 + BENCH_SETBACK + 0.9)
+			local ok = true
+			for _, at in { a, b } do
+				ok = ok and lawnOkPair(at, 3.2, 1) and free(ctx, at, 3) and free(ctx, mirrorP(at), 3)
+			end
+			if ok then
+				putPair(ctx, "Benches", "Bench", a, -normal, 1, { solid = true, r = 3.5 })
+				putPair(ctx, "Benches", "Bench", b, normal, 1, { solid = true, r = 3.5 })
+				if i == 1 and KitAssets.has("ParkBin") then
+					putPair(ctx, "Benches", "ParkBin", a + dir * 4, -normal, 1, { solid = true, r = 1 })
 				end
+			else
+				ctx.rejected.benchPair = (ctx.rejected.benchPair or 0) + 1
 			end
 		end
-	end)
+	end
 	buildSignposts(ctx)
 end
 
@@ -1204,170 +1222,204 @@ local BED_FLOWERS = { -- back, middle, front; all under 3 (beds sit in viewing c
 	{ "Lavender", "BlueWildflowers", "Daisies" },
 }
 
--- one flower every PLANT_STEP studs each way (Task 4 concept review: 1.7 gave about 100 per round
--- bed, thousands island-wide)
-local PLANT_STEP = 4.2 -- 2.6 gave about 870 clumps and 530k triangles island-wide (Task 4 Studio count)
-local PLANT_SCALE = 1.35 -- larger clumps at the wider step keep the beds reading full
+-- One clump every PLANT_STEP studs on a staggered grid (Task 4: thousands of clumps cost 530k
+-- triangles, so the carpet below carries the green and the clumps stay few).
+local PLANT_STEP = 3.1
+local BED_CLEARANCE = 2 -- studs from a bed's kerb to any path edge, everywhere (M2-03)
+local FLOWER_SCALES = { 1, 0.85, 0.7 } -- the largest that fits wins
+local TALL_DEPTH, MID_DEPTH = 2.2, 1.1 -- how far in from the rim the taller bands start
 
--- A flower's scale in a bed: PLANT_SCALE (0.9 of it for the front edging), capped so the flower's
--- top stays under the 3-stud viewing-corridor limit above the bed's soil.
-local function flowerScale(kind: string, band: number, soil: number): number
-	local want = if band == 3 then 0.9 * PLANT_SCALE else PLANT_SCALE
-	local h = KitAssets.info(kind).max.Y
-	return math.min(want, (2.85 - soil) / math.max(h, 0.1))
+-- The smallest path edge distance anywhere round a bed's kerb.
+local function bedClearance(name: string, at: Vector2, yaw: number): number
+	local worst = math.huge
+	for _, q in BedShapes.outline(name) do
+		local p = BedShapes.toPlan(at, yaw, q)
+		local d = pathClear(p)
+		if Layout.onPaved(p, 0) then
+			d = -1
+		end
+		worst = math.min(worst, d)
+	end
+	return worst
 end
 
-local function plantBed(ctx: Ctx, name: string, p: Vector2, along: Vector2, pathSide: Vector2, palette: number)
-	local meta = KitAssets.info(name).meta or {}
-	local y = groundY(p)
-	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
-	-- the planting radius: the recipe's rx / ry, else the bounds less the border
+local function plantAt(ctx: Ctx, name: string, q: Vector2, y: number, yaw: number, scale: number, id: string)
+	local part = put(ctx, "Beds", name, q, yaw, scale, { y = y })
+	if part then
+		part:SetAttribute("BedId", id)
+	end
+end
+
+-- The rotated bounds of a clump, as points in the plan.
+local function clumpCorners(name: string, at: Vector2, yaw: number, scale: number): { Vector2 }
+	local e = KitAssets.info(name)
+	local c, s = math.cos(yaw), math.sin(yaw)
+	local out = {}
+	for _, x in { e.min.X * scale, e.max.X * scale } do
+		for _, z in { e.min.Z * scale, e.max.Z * scale } do
+			table.insert(out, at + Vector2.new(x * c + z * s, x * s - z * c))
+		end
+	end
+	return out
+end
+
+local function fits(name: string, kind: string, bedAt: Vector2, bedYaw: number, at: Vector2, yaw: number, scale: number)
+	for _, p in clumpCorners(kind, at, yaw, scale) do
+		if BedShapes.soil(name, BedShapes.toLocal(bedAt, bedYaw, p)) < 0.05 then
+			return false
+		end
+	end
+	return true
+end
+
+-- Plants a bed and its mirror image, one planned scheme per bed: edging plants at the rim, taller
+-- flowers in the middle. A clump goes in only if its whole footprint, petals and leaves, is inside
+-- the soil on BOTH sides, so the two beds stay mirror images.
+local function plantBed(ctx: Ctx, name: string, at: Vector2, yaw: number, mAt: Vector2?, mYaw: number?, palette: number)
 	local info = KitAssets.info(name)
-	local rx = (meta.rx or info.max.X) - 1.2
-	local ry = (meta.ry or info.max.Z) - 1.2
-	local across = Vector2.new(-along.Y, along.X)
-	for _, flip in { false, true } do
-		local centre = if flip then mirrorP(p) else p
-		local a = if flip then mirrorD(along) else along
-		local c = if flip then mirrorD(across) else across
-		local toward = if flip then mirrorD(pathSide) else pathSide
-		for u = -rx, rx, PLANT_STEP do
-			for v = -ry, ry, PLANT_STEP do
-				if (u / rx) ^ 2 + (v / ry) ^ 2 <= 1.05 then
-					local q = centre + a * u + c * v
-					-- depth across the bed from the path side (-1 front .. 1 back)
-					local depth = -((q - centre):Dot(toward)) / math.max(math.max(rx, ry), 0.1)
-					local band = if depth > 0.35 then 1 elseif depth > -0.35 then 2 else 3
-					put(
-						ctx,
-						"Beds",
-						kinds[band],
-						q,
-						(u * 7 + v * 3) % 6.28,
-						flowerScale(kinds[band], band, meta.soil or 0.6),
-						{
-							y = y + (meta.soil or 0.6),
-						}
-					)
+	local y = groundY(at) + (info.meta.soil or 0.6)
+	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
+	local id = string.format("%s@%.0f,%.0f", name, at.X, at.Y)
+	local mid = if mAt then string.format("%s@%.0f,%.0f", name, mAt.X, mAt.Y) else ""
+	local row = 0
+	for z = info.min.Z, info.max.Z, PLANT_STEP * 0.87 do
+		row += 1
+		for x = info.min.X + (if row % 2 == 0 then PLANT_STEP / 2 else 0), info.max.X, PLANT_STEP do
+			local q = Vector2.new(x, z)
+			local depth = BedShapes.soil(name, q)
+			if depth > 0.3 then
+				local band = if depth > TALL_DEPTH then 1 elseif depth > MID_DEPTH then 2 else 3
+				local kind = kinds[band]
+				local turn = (x * 7 + z * 3) % 6.28
+				local p = BedShapes.toPlan(at, yaw, q)
+				local mp = if mAt then mirrorP(p) else p
+				for _, scale in FLOWER_SCALES do
+					local scaleFit = math.min(scale, (2.85 - (info.meta.soil or 0.6)) / math.max(info.max.Y, 0.1))
+					local ok = fits(name, kind, at, yaw, p, turn, scaleFit)
+					if ok and mAt then
+						ok = fits(name, kind, mAt, mYaw :: number, mp, -turn, scaleFit)
+					end
+					if ok then
+						plantAt(ctx, kind, p, y, turn, scaleFit, id)
+						if mAt then
+							plantAt(ctx, kind, mp, y, -turn, scaleFit, mid)
+						end
+						break
+					end
 				end
 			end
 		end
 	end
 end
 
--- A corner bed (BedCornerFillet: its origin is the path corner, its two straight sides run along
--- mesh +X and mesh -Z, the quarter it fills lies between them) in the grass corner at C whose
--- two path edges leave C along u1 and u2. Planted in layers: low edging along the paths, taller
--- planting toward the back arc. Placed with its mirror image (a quarter bed is symmetric about
--- its diagonal, so the mirror image is the same mesh turned).
+local function placeBed(ctx: Ctx, name: string, at: Vector2, yaw: number): MeshPart?
+	local bed = put(ctx, "Beds", name, at, yaw, 1, { y = groundY(at) })
+	if bed then
+		bed:SetAttribute("BedAt", at)
+		bed:SetAttribute("BedYaw", yaw)
+		bed:SetAttribute("BedId", string.format("%s@%.0f,%.0f", name, at.X, at.Y))
+	end
+	return bed
+end
+
+local function reserveBed(ctx: Ctx, name: string, at: Vector2, yaw: number)
+	for _, q in BedShapes.outline(name) do
+		table.insert(ctx.taken, { p = BedShapes.toPlan(at, yaw, q), r = 2.5 })
+	end
+end
+
+-- A bed and its mirror image, or one bed on the axis, with the kerb's clearance tested first.
+local function bedPair(ctx: Ctx, name: string, at: Vector2, yaw: number, mirrorYaw: number, palette: number): boolean
+	local onAxis = math.abs(at.X - AXIS) < 0.5
+	local mAt = if onAxis then nil else mirrorP(at)
+	if bedClearance(name, at, yaw) < BED_CLEARANCE - 0.05 then
+		ctx.rejected.bedClearance = (ctx.rejected.bedClearance or 0) + 1
+		return false
+	end
+	if mAt and bedClearance(name, mAt, mirrorYaw) < BED_CLEARANCE - 0.05 then
+		ctx.rejected.bedClearance = (ctx.rejected.bedClearance or 0) + 1
+		return false
+	end
+	local a = placeBed(ctx, name, at, yaw)
+	local b = if mAt then placeBed(ctx, name, mAt, mirrorYaw) else nil
+	if not a or (mAt and not b) then
+		return false
+	end
+	reserveBed(ctx, name, at, yaw)
+	if mAt then
+		reserveBed(ctx, name, mAt, mirrorYaw)
+		a:SetAttribute("MirrorPair", true);
+		(b :: MeshPart):SetAttribute("MirrorPair", true)
+	end
+	plantBed(ctx, name, at, yaw, mAt, mirrorYaw, palette)
+	return true
+end
+
+-- An arc bed: the mesh's arc is centred behind it (mesh -Z), so that side faces the fountain and the
+-- bed reads as part of a ring round it. The mesh's front (+Z) points away from the fountain.
+local function arcBed(ctx: Ctx, name: string, bearing: number, radii: { number }, palette: number): boolean
+	local dir = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing)))
+	for _, r in radii do
+		local at = dir * r
+		if bedPair(ctx, name, at, yawFacing(dir), yawFacing(mirrorD(dir)), palette) then
+			return true
+		end
+	end
+	return false
+end
+
+-- A corner bed in the grass corner at C, whose two path edges leave C along u1 and u2 (near enough
+-- square). The mesh's origin is the path corner and its straight sides run along mesh +X and -Z,
+-- which end up along u1 and u2. It slides out of the corner until the whole kerb clears both paths.
 local function cornerBed(ctx: Ctx, C: Vector2, u1: Vector2, u2: Vector2, palette: number): boolean
 	if cross(u1, u2) < 0 then
 		u1, u2 = u2, u1
 	end
 	local name = "BedCornerFillet"
-	local yaw = math.atan2(u1.Y, u1.X) -- mesh +X along u1; mesh -Z is then u1 turned left (u2)
-	local mu1, mu2 = mirrorD(u2), mirrorD(u1) -- the mirror image swaps handedness
-	local myaw = math.atan2(mu1.Y, mu1.X)
-	local mc = mirrorP(C)
-	local y = groundY(C)
-	local o: PutOptions = { y = y }
-	if not canPut(ctx, name, C, yaw, 1, o) or not canPut(ctx, name, mc, myaw, 1, o) then
-		ctx.rejected.cornerBed = (ctx.rejected.cornerBed or 0) + 1
-		return false
-	end
-	local centre = C + (u1 + u2) * 8
-	if not free(ctx, centre, 6) or not free(ctx, mirrorP(centre), 6) then
-		ctx.rejected.cornerBed = (ctx.rejected.cornerBed or 0) + 1
-		return false
-	end
-	local a = put(ctx, "Beds", name, C, yaw, 1, o :: any)
-	local b = put(ctx, "Beds", name, mc, myaw, 1, o :: any)
-	if a and b then
-		a:SetAttribute("MirrorPair", true)
-		b:SetAttribute("MirrorPair", true)
-	end
-	table.insert(ctx.taken, { p = centre, r = 7 })
-	table.insert(ctx.taken, { p = mirrorP(centre), r = 7 })
-	local soil = KitAssets.info(name).meta.soil or 0.6
-	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
-	for _, flip in { false, true } do
-		local c0 = if flip then mc else C
-		local e1 = if flip then mu1 else u1
-		local e2 = if flip then mu2 else u2
-		for s = 2, 13.5, PLANT_STEP do
-			for t = 2, 13.5, PLANT_STEP do
-				-- inside the back arc (r 15 less the border), outside the fillet paving (r 8 + verge)
-				local fromFillet = (Vector2.new(s, t) - Vector2.new(8, 8)).Magnitude
-				if s * s + t * t <= 13.5 * 13.5 and (s >= 8 or t >= 8 or fromFillet >= 9.3) then
-					local edge = math.min(s, t)
-					local band = if edge < 3.4 then 3 elseif edge < 6 then 2 else 1
-					local q = c0 + e1 * s + e2 * t
-					put(ctx, "Beds", kinds[band], q, (s * 5 + t * 3) % 6.28, flowerScale(kinds[band], band, soil), {
-						y = y + soil,
-					})
-				end
+	local mu1 = mirrorD(u2) -- the mirror image swaps handedness
+	for slide = 1, 5, 0.25 do
+		local at = C + (u1 + u2) * slide
+		local yaw = math.atan2(u1.Y, u1.X)
+		if bedClearance(name, at, yaw) >= BED_CLEARANCE then
+			local mAt = mirrorP(at)
+			local myaw = math.atan2(mu1.Y, mu1.X)
+			if bedClearance(name, mAt, myaw) >= BED_CLEARANCE then
+				return bedPair(ctx, name, at, yaw, myaw, palette)
 			end
 		end
 	end
-	return true
-end
-
--- An arc bed (BedFountainArc, BedAvenueArc: origin at the centre-line midpoint, the arc's centre
--- straight ahead of the mesh front) at radius r on bearing b, its front toward the fountain.
-local function arcBed(
-	ctx: Ctx,
-	name: string,
-	bearing: number,
-	r: number,
-	palette: number,
-	sweepDeg: number,
-	width: number
-): boolean
-	local dir = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing)))
-	local p = dir * r
-	local front = -dir
-	local meta = KitAssets.info(name).meta
-	local half = width / 2
-	local y = groundY(p)
-	local a = putPair(ctx, "Beds", name, p, front, 1, { y = y, r = 1 })
-	if a then
-		table.insert(ctx.taken, { p = p, r = 5 })
-		table.insert(ctx.taken, { p = mirrorP(p), r = 5 })
-	end
-	if not a then
-		return false
-	end
-	local soil = meta.soil or 0.6
-	local kinds = BED_FLOWERS[(palette - 1) % #BED_FLOWERS + 1]
-	local sweep = math.rad(sweepDeg * 0.42) -- planted to just inside each end
-	for _, flip in { false, true } do
-		if flip and math.abs(p.X - AXIS) < 0.5 then
-			break
-		end
-		local b0 = if flip then math.rad(-bearing) else math.rad(bearing)
-		for k = -sweep, sweep, PLANT_STEP / r do
-			for d = -half + 1.1, half - 1.1, PLANT_STEP * 0.8 do
-				local ang = b0 + k
-				local q = Vector2.new(math.sin(ang), math.cos(ang)) * (r + d)
-				-- tallest on the centre line, low edging both sides (fountain beds are seen from both)
-				local off = math.abs(d) / math.max(half - 1, 0.5)
-				local band = if off < 0.34 then 1 elseif off < 0.67 then 2 else 3
-				put(ctx, "Beds", kinds[band], q, (k * 31 + d * 7) % 6.28, flowerScale(kinds[band], band, soil), {
-					y = y + soil,
-				})
-			end
-		end
-	end
-	return true
+	ctx.rejected.cornerBed = (ctx.rejected.cornerBed or 0) + 1
+	return false
 end
 
 local function buildBeds(ctx: Ctx)
 	local palette = 0
-	-- 1. fountain beds round the plaza, between the path mouths (on the axis once, the rest paired)
-	for _, bearing in { 0, 30, 60, 90 } do
-		palette += 1
-		if KitAssets.has("BedFountainArc") then
-			arcBed(ctx, "BedFountainArc", bearing, park.plazaRadius + 9, palette, 16.37, 8) -- kit_park4: ring r 49, 8 wide
+	-- 1. fountain beds: a ring round the plaza, one centred in each sector between two paths, moved
+	--    out to where the sector is wide enough for the bed at one clearance. The same radius for
+	--    all four keeps the ring a ring.
+	if KitAssets.has("BedFountainArc") then
+		local radii = {}
+		for r = 60, 96, 2 do
+			table.insert(radii, r)
+		end
+		local fit: number? = nil
+		for _, r in radii do
+			local ok = true
+			for _, bearing in { 0, 30, 60, 90 } do
+				local dir = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing)))
+				ok = ok and bedClearance("BedFountainArc", dir * r, yawFacing(dir)) >= BED_CLEARANCE
+			end
+			if ok then
+				fit = r
+				break
+			end
+		end
+		ctx.counts.fountainBedRadius = fit or 0
+		if fit then
+			for _, bearing in { 0, 30, 60, 90 } do
+				palette += 1
+				arcBed(ctx, "BedFountainArc", bearing, { fit }, palette)
+			end
 		end
 	end
 	-- 2. corner beds in the grass corners where each east avenue meets the garden ring (plaza
@@ -1378,8 +1430,8 @@ local function buildBeds(ctx: Ctx)
 		local normal = Vector2.new(-dir.Y, dir.X)
 		for _, edge in
 			{
-				{ r = park.ringRadius - 4, toward = 1 }, -- the ring's plaza-side edge; beds on the plaza side
-				{ r = park.promenade.inner, toward = 1 }, -- the promenade's park-side edge; beds on the park side
+				{ r = park.ringRadius - 4 }, -- the ring's plaza-side edge; beds on the plaza side
+				{ r = park.promenade.inner }, -- the promenade's park-side edge; beds on the park side
 			}
 		do
 			local J = pts[1] + dir * ((pts[1] - Vector2.zero).Magnitude - edge.r) -- on the centre line
@@ -1388,37 +1440,32 @@ local function buildBeds(ctx: Ctx)
 				-- the avenue edge on side s meets the circle edge at C (local straight-line model)
 				local C = J + normal * s * (width / 2)
 				C = C.Unit * edge.r
-				local u1 = dir * edge.toward -- along the avenue edge, toward the plaza
 				local u2 = tangent * (if tangent:Dot(normal * s) >= 0 then 1 else -1) -- along the circle, away from the avenue
 				palette += 1
 				if KitAssets.has("BedCornerFillet") then
-					cornerBed(ctx, C, u1, u2, palette)
+					cornerBed(ctx, C, dir, u2, palette)
 				end
 			end
 		end
 	end
 	-- 3. (removed, Task 4 review J1: the 24 straight beds along the avenues read as brown
 	--    confetti from above; the lawns there stay open, which also frames the avenues)
-	-- 4. curved avenue beds along the promenade's park-side edge, between the avenues
+	-- 4. curved beds along the promenade's park-side edge, between the avenues
 	if KitAssets.has("BedAvenueArc") then
 		for _, bearing in { 30, 60 } do
 			palette += 1
-			arcBed(ctx, "BedAvenueArc", bearing, park.promenade.inner - 1.5 - 3.6, palette, 5.79, 7) -- kit_park4: r 178, 7 wide
+			local kerbOut = KitAssets.info("BedAvenueArc").max.Z
+			arcBed(ctx, "BedAvenueArc", bearing, { park.promenade.inner - BED_CLEARANCE - kerbOut - 0.1 }, palette)
 		end
 	end
-	-- 5. round junction beds inside the garden ring, between the avenues
+	-- 5. round beds exactly centred in the sectors inside the garden ring
 	if KitAssets.has("BedJunctionRound") then
 		for _, bearing in { 0, 30, 60 } do
 			palette += 1
 			for _, radius in { 95, 85, 105, 75, 115 } do
 				local p = Vector2.new(math.sin(math.rad(bearing)), math.cos(math.rad(bearing))) * radius
-				if lawnOkPair(p, 9, 2) then
-					local a =
-						putPair(ctx, "Beds", "BedJunctionRound", p, Vector2.new(0, 1), 1, { y = groundY(p), r = 10 })
-					if a then
-						plantBed(ctx, "BedJunctionRound", p, Vector2.new(1, 0), Vector2.new(0, -1), palette)
-						break
-					end
+				if lawnOkPair(p, 9, 2) and bedPair(ctx, "BedJunctionRound", p, 0, 0, palette) then
+					break
 				end
 			end
 		end
@@ -1427,12 +1474,11 @@ end
 
 -- Bedding carpets (Task 4 review J1: the beds read as half-empty brown soil). Each bed gets a
 -- copy of its own mesh, untextured, in a deep leaf green, shrunk toward its centre so its rim
--- sits just inside the stone kerb and raised a hair above the soil: the soil reads as low
--- bedding foliage with the flowers rising from it, and the copy's rim reads as a clipped green
--- edging. No new asset; mirrored with its bed (the copy keeps the bed's PlanAt and MirrorPair).
+-- sits just inside the stone kerb and raised above the soil: the soil reads as low bedding foliage
+-- with the flowers rising from it. No new asset; mirrored with its bed.
 local CARPET_GREEN = Color3.fromRGB(70, 138, 74) -- deeper than the lawn (proposal)
 local CARPET_SHRINK = 0.9 -- of the bed's plan size
-local CARPET_LIFT = 0.04
+local CARPET_LIFT = 0.08 -- clear of the soil's own plane, so the two never fight
 local function carpetBeds(ctx: Ctx)
 	local beds = folder(ctx, "Beds")
 	local made = 0
@@ -1456,52 +1502,22 @@ local function carpetBeds(ctx: Ctx)
 end
 
 -- ---------------------------------------------------------------- lawns
--- Grass tufts set back from the path edges (never over them) and low flower drifts on the open
--- lawns, one kind per drift; all mirrored about the axis.
+-- Grass tufts set back from the path edges, never on paving; mirrored about the axis. The loose
+-- flower drifts are gone (Adam, M2-05): every flower in the park is in a bed.
 local function buildLawns(ctx: Ctx)
-	walkEast(6.5, 2, function(p, _dir, normal, path, n)
+	walkEast(9, 2, function(p, _dir, normal, path, n)
 		local width = (path :: any).width or 8
 		local side = if n % 2 == 0 then 1 else -1
 		local at = p + normal * side * (width / 2 + ctx.rng:NextNumber(1.2, 2.2))
-		if ctx.rng:NextNumber() < 0.6 and lawnOkPair(at, 0.8, 0.9) and free(ctx, at, 1.2) then
+		if ctx.rng:NextNumber() < 0.4 and lawnOkPair(at, 0.8, 0.9) and free(ctx, at, 1.2) then
 			local kind = if ctx.rng:NextNumber() < 0.6 then "GrassTuft" else "GrassTuftWide"
 			putPair(ctx, "Lawns", kind, at, Vector2.new(0, 1), 1, {})
 		end
 	end)
-	local kinds = { "Daisies", "BlueWildflowers", "Poppies", "Daisies", "TulipsYellow" }
-	local drifts, tries = 0, 0
-	while drifts < 6 and tries < 800 do
-		tries += 1
-		local a = ctx.rng:NextNumber(-math.pi / 2, math.pi / 2) -- east half (bearing from north)
-		local r = ctx.rng:NextNumber(park.plazaRadius + 12, PARK_OUTER - 6)
-		local p = Vector2.new(math.sin(a), math.cos(a)) * r
-		if p.X > AXIS + 8 and lawnOkPair(p, 5, 4) and free(ctx, p, 7) and free(ctx, mirrorP(p), 7) then
-			drifts += 1
-			local kind = kinds[(drifts - 1) % #kinds + 1]
-			for _ = 1, ctx.rng:NextInteger(6, 9) do
-				local b = ctx.rng:NextNumber(0, 6.28)
-				local q = p + Vector2.new(math.cos(b), math.sin(b)) * 4.5 * math.sqrt(ctx.rng:NextNumber())
-				if lawnOkPair(q, 0.8, 1) then
-					putPair(
-						ctx,
-						"Lawns",
-						kind,
-						q,
-						Vector2.new(math.cos(b), math.sin(b)),
-						ctx.rng:NextNumber(0.9, 1.1),
-						{}
-					)
-				end
-			end
-			putPair(ctx, "Lawns", "Clover", p + Vector2.new(5, 2), Vector2.new(0, 1), 1, {})
-			table.insert(ctx.taken, { p = p, r = 5 })
-			table.insert(ctx.taken, { p = mirrorP(p), r = 5 })
-		end
-	end
-	ctx.counts.lawnDrifts = drifts * 2
 end
 
 -- ---------------------------------------------------------------- park trees
+local TREE_BUILDING_CLEAR = 13 -- a crown's reach plus air: no leaves in the gazebo roof (M2-08)
 local function buildTrees(ctx: Ctx)
 	local nz = 0.37
 	local folderTrees = folder(ctx, "Trees")
@@ -1523,7 +1539,7 @@ local function buildTrees(ctx: Ctx)
 		end
 		-- groups and open lawns: a slow noise mask decides where trees gather
 		local mask = math.noise(p.X / 55, p.Y / 55, nz)
-		if mask > -0.05 and lawnOk(p, 3, 4) and free(ctx, p, 12) then
+		if mask > -0.05 and lawnOk(p, 3, 4) and free(ctx, p, 12) and buildingClear(p) >= TREE_BUILDING_CLEAR then
 			local nearStream = streamClear(p) < 16
 			local weights = if nearStream
 				then { Birch = 3, Willow = 2, Oak = 1 }
