@@ -78,7 +78,7 @@ return {
 			curves = 1,
 			bridge = false,
 			signature = "ChaletCluster",
-			landmarks = { "ChaletCluster", "BellTower" },
+			landmarks = { "ChaletCluster" },
 			-- Adam's S8 decision (2026-10-29): the snowmen row MOVED here from Summit Lodge. Pine Village opens with it and then the
 			-- chalet cluster, each 300 to 440 after the one before (after the lodge across the wrap; near the start on lap one)
 			leadLandmarks = { "SnowmenRow", "ChaletCluster" },
@@ -88,7 +88,7 @@ return {
 			parkBias = 0.6,
 			midHeight = { 28, 56 },
 			skyHeight = { 100, 170 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			welcome = "WELCOME TO SUMMIT PASS",
 			cart = false,
@@ -115,7 +115,7 @@ return {
 			parkBias = 0.7,
 			midHeight = { 48, 100 },
 			skyHeight = { 120, 200 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			cart = false,
 		},
@@ -198,7 +198,7 @@ return {
 			parkBias = 0.6,
 			midHeight = { 48, 100 },
 			skyHeight = { 130, 210 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			cart = false,
 		},
@@ -407,7 +407,57 @@ return {
 		-- chalet cluster), and the spacing measured on the route (station differences, as Sequencer.check reports them): every
 		-- consecutive landmark 300 to 440 apart, majors (district signatures) 500 or more, minors 250 or more from a major
 		landmarkCycle = { "Observatory", "SummitLodge", "SnowmenRow", "ChaletCluster" },
-		spacingCheck = { min = 300, max = 440, majors = 500, minorFromMajor = 250 },
+		spacingCheck = {
+			min = 300,
+			max = 440,
+			majors = 500,
+			minorFromMajor = 250,
+			-- a longer gap is allowed next to the glacier tunnel only (Adam, big round M7-01; decision 0029 option 1)
+			longGapBeside = { id = "GlacierTunnel", max = 780 },
+		},
+		-- wayfinding in the Summit family (big round M5): carved lodge boards in the villages, enamel trail markers on the mountain
+		signs = {
+			{
+				district = "PineVillage",
+				t = 0.03,
+				side = 1,
+				lateral = 50,
+				w = 12,
+				h = 3.2,
+				text = "PINE VILLAGE",
+				style = "Lodge",
+			},
+			{
+				district = "SkiLiftRidge",
+				t = 0.08,
+				side = -1,
+				lateral = 50,
+				w = 10,
+				h = 2.8,
+				text = "SKI LIFT",
+				style = "Trail",
+			},
+			{
+				district = "FrozenLake",
+				t = 0.1,
+				side = 1,
+				lateral = 50,
+				w = 12,
+				h = 2.8,
+				text = "FROZEN LAKE",
+				style = "Trail",
+			},
+			{
+				district = "SummitLodge",
+				t = 0.08,
+				side = 1,
+				lateral = 50,
+				w = 13,
+				h = 3.2,
+				text = "SUMMIT LODGE",
+				style = "Lodge",
+			},
+		},
 		subSeeds = true,
 		replaceMasses = true,
 		welcomeLater = "KEEP CLIMBING!", -- Adam, 2026-10-28: the first lap says WELCOME TO SUMMIT PASS, later laps this
@@ -540,6 +590,23 @@ return {
 		},
 		skiers = { "SP_BG_PisteGlade_A", "SP_BG_PisteGlade_B" },
 		pins = {
+			-- the clock tower, set out behind the chalets with its base in the clear (Adam, big round M7-02): a pin, so it stands
+			-- on the same spot on every seed and takes no slot from the landmark rhythm
+			{
+				id = "BellTower",
+				m = "SP_LM_BellTower",
+				district = "PineVillage",
+				t = 0.74,
+				side = -1,
+				lateral = 124,
+				scale = 1,
+				yaw = "alongRoad",
+				y = 0,
+				kind = "mass",
+				band = "near",
+				label = "VILLAGE CLOCK TOWER",
+				colour = rgb(170, 150, 130),
+			},
 			-- a second ski glade for the skiers (the lift's own glade is placed by WorldFeatures.lift)
 			{
 				id = "glade2",

@@ -199,10 +199,10 @@ function WorldLife.new(options: Options): WorldLife
 				"Tumbleweed",
 				Vector3.new(3.6, 3.6, 3.6),
 				CFrame.new(0, -500, 0),
-				Color3.fromRGB(158, 120, 82),
+				Color3.fromRGB(196, 160, 112),
 				Enum.PartType.Ball
 			)
-			p.Material = Enum.Material.Fabric
+			p.Material = Enum.Material.SmoothPlastic
 			p.CastShadow = false
 			table.insert(self.tumbleweeds, {
 				part = p,

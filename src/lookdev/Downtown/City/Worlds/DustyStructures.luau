@@ -218,15 +218,8 @@ end
 function RECIPES.ProduceKiosk(m)
 	box(m, "Stall", Vector3.new(12, 3, 6), Vector3.new(0, 1.5, 0), WOOD)
 	ramada(m, 12, 6, 7, WOOD_DARK, CORAL)
-	for k = 0, 3 do
-		box(
-			m,
-			"Crate",
-			Vector3.new(2.2, 1, 2.2),
-			Vector3.new(-3.6 + k * 2.4, 3.5, 0),
-			if k % 2 == 0 then rgb(226, 120, 60) else LIME
-		)
-	end
+	box(m, "Crate", Vector3.new(4.6, 1, 2.2), Vector3.new(-2.4, 3.5, 0), rgb(226, 120, 60))
+	box(m, "Crate", Vector3.new(4.6, 1, 2.2), Vector3.new(2.4, 3.5, 0), LIME)
 end
 
 -- Diner Strip: motel, fuel, a general store, the drive-in

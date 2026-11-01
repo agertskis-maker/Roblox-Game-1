@@ -107,6 +107,7 @@ function WorldFeatures.structures(ctx: Ctx)
 			end
 			add(ctx, {
 				kind = "structure",
+				module = "DHS_" .. s.id,
 				structure = s.id,
 				label = s.id,
 				cframe = f * CFrame.Angles(0, s.side * math.pi / 2, 0),

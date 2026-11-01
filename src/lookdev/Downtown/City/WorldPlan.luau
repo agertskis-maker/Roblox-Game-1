@@ -896,11 +896,19 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 		local minorsShort: { string } = {}
 		local prevLm: any = nil
 		local prevMajor: any = nil
+		-- the one named exception (Adam, big round M7-01): a gap beside this landmark may run longer; every other gap keeps the rule
+		local beside = rule.longGapBeside
+		local function allowed(a: any, b: any, gap: number): boolean
+			if gap >= rule.min and gap <= rule.max then
+				return true
+			end
+			return beside ~= nil and (a.id == beside.id or b.id == beside.id) and gap >= rule.min and gap <= beside.max
+		end
 		for _, lm in plan.landmarks do
 			if prevLm then
 				local gap = lm.station - prevLm.station
 				table.insert(gaps, math.floor(gap + 0.5))
-				if gap < rule.min or gap > rule.max then
+				if not allowed(prevLm, lm, gap) then
 					table.insert(
 						outside,
 						string.format("%s@%.0f to %s@%.0f = %.0f", prevLm.id, prevLm.station, lm.id, lm.station, gap)
@@ -929,7 +937,7 @@ function WorldPlan.apply(plan: any, catalog: any, seed: number, h: Helpers)
 			wrapEnd = routeEnd
 			local gap = firstLm.station + routeEnd - lastLm.station
 			table.insert(gaps, math.floor(gap + 0.5))
-			if gap < rule.min or gap > rule.max then
+			if not allowed(lastLm, firstLm, gap) then
 				table.insert(
 					outside,
 					string.format(
