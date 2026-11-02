@@ -12,7 +12,7 @@ local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local ProfileStore = require(ServerScriptService.Server.vendor.ProfileStore) :: any
 local Signal = require(ReplicatedStorage.Packages.Signal)
 
-export type Data = { RacewayLevel: number, ParkingSpots: number }
+export type Data = { RacewayLevel: number, ParkingSpots: number, TutorialDone: boolean }
 
 local BetaData = {}
 

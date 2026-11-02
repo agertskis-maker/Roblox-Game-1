@@ -14,6 +14,7 @@ BetaConfig.NetName = "CarHopBetaNet"
 BetaConfig.Remotes = {
 	BuyRacewayLevel = "BuyRacewayLevel", -- no arguments: the server raises the caller's own Raceway by one
 	BuyParkingSpot = "BuyParkingSpot", -- no arguments: the server adds one spot to the caller's own Paddock
+	TutorialDone = "TutorialDone", -- no arguments: the server remembers the caller finished or skipped the tutorial
 }
 
 -- ProfileStore store and template. A beta-only store, so the real game's saves start clean.
@@ -21,11 +22,13 @@ BetaConfig.StoreName = "CarHopBeta1"
 BetaConfig.Template = {
 	RacewayLevel = 1,
 	ParkingSpots = 2,
+	TutorialDone = false, -- Adam, 2026-11-02: the tutorial is for first-time players only
 }
 
 -- Attributes the server sets. Plot: Owner (UserId), OwnerDisplayName, SpeedwayLevel, ParkingSpots
 -- (the names Lane 3's Raceway looks already read). Player: HomePlot (plot number).
 BetaConfig.HomePlotAttribute = "HomePlot"
+BetaConfig.TutorialDoneAttribute = "TutorialDone" -- Player: nil until the save has loaded, then true or false
 
 function BetaConfig.enabled(): boolean
 	return ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) ~= nil

@@ -40,7 +40,23 @@ function BetaShop.start()
 	local buySpot = Instance.new("RemoteEvent")
 	buySpot.Name = BetaConfig.Remotes.BuyParkingSpot
 	buySpot.Parent = net
+	local tutorialDone = Instance.new("RemoteEvent")
+	tutorialDone.Name = BetaConfig.Remotes.TutorialDone
+	tutorialDone.Parent = net
 	net.Parent = ReplicatedStorage
+
+	-- the tutorial is for first-time players: the client reads this attribute, and says when it is over. No arguments,
+	-- and it can only ever set the caller's own flag to true.
+	BetaData.Loaded:Connect(function(player: Player, data: BetaData.Data)
+		player:SetAttribute(BetaConfig.TutorialDoneAttribute, data.TutorialDone == true)
+	end)
+	tutorialDone.OnServerEvent:Connect(function(player: Player)
+		local data = BetaData.get(player)
+		if data then
+			data.TutorialDone = true
+			player:SetAttribute(BetaConfig.TutorialDoneAttribute, true)
+		end
+	end)
 
 	buyLevel.OnServerEvent:Connect(function(player: Player)
 		if not allowed(player) then
