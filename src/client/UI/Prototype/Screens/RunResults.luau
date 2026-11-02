@@ -199,7 +199,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local rays = CarKit.pattern(card, "rays", {
 			color = if good then Color3.fromRGB(180, 255, 170) else Color3.fromRGB(170, 210, 255),
 			transparency = 0.88,
-			size = UDim2.new(1, 0, 0.5, 0),
+			size = UDim2.fromScale(1, 0.5),
 			z = 3,
 		})
 		if rays then

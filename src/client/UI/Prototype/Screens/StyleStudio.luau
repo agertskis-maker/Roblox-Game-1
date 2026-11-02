@@ -73,7 +73,6 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local cards: { [string]: any } = {}
 	local message: TextLabel
 	local action: CarKit.Button
-	local stateTab: { [string]: any } = {}
 	local gridHost: ScrollingFrame
 	local yaw = math.rad(215)
 	local dragging = false
@@ -349,7 +348,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		refreshCurrent()
 	end
 
-	local function select(id: string): boolean
+	local function pick(id: string): boolean
 		local item = Catalog.byId(tab :: any, id)
 		if not item or isShown(item) == "unavailable" then
 			return false
@@ -464,7 +463,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			local refs = { item = item, ring = ring, status = status, lock = lock }
 			cards[item.id] = refs
 			button.Activated:Connect(function()
-				select(item.id)
+				pick(item.id)
 			end)
 		end
 		refreshCards()
@@ -638,7 +637,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	function self.select(_self: any, id: string): boolean
-		return select(id)
+		return pick(id)
 	end
 
 	function self.pressAction(_self: any)

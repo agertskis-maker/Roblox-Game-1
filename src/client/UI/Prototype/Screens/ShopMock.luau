@@ -284,7 +284,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		CarKit.title(card, "COMING SOON!", 40, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -24, 0, 44),
-			position = UDim2.new(0, 12, 0, h * 0.5),
+			position = UDim2.fromOffset(12, h * 0.5),
 			z = 203,
 			top = CarKit.White,
 			bottom = CarKit.Gold,
@@ -293,7 +293,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			align = Enum.TextXAlignment.Center,
 			wrap = true,
 			size = UDim2.new(1, -40, 0, 46),
-			position = UDim2.new(0, 20, 0, h * 0.5 + 46),
+			position = UDim2.fromOffset(20, h * 0.5 + 46),
 			z = 203,
 			color = CarKit.Soft,
 		})
@@ -439,7 +439,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if not phone then
 			CarKit.art(card, "fx_flag", {
 				size = UDim2.fromOffset(titlePx * 1.5, titlePx * 0.8),
-				position = UDim2.new(0, -titlePx * 0.1, 0, titlePx * 0.12),
+				position = UDim2.fromOffset(-titlePx * 0.1, titlePx * 0.12),
 				anchor = Vector2.zero,
 				z = 7,
 				rotation = -8,
@@ -448,7 +448,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		local titleX = if phone then artW + inset * 2 else titlePx * 0.62
 		CarKit.title(card, s.title, titlePx, {
-			position = UDim2.new(0, titleX, 0, if phone then 2 else math.round(6 * k)),
+			position = UDim2.fromOffset(titleX, if phone then 2 else math.round(6 * k)),
 			size = UDim2.new(1, -titleX, 0, titlePx * 1.04),
 			top = CarKit.White,
 			bottom = CarKit.Yellow,
@@ -487,13 +487,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			end
 			local labelPx = fontPx(p, 19, 12)
 			local tileTop = if phone then 4 else fontPx(p, 32, 17)
-			local artH = plateH - tileTop - labelPx * 2.1
+			local tileH = plateH - tileTop - labelPx * 2.1
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
-				local side = math.min(tileW - 6, artH)
+				local side = math.min(tileW - 6, tileH)
 				CarKit.art(plate, part.art, {
 					size = UDim2.fromOffset(side, side),
-					position = UDim2.new(0, x + tileW / 2, 0, tileTop + artH / 2),
+					position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
 					z = 12,
 				})
 				CarKit.text(plate, part.label, labelPx, {
@@ -672,8 +672,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			placeholder = false,
 		})
 		CarKit.title(card, 'ALL PASSES <font color="#FFD23C">BUNDLE</font>', px, {
-			position = UDim2.new(0, px * 1.3, 0, 0),
-			size = UDim2.new(0.5, 0, 1, 0),
+			position = UDim2.fromOffset(px * 1.3, 0),
+			size = UDim2.fromScale(0.5, 1),
 			stroke = math.max(3, px / 12),
 			rich = true,
 			z = 8,
@@ -781,7 +781,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		if sub then
 			CarKit.text(parent, sub, fontPx(p, 19, 13), {
-				position = UDim2.new(0, 0, 0, y),
+				position = UDim2.fromOffset(0, y),
 				size = UDim2.new(1, -18, 0, h),
 				align = Enum.TextXAlignment.Right,
 				color = CarKit.Soft,
@@ -1158,7 +1158,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if flagW > 0 then
 			CarKit.art(header, "fx_flag", {
 				size = UDim2.fromOffset(flagW, flagW / 2),
-				position = UDim2.new(0, titleW + flagW / 2, 0, p.headerH * 0.46),
+				position = UDim2.fromOffset(titleW + flagW / 2, p.headerH * 0.46),
 				z = 6,
 				rotation = 8,
 				placeholder = false,
@@ -1171,7 +1171,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Image = "",
 			Size = UDim2.fromOffset(closePx, closePx),
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, 0, 0.5, 0),
+			Position = UDim2.fromScale(1, 0.5),
 			ZIndex = 8,
 		}, header) :: ImageButton
 		CarKit.slot(close, "close", closePx, { position = UDim2.fromScale(0.5, 0.5), z = 8, fallback = "Close" })

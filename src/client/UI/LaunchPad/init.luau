@@ -602,9 +602,9 @@ end
 function LaunchPad.lockedAway()
 	pcall(function()
 		local Dialogue = (require :: any)(Prototype.Screens.DialogueCard)
-		for world in LOCK_PRESET do
+		for place in LOCK_PRESET do
 			local Fixtures = (require :: any)(Prototype.SupportFixtures.DialogueFixtures)
-			local spec = Fixtures.preset(LOCK_PRESET[world])
+			local spec = Fixtures.preset(LOCK_PRESET[place])
 			if spec then
 				Dialogue.clearSuppression(spec.key)
 			end
