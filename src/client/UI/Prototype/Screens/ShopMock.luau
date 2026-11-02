@@ -1219,7 +1219,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			tabButtons[tab.id] = { paint = paintTab, button = button }
 			button.Activated:Connect(function()
 				pcall(function()
-					Sounds.play("Press")
+					Sounds.play("Tap")
 				end)
 				showTab(tab.id, true)
 			end)

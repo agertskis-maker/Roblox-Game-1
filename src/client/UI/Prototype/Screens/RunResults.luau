@@ -483,7 +483,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				c.Visible = true
 				Motion.pop(c, 0.7)
 				pcall(function()
-					Sounds.play("Press")
+					Sounds.play("Tap")
 				end)
 				task.wait(if Motion.reduced() then 0 else 0.16)
 			end
