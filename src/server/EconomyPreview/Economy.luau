@@ -128,7 +128,7 @@ function Economy.claimCar(player: Player, id: string): boolean
 end
 
 -- A Joyride on an owned car (server-checked by the run report before this is called): pays the
--- Joyride Bonus and adds copies, which merge into the next edition every CopiesPerEdition.
+-- Joyride Bonus and adds copies, which merge into the next edition at the Catalog's EditionCopies totals.
 function Economy.joyride(player: Player, id: string, copies: number?)
 	local data = Data.get(player)
 	local rarity = Cars.rarity(id)

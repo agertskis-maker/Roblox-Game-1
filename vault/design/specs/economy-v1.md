@@ -52,20 +52,21 @@ Idea taken from Be Fish (Goofy Vegetables, Roblox): every 50 copies of a fish me
 
 **How it works**
 1. Filling the Keys on a car you already own gives you 1 **copy** of that car (and the Joyride Bonus).
-2. Every **25 copies** at one edition merge, automatically, into the next edition. You keep the car and every edition you reach, for good.
+2. Copies count for life and merge automatically: **25** make Gold, then each further edition needs **10 times** the total (Brian L, 2026-11-02: Rainbow and Galaxy a little easier than a flat 25 per step, but still rarer than an Apex Legends heirloom). You keep the car and every edition you reach, for good.
 3. A Raceway car shows and pays as its best edition. The Lineup still holds one of each model (**Decided**).
 
 | Edition | Lap Pay and Joyride multiplier | Total Joyrides on that one car | Look |
 |---|---|---|---|
 | Normal | x1 | the first claim | the model |
 | **Gold** | x3 | 25 | gold metal with a sparkle (model built) |
-| **Diamond** | x10 | 625 | glassy blue with glints (model built) |
-| **Rainbow** | x50 | 15,625 | cycling rainbow shimmer (model built) |
-| **Galaxy** | x250 | 390,625 | deep purple with twinkling stars (new; applied in code on top of the model, look to be approved by Brian L) |
+| **Diamond** | x10 | 250 | glassy blue with glints (model built) |
+| **Rainbow** | x50 | 2,500 | cycling rainbow shimmer (model built) |
+| **Galaxy** | x250 | 25,000 | deep purple with twinkling stars (new; applied in code on top of the model, look to be approved by Brian L) |
 
 **Why this makes editions very rare, even for Commons**
 - A Joyride only counts for the one car you rode. A run gives a handful of Joyrides spread across all your owned cars, so one particular Common might get 1 or 2 copies a run.
-- Rough estimate: a Common's Gold takes an hour or two of play, its Diamond a few days of regular play, its Rainbow months, and its Galaxy is a lifetime goal. Legendaries appear far less often in traffic, so their editions take far longer again.
+- Rough estimate, if one particular Common gets about 2 copies an hour of play (an assumption until the run's spawn rates are set): Gold about 12 hours, Diamond about 125 hours, Rainbow about 1,250 hours (the Apex-heirloom range) and Galaxy about 12,500 hours, a true lifetime goal. Legendaries appear far less often in traffic, so their editions take far longer again.
+- Considered and rejected (2026-11-02): ChatGPT's review kept 25 per step (Galaxy at 390,625, about 170,000 hours for a Common) and lowered every payout; Brian L kept the numbers in this document instead.
 - Nothing speeds it up: no luck, no boosts, no Robux. Every edition is earned the same way by every player.
 
 **Changes to earlier rules**

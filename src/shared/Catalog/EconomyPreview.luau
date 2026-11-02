@@ -30,7 +30,9 @@ EconomyPreview.Rarities = {
 	LEGENDARY = { keysSeconds = 6, lapPay = 25_000, claimBonus = 250_000, joyrideBonus = 75_000 },
 } :: { [Rarity]: RarityInfo }
 
--- Edition 1 is Normal. Every CopiesPerEdition copies at one edition merge into the next.
+-- Edition 1 is Normal. EditionCopies[e] is the lifetime Joyride copies a car needs to reach
+-- edition e: 25 make Gold, then 10 Gold-worth make Diamond, and so on (Brian L, 2026-11-02:
+-- Rainbow and Galaxy a little easier than 25 per step, but rarer than an Apex heirloom).
 EconomyPreview.Editions = {
 	{ name = "Normal", multiplier = 1 },
 	{ name = "Gold", multiplier = 3 },
@@ -39,7 +41,7 @@ EconomyPreview.Editions = {
 	{ name = "Galaxy", multiplier = 250 },
 } :: { EditionInfo }
 
-EconomyPreview.CopiesPerEdition = 25
+EconomyPreview.EditionCopies = { 0, 25, 250, 2_500, 25_000 }
 
 -- Index = Raceway level. Price[level] is the cost to reach that level (level 1 is the start).
 EconomyPreview.RacewayMultiplier = { 1, 1.9, 3.5, 6.5, 12, 23, 43, 80, 150, 285, 535, 1_000 }
@@ -107,13 +109,10 @@ function EconomyPreview.editionName(edition: number): string
 	return info.name
 end
 
--- Total copies a car needs to reach `edition`: 1 for Normal, then CopiesPerEdition times more
--- for each step (25 merge into 1 Gold, 25 Gold into 1 Diamond, ...), so 25, 625, 15,625, 390,625.
+-- Total lifetime copies a car needs to reach `edition` (see EditionCopies).
 function EconomyPreview.copiesForEdition(edition: number): number
-	if edition <= 1 then
-		return 0
-	end
-	return EconomyPreview.CopiesPerEdition ^ (edition - 1)
+	local e = math.clamp(math.floor(edition), 1, #EconomyPreview.EditionCopies)
+	return EconomyPreview.EditionCopies[e]
 end
 
 -- `copies` is the car's lifetime copy count. Adds `added` and returns the edition that total has
