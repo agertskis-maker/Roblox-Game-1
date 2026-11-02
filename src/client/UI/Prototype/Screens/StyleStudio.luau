@@ -89,6 +89,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 
 	local leftW = math.floor(size.X * 0.48)
 	local rightW = size.X - leftW - 8
+	local showStrip = leftW >= 560 -- room to read what is worn; on smaller screens the car itself shows it
 
 	-- THE STAGE ---------------------------------------------------------------------------------------------------------
 	local stage = CarKit.board(root, {
@@ -118,7 +119,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local view = make("ViewportFrame", {
 		Name = "Turntable",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, if phone then -8 else -78),
+		Size = UDim2.new(1, 0, 1, if showStrip then -78 else -8),
 		Ambient = Color3.fromRGB(150, 150, 165),
 		LightColor = Color3.fromRGB(255, 250, 240),
 		LightDirection = Vector3.new(-0.6, -1, -0.5),
@@ -204,7 +205,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end)
 
 	-- WORN NOW ----------------------------------------------------------------------------------------------------------
-	if not phone then
+	if showStrip then
 		local strip = make("Frame", {
 			Name = "Current",
 			BackgroundTransparency = 1,
@@ -324,7 +325,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		end
 		local state = isShown(item)
 		local name = item.name
-		message.Text = item.note
+		message.Text = string.match(item.note, "^[^.!]+[.!]") or item.note -- one short line
 		if state == "equipped" then
 			action.setText("EQUIPPED")
 			action.setTone("Grey")
@@ -448,7 +449,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			local holder = make("Frame", {
 				Name = "Thumb",
 				BackgroundTransparency = 1,
-				Position = UDim2.new(0.5, 0, 0, 38),
+				Position = UDim2.new(0.5, 0, 0, 37),
 				AnchorPoint = Vector2.new(0.5, 0),
 				Size = UDim2.new(1, -8, 1, -64),
 				ZIndex = 6,
@@ -573,7 +574,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	}, well) :: ScrollingFrame
 	local cellW = math.floor((rightW - 22 - 8 * (columns - 1)) / columns)
 	make("UIGridLayout", {
-		CellSize = UDim2.fromOffset(cellW, math.round(cellW * 0.86)),
+		CellSize = UDim2.fromOffset(cellW, math.round(cellW * 1.02)),
 		CellPadding = UDim2.fromOffset(8, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,

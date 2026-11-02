@@ -1002,7 +1002,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 		local y = 4
 		sectionY.featured = 0
-		local peek = math.round(math.max(170 * p.k, 60))
+		local peek = math.round(math.max(110 * p.k, 60))
 		local bannerH = math.round(math.max(112 * p.k, 76))
 		local phone = p.tier == "Phone"
 		local rowH = if phone
