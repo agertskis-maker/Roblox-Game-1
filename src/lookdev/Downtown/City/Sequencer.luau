@@ -498,6 +498,161 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		end
 	end
 
+	-- side maps (lots are packed along each side's own frontage line)
+	local maps = {
+		[-1] = Route.sideMap(segments, -1, -frontage),
+		[1] = Route.sideMap(segments, 1, frontage),
+	}
+	local function pivotFor(station: number, side: number, setback: number, width: number): CFrame
+		local f = frame(station, side * (frontage + setback), 0)
+		local look = -side * f.RightVector
+		local front = CFrame.lookAt(f.Position, f.Position + look)
+		return front * CFrame.new(-width / 2, 0, 0)
+	end
+	-- the centre-line stations a width-w frontage centred at `station` covers on a side
+	local function footprint(station: number, side: number, width: number): (number, number)
+		local map = maps[side]
+		local t = Route.sToT(map, station)
+		return Route.tToS(map, t - width / 2), Route.tToS(map, t + width / 2)
+	end
+
+	-- 2b. A World's hand-authored landmark plan (Summit Pass; Adam, 2026-11-02: "set the landmark order by hand, so the spacing
+	-- always works"). The World lists every landmark with its district, a station along its lap and a side. A lap starts at the
+	-- first district of each cycle, so a longer route repeats the same lap. Nothing here reads the seed: the road differs by
+	-- seed (curve sides, 96 or 192 straights, hazards) but the district lengths do not, so the same stations keep the same
+	-- gaps on every seed. The one seeded feature that could land on a landmark, the hazards, is bent around it in section 3
+	-- (a landmark needs 60 studs clear of a hazard on both sides). `side` is 1, -1, "outside" or "inside" (of the district's
+	-- first curve, as WorldFeatures reads it); a bridge landmark is still placed at its deck's centre and only cross-checked.
+	type FixedSlot = {
+		def: Catalog.Landmark,
+		span: DistrictSpan,
+		spanIndex: number,
+		station: number,
+		side: number,
+		from: number,
+		to: number,
+	}
+	local fixedPlan: any = if catalog.world ~= nil then (catalog.world :: any).fixedLandmarks else nil
+	local fixedSlots: { FixedSlot } = {}
+	-- stretches of centre line where a hazard may not START: its approach and tail must stay clear of every landmark
+	local keepOuts: { { number } } = {}
+	if fixedPlan ~= nil then
+		local lapStart: { [number]: number } = {}
+		for _, sp in spans do
+			if lapStart[sp.cycle] == nil then
+				lapStart[sp.cycle] = sp.startS
+			end
+		end
+		-- the side outside a district's first curve (a straight road: the right), the same rule as WorldFeatures.outsideSide
+		local function outsideOf(span: DistrictSpan): number
+			for _, seg in segments do
+				if
+					seg.district == span.id
+					and seg.startS >= span.startS
+					and seg.endS <= span.endS + 0.01
+					and seg.bend ~= 0
+				then
+					return if seg.bend > 0 then -1 else 1
+				end
+			end
+			return 1
+		end
+		for spanIndex, span in spans do
+			local lap = lapStart[span.cycle] or 0
+			for _, entry in fixedPlan do
+				if entry.district ~= span.id then
+					continue
+				end
+				local def = catalog.landmarkById[entry.id]
+				local station: number = lap + entry.station
+				if not def then
+					table.insert(notes, "fixed landmark " .. tostring(entry.id) .. " is not in the catalogue")
+				elseif station < span.startS or station >= span.endS then
+					table.insert(
+						notes,
+						string.format(
+							"fixed landmark %s at %.0f lies outside %s (%.0f to %.0f)",
+							def.id,
+							station,
+							span.id,
+							span.startS,
+							span.endS
+						)
+					)
+				elseif def.placement == "bridge" then
+					for _, b in bridges do
+						local centre = (b.from + b.to) / 2
+						if b.from >= span.startS and b.to <= span.endS + 0.01 and math.abs(centre - station) > 1 then
+							table.insert(
+								notes,
+								string.format(
+									"fixed landmark %s says %.1f but its deck centre is %.1f",
+									def.id,
+									station,
+									centre
+								)
+							)
+						end
+					end
+				elseif def.placement == "frontage" then
+					local side: number = if entry.side == "outside"
+						then outsideOf(span)
+						elseif entry.side == "inside" then -outsideOf(span)
+						else entry.side
+					local from, to = footprint(station, side, def.width)
+					table.insert(fixedSlots, {
+						def = def,
+						span = span,
+						spanIndex = spanIndex,
+						station = station,
+						side = side,
+						from = from,
+						to = to,
+					})
+					-- the longest hazard is 25 studs: it must end 60 before the landmark, or start 60 after it (and a stud over)
+					table.insert(keepOuts, { from - 86, to + 61 })
+				end
+			end
+		end
+	end
+	-- Where a hazard stands that starts `fraction` of the way through the part of [lo, hi] clear of every keep-out zone (nil:
+	-- no such part). With no keep-out zones it is lo + fraction * (hi - lo), the unbent draw.
+	local function clearStart(lo: number, hi: number, fraction: number): number?
+		local free: { { number } } = { { lo, hi } }
+		for _, zone in keepOuts do
+			local rest: { { number } } = {}
+			for _, f in free do
+				if zone[2] <= f[1] or zone[1] >= f[2] then
+					table.insert(rest, f)
+				else
+					if zone[1] > f[1] then
+						table.insert(rest, { f[1], zone[1] })
+					end
+					if zone[2] < f[2] then
+						table.insert(rest, { zone[2], f[2] })
+					end
+				end
+			end
+			free = rest
+		end
+		local total = 0
+		for _, f in free do
+			total += f[2] - f[1]
+		end
+		if total < 1 then
+			return nil
+		end
+		local at = fraction * total
+		for _, f in free do
+			local width = f[2] - f[1]
+			if at <= width then
+				return f[1] + at
+			end
+			at -= width
+		end
+		return free[#free][2]
+	end
+
 	-- 3. Hazards (scenery previews only; positions Lane 1 would own) --------------------------
 	local hazards: { HazardPlan } = {}
 	if opts.hazards ~= false then
@@ -506,8 +661,13 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		for _, seg in segments do
 			if seg.kind == "Straight" and seg.startS >= 150 then
 				local u = rng:NextNumber(24, seg.length - 48)
-				local st = seg.startS + u
-				if st - lastStation >= 260 and rng:NextNumber() < 0.6 then
+				local st: number? = seg.startS + u
+				if fixedPlan ~= nil then
+					-- a hand-authored landmark plan owns its stretches: the hazard keeps its segment and its place in the
+					-- seeded draw, but stands the same share of the way through the stretches clear of the landmarks
+					st = clearStart(seg.startS + 24, seg.startS + seg.length - 48, (u - 24) / (seg.length - 72))
+				end
+				if st ~= nil and st - lastStation >= 260 and rng:NextNumber() < 0.6 then
 					local kind = draw(bag, rng, function(x)
 						return x ~= lastKind
 					end) or "pothole"
@@ -612,6 +772,27 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 			end
 		end
 	end
+	-- A hand-authored plan (section 2b) is all the landmark planning there is: every station and side is fixed, the hazards
+	-- were bent around them, so each slot is simply laid down. A slot that is still blocked (the data was edited into a
+	-- collision) is reported and left out, so the spacing checks fail where it matters instead of a landmark being moved.
+	-- The ordered districts, forward leads, sweep and fill-ins below stay off for such a World.
+	for _, slot in fixedSlots do
+		if landmarkFree(slot.from, slot.to, slot.side) then
+			table.insert(landmarks, makeIn(slot.span, slot.def, slot.station, slot.side, slot.from, slot.to))
+			if slot.def.id == catalog.districtById[slot.span.id].signature then
+				usedSignature[slot.spanIndex] = true
+			end
+		else
+			table.insert(
+				notes,
+				string.format(
+					"fixed landmark %s at %.0f does not fit: its frontage is blocked",
+					slot.def.id,
+					slot.station
+				)
+			)
+		end
+	end
 	-- World build V2: a district with a fixed landmark ORDER (Summit Lodge: the observatory, then the lodge) is placed BEFORE
 	-- the sweep, from its last entry backward: the last one 90 studs inside the district's end, each earlier one 300 to 440
 	-- studs before the next (the World's landmark spacing; Adam's S8 decision, 2026-10-29: the snowmen row moved to the next
@@ -630,7 +811,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	end
 	for spanIndex, span in spans do
 		local lmOrder = (catalog.districtById[span.id] :: any).landmarkOrder
-		if not lmOrder then
+		if not lmOrder or fixedPlan ~= nil then
 			continue
 		end
 		local nextStation: number? = nil
@@ -695,7 +876,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		-- after the previous district's last anchor (the lodge, across the wrap), or near the district start on the first lap.
 		-- The rest of the district stays open to the sweep.
 		local leads = (catalog.districtById[span.id] :: any).leadLandmarks
-		if leads then
+		if leads and fixedPlan == nil then
 			-- the anchor before: in the previous span, or (first span) the last span's, across the route's loop, when the route ends
 			-- with an end-anchored district (whole cycles: the World's own length)
 			local floor: number? = nil
@@ -761,7 +942,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		return true
 	end
 	local lastPlacedS = -math.huge -- the last landmark the sweep has placed or stepped past (anchors included)
-	while targetS < length - 48 and lmGuard < 400 do
+	while fixedPlan == nil and targetS < length - 48 and lmGuard < 400 do
 		lmGuard += 1
 		local spanIndex = spanAt(targetS)
 		local span = spans[spanIndex]
@@ -889,7 +1070,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 	for spanIndex, span in spans do
 		local district = catalog.districtById[span.id]
 		local def = catalog.landmarkById[district.signature]
-		if usedSignature[spanIndex] or not def or def.placement == "bridge" then
+		if usedSignature[spanIndex] or not def or def.placement == "bridge" or fixedPlan ~= nil then
 			continue
 		end
 		local centre = (span.startS + span.endS) / 2
@@ -939,7 +1120,7 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 		local district = catalog.districtById[span.id]
 		for _, wanted in district.required or {} do
 			local def = catalog.landmarkById[wanted]
-			if not def or def.placement ~= "frontage" then
+			if not def or def.placement ~= "frontage" or fixedPlan ~= nil then
 				continue
 			end
 			local have = false

@@ -1044,12 +1044,15 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		motion.setViewport(scroll)
 	end
 
-	local function mountStudio(host: Frame, tab: string)
+	local function mountStudio(host: Frame, tab: string, size: Vector2)
 		local StyleStudio = require(script.Parent.StyleStudio) :: any
 		studio = StyleStudio.new(ctx, host, {
 			tab = tab,
-			motion = motion,
+			size = size,
 			trove = buildTrove,
+			onGetCash = function()
+				showTab("cash", true)
+			end,
 			onBuy = function(id: string, title: string, art: string?)
 				press(id, title, art)
 			end,
@@ -1222,7 +1225,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if view == "store" then
 			buildPage(stage, p)
 		else
-			mountStudio(stage, activeTab)
+			mountStudio(stage, if activeTab == "trails" then "Trails" else "Paint", Vector2.new(p.inner, p.pageH))
 		end
 		if isShopOpen and visible then
 			motion.start()
@@ -1237,7 +1240,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			view = if wantStudio then "studio" else "store"
 			build()
 		elseif wantStudio and studio then
-			studio:setTab(id)
+			studio:setTab(if id == "trails" then "Trails" else "Paint")
 		end
 		for tab, refs in tabButtons do
 			refs.paint(tab == id)
@@ -1387,6 +1390,23 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		press(id, if offer then offer.name else id, nil)
 	end
 
+	-- the Style page, for tests and the Launch Pad's paint corner
+	function shop.styleTab(_self: Shop, name: string)
+		if studio then
+			studio:setTab(name)
+		end
+	end
+
+	function shop.styleSelect(_self: Shop, id: string): boolean
+		return studio ~= nil and studio:select(id)
+	end
+
+	function shop.styleAction(_self: Shop)
+		if studio then
+			studio:pressAction()
+		end
+	end
+
 	function shop.getAdapter(_self: Shop): ShopPurchaseAdapter.Adapter
 		return adapter
 	end
@@ -1404,6 +1424,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			adapter = adapter:stats(),
 			tier = currentPlan and currentPlan.tier,
 			k = currentPlan and currentPlan.k,
+			studio = if studio then studio:getDebugState() else nil,
 		}
 	end
 
