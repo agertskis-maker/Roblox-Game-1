@@ -422,6 +422,15 @@ function Props.snackCart(folder: Folder, ctx: Ctx)
 		collide = true,
 		castShadow = false,
 	})
+	-- a short paved walk from the pad to the end of the stands, so it is on the way to somewhere
+	local walkFrom, walkTo = Ctx.at(ctx, at.X + 1.5, at.Y - 5, 0.2), Ctx.at(ctx, at.X + 1.5, 462, 0.2)
+	Kit.slab(folder, walkFrom, walkTo, Vector3.yAxis, 5, 0.2, {
+		name = "SnackWalk",
+		color = Color3.fromRGB(214, 208, 196),
+		material = Enum.Material.Concrete,
+		collide = true,
+		castShadow = false,
+	}, 0)
 	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y - 2, EAST, 0.2)
 	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y + 2.5, EAST, 0.2)
 	local seat = Ctx.at(ctx, at.X + 3.5, at.Y + 3, 0.2)

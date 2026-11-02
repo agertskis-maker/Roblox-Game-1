@@ -435,7 +435,7 @@ local function buildRight(): Junction
 	end
 
 	-- the barrier's opening runs from just before the grass tip to the merge's end
-	local gap = { s0 - 1, s1 }
+	local gap = { s0 - 9, s1 } -- the tyres stop before the grass nose gets thin
 	return {
 		side = 1,
 		s0 = s0,
