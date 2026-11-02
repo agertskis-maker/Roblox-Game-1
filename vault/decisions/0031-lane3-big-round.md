@@ -20,13 +20,13 @@ Brief: [[lane3-big-round]]. Ledger: [[lane3-big-round-ledger]]. Adam gave Claude
 6. **Fruit trees removed.** Their floating apples are inside the mesh, 52 to 59 loose pieces per canopy. A re-export can bring them back.
 7. **Fountain:** a gold car statue on a tall pedestal, built from Parts and the group-owned `SwStatueCar`, so no upload. Nose raised 13 degrees toward the portals. The sunken car turned out to be `FountainGrand` itself.
 8. **Raceway one line system:** white edge lines, red and white curbs on corner insides only, no centre line. Racing line and yellow lines removed.
-9. **The loop** is now built along the cars' own lap path from track pieces, on a road widened by 6.8 studs with smooth triangle edges, so no car can clip it and there is no pad. `SwLoopTrack` is no longer used. The flame decal is gone.
+9. **The loop** is now built along the cars' own lap path from track pieces, on a road widened by 7.5 studs as one smooth surface with tapered edges, so no car can clip it and there is no pad. `SwLoopTrack` is no longer used. The flame decal is gone.
 10. **Clutter:** shed, lemonade stand, chair, barrels and wheelbarrow removed from every level. The snack cart stays, in the fan zone.
 11. **PIT ROW** is Part-built, not a mesh, so it needed no upload.
 12. **Pit lanes** meet the track at a shallow angle and share its asphalt colour.
 
 ## Worlds
-13. **Dusty:** 41 part-built structures (`DustyStructures`) in the plan's five districts, no new upload. Live parts peak at about 460, **over the plan's 400 Edit ceiling** by about 15%. Triangles and unique meshes stay inside. Accepted for Adam's review; merging structure Parts into meshes is the fix.
+13. **Dusty:** 41 part-built structures (`DustyStructures`) in the plan's five districts, no new upload. Live parts peak at 463 with the preview traffic and chase rig, 367 for scenery alone, against the plan's 400 Edit ceiling. The 340 Play ceiling was not measured. Triangles and unique meshes stay inside. Merging structure Parts into meshes is the next step.
 14. **Gorge:** half width doubled to 124 plus five striped cliffs on the rims. The floor still cannot be seen from the run camera (decision 0029). Reported, not faked.
 15. **Tumbleweeds:** 4 to 2, and lighter coloured, because the dark ones read as rolling black balls.
 16. **Shop boards off** in Dusty and Summit. Each building carries its own sign. Only a few wayfinding signs remain.

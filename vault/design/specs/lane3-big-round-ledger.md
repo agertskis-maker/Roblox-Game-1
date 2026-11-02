@@ -43,10 +43,10 @@ Brief: `lane3-big-round.md`. Resume at the first row that is not done. Evidence 
 | M3-02 | Nothing intersects: the statue, pedestal, water, jets and basin rim are clean, with no fli... | done | scan 0 |  |
 | M3-03 | If the statue cannot look good with the available tools, delete it and make a classic tier... | done |  | Statue kept |
 | M3-01a | The pedestal supplies the structure: clearly visible above the water, centered in the basi... | partial | two approaches viewed | Front and quarter views checked; all four not captured |
-| M4-01 | One line system on every level. Choose one clear marking language and apply it to the whol... | done | scan L1 to L12 | White edge lines, inside curbs |
+| M4-01 | One line system on every level. Choose one clear marking language and apply it to the whol... | done | scan L1 to L12; after-06-loop-wheelheight.jpg |  |
 | M4-02 | Clean joints. Wherever two road or concrete pieces meet (plot road to paddock, paddock to ... | done |  | Same asphalt and mitres |
 | M4-03 | Pit lane. The side road becomes a proper pit lane: it leaves and rejoins the track at a sh... | done | after-07-pit-row.jpg | Shallow joins; pit lines on top |
-| M4-04 | The loop. Rebuild the loop so it is part of the track: widen the straight where it stands ... | done | after-06-loop-wheelheight.jpg | Loop built on the cars own path |
+| M4-04 | The loop. Rebuild the loop so it is part of the track: widen the straight where it stands ... | done | after-06-loop-wheelheight.jpg re-shot after the fix | Road is one smooth surface |
 | M4-05 | Props make sense. Remove the lemonade stand, chair, shed, wheelbarrow, barrels and other u... | done |  | Clutter features removed; each level still adds something |
 | M4-06 | PIT ROW building. Make it a real pit building: varied rooflines or a canopy, numbered gara... | done | after-07-pit-row.jpg | Sign text only shows in Play, not in Studio Edit view |
 | M4-07 | Paddock and parking keep working with the parking spots purchase preview (2 to 15 spots) a... | partial | SpeedwayChecks ran | Parking unchanged; purchase preview not exercised |
@@ -79,7 +79,7 @@ Brief: `lane3-big-round.md`. Resume at the first row that is not done. Evidence 
 | M6-02f | Mirage Dunes: landmark is a large original roadside cactus sculpture with an observatory b... | done | after-dusty-mirage-s2800.jpg |  |
 | M6-03a | Pace from actual speed v, not a guessed meters/studs conversion: a supporting visual beat ... | partial |  | Distance-stamped shot list not written |
 | M6-04a | Canyon evidence: decision 0029 found the broad deck hides most of the previous gorge. Star... | partial |  | Only the 2x width compared |
-| M6-08a | Check seeds 2207, 11, 77, 101 and 314, plus the wrap transition. Preserve the checked-in p... | partial | seeds 2207, 11, 77, 101, 314 | Live parts peak 463 against the 400 Edit ceiling; triangles 24,535 against 35,000; 92 unique meshes against 110 |
+| M6-08a | Check seeds 2207, 11, 77, 101 and 314, plus the wrap transition. Preserve the checked-in p... | partial | seeds 2207, 11, 77, 101, 314 | 463 with test cars and rig, 367 scenery alone, against 400 Edit; Play ceiling 340 not measured; 24,535 of 35,000 triangles; 92 of 110 meshes |
 | M7-01 | Spacing rule: allow a longer gap next to the glacier tunnel (decision 0029 option 1), so t... | done |  | longGapBeside |
 | M7-02 | Bell tower: fit it back into Pine Village, for example set further out from the road or in... | done | evidence summit frame | Pin at 108 studs |
 | M7-03 | Signs follow M5 (Summit style), fewer of them. | done |  |  |
@@ -139,31 +139,31 @@ Brief: `lane3-big-round.md`. Resume at the first row that is not done. Evidence 
 | M10-10c | Robux symbol: community examples use U+E002, but a current official symbol-use rule and fo... | done |  | Word Robux |
 | M10-16a | Acceptance: at each target size capture Featured at scroll zero, Passes, Style, Free and t... | partial | 20 open-close cycles, 4,212 instances before and after | Rapid press and close-during-pending not run |
 | M10-03c | Additional primary-source comparisons: Grow a Garden describes a simple buy/plant/grow/col... | done |  |  |
-| M11-01 | Steps exactly as in the outline (0 Let's get a car!, 1 Go to Downtown!, 2 Steer!, 3 Hop to... | todo |  |  |
-| M11-02 | Top banner: a pill at top center in the reference style (`hud-tutorial-reference.png` plus... | todo |  |  |
-| M11-03 | Ground guidance: a white chevron trail on the ground (the existing `TutorialRoute`) that f... | todo |  |  |
-| M11-04 | UI guidance: a pointing hand that taps on the exact button to press, with a light dim mask... | todo |  |  |
-| M11-05 | Timed hint: if the player has not done the step for about 8 seconds (tunable), the arrow g... | todo |  |  |
-| M11-06 | Never block play. The player can always walk, explore, open menus and come back. If they w... | todo |  |  |
-| M11-07 | Skip: a small "Skip" button beside the banner (44 px touch target), with a confirm card ("... | todo |  |  |
-| M11-08 | Run steps (2 to 5) listen to the run through a Lane 3 adapter. On `main`, the adapter uses... | todo |  |  |
-| M11-09 | Island steps (0, 1, 6 to 11) use Lane 3 events: portal field entered, the Paddock and park... | todo |  |  |
-| M11-10 | Progress: session-only in this round. Propose `TutorialStep` and `TutorialDone` save field... | todo |  |  |
-| M11-11 | Accessibility and feel: icons carry the meaning (a kid who cannot read can follow), every ... | todo |  |  |
-| M11-12 | Done when: a full playthrough in the local beta-2 file goes from spawn to "You're ready!" ... | todo |  |  |
-| M11-01a | Official design basis: Roblox recommends 'Teach the essentials' and 'Get to the fun quickl... | todo |  |  |
-| M11-01b | Step 0: 'Let's get a car!' / 'Follow the arrows.' Show a car and route icon; advance after... | todo |  |  |
-| M11-01c | Step 2: 'Steer!' / 'Move left, then right.' Show the current device's actual steering cont... | todo |  |  |
-| M11-01d | Step 4: 'Hold on!' / 'Stay until the Keys ring fills.' After a confirmed new-car claim: 'I... | todo |  |  |
-| M11-01e | Step 6: 'Go home!' / 'Tap Home on the results.' Guide the actual working Home/return route... | todo |  |  |
-| M11-01f | Step 8: 'Cars earn cash!' / 'Watch your car finish a lap.' Show the lap cue and Cash desti... | todo |  |  |
-| M11-01g | Step 10: 'Check the Shop!' / 'Open the Shop. Take a look!' Opening it completes the step; ... | todo |  |  |
-| M11-02a | Layout and pacing: use the reference's dark pill, strong headline, simple icon and one sho... | todo |  |  |
-| M11-10a | [ChatGPT note] The original 'started, completed, skipped' wording describes useful analyti... | todo |  |  |
-| M11-10b | Roblox states 'Events can only be sent from the server and in published games.' ([Funnel e... | todo |  |  |
-| M11-12a | Acceptance: full successful route; fail the first hop then recover; end a run before colle... | todo |  |  |
+| M11-01 | Steps exactly as in the outline (0 Let's get a car!, 1 Go to Downtown!, 2 Steer!, 3 Hop to... | partial | Tutorial 1 scenario, status Finished | Fixture only; no beta playthrough |
+| M11-02 | Top banner: a pill at top center in the reference style (`hud-tutorial-reference.png` plus... | done | tutorial-step1-desktop.jpg |  |
+| M11-03 | Ground guidance: a white chevron trail on the ground (the existing `TutorialRoute`) that f... | partial | Tutorial 4, trail re-routes | Reviewer: chevrons small |
+| M11-04 | UI guidance: a pointing hand that taps on the exact button to press, with a light dim mask... | partial |  | Hand and mask not captured |
+| M11-05 | Timed hint: if the player has not done the step for about 8 seconds (tunable), the arrow g... | done | Tutorial 3: hints 0 at 7 s, 1 at 9.5 s, 1 at 15 s |  |
+| M11-06 | Never block play. The player can always walk, explore, open menus and come back. If they w... | done | Tutorial 4 |  |
+| M11-07 | Skip: a small "Skip" button beside the banner (44 px touch target), with a confirm card ("... | done | Tutorial 8 |  |
+| M11-08 | Run steps (2 to 5) listen to the run through a Lane 3 adapter. On `main`, the adapter uses... | partial |  | Stand-in events; real adapter not run in the beta |
+| M11-09 | Island steps (0, 1, 6 to 11) use Lane 3 events: portal field entered, the Paddock and park... | partial |  | Stand-in events |
+| M11-10 | Progress: session-only in this round. Propose `TutorialStep` and `TutorialDone` save field... | done | for-brian-l | Session only; proposal written |
+| M11-11 | Accessibility and feel: icons carry the meaning (a kid who cannot read can follow), every ... | partial |  | Strings module done; reduced motion not exercised |
+| M11-12 | Done when: a full playthrough in the local beta-2 file goes from spawn to "You're ready!" ... | blocked |  | The beta mounts no home screens, so no real playthrough, frames of every step or video |
+| M11-01a | Official design basis: Roblox recommends 'Teach the essentials' and 'Get to the fun quickl... | done |  |  |
+| M11-01b | Step 0: 'Let's get a car!' / 'Follow the arrows.' Show a car and route icon; advance after... | partial | fixture |  |
+| M11-01c | Step 2: 'Steer!' / 'Move left, then right.' Show the current device's actual steering cont... | partial | fixture | Device-specific controls not seen on a device |
+| M11-01d | Step 4: 'Hold on!' / 'Stay until the Keys ring fills.' After a confirmed new-car claim: 'I... | partial | Tutorial 5 and 6 |  |
+| M11-01e | Step 6: 'Go home!' / 'Tap Home on the results.' Guide the actual working Home/return route... | partial | fixture |  |
+| M11-01f | Step 8: 'Cars earn cash!' / 'Watch your car finish a lap.' Show the lap cue and Cash desti... | partial | fixture | Steps 7 and 8 are skipped in real mode |
+| M11-01g | Step 10: 'Check the Shop!' / 'Open the Shop. Take a look!' Opening it completes the step; ... | partial | fixture |  |
+| M11-02a | Layout and pacing: use the reference's dark pill, strong headline, simple icon and one sho... | partial |  | Timing not measured on a player |
+| M11-10a | [ChatGPT note] The original 'started, completed, skipped' wording describes useful analyti... | done |  |  |
+| M11-10b | Roblox states 'Events can only be sent from the server and in published games.' ([Funnel e... | done |  | Spy only |
+| M11-12a | Acceptance: full successful route; fail the first hop then recover; end a run before colle... | partial | 8 scenarios | Fixture row only; beta row not run |
 | M12-01 | In-world plaque on each portal: the World name, its icon, a lock or "OPEN" state, and the ... | partial |  | Existing gate crest and plaques kept, not restyled |
-| M12-02 | Portal card (restyle and finish `PortalCardMock`): opens when the player walks up to a por... | done | portal-card-locked-fixture.jpg |  |
+| M12-02 | Portal card (restyle and finish `PortalCardMock`): opens when the player walks up to a por... | partial | portal-card-locked-fixture.jpg, portal-card-phone-small.jpg | Not connected to real portals; only locked seen |
 | M12-03 | Data: unlock rules, prices and owned cars come from Brian L. Use a PREVIEW state fixture (... | done |  |  |
 | M12-04 | Done when: the locked and unlocked states and Peek and Start In look right at all sizes, w... | partial |  | Locked seen at desktop; walking into a portal still starts the run |
 | M12-02a | Card hierarchy: World name and emblem, wide scene preview, then two independent requiremen... | done |  |  |
@@ -191,7 +191,7 @@ Brief: `lane3-big-round.md`. Resume at the first row that is not done. Evidence 
 | M15-01b | Preload only a small deduplicated list needed for the first playable view and immediate co... | partial |  | Only two sound ids preloaded |
 | M15-03a | PreloadAsync has no timeout argument in that signature. Implement a separate watchdog, sta... | partial |  |  |
 | M15-03b | Test instant readiness, slow optional image, failed sound, unavailable image, empty manife... | partial |  |  |
-| M16-01 | Pop-up and Shop card: an exciting but small pop-up ("Join the group, get a FREE reward!") ... | partial | group-popup.jpg | Pop-up done; Shop card not placed |
+| M16-01 | Pop-up and Shop card: an exciting but small pop-up ("Join the group, get a FREE reward!") ... | partial | group-popup.jpg | Pop-up done; Free card opens it |
 | M16-02 | Flow: check the current official Roblox documentation for the supported way to prompt a pl... | done |  |  |
 | M16-03 | Timing and caps: shown once after the tutorial finishes, then at most once per day on join... | partial |  | Session cap only |
 | M16-02a | Verified API: 'GroupService:PromptJoinAsync(groupId:number):Enum.GroupMembershipStatus' ([... | done |  |  |
@@ -199,31 +199,31 @@ Brief: `lane3-big-round.md`. Resume at the first row that is not done. Evidence 
 | M16-02c | Policy research: official group guidance says groups 'must follow Roblox's Community Stand... | done | for-brian-l |  |
 | M16-03a | [ChatGPT note] A once-per-day cap across sessions needs persistent state or a supplied ser... | done |  |  |
 | M16-01a | Reward-preview copy must remain conspicuous next to 'Join the group, get a FREE reward!' b... | done |  | Note now always visible |
-| M17-01 | Course build as a Lane 3 recipe in a private test place (choose the folder, for example `s... | todo |  |  |
-| M17-02 | Data for Brian R: a centerline and width data module (a list of points and widths, checkpo... | todo |  |  |
-| M17-03 | Stunt gate on the island: keep its position (Adam). Add the best-time and weekly-top-time ... | todo |  |  |
-| M17-04 | Screens (finish `StuntMock` and add the rest): race HUD (lap timer, checkpoint counter, gh... | todo |  |  |
-| M17-05 | Customization screen: a turntable with the car, tabs Paint, Decals and Wheels, color swatc... | todo |  |  |
-| M17-06 | Done when: a camera flythrough video of the whole lap (with music) shows a fun, readable c... | todo |  |  |
-| M17-01a | Use a 75-second target lap as a starting visual pacing model. Convert each section duratio... | todo |  |  |
-| M17-01b | Ordered sections: slalom 0-12 s (840 studs at example speed); ramp gap 12-22 s (700); tunn... | todo |  |  |
-| M17-01c | Start with three readable slalom changes, a single wide first jump, two separated pothole ... | todo |  |  |
-| M17-02a | Include units, origin, forward/up axes, centerline points, widths, section IDs, warning po... | todo |  |  |
-| M17-04a | Race presentation: timer is stable at the top, checkpoint counter secondary, ghost gap onl... | todo |  |  |
-| M17-04b | Keep medal thresholds as named PREVIEW values until measured with the real car physics. Do... | todo |  |  |
-| M17-05a | Customization keeps the approved 8 free paints, 8 Cash-priced preview paints, earned medal... | todo |  |  |
-| M17-06a | Acceptance separates visual course completeness, UI fixture correctness and real gameplay ... | todo |  |  |
+| M17-01 | Course build as a Lane 3 recipe in a private test place (choose the folder, for example `s... | partial | stunt-approach-road-height.jpg, stunt-flythrough-silent.mp4 | Seven sections, 1,034 parts. Part-built city, no B2 kit |
+| M17-02 | Data for Brian R: a centerline and width data module (a list of points and widths, checkpo... | done | StuntData.luau |  |
+| M17-03 | Stunt gate on the island: keep its position (Adam). Add the best-time and weekly-top-time ... | partial |  | Existing leaderboard kept; plaque and pad not added |
+| M17-04 | Screens (finish `StuntMock` and add the rest): race HUD (lap timer, checkpoint counter, gh... | partial | stunt-results-gold.jpg | Other screens not captured |
+| M17-05 | Customization screen: a turntable with the car, tabs Paint, Decals and Wheels, color swatc... | done | stunt-customize.jpg |  |
+| M17-06 | Done when: a camera flythrough video of the whole lap (with music) shows a fun, readable c... | partial | stunt-flythrough-silent.mp4 | No music; no gameplay |
+| M17-01a | Use a 75-second target lap as a starting visual pacing model. Convert each section duratio... | done | StuntCourse report |  |
+| M17-01b | Ordered sections: slalom 0-12 s (840 studs at example speed); ramp gap 12-22 s (700); tunn... | done | StuntCourse report |  |
+| M17-01c | Start with three readable slalom changes, a single wide first jump, two separated pothole ... | partial |  | Readability not measured |
+| M17-02a | Include units, origin, forward/up axes, centerline points, widths, section IDs, warning po... | partial |  | 0.8x and 1.2x not run |
+| M17-04a | Race presentation: timer is stable at the top, checkpoint counter secondary, ghost gap onl... | partial |  |  |
+| M17-04b | Keep medal thresholds as named PREVIEW values until measured with the real car physics. Do... | partial |  |  |
+| M17-05a | Customization keeps the approved 8 free paints, 8 Cash-priced preview paints, earned medal... | partial |  | Locked states not driven |
+| M17-06a | Acceptance separates visual course completeness, UI fixture correctness and real gameplay ... | partial |  | Visual course only |
 | M18-01a | Each teammate proposal includes an exact module/adapter name, fields read, events needed, ... | done |  |  |
-| M19-01 | Automated: run `./scripts/check.ps1` (Selene, StyLua and the rest; exit 0 means pass, 2 me... | todo |  |  |
-| M19-02 | Studio Play: walk the whole island at normal and boosted speed, every plot at Raceway leve... | todo |  |  |
-| M19-03 | Independent reviewers: spawn fresh reviewer subagents who did not build the work: one for ... | todo |  |  |
-| M19-04 | Fix every blocker and material finding, then re-run the affected checks. Repeat until a re... | todo |  |  |
-| M19-05 | Evidence: save after-frames, short videos (with game audio; Adam judges sound by ear) and ... | todo |  |  |
-| M19-05a | Use one evidence index keyed to ledger IDs. It must distinguish code checks, fixture tests... | todo |  |  |
-| M20-01 | Run `./scripts/check.ps1` and fix failures inside the task. | todo |  |  |
-| M20-02 | Commit with clear messages in logical steps, push `feature/lane3-big-round`, and open a dr... | todo |  |  |
-| M20-03 | Push `integration/beta-2` (B-06) and open it as a draft PR for Adam, noting it contains Br... | todo |  |  |
-| M20-04 | Update the board row and add the log entry for today (build on any entries other sessions ... | todo |  |  |
-| M20-05 | Save the place files you changed (keep the previous versions as dated backups in `Car-Hop-... | todo |  |  |
-| M20-05a | Before close-out, verify no Brian R/Brian L source files, default.project.json, saved-data... | todo |  |  |
-| M21-01a | In the final message name the three largest visual improvements, the exact private file Ad... | todo |  |  |
+| M19-01 | Automated: run `./scripts/check.ps1` (Selene, StyLua and the rest; exit 0 means pass, 2 me... | partial | check.ps1 exit 0; island checks zero | WalkTests not run |
+| M19-02 | Studio Play: walk the whole island at normal and boosted speed, every plot at Raceway leve... | partial |  | Partial walk; not every plot in Play |
+| M19-03 | Independent reviewers: spawn fresh reviewer subagents who did not build the work: one for ... | done | evidence/REVIEW-WORLD.md, REVIEW-UI.md | Two fresh Sonnet reviewers, one round |
+| M19-04 | Fix every blocker and material finding, then re-run the affected checks. Repeat until a re... | partial | commit 4c717d0 | Blockers fixed; not all material findings; no second review round |
+| M19-05 | Evidence: save after-frames, short videos (with game audio; Adam judges sound by ear) and ... | partial | evidence/ | Videos have no audio |
+| M19-05a | Use one evidence index keyed to ledger IDs. It must distinguish code checks, fixture tests... | done | RESULT.md |  |
+| M20-01 | Run `./scripts/check.ps1` and fix failures inside the task. | done | check.ps1 exit 0 |  |
+| M20-02 | Commit with clear messages in logical steps, push `feature/lane3-big-round`, and open a dr... | done | draft PR |  |
+| M20-03 | Push `integration/beta-2` (B-06) and open it as a draft PR for Adam, noting it contains Br... | done | draft PR |  |
+| M20-04 | Update the board row and add the log entry for today (build on any entries other sessions ... | done |  |  |
+| M20-05 | Save the place files you changed (keep the previous versions as dated backups in `Car-Hop-... | partial |  | New files, not overwrites; island cloud place saved, not reopened to confirm |
+| M20-05a | Before close-out, verify no Brian R/Brian L source files, default.project.json, saved-data... | done | git diff against main is empty for protected paths |  |
+| M21-01a | In the final message name the three largest visual improvements, the exact private file Ad... | done | RESULT.md |  |
