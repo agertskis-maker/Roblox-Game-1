@@ -34,7 +34,7 @@ local function buildSlalom(root: Folder)
 			local u0, u1 = b.s0 - l.s0, b.s1 - l.s0
 			local model = Parts.model(folder, o.id)
 			Parts.flagVisualOnly(model, o.id, "slalom barrier, looks only")
-			Parts.along(model, "Body", l.origin, l.heading, u0, u1, b.lat0, b.lat1, 0, 4.4, P.Orange)
+			Parts.along(model, "Body", l.origin, l.heading, u0, u1, b.lat0 + 0.07, b.lat1 + 0.07, 0, 4.4, P.Orange)
 			Parts.along(model, "Cap", l.origin, l.heading, u0, u1, b.lat0, b.lat1, 4.4, 5, P.White)
 			-- six white stripes on the face the driver sees, 0.12 proud of it
 			local width = b.lat1 - b.lat0
