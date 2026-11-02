@@ -16,7 +16,9 @@
 --              and pocket parks every few lots; palettes only from the lot's district set;
 --              district transitions blend over about 2-3 lots per side (50/50 at the boundary)
 --   landmarks  one every 500-700 studs, alternating sides, never within 60 of a hazard, never
---              at an intersection mouth (+12), never on the bridge deck except the bridge itself
+--              at an intersection mouth (+12), never on the bridge deck except the bridge itself.
+--              A World may instead bring a hand-authored plan (`fixedLandmarks`, Summit Pass): fixed
+--              stations and sides along each lap, and the hazards bent around them, so no seed can break it
 --   signs, props (lamps, furniture, one bus stop per district), spans (WELCOME TO DOWNTOWN at
 --   each Main Street start, at most one bunting per district, clearance 26), hazards (scenery
 --   previews only), midground and skyline masses, street-life spots.
@@ -523,24 +525,6 @@ function Sequencer.plan(seed: number?, options: Options?): Plan
 				end
 			end
 		end
-	end
-
-	-- side maps (lots are packed along each side's own frontage line)
-	local maps = {
-		[-1] = Route.sideMap(segments, -1, -frontage),
-		[1] = Route.sideMap(segments, 1, frontage),
-	}
-	local function pivotFor(station: number, side: number, setback: number, width: number): CFrame
-		local f = frame(station, side * (frontage + setback), 0)
-		local look = -side * f.RightVector
-		local front = CFrame.lookAt(f.Position, f.Position + look)
-		return front * CFrame.new(-width / 2, 0, 0)
-	end
-	-- the centre-line stations a width-w frontage centred at `station` covers on a side
-	local function footprint(station: number, side: number, width: number): (number, number)
-		local map = maps[side]
-		local t = Route.sToT(map, station)
-		return Route.tToS(map, t - width / 2), Route.tToS(map, t + width / 2)
 	end
 
 	-- 4. Landmarks -----------------------------------------------------------------------------
