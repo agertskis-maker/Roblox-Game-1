@@ -20,10 +20,12 @@ local Workspace = game:GetService("Workspace")
 
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
+local RunStamina = require(script.RunStamina)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local StyleState = require(Prototype.StyleState)
+local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local LaunchPad = {}
@@ -354,6 +356,7 @@ local function rarityOf(name: string): string
 end
 
 local begin: () -> ()
+local stamina: any = nil
 
 local function finishRun()
 	runTrove:Clean()
@@ -426,6 +429,7 @@ local function watchRun(run: any)
 					cars = cars,
 					cash = cash,
 					revives = m.revives,
+					outOfBolts = stamina ~= nil and stamina:isOut(),
 				})
 			end)
 		elseif state.mode ~= "Ended" and shown then
@@ -447,6 +451,7 @@ begin = function()
 		end
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
+		stamina = runTrove:Add(RunStamina.attach(run), "destroy")
 		attachTrail()
 		watchRun(run)
 	end)
@@ -533,7 +538,14 @@ function LaunchPad.attachShell(s: any)
 			local h = hooks
 			if h and (h :: any).revive then
 				(h :: any).revive()
+				if stamina then
+					stamina:refill(RunStamina.ReviveRefill)
+				end
 			end
+		end,
+		respawnRobux = Catalog.RespawnRobux,
+		onBuyRespawn = function()
+			print("[LaunchPad] Robux respawn is a PREVIEW: nothing was charged")
 		end,
 		onEarnFaster = function()
 			home()

@@ -68,9 +68,15 @@ export type Cash = {
 local HomeCash = {}
 HomeCash.__index = HomeCash
 
-function HomeCash.blockSize(): Vector2
+local GROW = 1.4 -- Adam, Round 3: a bigger Cash display. The whole block scales, so the icon and number stay in proportion.
+
+local function baseSize(): Vector2
 	local m = Layout.cashMetrics()
 	return Vector2.new(m.valueX + 150 + 8 + PLUS, m.rowHeight + ROW2_GAP + ROW2)
+end
+
+function HomeCash.blockSize(): Vector2
+	return baseSize() * GROW
 end
 
 local function textWidth(text: string, size: number): number
@@ -119,7 +125,7 @@ function HomeCash.new(parent: Instance, adapters: Adapters): Cash
 	self._destroyed = false
 	self._m = Layout.cashMetrics()
 	local m = self._m
-	local size = HomeCash.blockSize()
+	local size = baseSize()
 	self._value = nil :: number?
 	self._firstNilAt = nil :: number?
 	self._lastSound = -math.huge
@@ -430,9 +436,9 @@ function HomeCash.refresh(self: any)
 end
 
 function HomeCash.place(self: any, plan: HomeLayout.CashPlan, scale: number)
-	local size = HomeCash.blockSize()
-	self._scale.Scale = scale
-	self.root.Position = UDim2.fromOffset(plan.x * scale, (plan.bottom - size.Y) * scale)
+	local size = baseSize()
+	self._scale.Scale = scale * GROW
+	self.root.Position = UDim2.fromOffset(plan.x * scale, (plan.bottom - size.Y * GROW) * scale)
 	self.root.Size = UDim2.fromOffset(size.X, size.Y)
 end
 
