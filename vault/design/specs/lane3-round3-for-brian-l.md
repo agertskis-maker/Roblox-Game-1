@@ -49,6 +49,8 @@ Decals are now 14 real designs ($500 to $9,000), wheels 10 ($0 to $6,000), paint
 The Trail stall and Paint corner use the same catalog. Cash items are a PREVIEW buy that takes fixture Cash for the session. Robux items end in Coming soon. The Car stall lists cars; it needs your real owned-car list.
 
 ## 5. Respawn for Robux (new, Adam asked for it)
+**Decided 2026-11-02:** Adam keeps it at 19 Robux, knowing it helps a run.
+
 After a crash, once free revives are used, the card offers a respawn for a PREVIEW 19 Robux. It gives the same thing as a free revive: back on a car, 3 bolts. Needs a Developer Product and a server-checked grant. This touches run outcomes, so please agree it with Adam and Brian R, and decide how it fits "no paid gameplay advantage". It's built so it can be removed with one line.
 
 ## 6. Other renames and data
