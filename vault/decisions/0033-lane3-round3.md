@@ -33,6 +33,7 @@ Brief [[lane3-round3]], ledger [[lane3-round3-ledger]]. Builds on [[0032-lane3-r
 - **Pads stand far from the island and road** (x 6000 to 8800, y 1200), built on the client, and leave the world when nobody's on them.
 - **RETRY goes straight into a run.** Speed is the point of retry, and the pad has been seen.
 - **A portal closes any open panel.**
+- **The ramp gets a START arch and a glowing bed:** a review found it didn't stand out.
 - **Portals in the beta stay open.** `TestLockedPortals` on `CarHopBeta` shows the locked cards in Studio.
 
 ## Run

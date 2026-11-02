@@ -46,13 +46,13 @@ Icons were cut from one sheet, then shown from 96 px previews through EditableIm
 | N3-01 to 05 | Shop rebuilt | done | shop-* frames | Scores in RESULT |
 | N3-06 | Honesty | done | deal math derived, PREVIEW footer, no timers | |
 | N3-07 | Get more spots | partial | code wired; not pressed in Studio | Appears only when all spots are owned |
-| N3-08 | Reviewer scores | see RESULT | | |
+| N3-08 | Reviewer scores | partial | Shop 3 to 4 and 2 to 3, under the target of 4 | Not re-scored after the last fixes |
 | N4-01 | Style works | done | Paint, decal, wheel, trail applied in Play, one implementation | Stunt screen shares it |
 | N4-02 | Decals | done | 14 baked | Lightning and Comet need a look at full size |
 | N4-03 | Wheels | done | 10 meshes | |
 | N4-04 | Paint tiers | done | Galaxy seen; others by code | |
 | N4-05 | Trails | done | 9 trails; moves on the turntable | Added: moving preview (Adam) |
-| N4-06 | Play recording | partial | stills at both sizes; see RESULT for video | |
+| N4-06 | Play recording | partial | Stills at desktop, tablet and phone | No video: Adam was using the computer |
 | N5-01 to 03 | Scaling packs | done | shop-phone-cash, CashPackPreview | Rate is a fixture |
 | N6-01 | Three themes | done | pad-* frames | Plain Roblox materials; Dusty and Summit good, Downtown darkest |
 | N6-02 | Placement | done | x 6000 to 8800, parented only in use | |
@@ -73,15 +73,15 @@ Icons were cut from one sheet, then shown from 96 px previews through EditableIm
 | N11-01 | Missions | done | missions frames, CLAIM with confetti in Play | |
 | N11-02 | Settings | partial | fixed in code; not looked at in Studio | |
 | N12 Summit | Worlds on road | done | summit-run-world | |
-| N12 Verge | Downtown ground | see RESULT | helper | |
-| N12 Re-score | Round 2's weakest | see RESULT | reviewers | |
+| N12 Verge | Downtown ground | done | downtown-verge-after, 37 parts | Tree colour fix not seen after it went in |
+| N12 Re-score | Round 2's weakest | partial | Style, arrows and phone layouts covered by review | Props and Update Log not scored |
 | N12 Perf | Measured | done | Below | |
 | N12 Roxy | Locked portals | done | locked-portal-roxy | Beta portals are open; test switch |
 | N12 Join | Rare cases | partial | A network dropout mid-test showed Worlds failing softly; failed art falls back by code | Not run on purpose |
 | N12 Five minutes | Script | done | above | |
 | N13 | Messages | done | both specs | |
-| N14 | Reviews | see RESULT | | |
-| N15 | Finish | see RESULT | | |
+| N14 | Reviews | partial | Two fresh reviews, one fix pass after each | Under the target in places; third score not done |
+| N15 | Finish | partial | Checks exit 0, pushed, PRs updated, RESULT written | Beta file waits for Adam's Save click |
 | Live | Art fits, Extra Parking, moving trails, Robux respawn, stamina | done | frames | Adam, mid-round |
 
 ## Performance (one method)
