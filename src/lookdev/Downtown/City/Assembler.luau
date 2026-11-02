@@ -1239,6 +1239,9 @@ local function walkSpecs(self: Assembler, index: number): { Spec }
 					if inst:IsA("BasePart") then
 						inst.CastShadow = false -- a kit mesh part; the stand-ins are built without shadows
 					end
+					if isTree and inst:IsA("MeshPart") and inst.TextureID == "" then
+						inst.Color = Color3.fromRGB(88, 168, 92) -- the kit tree comes untextured here and would stand white
+					end
 				end
 				table.insert(specs, spec)
 				if isTree then
