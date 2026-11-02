@@ -55,12 +55,14 @@ local make = CarKit.make
 
 local MissionsPanel = {}
 
-local MAX_MISSIONS = 3
+local MAX_MISSIONS = 15 -- the list scrolls: three rows show at a time
 local PREVIEW_RESOLVE_SECONDS = 0.35
 local CLAIM_HOLD = 1.8 -- the claimed card stays until its feedback (0.7 s) has finished, and then a moment more
 local CLAIM_HOLD_REDUCED = 0.5
 local CONFETTI = 24
 local CONFETTI_SECONDS = 0.7
+
+local ROW_TOP = 3 -- room above the first row, so its outline is not clipped
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -103,12 +105,13 @@ local TILES: { [string]: TileLook } = {
 	Flag = { art = "steer", family = "Trail" },
 	Star = { art = "paint", family = "Paint" },
 	GarageBook = { art = "garage", family = "Lap" },
+	Keys = { art = "keys", family = "Starter" },
 	Medal = { art = "goals", family = "Starter" },
 	Portal = { art = "portal", family = "Wheel" },
 }
 local DEFAULT_TILE: TileLook = { art = "missions", family = "Lap" }
 
--- Reward art: Cash by size (three steps), each cosmetic by its own art. `word` is what the tile shows instead of an amount.
+-- Reward art: Cash by size (five steps), each cosmetic by its own art. `word` is what the tile shows instead of an amount.
 type RewardLook = { art: string, family: string, word: string?, fallback: string }
 local COSMETIC: { [string]: RewardLook } = {
 	Paint = { art = "art_paint", family = "Paint", word = "PAINT", fallback = "PaintBucket" },
@@ -126,10 +129,14 @@ local function rewardLook(m: MissionFixtures.Mission): RewardLook
 	local amount = math.max(m.reward, 0)
 	if amount < 300 then
 		return { art = "art_cash1", family = "Cash", word = nil, fallback = "Cash" }
-	elseif amount < 500 then
+	elseif amount < 1000 then
 		return { art = "art_cash2", family = "CashTeal", word = nil, fallback = "Cash" }
+	elseif amount < 10000 then
+		return { art = "art_cash3", family = "CashGold", word = nil, fallback = "Cash" }
+	elseif amount < 40000 then
+		return { art = "art_cash4", family = "CashPurple", word = nil, fallback = "Cash" }
 	end
-	return { art = "art_cash3", family = "CashGold", word = nil, fallback = "Cash" }
+	return { art = "art_cash5", family = "CashVault", word = nil, fallback = "Cash" }
 end
 
 -- What the reward tile shows over its art: "+$750" for Cash, the word for a cosmetic.
@@ -314,6 +321,11 @@ function MissionsPanel.geometry(ds: Vector2): Geo
 	}
 end
 
+-- The Missions list's side margin, wide enough for its scroll bar.
+local function scrollMargin(g: Geo): number
+	return if g.tier == "Phone" then 4 else 6
+end
+
 -- BUILDING BLOCKS ----------------------------------------------------------------------------
 
 -- A square icon tile: the family's colour, a rays motif, a big icon, then the ink line and chrome edge over it. The icon is
@@ -455,7 +467,7 @@ end
 
 function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	local opts: Options = options or {}
-	local state = copyState(opts.state or (MissionFixtures.preset("InProgress3") :: MissionFixtures.State))
+	local state = copyState(opts.state or (MissionFixtures.preset("Board") :: MissionFixtures.State))
 	local geo = MissionsPanel.geometry(Vector2.new(750, 325))
 	local builtKey = ""
 	local tab: Tab = "Missions"
@@ -484,6 +496,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	local shell: Frame = nil :: any
 	local fx: Frame = nil :: any
 	local goalScroll: ScrollingFrame = nil :: any
+	local missionScroll: ScrollingFrame = nil :: any
 	local message: TextLabel = nil :: any
 	local retryButton: CarKit.Button = nil :: any
 	local closeButton: ImageButton = nil :: any
@@ -723,7 +736,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		card.glow.holder.Position = UDim2.fromOffset(claimX + g.btnW / 2, claimY + (g.btnH - 4) / 2)
 		card.glow.holder.Size = UDim2.fromOffset(g.btnW * 1.55, g.btnH * 2)
 		card.glow.holder.Visible = visual == "Ready"
-		local origin = Vector2.new(g.list.x, g.list.y + (card.index - 1) * (g.rowH + g.gap))
+		local origin = Vector2.new(g.list.x, g.list.y + ROW_TOP + (card.index - 1) * (g.rowH + g.gap))
 		card.rewardCentre = origin + Vector2.new(rewardX + rewardW / 2, inset + ih / 2)
 		card.claimCentre = origin + Vector2.new(claimX + g.btnW / 2, claimY + g.btnH / 2)
 	end
@@ -790,11 +803,14 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		local g = geo
 		local look = rewardLook(mission)
 		local family = CarKit.Family[look.family]
-		local plate = CarKit.board(shell, {
+		local plate = CarKit.board(missionScroll, {
 			size = UDim2.fromOffset(g.rowW, g.rowH),
 			-- anchored on its middle so a pop grows it from the centre
 			anchor = Vector2.new(0.5, 0.5),
-			position = UDim2.fromOffset(g.list.x + g.rowW / 2, g.list.y + (index - 1) * (g.rowH + g.gap) + g.rowH / 2),
+			position = UDim2.fromOffset(
+				scrollMargin(g) + g.rowW / 2,
+				ROW_TOP + (index - 1) * (g.rowH + g.gap) + g.rowH / 2
+			),
 			z = 6,
 			radius = g.radius,
 			top = PLATE_TOP,
@@ -1020,6 +1036,11 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		GuiService.SelectedObject = closeButton
 	end
 
+	local function fitMissionCanvas()
+		local n = #cards
+		missionScroll.CanvasSize = UDim2.fromOffset(0, ROW_TOP * 2 + n * geo.rowH + math.max(n - 1, 0) * geo.gap)
+	end
+
 	-- GOALS ----------------------------------------------------------------------------------
 
 	local function clearGoals()
@@ -1063,6 +1084,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		local w = g.rowW - bar - 10 -- the list's scroll bar, and 3 px each side so the rows' outlines are not clipped
 		local side = g.goalH - g.inset * 2
 		local rightW = if g.tier == "Phone" then 112 else math.max(120, math.round(150 * g.k))
+		local payW = if g.tier == "Phone" then 92 else math.max(104, math.round(132 * g.k))
 		local textPx = if g.tier == "Phone" then 18 else math.round(23 * g.k)
 		local y = 3
 		for _, goal in state.goals do
@@ -1096,7 +1118,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 				})
 			end
 			local textX = g.inset + side + g.hgap + 4
-			local labelW = w - textX - rightW - g.inset - g.hgap
+			local labelW = w - textX - rightW - payW - g.inset - g.hgap * 2
 			local label = CarKit.text(plate, goal.text, textPx, {
 				color = CarKit.Ink,
 				wrap = true,
@@ -1108,6 +1130,29 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			SupportKit.fitLabel(label, goal.text, labelW, side, textPx)
 			local rightText = goalRight(goal, done, isNext)
 			local rightX = w - g.inset - 6 - rightW
+			if goal.reward then
+				local payX = rightX - g.hgap - payW
+				local payText = "+" .. Format.cash(goal.reward)
+				CarKit.title(plate, payText, fitPx(payText, payW, math.max(20, math.round(25 * g.k)), 15), {
+					align = Enum.TextXAlignment.Right,
+					position = UDim2.fromOffset(payX, g.inset),
+					size = UDim2.fromOffset(payW, side * 0.64),
+					top = CarKit.CashText,
+					bottom = CarKit.Green,
+					shadow = false,
+					stroke = 2.5,
+					z = 4,
+					name = "Pay",
+				})
+				CarKit.text(plate, "PREVIEW", 14, {
+					align = Enum.TextXAlignment.Right,
+					color = INK_SOFT,
+					position = UDim2.fromOffset(payX, g.inset + side * 0.62),
+					size = UDim2.fromOffset(payW, side * 0.38),
+					z = 4,
+					name = "PayPreview",
+				})
+			end
 			local right: TextLabel
 			if done or isNext then
 				right =
@@ -1182,6 +1227,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		local ready = state.load == "Ready"
 		local text = messageText()
 		local showMissions = ready and tab == "Missions" and #state.missions > 0
+		missionScroll.Visible = showMissions
 		for _, c in cards do
 			c.frame.Visible = showMissions
 		end
@@ -1303,6 +1349,22 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		buildTrove:Connect(closeButton.Activated, function()
 			panelObj:close()
 		end)
+		-- the Missions list scrolls past three rows; the margin keeps the scroll bar and the rows' outlines clear of each other
+		local margin = scrollMargin(g)
+		missionScroll = make("ScrollingFrame", {
+			Name = "MissionList",
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Position = UDim2.fromOffset(g.list.x - margin, g.list.y),
+			Size = UDim2.fromOffset(g.list.w + margin * 2, g.list.h),
+			CanvasSize = UDim2.new(),
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			ScrollBarThickness = margin,
+			ScrollBarImageColor3 = CarKit.ChromeBottom,
+			ClipsDescendants = true,
+			Selectable = false,
+			ZIndex = 6,
+		}, shell) :: ScrollingFrame
 		-- the Goals list (rows are built on demand) and the state message
 		goalScroll = make("ScrollingFrame", {
 			Name = "GoalList",
@@ -1367,6 +1429,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		for i, m in visibleMissions() do
 			table.insert(cards, buildCard(i, m))
 		end
+		fitMissionCanvas()
 		rebuildGoals()
 		-- the effects layer: the confetti pool and the flying reward art, above everything
 		fx = make("Frame", {
@@ -1402,6 +1465,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		for i, m in visibleMissions() do
 			table.insert(cards, buildCard(i, m))
 		end
+		fitMissionCanvas()
 		applyView()
 		notify()
 	end
@@ -1453,7 +1517,8 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		local copy = card.rewardArt:Clone() :: Frame
 		copy.Name = "Flyer"
 		copy.AnchorPoint = Vector2.new(0.5, 0.5)
-		copy.Position = UDim2.fromOffset(card.rewardCentre.X, card.rewardCentre.Y)
+		local scrolled = missionScroll.CanvasPosition.Y
+		copy.Position = UDim2.fromOffset(card.rewardCentre.X, card.rewardCentre.Y - scrolled)
 		copy.ZIndex = 70
 		copy.Parent = fx
 		flowTrove:Add(copy)
@@ -1501,7 +1566,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			return
 		end
 		Motion.pop(card.frame, 1.03)
-		burst(card.claimCentre, claimsResolved + 3)
+		burst(card.claimCentre - Vector2.new(0, missionScroll.CanvasPosition.Y), claimsResolved + 3)
 		flyReward(card)
 		card.stampScale.Scale = 0.6
 		Motion.tween(card.stampScale, "pop", Motion.info(0.25, Enum.EasingStyle.Back), { Scale = 1 })
