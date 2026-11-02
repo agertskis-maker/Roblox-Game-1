@@ -24,6 +24,7 @@ local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForCh
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
 local RunScenery = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
+local Tutorial = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Tutorial"))
 
 local player = Players.LocalPlayer
 local OWNER = "CarHopBetaRun"
@@ -88,6 +89,7 @@ local function start(world: string, field: BasePart)
 		task.defer(finish)
 	end)
 	run:start()
+	Tutorial.attachRun(run) -- the tutorial's run steps read the run, they never change it
 	if RunScenery.enabled() then
 		scenery = RunScenery.attach(world, run)
 	end
