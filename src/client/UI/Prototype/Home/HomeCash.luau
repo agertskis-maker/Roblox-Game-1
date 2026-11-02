@@ -437,8 +437,10 @@ end
 
 function HomeCash.place(self: any, plan: HomeLayout.CashPlan, scale: number)
 	local size = baseSize()
-	self._scale.Scale = scale * GROW
-	self.root.Position = UDim2.fromOffset(plan.x * scale, (plan.bottom - size.Y * GROW) * scale)
+	-- beside a thumbstick there is no room to grow: that is a phone, and the play area comes first
+	local grow = if plan.placement == "Beside" then 1 else GROW
+	self._scale.Scale = scale * grow
+	self.root.Position = UDim2.fromOffset(plan.x * scale, (plan.bottom - size.Y * grow) * scale)
 	self.root.Size = UDim2.fromOffset(size.X, size.Y)
 end
 

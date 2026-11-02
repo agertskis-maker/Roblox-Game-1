@@ -129,6 +129,13 @@ function HomeShell.start(options: Options?): any
 		mount(key, path, layerName, opts)
 	end
 
+	-- the common art is fetched now, behind the loading screen; a failed file falls back by itself
+	trove:Add(task.spawn(function()
+		local GameIcons = (require :: any)(Prototype:WaitForChild("GameIcons"))
+		local loaded, failed = GameIcons.preload(GameIcons.Common)
+		log(("art preloaded: %d, failed: %d"):format(loaded, failed))
+	end))
+
 	local queue = ModalQueue.new({ onLog = log })
 	self.queue = queue
 	queue:block("loading")
