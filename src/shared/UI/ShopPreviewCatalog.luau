@@ -71,6 +71,8 @@ Catalog.PriceWord = "Robux"
 Catalog.PreviewValueTag = "PREVIEW VALUE"
 Catalog.PreviewNote = "PREVIEW: contents and price proposed"
 Catalog.StyleNote = "Looks only. Same driving stats."
+-- A cheap way back into a run after a crash, once the free ones are used (Adam, 2026-11-02). PREVIEW: nothing can be bought yet.
+Catalog.RespawnRobux = 19
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -126,10 +128,10 @@ local offers: { Offer } = {
 	{
 		id = "expanded-paddock",
 		kind = "Pass",
-		name = "Expanded Paddock",
+		name = "Extra Parking",
 		tag = "+3 PARKING SPOTS",
-		body = "Make room for three more favorites.",
-		detail = "Extra spots above the normal maximum, plus a pit garage. Each car earns at its normal rate.",
+		body = "Park 3 more cars!",
+		detail = "Three more spots on your Raceway. Each car earns at its normal rate.",
 		icon = "Paddock",
 		art = "expanded-paddock",
 		fill = "Lime",
