@@ -625,7 +625,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			stroke = math.max(3, px / 13),
 			z = 8,
 		})
-		if line then
+		if line and h - px * 1.02 - math.max(58 * k, 46) - 10 >= fontPx(p, 32, 18) then
 			CarKit.title(card, line, fontPx(p, 30, 15), {
 				align = Enum.TextXAlignment.Right,
 				size = UDim2.fromOffset(w * 0.62, fontPx(p, 32, 18)),
