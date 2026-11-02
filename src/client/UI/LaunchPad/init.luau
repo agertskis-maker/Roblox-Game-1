@@ -177,6 +177,7 @@ local function padFor(name: string): Build.Pad
 	local pad = pads[name]
 	if not pad then
 		pad = Build.build(name, ORIGINS[name] or ORIGINS.Downtown)
+		pad.folder.Parent = nil -- out of the world until someone stands on it
 		pads[name] = pad
 	end
 	return pad
@@ -287,6 +288,7 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	closeHomePanels()
 	wipe(WORLD_TITLE[name], function()
 		local pad = padFor(name)
+		pad.folder.Parent = Workspace
 		setLight(name)
 		moveTo(pad.arrival)
 		-- a pad built this frame has no collision yet: hold the player still for a moment
@@ -317,6 +319,10 @@ function LaunchPad.leave()
 			setLight(nil)
 			if returnTo then
 				moveTo(returnTo)
+			end
+			local pad = pads[world]
+			if pad then
+				pad.folder.Parent = nil
 			end
 		end)
 		task.wait(2) -- out of the portal's field before it can fire again
@@ -510,6 +516,10 @@ local function home()
 			setLight(nil)
 			if returnTo then
 				moveTo(returnTo)
+			end
+			local pad = pads[world]
+			if pad then
+				pad.folder.Parent = nil
 			end
 		end)
 		task.wait(2)
