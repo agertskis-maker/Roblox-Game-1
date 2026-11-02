@@ -1,12 +1,9 @@
 --!strict
--- CAR HOP BETA 1: walking into an open World portal on the island starts Brian R's run (Lane 1,
--- Client.Run.RunController, the "Circuit" profile he plays), which drives Lane 3's RunHud. When the
--- run ends (the results screen's Retry), the player is put back on the island just in front of the
--- portal they used. While a run is on, the takeover attribute MovementSpeedOwner = "CarHopBetaRun"
--- tells the island walking speed to stand aside (vault/design/specs/walk-boost.md).
--- Missing in Beta 1, by design (decision 0030): the run's road is Brian R's test canyon in every
--- World (the Downtown, Dusty Highway and Summit Pass scenery is not under the road yet), nothing
--- from a run is saved, and the cars are his placeholder families.
+-- CAR HOP BETA: the portals and the run. Walking into an open World portal on the island goes to that World's Launch Pad (Lane 3,
+-- Client.UI.LaunchPad), and START on the pad's ramp comes back here to start Brian R's run (Client.Run.RunController, the "Circuit"
+-- profile he plays). LaunchPad owns everything between runs, including the results card. While a run is on, the takeover
+-- attribute MovementSpeedOwner = "CarHopBetaRun" tells the island walking speed to stand aside (vault/design/specs/walk-boost.md).
+-- Nothing from a run is saved, and the cars are his placeholder families.
 -- Off unless ReplicatedStorage.CarHopBeta exists.
 
 local Players = game:GetService("Players")
@@ -23,17 +20,17 @@ local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForCh
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
-local RunScenery =
-	require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
-local Tutorial = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Tutorial"))
+local UI = script.Parent.Parent:WaitForChild("UI")
+local RunScenery = require(UI:WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
+local Tutorial = require(UI:WaitForChild("Tutorial"))
+local LaunchPad = require(UI:WaitForChild("LaunchPad"))
 
 local player = Players.LocalPlayer
 local OWNER = "CarHopBetaRun"
 local ENTER = 3 -- studs from a field's plane
 local BACK = 14 -- studs in front of the portal where the player comes back
-local REARM = 3 -- seconds after coming back before a portal can start another run
 
--- one play session's run state (what was claimed, Rider Level, free revives); not saved in Beta 1
+-- one play session's run state (what was claimed, Rider Level, free revives); not saved
 local session: RunController.Session = {
 	owned = {},
 	level = RunConfig.START_RIDER_LEVEL,
@@ -42,8 +39,6 @@ local session: RunController.Session = {
 
 local current: RunController.RunController? = nil
 local scenery: RunScenery.Handle? = nil -- the World beside the road (big round M8)
-local returnTo: CFrame? = nil
-local quietUntil = 0
 
 local function root(): BasePart?
 	local character = player.Character
@@ -51,9 +46,12 @@ local function root(): BasePart?
 	return if r and r:IsA("BasePart") then r else nil
 end
 
-local function finish()
+local function stopRun()
 	local run = current
 	current = nil
+	if run then
+		run.Ended:Fire() -- what his Retry button fires: the tutorial and the scenery are listening
+	end
 	if scenery then
 		scenery:destroy()
 		scenery = nil
@@ -64,31 +62,12 @@ local function finish()
 	if player:GetAttribute("MovementSpeedOwner") == OWNER then
 		player:SetAttribute("MovementSpeedOwner", nil)
 	end
-	local r = root()
-	if r and returnTo then
-		r.AssemblyLinearVelocity = Vector3.zero
-		r.Parent:PivotTo(returnTo)
-	end
-	quietUntil = os.clock() + REARM
 end
 
-local function start(world: string, field: BasePart)
-	if current then
-		return
-	end
-	-- back on the island side of the field, facing the portal
-	local front = field.CFrame * CFrame.new(0, 0, -BACK)
-	local side = if (front.Position - field.Position):Dot((root() :: BasePart).Position - field.Position) >= 0
-		then front
-		else field.CFrame * CFrame.new(0, 0, BACK)
-	local ground = side.Position - Vector3.new(0, field.Size.Y / 2 - 3, 0)
-	returnTo = CFrame.lookAt(ground, Vector3.new(field.Position.X, ground.Y, field.Position.Z))
+local function startRun(world: string): RunController.RunController
 	player:SetAttribute("MovementSpeedOwner", OWNER)
 	local run = RunController.new({ session = session, profile = "Circuit" })
 	current = run
-	run.Ended:Connect(function()
-		task.defer(finish)
-	end)
 	run:start()
 	-- the run's keyboard hint names keys and sits on the Heat panel; phones play too. A label only: nothing else changes.
 	local overlay = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
@@ -104,22 +83,45 @@ local function start(world: string, field: BasePart)
 		scenery = RunScenery.attach(world, run)
 	end
 	print(string.format("[CarHopBeta] %s run started (seed %d)", world, run.seed))
+	return run
 end
+
+LaunchPad.configure({
+	startRun = startRun,
+	stopRun = stopRun,
+	revive = function()
+		if current then
+			current:revive()
+		end
+	end,
+} :: any)
 
 if RunScenery.enabled() then
 	RunScenery.prepareAll() -- the three Worlds load in the background, so a run starts in its World
 end
+LaunchPad.prepare()
 
 player.CharacterAdded:Connect(function()
 	if current then
-		finish()
+		stopRun()
 	end
+	LaunchPad.reset()
 end)
+
+-- where a portal puts the player back: the island side of its field, facing it
+local function backTo(field: BasePart, r: BasePart): CFrame
+	local front = field.CFrame * CFrame.new(0, 0, -BACK)
+	local side = if (front.Position - field.Position):Dot(r.Position - field.Position) >= 0
+		then front
+		else field.CFrame * CFrame.new(0, 0, BACK)
+	local ground = side.Position - Vector3.new(0, field.Size.Y / 2 - 3, 0)
+	return CFrame.lookAt(ground, Vector3.new(field.Position.X, ground.Y, field.Position.Z))
+end
 
 local last = 0
 RunService.Heartbeat:Connect(function()
 	local now = os.clock()
-	if current or now < quietUntil or now - last < 0.1 then
+	if LaunchPad.phase() ~= "island" or now - last < 0.1 then
 		return
 	end
 	last = now
@@ -140,7 +142,7 @@ RunService.Heartbeat:Connect(function()
 				and math.abs(p.Z) < ENTER
 				and not PortalPreviewState.isLocked(world)
 			then
-				start(world, carrier)
+				LaunchPad.enter(world, backTo(carrier, r))
 				return
 			end
 		end

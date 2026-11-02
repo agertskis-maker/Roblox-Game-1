@@ -13,7 +13,9 @@ if not BetaConfig.enabled() then
 	return
 end
 
-local HomeShell = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("HomeShell"))
+local UI = script.Parent.Parent:WaitForChild("UI")
+local HomeShell = require(UI:WaitForChild("HomeShell"))
+local LaunchPad = require(UI:WaitForChild("LaunchPad"))
 
 -- the Roblox player list would sit over the HUD's Settings button; the beta has few players
 pcall(function()
@@ -50,6 +52,8 @@ local shell = HomeShell.start({
 	end,
 })
 
+LaunchPad.attachShell(shell)
+
 local OWNER = "CarHopBetaRun"
 local running = false
 player:GetAttributeChangedSignal("MovementSpeedOwner"):Connect(function()
@@ -61,6 +65,6 @@ player:GetAttributeChangedSignal("MovementSpeedOwner"):Connect(function()
 	if now then
 		shell:runStarted()
 	else
-		shell:runEnded(true)
+		shell:runEnded(false)
 	end
 end)
