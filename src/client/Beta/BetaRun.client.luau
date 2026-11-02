@@ -46,7 +46,7 @@ local function root(): BasePart?
 	return if r and r:IsA("BasePart") then r else nil
 end
 
-local function stopRun()
+local function stopRun(again: boolean?)
 	local run = current
 	current = nil
 	if run then
@@ -59,7 +59,8 @@ local function stopRun()
 	if run then
 		run:destroy()
 	end
-	if player:GetAttribute("MovementSpeedOwner") == OWNER then
+	-- a retry goes straight into another run: the tutorial must not read it as coming home
+	if not again and player:GetAttribute("MovementSpeedOwner") == OWNER then
 		player:SetAttribute("MovementSpeedOwner", nil)
 	end
 end
