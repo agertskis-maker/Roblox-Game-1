@@ -82,8 +82,11 @@ Look.Features = {
 	f("PitRoadsRaked", 2, 3, function(p, c)
 		Track.pitRoadsRaked(p.major, c)
 	end),
-	f("PitRoads", 4, 12, function(p, c)
+	f("PitRoads", 4, 11, function(p, c)
 		Track.pitRoadsAsphalt(p.major, c)
+	end),
+	f("PitRoadsApron", 12, 12, function(p, c)
+		Track.pitRoadsAsphalt(p.major, c, true)
 	end),
 	f("WalkGate", 1, 12, function(p, c)
 		Track.walkGate(p.major, c)

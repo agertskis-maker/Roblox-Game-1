@@ -37,7 +37,7 @@ Props.Anchors = {
 	StartBoard = Vector2.new(-48.4, START_U),
 	PennantU = 455,
 	Bleachers = Vector2.new(-52.6, 438),
-	SnackCart = Vector2.new(-57, 474),
+	SnackCart = Vector2.new(-59, 476.5),
 	LapBoard = Vector2.new(-48.2, 423.5),
 	Podium = Vector2.new(-19.8, START_U), -- clear of the gantry leg (outer edge x -22.8)
 	StartLights = Vector2.new(-46.8, 407),
@@ -411,7 +411,30 @@ function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 end
 
 function Props.snackCart(folder: Folder, ctx: Ctx)
-	Ctx.place(ctx, folder, "SwSnackCart", A.SnackCart.X, A.SnackCart.Y, EAST)
+	-- a snack stop, not a cart alone on the grass: a small paved pad at the end of the stands with the
+	-- cart, a second stall and a bench. Its edge is 6 clear of the track's tyres, so people can pass.
+	local at = A.SnackCart
+	local pad = Ctx.at(ctx, at.X + 1.5, at.Y, 0.1)
+	Kit.part(folder, Vector3.new(14, 0.2, 10), CFrame.lookAt(pad, pad + Ctx.dir(ctx, EAST)), {
+		name = "SnackPad",
+		color = Color3.fromRGB(214, 208, 196),
+		material = Enum.Material.Concrete,
+		collide = true,
+		castShadow = false,
+	})
+	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y - 2, EAST, 0.2)
+	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y + 2.5, EAST, 0.2)
+	local seat = Ctx.at(ctx, at.X + 3.5, at.Y + 3, 0.2)
+	local along = Ctx.dir(ctx, Vector2.new(0, 1))
+	local bench = CFrame.lookAt(seat + Vector3.yAxis * 1.1, seat + Vector3.yAxis * 1.1 + along)
+	Kit.part(folder, Vector3.new(1.2, 0.25, 5), bench, { name = "SnackBench", color = Color3.fromRGB(176, 118, 74) })
+	for _, z in { -2, 2 } do
+		Kit.part(folder, Vector3.new(1, 1, 0.4), bench * CFrame.new(0, -0.6, z), {
+			name = "SnackBenchLeg",
+			color = NAVY,
+			castShadow = false,
+		})
+	end
 end
 
 function Props.lapBoard(folder: Folder, ctx: Ctx)

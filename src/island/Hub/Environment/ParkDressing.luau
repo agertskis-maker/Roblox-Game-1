@@ -1093,19 +1093,6 @@ local function buildFurniture(ctx: Ctx)
 end
 
 -- Lakeside fence: the segment mesh's length is the pitch; each run ends in a white post.
-local FENCE_PITCH = 8
-local FENCE_WHITE = Color3.fromRGB(246, 242, 236)
-local function fencePost(ctx: Ctx, p: Vector2)
-	local y = groundY(p)
-	local f = folder(ctx, "Fences")
-	-- the cap's top at 2.9, under the 3-stud viewing-corridor limit (the fence itself is 2.8)
-	local post =
-		plainPart("FenceEndPost", Vector3.new(0.5, 2.95, 0.5), CFrame.new(p.X, y + 1.275, -p.Y), FENCE_WHITE, f)
-	post:SetAttribute("FenceEnd", true)
-	plainPart("FenceEndCap", Vector3.new(0.7, 0.15, 0.7), CFrame.new(p.X, y + 2.825, -p.Y), FENCE_WHITE, f)
-	ctx.counts.FenceEndPost = (ctx.counts.FenceEndPost or 0) + 1
-end
-
 local function buildHedges(ctx: Ctx)
 	-- low clipped hedges round the plaza, with openings where the paths arrive (an even count so
 	-- the ring is mirror-symmetric about the axis)
@@ -1142,44 +1129,6 @@ local function buildHedges(ctx: Ctx)
 	end)
 	-- Task 4: no car topiary. It was the "turtle on a brown pad" standing in the lake; the shore
 	-- rule (onLand) now keeps every footprint on dry land, and Task4Checks asserts it.
-	-- white fences on the lake side of the lakeside walks, ending in a post before each bridge and
-	-- building
-	for _, path in park.paths do
-		local pts = (path :: any).points
-		local kind = (path :: any).kind
-		if pts and string.find(kind, "Lakeside") then -- the forecourt walks stay open to the buildings
-			local width = (path :: any).width or 8
-			for i = 1, #pts - 1 do
-				local a, b = pts[i], pts[i + 1]
-				local seg = (b - a).Magnitude
-				local dir = (b - a) / math.max(seg, 1e-6)
-				local normal = Vector2.new(-dir.Y, dir.X)
-				local side = if normal.Y < 0 then 1 else -1 -- toward the lake (plan south)
-				-- segments end to end (pitch = the mesh length; movement review M8: a 9-stud pitch left
-				-- 1-stud gaps), and a post at both ends of every unbroken run
-				local runStart: Vector2? = nil
-				local runEnd: Vector2? = nil
-				local function closeRun()
-					if runStart and runEnd then
-						fencePost(ctx, runStart)
-						fencePost(ctx, runEnd)
-					end
-					runStart, runEnd = nil, nil
-				end
-				for t = 4, seg - 4, FENCE_PITCH do
-					local at = a + dir * t + normal * side * (width / 2 + 0.8)
-					local ok = bridgeClear(at) > 4 and buildingClear(at) > 4 and onLand(at, 1) -- room to stand at a board
-					if ok and put(ctx, "Fences", "FenceSegment", at, yawAlong(dir), 1, { solid = true }) then
-						runStart = runStart or (at - dir * FENCE_PITCH / 2)
-						runEnd = at + dir * FENCE_PITCH / 2
-					else
-						closeRun()
-					end
-				end
-				closeRun()
-			end
-		end
-	end
 end
 
 -- ---------------------------------------------------------------- flower beds

@@ -1073,7 +1073,7 @@ return {
 			{
 				id = "LeaderboardGarage",
 				centre = Vector2.new(106.921, -47.812),
-				facing = Vector2.new(-0.913, 0.408),
+				facing = Vector2.new(-0.742, 0.67), -- toward the avenue 32 studs on the plaza side: read head-on walking in
 				width = 18,
 				depth = 4,
 				height = 15,
@@ -1081,7 +1081,7 @@ return {
 			{
 				id = "LeaderboardStunt",
 				centre = Vector2.new(-106.921, -47.812),
-				facing = Vector2.new(0.913, 0.408),
+				facing = Vector2.new(0.742, 0.67), -- toward the avenue 32 studs on the plaza side: read head-on walking in
 				width = 18,
 				depth = 4,
 				height = 15,

@@ -70,7 +70,8 @@ local function buildCentre(): { Vector2 }
 	local halfLane = RoadNet.LaneWidth / 2
 	local start = Vector2.new(AISLE_END, AISLE_MID)
 	local t: Turtle = { p = start, d = Vector2.new(1, 0), out = { start } }
-	arc(t, 10, math.pi / 2, 2) -- out of the aisle, along the Paddock's side
+	line(t, 1) -- a straight first piece, so the lane's end edge is the aisle's edge
+	arc(t, 9, math.pi / 2, 2) -- out of the aisle, along the Paddock's side
 	line(t, 300 - t.p.Y)
 	sbend(t, 46 - LANE_OUT, 35) -- out to the pit row stretch
 	line(t, 345 - t.p.Y)

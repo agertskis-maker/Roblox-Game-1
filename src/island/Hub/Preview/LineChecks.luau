@@ -126,13 +126,7 @@ local function layered(x: Rect, y: Rect): boolean
 	return endNear > 0.6
 end
 
-local function checkLook(
-	look: Instance,
-	plot: Instance,
-	bearing: number,
-	level: number,
-	RoadNet: any
-): { [string]: { string } }
+local function checkLook(look: Instance, plot: Instance, bearing: number, RoadNet: any): { [string]: { string } }
 	local found: { [string]: { string } } = {
 		crossing = {},
 		overlap = {},
@@ -329,7 +323,7 @@ function LineChecks.run(options: { plots: { number }?, levels: { number }? }?): 
 			Look.clear(plot)
 			Look.apply(plot, level, { index = index, bearing = bearing, owner = "" })
 			local look = plot:FindFirstChild("SpeedwayLook") :: Folder
-			local found = checkLook(look, plot, bearing, level, RoadNet)
+			local found = checkLook(look, plot, bearing, RoadNet)
 			local sum = 0
 			for kind, list in found do
 				totals[kind] = (totals[kind] or 0) + #list
@@ -381,6 +375,78 @@ function LineChecks.text(r: { [string]: any }): string
 	return table.concat(out, "\n")
 end
 
+-- Round 2 N4-03: no plant's crown inside another's, or within 2 of a sign, lamp or gate piece. Crowns are
+-- measured on the placed meshes (whole-plant bounds, the same plant's parts excluded): bounds are the
+-- cautious first pass, irregular crowns are then looked at by eye.
+function LineChecks.canopies(): { [string]: any }
+	local env = workspace:FindFirstChild("Lane3_IslandEnvironment")
+	assert(env, "build the environment first")
+	type Plant = { model: Instance, p: Vector2, r: number, lo: number, hi: number }
+	local plants: { Plant } = {}
+	local objects: { { name: string, p: Vector2, r: number } } = {}
+	for _, d in env:GetDescendants() do
+		if d:IsA("Model") and d:GetAttribute("Family") ~= nil then
+			local crown = d:FindFirstChild("Canopy") or d:FindFirstChild("Foliage")
+			if crown and crown:IsA("BasePart") then
+				table.insert(plants, {
+					model = d,
+					p = Vector2.new(crown.Position.X, crown.Position.Z),
+					r = math.max(crown.Size.X, crown.Size.Z) / 2,
+					lo = crown.Position.Y - crown.Size.Y / 2,
+					hi = crown.Position.Y + crown.Size.Y / 2,
+				})
+			end
+		elseif d:IsA("BasePart") and d.Transparency < 1 then
+			local parent = d.Parent and d.Parent.Name or ""
+			if parent == "Lamps" or parent == "Signs" or parent == "Signposts" or parent == "Pieces" then
+				table.insert(objects, {
+					name = parent .. "/" .. d.Name,
+					p = Vector2.new(d.Position.X, d.Position.Z),
+					r = math.max(d.Size.X, d.Size.Z) / 2,
+				})
+			end
+		end
+	end
+	table.sort(plants, function(a, b)
+		return a.p.X < b.p.X
+	end)
+	local between, withObjects = 0, 0
+	local worst = {}
+	for i, a in plants do
+		for k = i + 1, #plants do
+			local b = plants[k]
+			if b.p.X - a.p.X > a.r + b.r + 1 then
+				break
+			end
+			local gap = (a.p - b.p).Magnitude - a.r - b.r
+			if gap < 0 and a.hi > b.lo and b.hi > a.lo then
+				between += 1
+				if #worst < 8 then
+					table.insert(
+						worst,
+						string.format("%s / %s gap %.1f at (%.0f, %.0f)", a.model.Name, b.model.Name, gap, a.p.X, a.p.Y)
+					)
+				end
+			end
+		end
+		for _, o in objects do
+			if (a.p - o.p).Magnitude - a.r - o.r < 0 then
+				withObjects += 1
+				if #worst < 12 then
+					table.insert(worst, string.format("%s / %s at (%.0f, %.0f)", a.model.Name, o.name, a.p.X, a.p.Y))
+				end
+			end
+		end
+	end
+	return {
+		plants = #plants,
+		objects = #objects,
+		crownsTouching = between,
+		crownsOnObjects = withObjects,
+		examples = worst,
+	}
+end
+
 -- Known-bad cases: each must be caught, or the zero above means nothing.
 function LineChecks.selfTest(): { [string]: number }
 	assert(RunService:IsStudio() and not RunService:IsRunning(), "edit mode in Studio only")
@@ -407,11 +473,11 @@ function LineChecks.selfTest(): { [string]: number }
 		return p
 	end
 	local out: { [string]: number } = {}
-	local base = checkLook(look, plot, bearing, 6, RoadNet)
+	local base = checkLook(look, plot, bearing, RoadNet)
 	out.clean = #base.crossing + #base.overlap + #base.freeEnd + #base.walk
 	-- 1: a line across a junction's mouth, the old fault
 	local bad = line(at(38, 385), at(30, 395))
-	out.crossingCaught = #checkLook(look, plot, bearing, 6, RoadNet).crossing
+	out.crossingCaught = #checkLook(look, plot, bearing, RoadNet).crossing
 	bad:Destroy()
 	-- 2: paint laid twice along the same edge
 	local copy: BasePart? = nil
@@ -424,11 +490,11 @@ function LineChecks.selfTest(): { [string]: number }
 	local double = (copy :: BasePart):Clone()
 	double.CFrame = (copy :: BasePart).CFrame * CFrame.new(0.1, 0, 0)
 	double.Parent = look
-	out.overlapCaught = #checkLook(look, plot, bearing, 6, RoadNet).overlap
+	out.overlapCaught = #checkLook(look, plot, bearing, RoadNet).overlap
 	double:Destroy()
 	-- 3: a line that stops in the middle of the track
 	local stop = line(at(35, 440), at(35, 446))
-	out.freeEndCaught = #checkLook(look, plot, bearing, 6, RoadNet).freeEnd
+	out.freeEndCaught = #checkLook(look, plot, bearing, RoadNet).freeEnd
 	stop:Destroy()
 	-- 4: the walk pulled back from the road, the old gap
 	local walks = {}
@@ -438,7 +504,7 @@ function LineChecks.selfTest(): { [string]: number }
 			d.CFrame -= Layout.plotToWorld(bearing, Vector2.new(0, 3), 0) - Layout.plotToWorld(bearing, Vector2.zero, 0)
 		end
 	end
-	out.walkCaught = #checkLook(look, plot, bearing, 6, RoadNet).walk
+	out.walkCaught = #checkLook(look, plot, bearing, RoadNet).walk
 	for _, w in walks do
 		w[1].CFrame = w[2]
 	end

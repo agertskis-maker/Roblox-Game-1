@@ -151,7 +151,7 @@ local function runCap(parent: Instance, ctx: Ctx, path: LapPath, s: number, offs
 	)
 	Kit.part(
 		parent,
-		Vector3.new(2.1, 0.5, 1.1),
+		Vector3.new(2.2, 0.5, 1.2),
 		CFrame.lookAt(base + Vector3.yAxis * 1.75, base + Vector3.yAxis * 1.75 + dir),
 		{ name = "RunCapBand", color = C.White, castShadow = false }
 	)
@@ -414,7 +414,14 @@ end
 
 -- The pit lanes and their junctions with the track: the road network's surfaces and its paint. On the
 -- dirt levels the lanes are dirt too, with no paint.
-local function pitRoads(folder: Folder, ctx: Ctx, colour: Color3, material: Enum.Material?, paint: boolean)
+local function pitRoads(
+	folder: Folder,
+	ctx: Ctx,
+	colour: Color3,
+	material: Enum.Material?,
+	paint: boolean,
+	apron: boolean?
+)
 	local fill = { name = "Surface", color = colour, material = material, collide = true, castShadow = false }
 	local thick = 0.4
 	for _, j in RoadNet.Junctions do
@@ -456,8 +463,14 @@ local function pitRoads(folder: Folder, ctx: Ctx, colour: Color3, material: Enum
 			)
 		end
 		if paint then
-			for _, chain in j.lines do
-				paintChain(road, ctx, chain.points, nil, chain.name)
+			for i, chain in j.lines do
+				local points = chain.points
+				if apron and j.side > 0 and i == 3 then
+					-- the road's inner edge leaves here on level 12: the apron paints it from the turn's end
+					points = table.clone(points)
+					table.remove(points)
+				end
+				paintChain(road, ctx, points, nil, chain.name)
 			end
 			for _, dash in j.dashes do
 				paintChain(road, ctx, dash, RoadNet.LineWidth, "MergeDash")
@@ -474,8 +487,8 @@ function Track.pitRoadsRaked(folder: Folder, ctx: Ctx)
 	pitRoads(folder, ctx, C.DirtRaked, nil, false)
 end
 
-function Track.pitRoadsAsphalt(folder: Folder, ctx: Ctx)
-	pitRoads(folder, ctx, C.Asphalt, Enum.Material.Asphalt, true)
+function Track.pitRoadsAsphalt(folder: Folder, ctx: Ctx, apron: boolean?)
+	pitRoads(folder, ctx, C.Asphalt, Enum.Material.Asphalt, true, apron)
 end
 
 -- The walk's gate in the track's outer barrier: two white posts and a short open gate, the road's edge
