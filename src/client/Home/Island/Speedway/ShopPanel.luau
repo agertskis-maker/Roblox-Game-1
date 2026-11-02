@@ -792,6 +792,28 @@ local function buildMaxBody(p: Panel, inner: Frame, width: number, height: numbe
 	)
 	fadable(p, big)
 	fadable(p, info)
+	-- every spot bought: the one way to more is in the Shop (Round 3 N3-07)
+	local more = ShopPanel.onMoreSpots
+	if p.kind ~= "upgrade" and more then
+		info.Position = UDim2.fromOffset(-90, 0)
+		local link: TextButton = make("TextButton", {
+			Name = "GetMoreSpots",
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -6, 0.5, 0),
+			Size = UDim2.fromOffset(170, 44),
+			BackgroundColor3 = C.Primary,
+			Text = "Get more spots",
+			FontFace = Tokens.font(),
+			TextSize = Tokens.TextSize.Label,
+			TextColor3 = C.Text,
+			Parent = infoTile,
+		})
+		make("UICorner", { CornerRadius = UDim.new(0, 10), Parent = link })
+		link.Activated:Connect(function()
+			ShopPanel.close(true)
+			more()
+		end)
+	end
 end
 
 -- The BUY row (a 56 high button, left of the STUDIO PREVIEW marker) and the preview line.
