@@ -315,8 +315,8 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				Color = CarKit.ChromeBottom,
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			}, slot)
-			CarKit.art(slot, "thumb_car_body", {
-				color = Color3.fromRGB(46, 58, 92),
+			CarKit.art(slot, "thumb_car_none", {
+				color = Color3.fromRGB(70, 84, 124),
 				size = UDim2.fromScale(0.74, 1.05),
 				z = 7,
 				placeholder = false,

@@ -572,6 +572,36 @@ function LaunchPad.attachShell(s: any)
 	})
 end
 
+-- A locked portal: Coach Roxy says what it needs (PREVIEW numbers until the unlock rules are real). Once per visit to the portal.
+local lockedOpen: any = nil
+local LOCK_PRESET: { [string]: string } = { DustyHighway = "DustyLocked", SummitPass = "SummitLocked" }
+
+function LaunchPad.lockedPortal(name: string)
+	if lockedOpen and lockedOpen:isOpen() then
+		return
+	end
+	local Dialogue = (require :: any)(Prototype.Screens.DialogueCard)
+	local Fixtures = (require :: any)(Prototype.SupportFixtures.DialogueFixtures)
+	local spec = Fixtures.preset(LOCK_PRESET[name] or "Unknown")
+	local layer = shell and shell.screen.safe:FindFirstChild("ModalLayer")
+	if spec and layer and not Dialogue.isSuppressed(spec.key) then
+		lockedOpen = Dialogue.show(layer, spec)
+	end
+end
+
+function LaunchPad.lockedAway()
+	pcall(function()
+		local Dialogue = (require :: any)(Prototype.Screens.DialogueCard)
+		for world in LOCK_PRESET do
+			local Fixtures = (require :: any)(Prototype.SupportFixtures.DialogueFixtures)
+			local spec = Fixtures.preset(LOCK_PRESET[world])
+			if spec then
+				Dialogue.clearSuppression(spec.key)
+			end
+		end
+	end)
+end
+
 -- The character was replaced in the middle of something: back to the island's normal state.
 function LaunchPad.reset()
 	padTrove:Clean()
