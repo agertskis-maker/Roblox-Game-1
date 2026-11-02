@@ -13,9 +13,8 @@
 --   Fixture.enterMode(api, index)                     Home, Run or Results for the step
 --
 -- Stand-in event table (EVENTS): each entry is { source: "run" | "island", name, data? }.
---   0 none (2 s timer)  1 PortalEntered then RunStarted  2 SteerLeft, SteerRight  3 HopPressed, HopLanded
---   4 KeysStarted, ClaimConfirmed  5 HeatWarning, HopPressed, HopLanded  6 RunEnded, ResultsShown, then ArrivedHome
---   7 CarParked  8 LapCue  9 UpgradeConfirmed  10 ShopOpened  11 none (3 s timer)
+--   0 PortalEntered then RunStarted  1 HopPressed, HopLanded  2 KeysStarted, ClaimConfirmed
+--   3 RunEnded, ResultsShown, then ArrivedHome  4 CarParked  5 none (3 s timer)
 
 local Tutorial = require(script.Parent)
 local Steps = require(script.Parent.TutorialSteps)
@@ -25,39 +24,26 @@ local Fixture = {}
 export type Event = { source: string, name: string, data: { [string]: any }? }
 
 local EVENTS: { [number]: { Event } } = {
-	[0] = {},
-	[1] = {
+	[0] = {
 		{ source = "island", name = "PortalEntered", data = { world = "Downtown" } },
 		{ source = "run", name = "RunStarted" },
 	},
-	[2] = {
-		{ source = "run", name = "SteerLeft" },
-		{ source = "run", name = "SteerRight" },
-	},
-	[3] = {
+	[1] = {
 		{ source = "run", name = "HopPressed", data = { onCar = true } },
 		{ source = "run", name = "HopLanded", data = { onCar = true } },
 	},
-	[4] = {
+	[2] = {
 		{ source = "run", name = "KeysStarted" },
 		{ source = "run", name = "ClaimConfirmed", data = { isNew = true, name = "Puglet" } },
 	},
-	[5] = {
-		{ source = "run", name = "HeatWarning", data = { stage = "Warning" } },
-		{ source = "run", name = "HopPressed", data = { onCar = true } },
-		{ source = "run", name = "HopLanded", data = { onCar = true } },
-	},
-	[6] = {
+	[3] = {
 		{ source = "run", name = "RunEnded", data = { cause = "Overheated" } },
 		{ source = "run", name = "ResultsShown" },
 		{ source = "run", name = "RunClosed" },
 		{ source = "island", name = "ArrivedHome" },
 	},
-	[7] = { { source = "island", name = "CarParked" } },
-	[8] = { { source = "island", name = "LapCue" } },
-	[9] = { { source = "island", name = "UpgradeConfirmed", data = { level = 2 } } },
-	[10] = { { source = "island", name = "ShopOpened" } },
-	[11] = {},
+	[4] = { { source = "island", name = "CarParked" } },
+	[5] = {},
 }
 
 function Fixture.eventsFor(index: number): { Event }

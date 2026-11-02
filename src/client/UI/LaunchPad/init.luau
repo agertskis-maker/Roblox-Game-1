@@ -51,11 +51,17 @@ local returnTo: CFrame? = nil
 local pads: { [string]: Build.Pad } = {}
 local padTrove = Trove.new()
 local runTrove = Trove.new()
-local onRamp = false
 local rampArmed = true
 local bestMetres = 0
 local unbindKey: (() -> ())? = nil
 local hint: string? = nil
+
+-- tutorial events, through the lazily required module, so a place with no tutorial still runs
+local function tutorial(name: string, data: { [string]: any }?)
+	pcall(function()
+		(require :: any)(script.Parent.Tutorial).emitIsland(name, data)
+	end)
+end
 
 local function setPhase(p: string)
 	phase = p
@@ -210,7 +216,6 @@ end
 
 local function watchPad(pad: Build.Pad)
 	padTrove:Clean()
-	onRamp = false
 	rampArmed = true
 	-- the stalls' prompts
 	for key, part in pad.stalls do
@@ -245,11 +250,13 @@ local function watchPad(pad: Build.Pad)
 		if inside and rampArmed and not anyPanelOpen() and card and not card:isOpen() then
 			rampArmed = false
 			card:open(WORLD_TITLE[world] or world, hint)
+			tutorial("PadCard", { open = true })
 		elseif not inside and not rampArmed then
 			rampArmed = true
 			if card and card:isOpen() then
 				card:close()
 			end
+			tutorial("PadCard", { open = false })
 		end
 		local h = Vector3.new(p.X - pad.home.X, 0, p.Z - pad.home.Z)
 		if h.Magnitude < 5.5 then
@@ -269,7 +276,16 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 		local pad = padFor(name)
 		setLight(name)
 		moveTo(pad.arrival)
+		-- a pad built this frame has no collision yet: hold the player still for a moment
+		local r = root()
+		if r then
+			r.Anchored = true
+			task.delay(0.3, function()
+				r.Anchored = false
+			end)
+		end
 		watchPad(pad)
+		tutorial("PadEntered", { ramp = pad.rampCentre })
 	end)
 end
 
@@ -354,9 +370,12 @@ local function hideHisResults()
 	if gui then
 		-- his keyboard hint names keys, and phones play too; he sets it visible again, so keep it down
 		for _, d in gui:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Cut lanes", 1, true) then
+			if d:IsA("TextLabel") and string.find(d.Text, "Space", 1, true) then
 				d.Visible = false
 				runTrove:Connect(d:GetPropertyChangedSignal("Visible"), function()
+					d.Visible = false
+				end)
+				runTrove:Connect(d:GetPropertyChangedSignal("Text"), function()
 					d.Visible = false
 				end)
 			end
@@ -439,6 +458,33 @@ local function retry()
 	begin()
 end
 
+-- One-time hints, later and gentle: never a block, once a session at most (Adam's decision 5).
+local homeRuns = 0
+local function laterHints()
+	homeRuns += 1
+	local hud = shell and shell.hud
+	if not hud then
+		return
+	end
+	local Strings = (require :: any)(script.Parent.Tutorial.TutorialStrings)
+	if homeRuns == 1 then
+		hud:setGoal({
+			title = Strings.get("later.upgrade.title"),
+			subtitle = Strings.get("later.upgrade.line"),
+			icon = "Raceway",
+		})
+	elseif homeRuns == 3 then
+		hud:setGoal({
+			title = Strings.get("later.shop.title"),
+			subtitle = Strings.get("later.shop.line"),
+			icon = "Shop",
+			onActivate = function()
+				shell.shopAt("Trails")
+			end,
+		})
+	end
+end
+
 local function home()
 	finishRun()
 	setPhase("leaving")
@@ -452,6 +498,7 @@ local function home()
 		end)
 		task.wait(2)
 		setPhase("island")
+		pcall(laterHints)
 	end)
 end
 

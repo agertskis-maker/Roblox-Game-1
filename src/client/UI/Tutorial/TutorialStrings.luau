@@ -1,7 +1,7 @@
 --!strict
 -- TutorialStrings: EVERY player-facing word of the tutorial, in one table, so it can be localized later (BRIEF M11-11).
--- Nothing else in src/client/UI/Tutorial or the banner contains tutorial copy. Round 2 (N8-01a, 2026-11-02): the twelve
--- steps now carry a headline, a green instruction and ONE delayed hint (revealed after 8 seconds without progress).
+-- Nothing else in src/client/UI/Tutorial or the banner contains tutorial copy. Round 3: the six
+-- steps carry a headline, a green instruction and ONE delayed hint (revealed after 8 seconds without progress).
 -- Where playtesting should change a word, change it here only. Keys are stable ids; a localization table can map them one
 -- to one.
 --
@@ -21,9 +21,6 @@
 --   * "It's yours!" is shown only when a run adapter can VERIFY a claim; the standalone fixture says "New car preview!".
 --   * "Your new car is saved." is shown only when an adapter can verify a real save. In the beta nothing from a run is
 --     saved, so the verified-claim line is "You got the keys!" instead.
---   * The results screen in the beta has Revive and Retry, and Retry puts the player back on the island, so step 6 says
---     "Tap Retry to walk home." there. The fixture results card has a Home button, so it says "Choose HOME on the Results
---     screen."
 
 local Strings = {}
 
@@ -36,69 +33,42 @@ export type Context = {
 
 local STEPS: { [number]: StepText } = {
 	[0] = {
-		title = "Welcome to Car Hop!",
-		line = "Collect cars. Build your Raceway.",
-		hint = "Follow the arrows to Downtown.",
+		title = "Go to Downtown!",
+		line = "Walk into the portal",
+		hint = "Follow the yellow arrows.",
 	},
 	[1] = {
-		title = "Go to Downtown!",
-		line = "Walk into the Downtown portal.",
-		hint = "Follow the glowing arrows to the portal.",
+		title = "Hop to a car!",
+		line = "Hop when the ring is close",
+		hint = "Aim for the next car, then hop.",
 	},
 	[2] = {
-		title = "Steer your car!",
-		line = "Steer to avoid cars!", -- no keys named: phones play too (Adam, 2026-11-02)
-		hint = "Try steering both ways: {done}/2.",
+		title = "Hold on!",
+		line = "Stay on until the keys fill",
+		hint = "Keep riding to make it yours.",
 	},
 	[3] = {
-		title = "Hop to another car!",
-		line = "Hop, then land on a car.",
-		hint = "Aim for the next car before you jump.",
+		title = "Go home!",
+		line = "Press HOME",
+		hint = "HOME takes you back to your island.",
 	},
 	[4] = {
-		title = "Make this car yours!",
-		line = "Stay aboard until the keys fill.",
-		hint = "Keep riding this new car to collect it.",
+		title = "Park your car!",
+		line = "Add it to your Raceway",
+		hint = "Your parked cars earn Cash.",
 	},
 	[5] = {
-		title = "Watch your ENGINE HEAT!",
-		line = "Hop before the heat fills up.",
-		hint = "The heat gauge shows when to switch cars.",
-	},
-	[6] = {
-		title = "Head back home!",
-		line = "Choose HOME on the Results screen.",
-		hint = "The HOME button returns you to your island.",
-	},
-	[7] = {
-		title = "Put your car to work!",
-		line = "Add your car to a Raceway spot.",
-		hint = "Open your lineup and choose your new car.",
-	},
-	[8] = {
-		title = "Watch your Raceway earn!",
-		line = "Your car earns Cash when it finishes a lap.",
-		hint = "Watch your car cross the finish line.",
-	},
-	[9] = {
-		title = "Upgrade your Raceway!",
-		line = "Visit the Raceway shopkeeper.",
-		hint = "Follow the arrows to see the next upgrade.",
-	},
-	[10] = {
-		title = "Take a look in the Shop!",
-		line = "Open the Shop to see what is available.",
-		hint = "{Tap} the Shop button. No purchase is needed.",
-	},
-	[11] = {
 		title = "You're ready!",
-		line = "Collect more cars and grow your Raceway!",
-		hint = "Downtown is ready whenever you are.",
+		line = "Catch more cars. Grow your Raceway!",
+		hint = "",
 	},
 }
 
 local LINES: { [string]: string } = {
 	-- step 1
+	["portal.pad.line"] = "Walk up the ramp",
+	["portal.pad.hint"] = "Step on the glowing ramp.",
+	["portal.card.line"] = "Press START!",
 	["portal.retry"] = "Try the portal again.",
 	["portal.retry.hint"] = "Walk into the glowing portal.",
 	-- step 2 and 3
@@ -118,9 +88,7 @@ local LINES: { [string]: string } = {
 	["heat.wait.title"] = "Keep riding!",
 	["heat.wait.line"] = "Hop to more cars.",
 	-- step 6
-	["home.fixture"] = "Choose HOME on the Results screen.",
-	["home.retry"] = "Tap Retry to walk home.",
-	["home.retry.hint"] = "Retry puts you back on your island.",
+	["home.fixture"] = "Press HOME",
 	["home.wait.title"] = "Keep riding!",
 	["home.wait.line"] = "Hop on until the ride ends.",
 	-- banner done line
@@ -140,13 +108,16 @@ local LINES: { [string]: string } = {
 	["controls.tap"] = "Tap",
 	["controls.drag"] = "Drag",
 	["controls.hop"] = "Hop",
-	-- the banner's tutorial progress words ("2 / 12"), kept as a format so a locale can reorder them
-	["progress.format"] = "%d / %d",
 	-- returning players (N8-05): the goal pill words
 	["return.upgrade.title"] = "UPGRADE READY!",
 	["return.upgrade.line"] = "You can afford the next Raceway upgrade.",
 	["return.portal.title"] = "NEXT WORLD READY!",
 	["return.portal.line"] = "Walk into its portal!",
+	-- one-time hints after the tutorial (Round 3, Adam's decision 5): they never block play
+	["later.upgrade.title"] = "UPGRADE YOUR RACEWAY!",
+	["later.upgrade.line"] = "Visit your Raceway to level it up.",
+	["later.shop.title"] = "SEE WHAT'S NEW!",
+	["later.shop.line"] = "New trails in the Shop.",
 	["return.mission.title"] = "REWARD WAITING!",
 	["return.mission.line"] = "Open Missions to claim it.",
 	-- accessibility labels and debug
