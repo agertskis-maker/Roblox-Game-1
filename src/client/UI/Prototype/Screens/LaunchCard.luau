@@ -11,8 +11,8 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local StyleState = require(Prototype.StyleState)
-local Supercar = require(Prototype.Supercar)
 local TrailPreview = require(script.Parent.TrailPreview) :: any
 
 local make = CarKit.make
@@ -114,22 +114,18 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			Color = Color3.fromRGB(110, 170, 255),
 			Material = Enum.Material.Neon,
 		}, world)
-		local rig = if Supercar.available() then Supercar.new() else nil
+		local rig = RealCar.mount(world)
 		local function applyStyle()
-			if rig then
-				rig:setPaint(StyleState.item("Paint"), 0.18)
-				rig:setDecal(StyleState.item("Decals"))
-				rig:setWheels(StyleState.item("Wheels"))
-			end
+			rig:setCar(StyleState.car())
+			rig:setPaint(StyleState.item("Paint"), 0.18)
+			rig:setDecal(StyleState.item("Decals"))
+			rig:setWheels(StyleState.item("Wheels"))
 			trailView:set(StyleState.item("Trails"))
 		end
-		if rig then
-			rig.model.Parent = world
-			rig.model:PivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(215), 0))
-			buildTrove:Add(function()
-				rig:destroy()
-			end)
-		end
+		rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(215), 0))
+		buildTrove:Add(function()
+			rig:destroy()
+		end)
 		applyStyle()
 		buildTrove:Connect(StyleState.Changed, applyStyle)
 
@@ -137,9 +133,9 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local started = os.clock()
 		buildTrove:Connect(RunService.Heartbeat, function(dt: number)
 			trailView:step(dt)
-			if rig and not Motion.reduced() then
+			if not Motion.reduced() then
 				local a = math.rad(215 + math.sin((os.clock() - started) * 0.7) * 12)
-				rig.model:PivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
+				rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
 			end
 		end)
 

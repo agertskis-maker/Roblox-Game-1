@@ -6,6 +6,7 @@
 --   StyleState.get() -> State           StyleState.Changed (Signal)
 --   StyleState.equip(tab, id)           StyleState.own(id)
 --   StyleState.item(tab) -> Item?       the worn item of a tab
+--   StyleState.car() -> string          the picked car's model name   StyleState.setCar(name)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -14,11 +15,12 @@ local Signal = require(ReplicatedStorage.Packages.Signal)
 
 local StyleState = {}
 
-export type State = { ownership: Catalog.Ownership, equipped: Catalog.Equipped }
+export type State = { ownership: Catalog.Ownership, equipped: Catalog.Equipped, car: string }
 
 local state: State = {
 	ownership = Catalog.defaultOwnership(),
 	equipped = Catalog.defaultEquipped(),
+	car = "Commuter",
 }
 
 StyleState.Changed = Signal.new()
@@ -35,6 +37,15 @@ end
 function StyleState.own(id: string)
 	state.ownership.owned[id] = true
 	StyleState.Changed:Fire("owned", id)
+end
+
+function StyleState.car(): string
+	return state.car
+end
+
+function StyleState.setCar(name: string)
+	state.car = name
+	StyleState.Changed:Fire("car", name)
 end
 
 function StyleState.item(tab: string): Catalog.Item?

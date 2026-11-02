@@ -467,7 +467,7 @@ end
 
 -- CUSTOMIZATION --------------------------------------------------------------------------------------------------------
 
--- The catalog (33 paints, 15 decals, 10 wheels, their tiers, PREVIEW prices and medal conditions) lives in
+-- The catalog (34 paints, 15 decals, 10 wheels, their tiers, PREVIEW prices and medal conditions) lives in
 -- ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog since Round 2 (N12-03b); these are the thin fixture entry points the screen and
 -- the harness already used. Ownership, medals and what is worn are FIXTURES the screen reads and copies, and never writes.
 export type TabId = Catalog.TabId
@@ -548,9 +548,9 @@ function StuntFixtures.selfTest(): { string }
 	expect("outside not in top", outside.youInTop, false)
 	expect("no time you", StuntFixtures.board("NoTime").you, nil)
 	expect("empty rows", #StuntFixtures.board("Empty").entries, 0)
-	-- the customization content the brief asks for (N12-03b): 33 paints, 15 decals, 10 wheels
+	-- the customization content the brief asks for (N12-03b): 34 paints, 15 decals, 10 wheels
 	local counts = Catalog.counts()
-	expect("paint count", counts.Paint, 33)
+	expect("paint count", counts.Paint, 34)
 	expect("decal count", counts.Decals, 15)
 	expect("wheel count", counts.Wheels, 10)
 	local freePaints = 0
@@ -559,14 +559,14 @@ function StuntFixtures.selfTest(): { string }
 			freePaints += 1
 		end
 	end
-	expect("free paints", freePaints, 8)
+	expect("free paints", freePaints, 9)
 	local o = StuntFixtures.ownership()
 	local e = StuntFixtures.equipped()
 	local function paintState(id: string): string
 		local item = Catalog.byId("Paint", id)
 		return if item then Catalog.stateOf(item, o, e.Paint) else "missing"
 	end
-	expect("equipped paint state", paintState("downtown_blue"), "equipped")
+	expect("equipped paint state", paintState("factory_paint"), "equipped")
 	expect("free paint state", paintState("pit_white"), "owned")
 	expect("bought paint state", paintState("tangerine_pop"), "owned")
 	expect("priced paint state", paintState("plum_punch"), "priced")

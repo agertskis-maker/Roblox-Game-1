@@ -20,8 +20,9 @@ local UserInputService = game:GetService("UserInputService")
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
+local RealCar = require(Prototype.RealCar)
+local RunKit = require(Prototype.Run.RunKit)
 local StyleState = require(Prototype.StyleState)
-local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -131,15 +132,13 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local camera = make("Camera", { FieldOfView = math.clamp(29 / stageAspect, 19, 36) }, view) :: Camera
 	view.CurrentCamera = camera
 	local world = make("WorldModel", {}, view) :: WorldModel
-	local rig = if Supercar.available() then Supercar.new() else nil
+	local rig = RealCar.mount(world)
+	rig:setCar(StyleState.car())
+	trove:Add(function()
+		rig:destroy()
+	end)
 	local pivot = CFrame.new(0, 0.5, 0)
 	local TRAIL_POSE = CFrame.new(4.5, 0.5, 0) -- the car slides right on the Trails tab, so its trail has room
-	if rig then
-		rig.model.Parent = world
-		trove:Add(function()
-			rig:destroy()
-		end)
-	end
 	-- the turntable under it
 	local disc = make("Part", {
 		Name = "Disc",
@@ -167,9 +166,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	placeCamera()
 	local function setYaw(a: number)
 		yaw = a
-		if rig then
-			rig.model:PivotTo(pivot * CFrame.Angles(0, a, 0))
-		end
+		rig:pivotTo(pivot * CFrame.Angles(0, a, 0))
 		disc.CFrame = CFrame.new(pivot.X, 0.32, 0) * CFrame.Angles(0, 0, math.pi / 2)
 		discEdge.CFrame = disc.CFrame
 	end
@@ -280,11 +277,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function applyToCar()
-		if rig then
-			rig:setPaint(shownItem("Paint"), 0.18)
-			rig:setDecal(shownItem("Decals"))
-			rig:setWheels(shownItem("Wheels"))
-		end
+		rig:setCar(StyleState.car())
+		rig:setPaint(shownItem("Paint"), 0.18)
+		rig:setDecal(shownItem("Decals"))
+		rig:setWheels(shownItem("Wheels"))
 		applyTrail(shownItem("Trails"))
 	end
 
@@ -367,7 +363,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function thumbFor(item: Catalog.Item, holder: Frame, z: number)
-		if item.tab == "Paint" then
+		if item.id == "factory_paint" and RunKit.thumb(holder, { model = rig.source } :: any) then
+			return -- the car itself, as Brian L made it
+		elseif item.tab == "Paint" then
 			local body = CarKit.art(holder, "thumb_car_body", { z = z, placeholder = false, color = item.colours[1] })
 			local image = body:FindFirstChild("Image") :: ImageLabel?
 			if image and #item.colours > 1 and item.kind ~= "solid" then
@@ -652,7 +650,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if accumulate >= 1 / 12 then
 			accumulate = 0
 			local paint = shownItem("Paint")
-			if rig and paint and Supercar.isAnimated(paint) then
+			if paint and RealCar.isAnimated(paint) then
 				rig:tick(((os.clock() - started) / (paint.cycleSeconds or 6)) % 1)
 			end
 		end
@@ -684,7 +682,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			cards = count,
 			previewed = previewed,
 			equipped = StyleState.get().equipped,
-			rig = rig ~= nil,
+			rig = rig.source,
 		}
 	end
 
