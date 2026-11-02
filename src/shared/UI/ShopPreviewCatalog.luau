@@ -9,7 +9,7 @@
 --
 --   Catalog.get(id) -> Offer?                       -- one offer by id
 --   Catalog.list(kind) -> { Offer }                 -- offers of one kind, in display order
---   Catalog.sections() -> { Section }               -- Featured, Passes, Cash (flag), Style, Free, in page order
+--   Catalog.sections() -> { Section }               -- Featured, Passes, Cash, Style, Free, in page order
 --   Catalog.priceLabel(offer) -> string             -- "PREVIEW · 199 Robux" (the word, never a symbol)
 --   Catalog.bundleMath(bundleId) -> BundleMath?     -- component sum, saving and percent from the real fixture prices
 --   Catalog.sectionId(name) -> string?              -- "Cash", "cash", "Passes" ... -> the section id (or nil)
@@ -46,8 +46,8 @@ export type Offer = {
 	actionLabel: string?, -- the button words when there is no price
 	lockedText: string?, -- Medal cards: how it is earned
 	note: string?, -- a calm line under the card
-	amount: number?, -- Cash packs: the PREVIEW amount; nil shows "Amount pending"
 	swatches: { Color3 }?, -- Style cards: the colours the live preview cycles through
+	parts: { { art: string, label: string } }?, -- Starter Pack: each thing inside, as its own tile
 }
 
 export type Section = {
@@ -55,7 +55,6 @@ export type Section = {
 	title: string,
 	subtitle: string?,
 	icon: string,
-	flag: string?, -- "cash": only present when the Cash flag is on
 	offers: { string },
 }
 
@@ -71,7 +70,6 @@ export type BundleMath = {
 Catalog.PriceWord = "Robux"
 Catalog.PreviewValueTag = "PREVIEW VALUE"
 Catalog.PreviewNote = "PREVIEW: contents and price proposed"
-Catalog.CashPreviewNote = "PREVIEW: amount and price proposed"
 Catalog.StyleNote = "Looks only. Same driving stats."
 
 local function rgb(r: number, g: number, b: number): Color3
@@ -86,7 +84,12 @@ local offers: { Offer } = {
 		name = "STARTER PACK",
 		tag = "FEATURED",
 		body = "A fresh look for your first laps.",
-		contents = "Starter paint + decal + car cosmetic + Cash boost",
+		contents = "$5,000 Cash + Rookie Flame paint + Starter Stripe decal",
+		parts = {
+			{ art = "art_cash2", label = "$5,000" },
+			{ art = "decal", label = "Rookie Flame" },
+			{ art = "item_stripe", label = "Starter Stripe" },
+		},
 		previewLine = Catalog.PreviewNote,
 		icon = "StarterPack",
 		art = "starter-pack",
@@ -210,51 +213,6 @@ local offers: { Offer } = {
 		fill = "Violet",
 		actionLabel = "See reward",
 	},
-	-- CASH (hidden behind a flag until Brian L and Adam approve Developer Products; no recommended prices) ------
-	{
-		id = "cash-pocket",
-		kind = "Cash",
-		name = "POCKET CASH",
-		body = "A small top-up.",
-		icon = "CashStack",
-		art = "cash-pocket",
-		fill = "Lime",
-		amount = 500,
-		previewLine = Catalog.CashPreviewNote,
-	},
-	{
-		id = "cash-bag",
-		kind = "Cash",
-		name = "CASH BAG",
-		body = "A bigger top-up.",
-		icon = "CashBag",
-		art = "cash-bag",
-		fill = "Teal",
-		amount = 2500,
-		previewLine = Catalog.CashPreviewNote,
-	},
-	{
-		id = "cash-chest",
-		kind = "Cash",
-		name = "CASH CHEST",
-		body = "A chest of Cash.",
-		icon = "CashChest",
-		art = "cash-chest",
-		fill = "Orange",
-		amount = 10000,
-		previewLine = Catalog.CashPreviewNote,
-	},
-	{
-		id = "cash-vault",
-		kind = "Cash",
-		name = "CASH VAULT",
-		body = "A vault of Cash.",
-		icon = "CashVault",
-		art = "cash-vault",
-		fill = "Violet",
-		amount = 50000,
-		previewLine = Catalog.CashPreviewNote,
-	},
 }
 
 local byId: { [string]: Offer } = {}
@@ -279,10 +237,9 @@ local SECTIONS: { Section } = {
 	{
 		id = "cash",
 		title = "Cash",
-		subtitle = "Preview only: amounts and prices are proposals",
+		subtitle = "Packs grow as your Raceway grows!",
 		icon = "CashStack",
-		flag = "cash",
-		offers = { "cash-pocket", "cash-bag", "cash-chest", "cash-vault" },
+		offers = {},
 	},
 	{
 		id = "style",
@@ -324,16 +281,9 @@ function Catalog.all(): { Offer }
 	return table.clone(offers)
 end
 
--- Sections in page order. `cashOn` keeps the Cash section (M10-02, M10-03a: with the flag off the section and its tab
--- do not exist at all).
-function Catalog.sections(cashOn: boolean?): { Section }
-	local out: { Section } = {}
-	for _, section in SECTIONS do
-		if section.flag ~= "cash" or cashOn == true then
-			table.insert(out, section)
-		end
-	end
-	return out
+-- Sections in page order.
+function Catalog.sections(): { Section }
+	return table.clone(SECTIONS)
 end
 
 local function comma(n: number): string
@@ -357,14 +307,11 @@ function Catalog.priceLabel(offer: Offer): string
 	if price ~= nil then
 		return "PREVIEW · " .. Catalog.priceText(price)
 	end
-	if offer.kind == "Cash" then
-		return "PREVIEW · price pending"
-	end
 	return offer.actionLabel or "Coming soon"
 end
 
 -- A section id from a name a caller may use: "Cash", "cash", "PASSES" ... Matches the id or the title, ignoring case.
--- nil when no section has that name (the Cash section only exists behind its flag, so the caller checks `sections()`).
+-- nil when no section has that name.
 function Catalog.sectionId(name: string): string?
 	local key = string.lower(name)
 	for _, section in SECTIONS do

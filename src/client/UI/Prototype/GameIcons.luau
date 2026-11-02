@@ -4,12 +4,16 @@
 -- Icons2.draw sends here first, so no screen keeps its own copy of an icon.
 --
 -- Where an image comes from, best first:
---   1. its uploaded asset id (GameIconIds, filled in after the group upload);
---   2. a local preview: ReplicatedStorage.Lane3_IconPreview holds the pixels as modules in Adam's local test
---      places only (outside Git, Car-Hop-Art/review/round2/icons/preview), shown through an EditableImage;
+--   1. its uploaded asset id (GameIconIds, filled in after the one group upload);
+--   2. a local file: only where ReplicatedStorage.Lane3_LocalArt exists (Adam's local test places, never the game), Studio
+--      reads rbxasset://carhop/<key>.png from its own content folder (Car-Hop-Art/review/round3/art/install-local-art.ps1).
+--      These load and mip like real uploads, unlike the 96 px EditableImage previews of Round 2, which were the blur;
 --   3. nothing here: the caller falls back to the code-drawn art (Icons2), so a screen never shows a hole.
+--
+-- Art and icons share this one table of keys. GameIcons.preload fetches a list up front, and a local file that fails is
+-- remembered as missing, so a Studio update that empties the content folder falls back instead of showing blanks.
 
-local AssetService = game:GetService("AssetService")
+local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameIconIds = require(script.Parent.GameIconIds)
@@ -66,62 +70,78 @@ GameIcons.Painter = {
 	Ready = "medal",
 	Retry = "retry",
 	Moon = "moon",
+	Trail = "trail",
 }
 
-type Cached = { content: Content }
-local previews: { [string]: Cached | false } = {}
+-- Keys drawn once and shown under two names.
+GameIcons.Alias = {
+	doubleLapPay = "art_doublelap",
+	starterPack = "art_starter",
+	bundle = "art_bundle",
+	cross = "close",
+}
 
-local function hexValue(byte: number): number
-	return if byte <= 57 then byte - 48 elseif byte >= 97 then byte - 87 else byte - 55
+local missing: { [string]: boolean } = {}
+
+local function resolve(key: string): string
+	return GameIcons.Alias[key] or key
 end
 
-local function preview(key: string): Content?
-	local cached = previews[key]
-	if cached ~= nil then
-		return if cached then cached.content else nil
+-- The image address of `key` here, or nil when there is no art.
+function GameIcons.uri(key: string): string?
+	local k = resolve(key)
+	local id = GameIconIds[k]
+	if id then
+		return id
 	end
-	previews[key] = false
-	local folder = ReplicatedStorage:FindFirstChild("Lane3_IconPreview")
-	local module = folder and folder:FindFirstChild(key)
-	if not module or not module:IsA("ModuleScript") then
-		return nil
+	if not missing[k] and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
+		return "rbxasset://carhop/" .. k .. ".png"
 	end
-	local ok, content = pcall(function(): Content
-		local data = (require :: any)(module)
-		local size = Vector2.new(data.w, data.h)
-		local bytes = data.w * data.h * 4
-		local pixels = buffer.create(bytes)
-		local hex = data.hex
-		for i = 0, bytes - 1 do
-			local a, b = string.byte(hex, i * 2 + 1, i * 2 + 2)
-			buffer.writeu8(pixels, i, hexValue(a :: number) * 16 + hexValue(b :: number))
+	return nil
+end
+
+-- True when `key` has real art here.
+function GameIcons.has(key: string): boolean
+	return GameIcons.uri(key) ~= nil
+end
+
+-- Fetches images up front (yields). A local file that fails is marked missing. Returns how many loaded and how many failed.
+function GameIcons.preload(keys: { string }, onStep: ((done: number, total: number) -> ())?): (number, number)
+	local byUri: { [string]: string } = {}
+	local uris: { string } = {}
+	for _, key in keys do
+		local uri = GameIcons.uri(key)
+		if uri and not byUri[uri] then
+			byUri[uri] = resolve(key)
+			table.insert(uris, uri)
 		end
-		local image = AssetService:CreateEditableImage({ Size = size })
-		image:WritePixelsBuffer(Vector2.zero, size, pixels)
-		return Content.fromObject(image)
+	end
+	local done, failed = 0, 0
+	local ok = pcall(function()
+		ContentProvider:PreloadAsync(uris, function(uri: string, status: Enum.AssetFetchStatus)
+			done += 1
+			if status ~= Enum.AssetFetchStatus.Success then
+				failed += 1
+				local key = byUri[uri]
+				if key and not GameIconIds[key] then
+					missing[key] = true
+				end
+			end
+			if onStep then
+				onStep(done, #uris)
+			end
+		end)
 	end)
 	if not ok then
-		warn("[GameIcons] preview of " .. key .. " failed: " .. tostring(content))
-		return nil
+		warn("[GameIcons] preload failed")
 	end
-	previews[key] = { content = content }
-	return content
-end
-
--- True when `key` has real art here (an uploaded id or a local preview).
-function GameIcons.has(key: string): boolean
-	return GameIconIds[key] ~= nil or preview(key) ~= nil
+	return done - failed, failed
 end
 
 local function apply(label: ImageLabel, key: string): boolean
-	local id = GameIconIds[key]
-	if id then
-		label.Image = id
-		return true
-	end
-	local content = preview(key)
-	if content then
-		label.ImageContent = content
+	local uri = GameIcons.uri(key)
+	if uri then
+		label.Image = uri
 		return true
 	end
 	return false

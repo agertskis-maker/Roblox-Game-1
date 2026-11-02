@@ -1,156 +1,138 @@
 --!strict
--- ShopMock: the Shop (Lane 3, BRIEF M10, 2026-11-01). PREVIEW only: nothing here can be bought. There is no
--- MarketplaceService call, no product id, no pass id and no grant anywhere in this screen: every price button goes
--- through ShopPurchaseAdapter, shows "Checking..." for about 0.4 s, then a friendly "Coming soon!" card. The adapter keeps
--- the counters (adapter:stats()) that prove zero Marketplace calls and zero grants.
+-- ShopMock: the Shop, rebuilt in Round 3 from the style guide (vault/design/ui-style-guide.md; reference frames in
+-- Car-Hop-Art/review/round3/chatgpt-images). PREVIEW only: nothing here can be bought. There is no MarketplaceService call,
+-- no product id, no pass id and no grant anywhere in this screen: every price button goes through ShopPurchaseAdapter,
+-- shows "Checking..." for about 0.4 s, then a friendly "Coming soon!" card.
 --
---   local shop = ShopMock.new(ctx, { onClose = fn?, adapter = A?, autoAdvance = true?, blur = true?, cash = false?,
---                                    previewValue = true? })
---   shop:open(returnTo?)                     -- starts at Featured
---   shop:openAt(sectionId?, offerId?, returnTo?)   -- parking-full entry: openAt("passes", "expanded-paddock", button)
---   shop:openSection(name, returnTo?)        -- a named section, any case: "Featured", "Passes", "Style", "Cash", "Free"
---   shop:openExpandedPaddock(returnTo?)      -- "Get more spots": Passes, ringed on Expanded Paddock
---   shop:openDoubleLapPay(returnTo?)         -- "Earn faster": Passes, ringed on Double Lap Pay
+--   local shop = ShopMock.new(ctx, { onClose = fn?, adapter = A?, onFreeReward = fn?, autoAdvance = true?, blur = true? })
+--   shop:open(returnTo?)                       -- starts at Featured
+--   shop:openSection(name, returnTo?)          -- "Featured", "Passes", "Cash", "Style", "Trails", "Free"
+--   shop:openAt(sectionId?, offerId?, returnTo?)
+--   shop:openExpandedPaddock(returnTo?)        -- "Get more spots" in the Raceway's parking panel
+--   shop:openDoubleLapPay(returnTo?)           -- "Earn faster"
 --   shop:close()  shop:isOpen()  shop:layout()  shop:setVisible(on)  shop:destroy()
---   shop:scrollTo(sectionId, animate?)       -- "featured" | "passes" | "cash" | "style" | "free"
---   shop:getDebugState()
+--   shop:scrollTo(sectionId, animate?)  shop:setSlide(n)  shop:pressOffer(offerId)  shop:getAdapter()
+--   shop:forceState(offerId, "owned" | "unavailable" | "error" | nil)  shop:resetFixtures()  shop:getDebugState()
 --
--- FIXTURES (preview only; how a reviewer or a test exercises every state):
---   shop:forceState(offerId, "owned" | "unavailable" | "error" | "pending" | nil)
---   shop:setFixture("owned" | "unavailable" | "error" | "pending", id | { ids } | "*", on?)   -- the same, many ids
---   shop:setFixture("hold", true)            -- requests never answer: stays "Checking..." until the shop closes
---   shop:setFixture("cash", true)            -- show the hidden Cash section and its tab
---   shop:setFixture("previewValue", false)   -- hide BEST DEAL / SAVE x% / the struck-through sum (on by default, N6-03)
---   shop:setFixture("longText", true)        -- every name and line 30 percent longer
---   shop:setFixture("missingArt", true)      -- every icon replaced by the solid fallback glyph
---   shop:setFixture("cashAmountsPending", true)   -- the Cash packs show "Amount pending"
---   shop:setFixture("cashValue", 123456789)  -- a large Cash counter (nil clears)
---   shop:resetFixtures()  shop:pressOffer(offerId)  shop:setSlide(n)  shop:getAdapter()
---
--- Layout (BRIEF M10-01b, M10-14a, M10-14b) is computed from the safe design size every time the viewport changes
--- (Shop/ShopLayout): Desktop, Tablet and Phone landscape reflow live with the scroll position kept. One vertical scroll
--- container; the header stays; tabs scroll to their section and highlight as you scroll, without fighting a programmed
--- scroll. The game keeps running behind (the dim is a darkening and a slight blur, never black).
---
--- MOTION (Round 2 N6-02): every continuous effect (the moving gradients on the page, hero, deal, side cards, pass cards
--- and the Coming soon pop-up; the diagonal shine; the breathing primary price button; the pooled sparkles; the carousel
--- tick) belongs to ONE ShopMotion animator whose single driver connection exists only while the shop is open and visible;
--- closing or hiding disconnects it and rests every effect. The pending spinner and the blur are the only other loops
--- (finite tweens). A close during "Checking..." cancels the request, restores focus and never reopens the shop later.
+-- The layout comes from the design size on every change, one recipe scaled by `k`, so desktop, tablet and a phone in
+-- landscape all get the same page: one hero, two side cards, the deal banner, and the Cash packs peeking in to invite a
+-- scroll. Deal claims are derived from the catalog's real sums; BEST VALUE from CashPackPreview's real amounts. Every
+-- continuous effect belongs to one ShopMotion animator that runs only while the Shop is open and on screen; Reduce Motion
+-- rests them all.
 
-local Debris = game:GetService("Debris")
-local GuiService = game:GetService("GuiService")
+local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 
 local Prototype = script.Parent.Parent
-local Arcade = require(Prototype.Arcade)
+local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
-local PreviewTokens = require(Prototype.PreviewTokens)
+local Overlay = require(script.Parent.Overlay)
 local ShopKit = require(Prototype.ShopKit)
 local ShopMotion = require(Prototype.ShopMotion)
 local ShopPurchaseAdapter = require(Prototype.ShopPurchaseAdapter)
 local Sounds = require(Prototype.Sounds)
-local Overlay = require(script.Parent.Overlay)
-local ShopArt = require(script.Parent.Shop.ShopArt)
-local ShopCards = require(script.Parent.Shop.ShopCards)
-local ShopLayout = require(script.Parent.Shop.ShopLayout)
-local ShopPalette = require(script.Parent.Shop.ShopPalette)
+local CashPacks = require(ReplicatedStorage.Shared.UI.CashPackPreview)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
-local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 
-local A = PreviewTokens.Arcade
-local S = PreviewTokens.Shop
-local M = S.Motion
-local T = ShopMotion.Timing
-local make = Arcade.make
-local WHITE = Color3.new(1, 1, 1)
+local make = CarKit.make
 
 local ShopMock = {}
-
-ShopMock.StateNames = { "owned", "unavailable", "error", "pending" }
-ShopMock.FixtureNames = {
-	"owned",
-	"unavailable",
-	"error",
-	"pending",
-	"hold",
-	"cash",
-	"previewValue",
-	"longText",
-	"missingArt",
-	"cashAmountsPending",
-	"cashValue",
-}
 
 export type Options = {
 	onClose: (() -> ())?,
 	adapter: ShopPurchaseAdapter.Adapter?,
-	onFreeReward: (() -> ())?, -- the Free card opens the group reward card
-	autoAdvance: boolean?, -- default true (pauses on hover, press, focus and for 14 s after any manual move)
-	blur: boolean?, -- default true
-	cash: boolean?, -- the Cash section; default false (hidden until Brian L and Adam approve Developer Products)
-	previewValue: boolean?, -- BEST DEAL / SAVE x% / the struck-through sum, from the PREVIEW catalog; default true (N6-03)
+	onFreeReward: (() -> ())?,
+	autoAdvance: boolean?,
+	blur: boolean?,
+	earningsPerSecond: (() -> number)?, -- the Raceway's rate; default the PREVIEW fixture
 }
 
-export type DebugState = { [string]: any }
+export type Shop = { [string]: any }
 
-export type Shop = {
-	root: Frame,
-	layout: (self: Shop) -> (),
-	setVisible: (self: Shop, on: boolean) -> (),
-	open: (self: Shop, returnTo: GuiObject?) -> (),
-	openAt: (self: Shop, sectionId: string?, offerId: string?, returnTo: GuiObject?) -> (),
-	openSection: (self: Shop, name: string, returnTo: GuiObject?) -> (),
-	openExpandedPaddock: (self: Shop, returnTo: GuiObject?) -> (),
-	openDoubleLapPay: (self: Shop, returnTo: GuiObject?) -> (),
-	close: (self: Shop) -> (),
-	isOpen: (self: Shop) -> boolean,
-	destroy: (self: Shop) -> (),
-	scrollTo: (self: Shop, sectionId: string, animate: boolean?) -> (),
-	setFixture: (self: Shop, name: string, value: any, on: boolean?) -> (),
-	forceState: (self: Shop, offerId: string, state: string?) -> (),
-	resetFixtures: (self: Shop) -> (),
-	pressOffer: (self: Shop, offerId: string) -> (),
-	setSlide: (self: Shop, index: number) -> (),
-	getAdapter: (self: Shop) -> ShopPurchaseAdapter.Adapter,
-	getDebugState: (self: Shop) -> DebugState,
+local TABS = {
+	{ id = "featured", label = "Featured" },
+	{ id = "passes", label = "Passes" },
+	{ id = "cash", label = "Cash" },
+	{ id = "style", label = "Style" },
+	{ id = "trails", label = "Trails" },
+	{ id = "free", label = "Free" },
 }
 
-type FixtureState = {
-	cash: boolean,
-	previewValue: boolean,
-	longText: boolean,
-	missingArt: boolean,
-	cashAmountsPending: boolean,
-	cashValue: number?,
-	forcedPending: { [string]: boolean },
+type Slide = {
+	title: string,
+	family: string,
+	art: string,
+	offer: string?, -- buys this offer
+	go: string?, -- or goes to this tab
+	line: string?,
+	button: string?,
 }
 
-type SoonRefs = {
-	root: Frame,
-	card: ShopKit.Card,
-	artHolder: Frame,
-	artPx: number,
-	name: TextLabel,
-	button: ShopKit.PriceButton,
-	pop: UIScale,
+local SLIDES: { Slide } = {
+	{ title = "STARTER PACK!", family = "Starter", art = "art_starter", offer = "starter-pack" },
+	{
+		title = "NEW TRAILS!",
+		family = "Trail",
+		art = "art_trail",
+		go = "trails",
+		line = "Leave your mark behind you!",
+		button = "SEE TRAILS",
+	},
+	{
+		title = "CASH VAULT!",
+		family = "CashVault",
+		art = "art_cash5",
+		go = "cash",
+		line = "Packs grow as your Raceway grows!",
+		button = "GET CASH",
+	},
 }
 
-local function lastInputIsGamepad(): boolean
-	return UserInputService:GetLastInputType().Name:sub(1, 7) == "Gamepad"
+local function money(n: number): string
+	return "$" .. Format.group(math.floor(n))
 end
 
--- "30 percent longer": the fixture appends the first third of the string to itself (a stress test, not copy).
-local function stretch(text: string): string
-	return text .. " " .. text:sub(1, math.ceil(#text * 0.3))
+local function edgeTint(name: string): Color3
+	local f = (CarKit.Family :: any)[name]
+	return if f then f.edge else CarKit.White
+end
+
+type Plan = {
+	tier: string,
+	k: number,
+	panel: Vector2,
+	pad: number,
+	headerH: number,
+	inner: number,
+	pageH: number,
+	gap: number,
+}
+
+local function plan(D: Vector2): Plan
+	local tier = if D.Y < 420 then "Phone" elseif D.X < 1000 then "Tablet" else "Desktop"
+	local margin = if tier == "Phone" then 4 else 16
+	local panel = Vector2.new(math.min(D.X - margin * 2, 1560), math.min(D.Y - margin * 2, 900))
+	local pad = if tier == "Phone" then 8 else 12
+	local headerH = if tier == "Phone" then 50 else 68
+	local inner = panel.X - pad * 2
+	local pageH = panel.Y - headerH - pad * 2
+	local k = math.clamp(math.min(inner / 1180, pageH / 620), 0.5, 1.3)
+	return {
+		tier = tier,
+		k = k,
+		panel = panel,
+		pad = pad,
+		headerH = headerH,
+		inner = inner,
+		pageH = pageH,
+		gap = math.max(6, math.round(12 * k)),
+	}
 end
 
 function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local opts: Options = options or {}
-	local shop: Shop
-
+	local shop: Shop = {}
 	local overlay = Overlay.new(ctx, { name = "ShopMock", dimTransparency = 0.5, slide = false })
 	local trove = overlay.trove
 	local adapter: ShopPurchaseAdapter.Adapter = opts.adapter or ShopPurchaseAdapter.new()
@@ -159,1704 +141,1347 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			adapter:destroy()
 		end)
 	end
-	local buildTrove = trove:Extend() -- the page, header and cards: rebuilt on every layout
-	local openTrove = trove:Extend() -- everything that exists only while the shop is open and visible
-
-	local fixtures: FixtureState = {
-		cash = opts.cash == true,
-		previewValue = opts.previewValue ~= false,
-		longText = false,
-		missingArt = false,
-		cashAmountsPending = false,
-		cashValue = nil,
-		forcedPending = {},
-	}
-
-	local destroyed = false
-	local shopOpen = false
-	local visible = true
-	local openToken = 0
-	local pendingId: string? = nil
-	local pendingHandle: ShopPurchaseAdapter.Handle? = nil
-	local soonOpen = false
-	local lastSource: GuiObject? = nil
-	local views: { [string]: { ShopCards.View } } = {}
-	local hero: ShopCards.Hero? = nil
-	local layoutInfo: ShopLayout.Layout? = nil
-	local page: ScrollingFrame? = nil
-	local popScale: UIScale? = nil
-	local closeBody: GuiObject? = nil
-	local cue: GuiObject? = nil
-	local tip: Frame? = nil
-	local tipThread: thread? = nil
-	local tabScroll: ScrollingFrame? = nil
-	local tabs: { [string]: ShopKit.Tab } = {}
-	local sectionY: { [string]: number } = {}
-	local sectionOrder: { string } = {}
-	local activeSection = "featured"
-	local scrollMax = 0
-	local programmaticUntil = 0
-	local collectionSet: ((number, string) -> ())? = nil
-	local cashCount: ShopKit.CountUp? = nil
-	local soon: SoonRefs? = nil
-	local blur: BlurEffect? = nil
-	local veil: Frame? = nil -- the open / close fade over the page (never intercepts input)
-	local relayoutQueued = false
-	local stylePick: { [string]: number } = {}
-	local counters = { ticks = 0, advances = 0, builds = 0 }
-	local footerText = ""
-	local carouselPausedUntil = 0
-	local carouselNextAt = 0
-
-	-- THE ONE ANIMATOR (N6-02a): every continuous effect on the page registers here; its single driver connects only
-	-- while the shop is open and visible (startLoops / stopLoops) and is gone when the shop is destroyed.
 	local motion = ShopMotion.new()
 	trove:Add(function()
 		motion.destroy()
 	end)
 
-	local refreshViews: () -> ()
-	local buildAll: (preserveScroll: boolean) -> ()
-	local startLoops: () -> ()
-	local stopLoops: () -> ()
-	local showComingSoon: (offerId: string) -> ()
-	local closeSoon: () -> ()
-	local requestRelayout: () -> ()
-	local scrollTo: (sectionId: string, animate: boolean?) -> ()
+	local buildTrove = trove:Extend()
+	local isShopOpen = false
+	local visible = true
+	local view = "store"
+	local activeTab = "featured"
+	local slide = 1
+	local nextAdvance = 0
+	local forced: { [string]: string } = {}
+	local pendingId: string? = nil
+	local pendingHandle: ShopPurchaseAdapter.Handle? = nil
+	local sectionY: { [string]: number } = {}
+	local buttons: { [string]: { CarKit.Button } } = {}
+	local tabButtons: { [string]: any } = {}
+	local page: ScrollingFrame? = nil
+	local studio: any = nil
+	local panel: Frame? = nil
+	local blur: BlurEffect? = nil
+	local soon: Frame? = nil
+	local counters = { builds = 0, requests = 0 }
+	local cashLabel: TextLabel? = nil
+	local cashRow: { { amount: TextLabel, pack: CashPacks.Pack } } = {}
+	local heroSlot: Frame? = nil
+	local heroTrove = buildTrove:Extend()
+	local currentPlan: Plan? = nil
+	local builtFor = Vector2.zero
+	local build: () -> ()
+	local renderHero: () -> ()
+	local showTab: (id: string, animate: boolean?) -> ()
 
-	local function cashValue(): number
-		return fixtures.cashValue or ctx.store:get().cash
+	local function rate(): number
+		return if opts.earningsPerSecond then opts.earningsPerSecond() else CashPacks.FixtureRate
 	end
 
-	-- STATE ------------------------------------------------------------------------------------------------------
+	local function cash(): number
+		return ctx.store:get().cash or 0
+	end
 
-	local function ownsPartOf(offer: Catalog.Offer): boolean
-		for _, id in offer.includes or {} do
-			if adapter:ownership(id) then
-				return true
+	-- STATE -----------------------------------------------------------------------------------------------------
+
+	local function stateOf(id: string): string
+		if forced[id] then
+			return forced[id]
+		end
+		if adapter:ownership(id) then
+			return "owned"
+		end
+		local a = adapter:availability(id)
+		return if a == "Unavailable" then "unavailable" elseif a == "Error" then "error" else "idle"
+	end
+
+	local function paint(id: string, button: CarKit.Button, price: number?)
+		local state = stateOf(id)
+		local wordHost = button.root:FindFirstChild("WordHost", true) :: Frame?
+		local showWord = false
+		if pendingId == id then
+			button.setText("Checking...")
+			button.setTone("Green")
+			button.setEnabled(false)
+		elseif state == "owned" then
+			button.setText("OWNED")
+			button.setTone("Grey")
+			button.setEnabled(false)
+		elseif state == "unavailable" or state == "error" then
+			button.setText(if state == "error" then "Try later" else "Not here yet")
+			button.setTone("Grey")
+			button.setEnabled(false)
+		else
+			button.setText(if price then Format.group(price) else "")
+			button.setTone("Green")
+			button.setEnabled(true)
+			showWord = true
+		end
+		if wordHost then
+			wordHost.Visible = showWord
+		end
+	end
+
+	local priceOf: { [string]: number } = {}
+
+	local function refresh()
+		for id, list in buttons do
+			for _, button in list do
+				paint(id, button, priceOf[id])
 			end
 		end
-		return false
-	end
-
-	-- What every card shows for an offer. The exact copy is the brief's (M10-08a).
-	local function stateOf(offerId: string): ShopCards.ViewState
-		local offer = Catalog.get(offerId)
-		if not offer then
-			return { kind = "Disabled", label = "Unavailable right now" }
+		if cashLabel then
+			cashLabel.Text = money(cash())
 		end
-		if offer.kind == "Medal" then
-			return { kind = "Locked", label = offer.lockedText or "Locked" }
-		end
-		if pendingId == offerId or fixtures.forcedPending[offerId] then
-			return { kind = "Pending", label = "Checking..." }
-		end
-		if adapter:ownership(offerId) then
-			return { kind = "Owned", label = "OWNED" }
-		end
-		if offer.kind == "Bundle" and ownsPartOf(offer) then
-			return { kind = "Blocked", label = "You already own part of this bundle" }
-		end
-		local availability = adapter:availability(offerId)
-		if availability == "Error" then
-			return { kind = "Error", label = "Could not load this item. Try again." }
-		elseif availability == "Unavailable" then
-			return { kind = "Unavailable", label = "Unavailable right now" }
-		end
-		return { kind = "Idle", label = Catalog.priceLabel(offer) }
-	end
-
-	local function setViewLoops(on: boolean)
-		for _, list in views do
-			for _, view in list do
-				local button = view.button
-				if button then
-					button.setLoops(on)
-				end
-			end
+		local rows = CashPacks.list(rate(), cash())
+		for i, row in cashRow do
+			row.amount.Text = "+" .. money(rows[i].amount)
 		end
 	end
 
-	refreshViews = function()
-		for id, list in views do
-			local state = stateOf(id)
-			for _, view in list do
-				view.apply(state)
-			end
+	local function closeSoon()
+		if soon then
+			soon:Destroy()
+			soon = nil
 		end
-		local set = collectionSet
-		if set then
-			local owned = 0
-			for _, id in Catalog.PassIds do
-				if adapter:ownership(id) then
-					owned += 1
-				end
-			end
-			set(owned / #Catalog.PassIds, string.format("%d / %d owned", owned, #Catalog.PassIds))
-		end
+		overlay:setBack(function()
+			shop:close()
+		end)
 	end
 
-	-- A local Style look: the car (or decal, or wheel) takes the next swatch. Never a purchase, never the adapter.
-	local function swatch(offerId: string, colour: Color3?)
-		for _, view in views[offerId] or {} do
-			local tint = view.setTint
-			if tint then
-				tint(colour)
-			end
+	local function showSoon(title: string, art: string?)
+		closeSoon()
+		local host = overlay.content
+		local shade = make("TextButton", {
+			Name = "ComingSoon",
+			Text = "",
+			AutoButtonColor = false,
+			BackgroundColor3 = CarKit.Ink,
+			BackgroundTransparency = 0.45,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 200,
+		}, host) :: any
+		soon = shade
+		local D = overlay:designSize()
+		local w = math.min(D.X - 24, 440)
+		local h = math.min(D.Y - 24, 340)
+		local card = CarKit.board(shade, {
+			size = UDim2.fromOffset(w, h),
+			position = UDim2.fromScale(0.5, 0.5),
+			anchor = Vector2.new(0.5, 0.5),
+			z = 201,
+			bolts = true,
+			name = "Card",
+		})
+		if art then
+			CarKit.art(card, art, {
+				size = UDim2.fromOffset(h * 0.46, h * 0.46),
+				position = UDim2.new(0.5, 0, 0, h * 0.27),
+				z = 202,
+			})
 		end
+		CarKit.title(card, "COMING SOON!", 40, {
+			align = Enum.TextXAlignment.Center,
+			size = UDim2.new(1, -24, 0, 44),
+			position = UDim2.new(0, 12, 0, h * 0.5),
+			z = 203,
+			top = CarKit.White,
+			bottom = CarKit.Gold,
+		})
+		CarKit.text(card, title .. " isn't on sale yet. Nothing was charged.", 17, {
+			align = Enum.TextXAlignment.Center,
+			wrap = true,
+			size = UDim2.new(1, -40, 0, 46),
+			position = UDim2.new(0, 20, 0, h * 0.5 + 46),
+			z = 203,
+			color = CarKit.Soft,
+		})
+		local ok = CarKit.button(card, {
+			text = "OK",
+			tone = "Blue",
+			px = 28,
+			size = UDim2.fromOffset(160, 54),
+			position = UDim2.new(0.5, 0, 1, -14),
+			anchor = Vector2.new(0.5, 1),
+			z = 203,
+			onPress = closeSoon,
+			name = "SoonOk",
+		})
+		overlay:setBack(closeSoon)
+		overlay:focus(ok.root)
+		Motion.pop(card, 0.94)
 	end
-	local function stylePreview(offerId: string)
-		local offer = Catalog.get(offerId)
-		if not offer or not offer.swatches then
+
+	local function press(id: string, title: string, art: string?)
+		if pendingId or stateOf(id) ~= "idle" then
 			return
 		end
-		local count = #offer.swatches
-		stylePick[offerId] = ((stylePick[offerId] or 0) % count) + 1
-		swatch(offerId, offer.swatches[stylePick[offerId]])
-	end
-
-	-- THE ONE PRESS PATH: every price button and every card goes through here, then through the adapter.
-	local function press(offerId: string, source: GuiObject?)
-		if destroyed or not shopOpen or soonOpen then
-			return
-		end
-		local offer = Catalog.get(offerId)
-		if not offer then
-			return
-		end
-		if offer.kind == "Style" then
-			stylePreview(offerId)
-			return
-		end
-		if offerId == "free-legion" and opts.onFreeReward then
-			opts.onFreeReward() -- the group reward has its own card (M16), never a purchase path
-			return
-		end
-		local state = stateOf(offerId)
-		if pendingId ~= nil or state.kind == "Pending" then
-			return -- rapid repeated presses and a second item while one is being checked do nothing
-		end
-		if state.kind ~= "Idle" and state.kind ~= "Error" then
-			return -- owned, unavailable, blocked and locked cards do not start anything
-		end
-		lastSource = source
-		pendingId = offerId
-		refreshViews()
-		local token = openToken
-		pendingHandle = adapter:request(offerId, function(result: ShopPurchaseAdapter.Result)
-			if destroyed or token ~= openToken or not shopOpen then
-				return -- the shop was closed (or reopened) meanwhile: this answer is dropped, never shown
-			end
+		pendingId = id
+		counters.requests += 1
+		refresh()
+		pendingHandle = adapter:request(id, function(result: ShopPurchaseAdapter.Result)
 			pendingId = nil
 			pendingHandle = nil
-			refreshViews()
-			if result.status == "ComingSoon" and adapter:availability(offerId) == "Available" then
-				showComingSoon(offerId)
+			refresh()
+			if isShopOpen and result.status == "ComingSoon" then
+				showSoon(title, art)
 			end
 		end)
 	end
 
-	local env: ShopCards.Env = {
-		trove = buildTrove,
-		tier = "Desktop",
-		fixtures = fixtures,
-		motion = motion,
-		stateOf = stateOf,
-		press = press,
-		register = function(offerId: string, view: ShopCards.View)
-			local list = views[offerId]
-			if not list then
-				list = {}
-				views[offerId] = list
-			end
-			table.insert(list, view)
-		end,
-		swatch = swatch,
-		text = function(text: string): string
-			if fixtures.longText then
-				return stretch(text)
-			end
-			return text
-		end,
-		owned = function(offerId: string): boolean
-			return adapter:ownership(offerId)
-		end,
-	}
-
-	-- TABS AND SCROLL ----------------------------------------------------------------------------------------------
-
-	local function pageScale(p: ScrollingFrame): number
-		local h = p.Size.Y.Offset
-		return if h > 0 and p.AbsoluteWindowSize.Y > 0 then p.AbsoluteWindowSize.Y / h else 1
-	end
-
-	local function setActiveTab(id: string)
-		activeSection = id
-		for tabId, tab in tabs do
-			tab.setActive(tabId == id)
-		end
-		local scroller = tabScroll
-		local tab = tabs[id]
-		if scroller and tab and scroller.CanvasSize.X.Offset > scroller.AbsoluteSize.X then
-			-- a scrollable tab row: keep the active pill in view
-			local left = tab.root.AbsolutePosition.X - scroller.AbsolutePosition.X + scroller.CanvasPosition.X
-			local viewW = scroller.AbsoluteSize.X
-			local x = scroller.CanvasPosition.X
-			if left < x then
-				x = left - 6
-			elseif left + tab.root.AbsoluteSize.X > x + viewW then
-				x = left + tab.root.AbsoluteSize.X - viewW + 6
-			end
-			scroller.CanvasPosition = Vector2.new(math.max(x, 0), 0)
-		end
-	end
-
-	scrollTo = function(sectionId: string, animate: boolean?)
-		local p = page
-		local y = sectionY[sectionId]
-		if not p or y == nil then
-			return
-		end
-		-- CanvasPosition is in screen pixels, the section offsets are in design pixels
-		local goal = math.clamp(y, 0, scrollMax) * pageScale(p)
-		setActiveTab(sectionId)
-		if animate and not Motion.reduced() then
-			programmaticUntil = os.clock() + M.TabScrollSeconds + 0.15
-			Motion.tween(
-				p,
-				"scroll",
-				Motion.info(M.TabScrollSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-				{ CanvasPosition = Vector2.new(0, goal) }
-			)
-		else
-			programmaticUntil = os.clock() + 0.1
-			Motion.cancelAll(p)
-			p.CanvasPosition = Vector2.new(0, goal)
-		end
-	end
-
-	-- Highlights the tab of the section under the top of the page as the player scrolls. A programmed scroll (a tab
-	-- press, an entry point) is left alone until it lands, so the highlight never fights it.
-	local function onScroll()
-		local p = page
-		if not p then
-			return
-		end
-		local y = p.CanvasPosition.Y / pageScale(p)
-		local scrollCue = cue
-		if scrollCue then
-			scrollCue.Visible = y < 30 and scrollMax > 60
-		end
-		if os.clock() < programmaticUntil then
-			return
-		end
-		local pick = sectionOrder[1] or "featured"
-		for _, id in sectionOrder do
-			if sectionY[id] <= y + 30 then
-				pick = id
-			end
-		end
-		if scrollMax > 0 and y >= scrollMax - 4 then
-			pick = sectionOrder[#sectionOrder] or pick
-		end
-		if pick ~= activeSection then
-			setActiveTab(pick)
-		end
-	end
-
-	-- BUILDING -----------------------------------------------------------------------------------------------------
-
-	local function sectionHeader(parent: Frame, section: Catalog.Section, L: ShopLayout.Layout, rightReserve: number)
-		local hh = L.sectionHeaderH
-		local iconPx = hh - 14
-		local holder: Frame = make("Frame", {
-			Name = "Icon",
-			Position = UDim2.fromOffset(4, 7),
-			Size = UDim2.fromOffset(iconPx, iconPx),
-			BackgroundTransparency = 1,
-			ZIndex = 9,
-			Parent = parent,
-		})
-		ShopKit.icon(holder, if fixtures.missingArt then "__missing__" else section.icon)
-		local titleSize = if L.tier == "Desktop" then 36 elseif L.tier == "Tablet" then 30 else 26
-		local x = iconPx + 14
-		local title = ShopKit.label(parent, section.title, titleSize, { name = "SectionTitle", z = 9, outline = 3 })
-		title.Position = UDim2.fromOffset(x, 2)
-		title.Size = UDim2.new(1, -x - rightReserve, 0, titleSize + 8)
-		if section.subtitle then
-			local subtitle = ShopKit.label(parent, section.subtitle, 17, {
-				name = "Subtitle",
-				colour = ShopPalette.Color.Grey,
-				z = 9,
-			})
-			subtitle.Position = UDim2.fromOffset(x, 2 + titleSize + 8)
-			subtitle.Size = UDim2.new(1, -x - rightReserve, 0, 22)
-		end
-	end
-
-	local function newPlan(w: number, orientation: "Tall" | "Wide", extra: { [string]: any }?): ShopCards.Plan
-		local plan: ShopCards.Plan = {
-			w = w,
-			h = 0,
-			z = 9,
-			orientation = orientation,
-			showDetail = false,
-		}
-		for key, value in extra or {} do
-			(plan :: any)[key] = value
-		end
-		return plan
-	end
-
-	-- A grid of cards (Style, Cash): four tall columns on Desktop, two wide columns elsewhere. Rows share a height.
-	local function placeGrid(frame: Frame, ids: { string }, top: number, L: ShopLayout.Layout): number
-		local cols = L.gridCols
-		local orientation: "Tall" | "Wide" = if L.gridHorizontal then "Wide" else "Tall"
-		local rows = math.ceil(#ids / cols)
-		local y = top
-		for r = 0, rows - 1 do
-			local rowH = if L.gridHorizontal then L.gridH else 0
-			for c = 1, cols do
-				local offer = Catalog.get(ids[r * cols + c] or "")
-				if offer then
-					rowH = math.max(rowH, ShopCards.measure(env, offer, newPlan(L.gridW, orientation)))
-				end
-			end
-			for c = 1, cols do
-				local offer = Catalog.get(ids[r * cols + c] or "")
-				if offer then
-					local plan = newPlan(L.gridW, orientation, { h = rowH })
-					local view = ShopCards.offer(env, frame, offer, plan)
-					view.root.Position = UDim2.fromOffset((c - 1) * (L.gridW + L.gap), y)
-				end
-			end
-			y += rowH + L.gap
-		end
-		return y - L.gap
-	end
-
-	-- FEATURED (N6-04): the hero carousel, the two side offers and the BEST DEAL banner, all visible with no scroll on a
-	-- desktop; on a phone the hero and the deal show first and the side offers follow below them.
-	local function buildFeatured(frame: Frame, L: ShopLayout.Layout): number
-		local heroCard = ShopCards.hero(env, frame, Vector2.new(L.heroW, L.heroH), 9)
-		heroCard.root.Position = UDim2.fromOffset(0, 0)
-		hero = heroCard
-		local belowDealY = L.heroH + L.gap + L.dealH + L.gap
-		local sideIds = { "vip", "double-lap-pay" }
-		for i, id in sideIds do
-			local offer = Catalog.get(id)
-			if offer then
-				local plan = newPlan(L.sideW, "Wide", {
-					h = L.sideH,
-					showTag = false,
-					artSide = L.sideH - 30,
-					stamp = true,
-					nameSize = if L.tier == "Desktop" then 28 else 24,
-					name = "Side_" .. id,
-					animate = true,
-					priority = 4,
-				})
-				local view = ShopCards.offer(env, frame, offer, plan)
-				if L.sideStacked then
-					view.root.Position = UDim2.fromOffset(L.heroW + L.gap, (i - 1) * (L.sideH + L.gap))
-				else
-					view.root.Position = UDim2.fromOffset((i - 1) * (L.sideW + L.gap), belowDealY)
-				end
-			end
-		end
-		local dealView = ShopCards.deal(env, frame, Vector2.new(L.dealW, L.dealH), 9)
-		if dealView then
-			dealView.root.Position = UDim2.fromOffset(0, L.heroH + L.gap)
-		end
-		if L.sideStacked then
-			return L.heroH + L.gap + L.dealH
-		end
-		return belowDealY + L.sideH
-	end
-
-	local function buildPasses(frame: Frame, section: Catalog.Section, L: ShopLayout.Layout): number
-		-- every card on the Passes panel glows: the animator keeps the budget and rests the ones that are offscreen
-		local function passPlan(w: number, orientation: "Tall" | "Wide", extra: { [string]: any }): ShopCards.Plan
-			extra.animate = true
-			extra.priority = 5
-			return newPlan(w, orientation, extra)
-		end
-		local rightW = if L.tier == "Phone" then 250 else 330
-		sectionHeader(frame, section, L, rightW + 10)
-		-- the collection bar: "Collection  0 / 3 owned"
-		local box: Frame = make("Frame", {
-			Name = "Collection",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, 0, 0, 12),
-			Size = UDim2.fromOffset(rightW, 36),
-			BackgroundTransparency = 1,
-			ZIndex = 9,
-			Parent = frame,
-		})
-		local word = ShopKit.label(box, "Collection", 18, { name = "CollectionLabel", z = 9 })
-		word.Position = UDim2.fromOffset(0, 3)
-		word.Size = UDim2.fromOffset(100, 30)
-		local track, set = Overlay.progress(box, "Green", 9)
-		track.Position = UDim2.fromOffset(106, 5)
-		track.Size = UDim2.new(1, -106, 0, 26)
-		collectionSet = set
-
-		local pad = L.panelPad
-		local top = L.sectionHeaderH + 6
-		local bundle = Catalog.get("all-passes-bundle")
-		local passIds = { "double-lap-pay", "expanded-paddock", "vip" }
-		local panelH = 0
-		local placements: { { offer: Catalog.Offer, plan: ShopCards.Plan, x: number, y: number } } = {}
-		if bundle then
-			if L.passMode == "Row" then
-				local rowH = ShopCards.measure(env, bundle, passPlan(L.bundleW, "Wide", { big = true }))
-				for _, id in passIds do
-					local offer = Catalog.get(id)
-					if offer then
-						rowH = math.max(
-							rowH,
-							ShopCards.measure(env, offer, passPlan(L.passW, "Tall", { showDetail = true }))
-						)
-					end
-				end
-				table.insert(placements, {
-					offer = bundle,
-					plan = passPlan(L.bundleW, "Wide", { big = true, h = rowH }),
-					x = pad,
-					y = pad,
-				})
-				for i, id in passIds do
-					local offer = Catalog.get(id)
-					if offer then
-						table.insert(placements, {
-							offer = offer,
-							plan = passPlan(L.passW, "Tall", { showDetail = true, h = rowH, stamp = false }),
-							x = pad + L.bundleW + L.passGap + (i - 1) * (L.passW + L.passGap),
-							y = pad,
-						})
-					end
-				end
-				panelH = rowH + 2 * pad
-			elseif L.passMode == "Grid" then
-				local bundleH = ShopCards.measure(env, bundle, passPlan(L.bundleW, "Wide", { big = true }))
-				table.insert(placements, {
-					offer = bundle,
-					plan = passPlan(L.bundleW, "Wide", { big = true, h = bundleH }),
-					x = pad,
-					y = pad,
-				})
-				local rowH = 0
-				for _, id in passIds do
-					local offer = Catalog.get(id)
-					if offer then
-						rowH = math.max(
-							rowH,
-							ShopCards.measure(env, offer, passPlan(L.passW, "Tall", { showDetail = true }))
-						)
-					end
-				end
-				for i, id in passIds do
-					local offer = Catalog.get(id)
-					if offer then
-						table.insert(placements, {
-							offer = offer,
-							plan = passPlan(L.passW, "Tall", { showDetail = true, h = rowH }),
-							x = pad + (i - 1) * (L.passW + L.passGap),
-							y = pad + bundleH + L.passGap,
-						})
-					end
-				end
-				panelH = 2 * pad + bundleH + L.passGap + rowH
-			else
-				local y = pad
-				local order = { "all-passes-bundle", "double-lap-pay", "expanded-paddock", "vip" }
-				for _, id in order do
-					local offer = Catalog.get(id)
-					if offer then
-						local isBundle = id == "all-passes-bundle"
-						local planExtra: { [string]: any } = { showDetail = true, big = isBundle }
-						local height = ShopCards.measure(env, offer, passPlan(L.bundleW, "Wide", planExtra))
-						planExtra.h = height
-						table.insert(placements, {
-							offer = offer,
-							plan = passPlan(L.bundleW, "Wide", planExtra),
-							x = pad,
-							y = y,
-						})
-						y += height + L.passGap
-					end
-				end
-				panelH = y - L.passGap + pad
-			end
-		end
-		local panel = ShopKit.panel(frame, {
-			name = "PassesPanel",
-			position = UDim2.fromOffset(0, top),
-			size = UDim2.fromOffset(L.contentW, panelH),
-			z = 8,
-		})
-		for _, placement in placements do
-			local view = ShopCards.offer(env, panel, placement.offer, placement.plan)
-			view.root.Position = UDim2.fromOffset(placement.x, placement.y)
-		end
-		return top + panelH
-	end
-
-	local function buildGridSection(frame: Frame, section: Catalog.Section, L: ShopLayout.Layout): number
-		sectionHeader(frame, section, L, 0)
-		return placeGrid(frame, section.offers, L.sectionHeaderH + 6, L)
-	end
-
-	local function buildFree(frame: Frame, section: Catalog.Section, L: ShopLayout.Layout): number
-		sectionHeader(frame, section, L, 0)
-		local offer = Catalog.get("free-legion")
-		local top = L.sectionHeaderH + 6
-		if not offer then
-			return top
-		end
-		local plan = newPlan(L.contentW, "Wide", { buttonRight = true })
-		local height = math.max(ShopCards.measure(env, offer, plan), L.freeH)
-		plan.h = height
-		local view = ShopCards.offer(env, frame, offer, plan)
-		view.root.Position = UDim2.fromOffset(0, top)
-		return top + height
-	end
-
-	-- The coming soon card: hidden until a press finishes "Checking...". Built with the page so it follows the layout.
-	local function buildSoon(shell: Frame, L: ShopLayout.Layout)
-		local root: Frame = make("Frame", {
-			Name = "ComingSoon",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			Visible = false,
-			ZIndex = 60,
-			Parent = shell,
-		})
-		local scrim: TextButton = make("TextButton", {
-			Name = "Scrim",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = A.Ink,
-			BackgroundTransparency = 0.45,
-			AutoButtonColor = false,
-			Text = "",
-			Selectable = false,
-			ZIndex = 60,
-			Parent = root,
-		})
-		buildTrove:Connect(scrim.Activated, function()
-			closeSoon()
-		end)
-		local phone = L.tier == "Phone"
-		local w = math.min(L.size.X - 40, if phone then 520 else 460)
-		local artPx = if phone then 72 else 110
-		local h = if phone then math.min(L.size.Y - 16, 280) else 360
-		-- every Shop pop-up gets the same moving gradient background as the page cards (N6-02); Reduced Motion keeps it still
-		local card = ShopKit.card(root, {
-			name = "SoonCard",
-			size = Vector2.new(w, h),
-			fill = "Popup",
-			rotation = ShopPalette.Angle.Popup,
-			z = 61,
-			trove = buildTrove,
-			pattern = true,
-			interactive = false,
-		})
-		card.root.AnchorPoint = Vector2.new(0.5, 0.5)
-		card.root.Position = UDim2.fromScale(0.5, 0.5)
-		motion.gradient({ gradient = card.gradient, recipe = "Popup", host = card.root, priority = 1 })
-		local headH = if phone then 44 else 54
-		ShopKit.plate(card.content, {
-			name = "SoonPlate",
-			position = UDim2.fromOffset(10, 10 + headH + 2),
-			size = UDim2.new(1, -20, 1, -(10 + headH + 2 + 12)),
-			z = 65,
-		})
-		local pop: UIScale = make("UIScale", { Name = "SoonPop", Parent = card.root })
-		local column: Frame = make("Frame", {
-			Name = "Column",
-			Size = UDim2.new(1, -24, 1, -24),
-			Position = UDim2.fromOffset(12, 10),
-			BackgroundTransparency = 1,
-			ZIndex = 66,
-			Parent = card.content,
-		})
-		make("UIListLayout", {
-			Padding = UDim.new(0, 6),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			VerticalAlignment = Enum.VerticalAlignment.Center,
-			Parent = column,
-		})
-		local headline = ShopKit.label(
-			column,
-			"Coming soon!",
-			if phone then 34 else 44,
-			{ name = "Headline", z = 66, xAlign = Enum.TextXAlignment.Center }
-		)
-		headline.Size = UDim2.new(1, 0, 0, if phone then 44 else 54)
-		headline.LayoutOrder = 1
-		local artHolder: Frame = make("Frame", {
-			Name = "Art",
-			Size = UDim2.fromOffset(artPx, artPx),
-			BackgroundTransparency = 1,
-			LayoutOrder = 2,
-			ZIndex = 66,
-			Parent = column,
-		})
-		local name = ShopKit.label(column, "", 24, { name = "ItemName", z = 66, xAlign = Enum.TextXAlignment.Center })
-		name.Size = UDim2.new(1, 0, 0, 30)
-		name.LayoutOrder = 3
-		local message = ShopKit.paragraph(column, "This will be ready in the real game", 18, {
-			name = "Message",
-			z = 66,
-			xAlign = Enum.TextXAlignment.Center,
-		})
-		message.LayoutOrder = 4
-		message.Visible = not phone -- a short phone card keeps the headline, the art, the name and the button
-		local button = ShopKit.priceButton(column, {
-			name = "Back",
-			label = "Back to Shop",
-			size = Vector2.new(math.min(w - 60, 240), 52),
-			z = 67,
-			trove = buildTrove,
-			onActivate = function()
-				closeSoon()
+	local function priceButton(
+		parent: Instance,
+		id: string,
+		title: string,
+		art: string?,
+		price: number,
+		spec: { [string]: any }
+	): CarKit.Button
+		local button = CarKit.price(parent, {
+			amount = price,
+			word = Catalog.PriceWord,
+			px = spec.px,
+			size = spec.size,
+			position = spec.position,
+			anchor = spec.anchor,
+			z = spec.z,
+			name = "Buy_" .. id,
+			onPress = function()
+				press(id, title, art)
 			end,
 		})
-		button.root.LayoutOrder = 5
-		soon = {
-			root = root,
-			card = card,
-			artHolder = artHolder,
-			artPx = artPx,
-			name = name,
-			button = button,
-			pop = pop,
+		buttons[id] = buttons[id] or {}
+		table.insert(buttons[id], button)
+		priceOf[id] = price
+		paint(id, button, price)
+		return button
+	end
+
+	-- PIECES ----------------------------------------------------------------------------------------------------
+
+	local function fontPx(p: Plan, n: number, least: number?): number
+		return math.max(math.round(n * p.k), least or 13)
+	end
+
+	local function flow(
+		owner: any,
+		card: Frame,
+		gradient: UIGradient,
+		recipe: string,
+		phase: number,
+		shinePhase: number?,
+		radius: number
+	)
+		owner:Add(motion.gradient({ gradient = gradient, recipe = recipe, phase = phase, host = card }).remove)
+		if shinePhase then
+			local shine = ShopKit.shine(card, { radius = radius, z = 38, trove = owner })
+			owner:Add(motion.shine({
+				host = card,
+				play = shine.play,
+				rest = shine.hide,
+				period = 7,
+				phase = shinePhase,
+			}).remove)
+		end
+	end
+
+	-- FEATURED: the hero. One slide at a time; a new slide replaces the old inside `heroSlot`.
+	renderHero = function()
+		local p = currentPlan
+		local slot = heroSlot
+		if not (p and slot) then
+			return
+		end
+		heroTrove:Clean()
+		slot:ClearAllChildren()
+		local s = SLIDES[slide]
+		local k = p.k
+		local w, h = slot:GetAttribute("W") :: number, slot:GetAttribute("H") :: number
+		local card, family, gradient =
+			CarKit.card(slot, s.family, { radius = math.round(16 * math.max(k, 0.6)), z = 2, name = "Hero" })
+		local artSide = math.min(h * 1.2, w * 0.6)
+		-- a glow under the art, in the family colour
+		CarKit.art(card, "fx_glow", {
+			size = UDim2.fromOffset(artSide * 1.1, artSide * 0.9),
+			position = UDim2.new(0, artSide * 0.52, 1, -artSide * 0.34),
+			color = family.motifColor,
+			transparency = 0.25,
+			z = 4,
+			placeholder = false,
+		})
+		CarKit.art(card, s.art, {
+			size = UDim2.fromOffset(artSide, artSide),
+			position = UDim2.new(0, artSide * 0.47, 1, -artSide * 0.44),
+			z = 6,
+			name = "HeroArt",
+		})
+		local titlePx = fontPx(p, 84, 34)
+		CarKit.art(card, "fx_flag", {
+			size = UDim2.fromOffset(titlePx * 1.5, titlePx * 0.8),
+			position = UDim2.new(0, -titlePx * 0.1, 0, titlePx * 0.12),
+			anchor = Vector2.zero,
+			z = 7,
+			rotation = -8,
+			placeholder = false,
+		})
+		CarKit.title(card, s.title, titlePx, {
+			position = UDim2.new(0, titlePx * 0.62, 0, math.round(6 * k)),
+			size = UDim2.new(1, -titlePx * 0.62, 0, titlePx * 1.04),
+			top = CarKit.White,
+			bottom = CarKit.Yellow,
+			stroke = math.max(3, titlePx / 13),
+			z = 8,
+			name = "HeroTitle",
+		})
+		local right = w - artSide * 0.93
+		local offer = s.offer and Catalog.get(s.offer)
+		if offer and offer.parts then
+			local tileW = math.floor((right - 20 * k) / 3)
+			local plateH = h * 0.46
+			local plate = CarKit.board(card, {
+				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
+				position = UDim2.new(1, -math.round(10 * k), 0, titlePx * 1.2),
+				anchor = Vector2.new(1, 0),
+				z = 9,
+				radius = math.round(12 * math.max(k, 0.6)),
+				top = Color3.fromRGB(20, 26, 50),
+				bottom = Color3.fromRGB(10, 14, 30),
+				name = "Includes",
+			})
+			CarKit.title(plate, "INCLUDES:", fontPx(p, 26, 14), {
+				size = UDim2.new(1, -14, 0, fontPx(p, 30, 16)),
+				position = UDim2.fromOffset(10, 2),
+				z = 11,
+				shadow = false,
+				stroke = 2,
+			})
+			local labelPx = fontPx(p, 19, 12)
+			local tileTop = fontPx(p, 32, 17)
+			local artH = plateH - tileTop - labelPx * 2.1
+			for i, part in offer.parts do
+				local x = (i - 1) * tileW + 8 * k
+				local side = math.min(tileW - 6, artH)
+				CarKit.art(plate, part.art, {
+					size = UDim2.fromOffset(side, side),
+					position = UDim2.new(0, x + tileW / 2, 0, tileTop + artH / 2),
+					z = 12,
+				})
+				CarKit.text(plate, part.label, labelPx, {
+					align = Enum.TextXAlignment.Center,
+					alignY = Enum.TextYAlignment.Top,
+					wrap = true,
+					size = UDim2.fromOffset(tileW, labelPx * 2.2),
+					position = UDim2.new(0, x, 1, -labelPx * 2.3),
+					z = 12,
+					name = "PartLabel",
+				})
+			end
+		elseif s.line then
+			CarKit.title(card, s.line, fontPx(p, 40, 18), {
+				wrap = true,
+				size = UDim2.fromOffset(right - 24, h * 0.4),
+				position = UDim2.new(1, -12, 0, titlePx * 1.3),
+				anchor = Vector2.new(1, 0),
+				align = Enum.TextXAlignment.Right,
+				alignY = Enum.TextYAlignment.Top,
+				z = 9,
+				stroke = 3,
+			})
+		end
+		local bw, bh = math.round(math.max(236 * k, 150)), math.round(math.max(84 * k, 52))
+		local spec = {
+			px = fontPx(p, 54, 28),
+			size = UDim2.fromOffset(bw, bh),
+			position = UDim2.new(1, -math.round(14 * k), 1, -math.round(14 * k)),
+			anchor = Vector2.new(1, 1),
+			z = 12,
 		}
-	end
-
-	local function heroInView(): boolean
-		local h, p = hero, page
-		if not h or not p then
-			return false
+		local cta: CarKit.Button
+		if offer and offer.price then
+			buttons[offer.id] = nil
+			cta = priceButton(card, offer.id, offer.name, s.art, offer.price, spec)
+		else
+			cta = CarKit.button(card, {
+				text = s.button or "SEE",
+				tone = "Green",
+				px = fontPx(p, 42, 24),
+				size = spec.size,
+				position = spec.position,
+				anchor = spec.anchor,
+				z = 12,
+				name = "HeroGo",
+				onPress = function()
+					if s.go then
+						showTab(s.go, true)
+					end
+				end,
+			})
 		end
-		local top = h.root.AbsolutePosition.Y
-		local bottom = top + h.root.AbsoluteSize.Y
-		return bottom > p.AbsolutePosition.Y + 8 and top < p.AbsolutePosition.Y + p.AbsoluteSize.Y - 8
-	end
-
-	buildAll = function(preserveScroll: boolean)
-		-- remember where the player is: the section that was active and how far below its top they had scrolled
-		local anchorId = activeSection
-		local anchorDelta = 0
-		local oldPage = page
-		if oldPage then
-			anchorDelta = oldPage.CanvasPosition.Y - (sectionY[anchorId] or 0)
-		end
-		buildTrove:Clean()
-		motion.clear() -- the old page's effect records go with its instances
-		table.clear(views)
-		table.clear(tabs)
-		table.clear(sectionY)
-		table.clear(stylePick)
-		table.clear(sectionOrder)
-		hero = nil
-		page = nil
-		veil = nil
-		cue = nil
-		tip = nil
-		tabScroll = nil
-		cashCount = nil
-		collectionSet = nil
-		soon = nil
-		closeBody = nil
-		counters.builds += 1
-		overlay:applyScale()
-
-		local ds = overlay:designSize()
-		local sections = Catalog.sections(fixtures.cash)
-		local tier0 = ShopLayout.tierFor(ds)
-		local closeSize0 = ShopLayout.closeSizeFor(tier0)
-		local titleSize0 = ShopLayout.titleSizeFor(tier0)
-		local titleW = math.ceil(ShopKit.textWidth("SHOP", titleSize0)) + 24
-		local tabsW = 0
-		for _, section in sections do
-			tabsW += ShopKit.tabWidth(section.title, S.Layout.TabHeight) + 4
-		end
-		local numSize = if tier0 == "Desktop" then 28 else 24
-		local numW = math.clamp(math.ceil(ShopKit.textWidth(Format.cash(cashValue()), numSize)) + 12, 84, 170)
-		local plusSize = math.max(closeSize0 - 8, Tokens.Touch.Minimum)
-		local cashIconPx = closeSize0 - 14
-		local cashW = 12 + cashIconPx + 6 + numW + 6 + plusSize + 8
-		local L = ShopLayout.compute({ size = ds, titleW = titleW, tabsW = tabsW + 16, cashW = cashW })
-		layoutInfo = L
-		env.tier = L.tier
-
-		local shell: Frame = buildTrove:Add(make("Frame", {
-			Name = "Shop",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1, 1),
+		local scale = make("UIScale", { Scale = 1 }, cta.root) :: UIScale
+		heroTrove:Add(motion.breathe({ scale = scale, host = cta.root, priority = 1 }).remove)
+		-- carousel dots
+		local dots = make("Frame", {
+			Name = "Dots",
 			BackgroundTransparency = 1,
-			ZIndex = 3,
-			Parent = overlay.content,
-		}))
-		popScale = make("UIScale", { Name = "ShopPop", Parent = shell })
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -math.round(8 * k)),
+			Size = UDim2.fromOffset(#SLIDES * 34, 26),
+			ZIndex = 12,
+		}, card)
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 10),
+		}, dots)
+		for i = 1, #SLIDES do
+			local dot = make("TextButton", {
+				Name = "Dot" .. i,
+				Text = "",
+				AutoButtonColor = false,
+				BackgroundColor3 = if i == slide then CarKit.Yellow else Color3.fromRGB(130, 140, 170),
+				Size = UDim2.fromOffset(16, 16),
+				ZIndex = 12,
+				Selectable = false,
+			}, dots)
+			make("UICorner", { CornerRadius = UDim.new(1, 0) }, dot)
+			make("UIStroke", { Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, dot)
+			dot.Activated:Connect(function()
+				shop:setSlide(i)
+				nextAdvance = os.clock() + 14
+			end)
+		end
+		flow(heroTrove, card, gradient, "Hero", 0, 0, math.round(16 * k))
+	end
 
-		-- the page sheet: a vivid electric purple to cyan gradient that sways slowly (N6-01, N6-02: Page recipe), nearly
-		-- opaque so the game and its HUD never read through the words, with a faint wheel and bolt pattern
-		local sheet: Frame = make("Frame", {
-			Name = "PageSheet",
-			Position = UDim2.fromOffset(L.pageX - 10, 0),
-			Size = UDim2.new(0, L.pageW + 20, 1, 0),
-			BackgroundColor3 = WHITE,
-			BackgroundTransparency = 0.02,
-			BorderSizePixel = 0,
-			ZIndex = 2,
-			Parent = shell,
+	local function sideCard(
+		parent: Instance,
+		id: string,
+		familyName: string,
+		art: string,
+		title: string,
+		line: string?,
+		p: Plan,
+		rect: { x: number, y: number, w: number, h: number }
+	)
+		local offer = Catalog.get(id)
+		local k = p.k
+		local w, h = rect.w, rect.h
+		local card, _, gradient = CarKit.card(parent, familyName, {
+			size = UDim2.fromOffset(w, h),
+			position = UDim2.fromOffset(rect.x, rect.y),
+			radius = math.round(14 * math.max(k, 0.6)),
+			z = 2,
+			name = "Side_" .. id,
 		})
-		Arcade.corner(sheet, 18)
-		Arcade.outline(sheet, "Button")
-		local sheetGradient: UIGradient = make("UIGradient", {
-			Color = ShopKit.fill("Page"),
-			Rotation = ShopPalette.Angle.Page,
-			Parent = sheet,
+		local artSide = if id == "vip" then math.min(h * 1.32, w * 0.8) else math.min(h * 0.92, w * 0.5)
+		CarKit.art(card, art, {
+			size = UDim2.fromOffset(artSide, artSide),
+			position = if id == "vip" then UDim2.new(0.42, 0, 0.52, 0) else UDim2.new(0, artSide * 0.54, 0.6, 0),
+			z = 6,
+			name = "Art",
 		})
-		ShopKit.pattern(sheet, Vector2.new(L.pageW + 20, ds.Y), 3, 0.9)
-		motion.gradient({ gradient = sheetGradient, recipe = "Page", host = sheet, priority = 1 })
+		local px = fontPx(p, 62, 24)
+		CarKit.title(card, title, px, {
+			position = UDim2.fromOffset(math.round(12 * k), math.round(4 * k)),
+			size = UDim2.new(1, -math.round(16 * k), 0, px * 1.06),
+			top = if id == "vip" then CarKit.Gold else CarKit.White,
+			bottom = if id == "vip" then Color3.fromRGB(216, 140, 20) else Color3.fromRGB(190, 224, 255),
+			stroke = math.max(3, px / 13),
+			z = 8,
+		})
+		if line then
+			CarKit.title(card, line, fontPx(p, 30, 15), {
+				align = Enum.TextXAlignment.Right,
+				wrap = true,
+				size = UDim2.fromOffset(w * 0.46, fontPx(p, 66, 32)),
+				position = UDim2.new(1, -math.round(12 * k), 0, px * 1.08),
+				anchor = Vector2.new(1, 0),
+				alignY = Enum.TextYAlignment.Top,
+				color = CarKit.Yellow,
+				stroke = 2.5,
+				z = 8,
+			})
+		end
+		if offer and offer.price then
+			priceButton(card, id, offer.name, art, offer.price, {
+				px = fontPx(p, 36, 22),
+				size = UDim2.fromOffset(math.round(math.max(158 * k, 112)), math.round(math.max(58 * k, 46))),
+				position = UDim2.new(1, -math.round(10 * k), 1, -math.round(10 * k)),
+				anchor = Vector2.new(1, 1),
+				z = 12,
+			})
+		end
+		flow(buildTrove, card, gradient, "Card", if id == "vip" then 2 else 4, nil, 14)
+		return card
+	end
 
-		-- PAGE ---------------------------------------------------------------------------------------------------
-		local pageFrame: ScrollingFrame = make("ScrollingFrame", {
+	local function dealBanner(parent: Instance, p: Plan, y: number): number
+		local h = math.round(math.max(112 * p.k, 76))
+		local k = p.k
+		local offer = Catalog.get("all-passes-bundle")
+		local sums = Catalog.bundleMath("all-passes-bundle")
+		local card, _, gradient = CarKit.card(parent, "Bundle", {
+			size = UDim2.fromOffset(p.inner, h),
+			position = UDim2.fromOffset(0, y),
+			radius = math.round(14 * math.max(k, 0.6)),
+			z = 2,
+			name = "DealBanner",
+		})
+		local px = fontPx(p, 68, 28)
+		CarKit.art(card, "fx_flag", {
+			size = UDim2.fromOffset(px * 1.3, px * 0.7),
+			position = UDim2.new(0, 8, 0.5, 0),
+			anchor = Vector2.new(0, 0.5),
+			z = 7,
+			rotation = -8,
+			placeholder = false,
+		})
+		CarKit.title(card, 'ALL PASSES <font color="#FFD23C">BUNDLE</font>', px, {
+			position = UDim2.new(0, px * 1.3, 0, 0),
+			size = UDim2.new(0.5, 0, 1, 0),
+			stroke = math.max(3, px / 12),
+			rich = true,
+			z = 8,
+			name = "DealTitle",
+		})
+		local artSide = h * 1.24
+		CarKit.art(card, "art_bundle", {
+			size = UDim2.fromOffset(artSide, artSide),
+			position = UDim2.new(0.56, 0, 0.5, -h * 0.06),
+			z = 6,
+			name = "Art",
+		})
+		if offer and offer.price then
+			priceButton(card, offer.id, "The bundle", "art_bundle", offer.price, {
+				px = fontPx(p, 40, 22),
+				size = UDim2.fromOffset(math.round(math.max(170 * k, 118)), math.round(math.max(62 * k, 48))),
+				position = UDim2.new(1, -math.round(12 * k), 1, -math.round(10 * k)),
+				anchor = Vector2.new(1, 1),
+				z = 12,
+			})
+		end
+		if sums and sums.isBetter then
+			CarKit.stamp(card, "BEST", "DEAL", math.round(h * 1.2), {
+				position = UDim2.new(0.69, 0, 0.5, 0),
+				anchor = Vector2.new(0.5, 0.5),
+				z = 14,
+			})
+			local ribbon = make("Frame", {
+				Name = "Save",
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -math.round(14 * k), 0, math.round(6 * k)),
+				Size = UDim2.fromOffset(math.round(math.max(170 * k, 120)), math.round(math.max(34 * k, 24))),
+				BackgroundColor3 = CarKit.Red,
+				Rotation = -3,
+				ZIndex = 13,
+			}, card)
+			make("UICorner", { CornerRadius = UDim.new(0, 5) }, ribbon)
+			make(
+				"UIStroke",
+				{ Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				ribbon
+			)
+			CarKit.title(ribbon, ("SAVE %d%%"):format(sums.percent), fontPx(p, 28, 16), {
+				align = Enum.TextXAlignment.Center,
+				z = 14,
+				shadow = false,
+				stroke = 2,
+			})
+			local strike = make("Frame", {
+				Name = "Was",
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(1, 1),
+				Position = UDim2.new(1, -math.round(190 * k) - 4, 1, -math.round(16 * k)),
+				Size = UDim2.fromOffset(math.round(70 * k) + 14, math.round(36 * k) + 6),
+				ZIndex = 13,
+			}, card)
+			CarKit.title(strike, tostring(sums.componentSum), fontPx(p, 30, 17), {
+				align = Enum.TextXAlignment.Right,
+				color = CarKit.Soft,
+				z = 13,
+				shadow = false,
+				stroke = 2,
+			})
+			make("Frame", {
+				Name = "Line",
+				BackgroundColor3 = CarKit.Red,
+				BorderSizePixel = 0,
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.fromScale(1, 0.5),
+				Size = UDim2.new(0.56, 0, 0, 3),
+				Rotation = -6,
+				ZIndex = 16,
+			}, strike)
+			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 11), {
+				size = UDim2.fromOffset(120, 16),
+				position = UDim2.new(1, -math.round(190 * k), 0, math.round(10 * k)),
+				anchor = Vector2.new(1, 0),
+				align = Enum.TextXAlignment.Right,
+				color = CarKit.Soft,
+				z = 13,
+			})
+		end
+		flow(buildTrove, card, gradient, "Deal", 1, 3.5, 14)
+		return h
+	end
+
+	local function sectionHeader(
+		parent: Instance,
+		p: Plan,
+		y: number,
+		icon: string,
+		title: string,
+		sub: string?
+	): number
+		local h = fontPx(p, 58, 36)
+		CarKit.slot(parent, icon, h, {
+			position = UDim2.fromOffset(h / 2, y + h / 2),
+			z = 3,
+		})
+		local px = fontPx(p, 50, 26)
+		CarKit.title(parent, title, px, {
+			position = UDim2.fromOffset(h + 8, y),
+			size = UDim2.fromOffset(p.inner * 0.34, h),
+			top = CarKit.White,
+			bottom = Color3.fromRGB(190, 224, 255),
+			z = 3,
+		})
+		if sub then
+			CarKit.text(parent, sub, fontPx(p, 19, 13), {
+				position = UDim2.new(0, 0, 0, y),
+				size = UDim2.new(1, -18, 0, h),
+				align = Enum.TextXAlignment.Right,
+				color = CarKit.Soft,
+				z = 3,
+			})
+		end
+		return h
+	end
+
+	local function cashRowBlock(parent: Instance, p: Plan, y: number): number
+		table.clear(cashRow)
+		local rows = CashPacks.list(rate(), cash())
+		local weights = { 1, 1.04, 1.1, 1.18, 1.36 }
+		local total = 0
+		for _, w in weights do
+			total += w
+		end
+		local avail = p.inner - p.gap * (#rows - 1)
+		local tallest = math.round(math.clamp(avail / total * 1.36 * 1.34, 150, 340))
+		local x = 0
+		for i, row in rows do
+			local w = math.floor(avail * weights[i] / total)
+			local h = math.round(tallest * (0.82 + 0.18 * (i - 1) / 4))
+			local cy = y + tallest - h
+			local k = p.k
+			local card, _, gradient = CarKit.card(parent, row.pack.family, {
+				size = UDim2.fromOffset(w, h),
+				position = UDim2.fromOffset(x, cy),
+				radius = math.round(12 * math.max(k, 0.6)),
+				z = 2,
+				name = "Pack_" .. row.pack.id,
+			})
+			local amountPx = math.min(fontPx(p, 40 + i * 2.5, 19), math.floor(w / 6.4))
+			local amount = CarKit.title(card, "+" .. money(row.amount), amountPx, {
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(1, -8, 0, amountPx * 1.1),
+				position = UDim2.fromOffset(4, math.round(6 * k)),
+				color = CarKit.CashText,
+				stroke = math.max(2.5, amountPx / 10),
+				z = 8,
+				name = "Amount",
+			})
+			table.insert(cashRow, { amount = amount, pack = row.pack })
+			local chipPx = fontPx(p, 17, 12)
+			local chip = make("Frame", {
+				Name = "Minutes",
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, 0, 0, amountPx * 1.14 + 6 * k),
+				Size = UDim2.new(0.86, 0, 0, chipPx * 1.5),
+				BackgroundColor3 = CarKit.Ink,
+				BackgroundTransparency = 0.25,
+				ZIndex = 8,
+			}, card)
+			make("UICorner", { CornerRadius = UDim.new(0, 6) }, chip)
+			CarKit.text(chip, row.label .. " of earnings", chipPx, {
+				align = Enum.TextXAlignment.Center,
+				z = 9,
+				name = "Label",
+			})
+			local top = amountPx * 1.14 + chipPx * 1.5 + 8 * k
+			local bh = math.round(math.max(50 * k, 44))
+			local artH = h - top - bh - 12 * k
+			local artSide = math.min(artH * 1.1, w * 0.92)
+			CarKit.art(card, row.pack.art, {
+				size = UDim2.fromOffset(artSide, artSide),
+				position = UDim2.new(0.5, 0, 0, top + artH / 2),
+				z = 6,
+				name = "Art",
+			})
+			priceButton(card, row.pack.id, "This Cash pack", row.pack.art, row.pack.robux, {
+				px = fontPx(p, 32, 20),
+				size = UDim2.new(1, -math.round(16 * k), 0, bh),
+				position = UDim2.new(0.5, 0, 1, -math.round(7 * k)),
+				anchor = Vector2.new(0.5, 1),
+				z = 12,
+			})
+			if row.best then
+				CarKit.stamp(card, "BEST", "VALUE", math.round(math.max(96 * k, 64)), {
+					position = UDim2.new(1, math.round(4 * k), 0, top + 34 * k),
+					anchor = Vector2.new(1, 0),
+					z = 14,
+				})
+				flow(buildTrove, card, gradient, "Card", 3, 5, 12)
+			end
+			x += w + p.gap
+		end
+		return tallest
+	end
+
+	local function passRows(parent: Instance, p: Plan, y: number): number
+		local ids = {
+			{ "vip", "Vip", "art_vip" },
+			{ "double-lap-pay", "Lap", "art_doublelap" },
+			{ "expanded-paddock", "Paddock", "art_paddock" },
+		}
+		local w = math.floor((p.inner - p.gap * 2) / 3)
+		local h = math.round(math.clamp(w * 0.78, 200, 340))
+		for i, row in ids do
+			local offer = Catalog.get(row[1])
+			if not offer then
+				continue
+			end
+			local k = p.k
+			local card, _, gradient = CarKit.card(parent, row[2], {
+				size = UDim2.fromOffset(w, h),
+				position = UDim2.fromOffset((i - 1) * (w + p.gap), y),
+				radius = math.round(14 * math.max(k, 0.6)),
+				z = 2,
+				name = "Pass_" .. row[1],
+			})
+			local px = fontPx(p, 46, 22)
+			CarKit.title(card, string.upper(offer.name), px, {
+				position = UDim2.fromOffset(math.round(12 * k), 2),
+				size = UDim2.new(1, -14, 0, px * 1.1),
+				z = 8,
+				stroke = math.max(2.5, px / 10),
+				top = CarKit.White,
+				bottom = edgeTint(row[2]),
+			})
+			local artSide = h * 0.74
+			CarKit.art(card, row[3], {
+				size = UDim2.fromOffset(artSide, artSide),
+				position = UDim2.new(0.5, 0, 0, px * 0.96 + artSide * 0.42),
+				z = 6,
+				name = "Art",
+			})
+			CarKit.text(card, offer.body, fontPx(p, 19, 13), {
+				wrap = true,
+				size = UDim2.new(1, -math.round(170 * k), 0, fontPx(p, 54, 34)),
+				position = UDim2.new(0, math.round(12 * k), 1, -math.round(8 * k)),
+				anchor = Vector2.new(0, 1),
+				alignY = Enum.TextYAlignment.Bottom,
+				stroke = 1.5,
+				z = 8,
+				name = "Body",
+			})
+			if offer.price then
+				priceButton(card, offer.id, offer.name, row[3], offer.price, {
+					px = fontPx(p, 34, 22),
+					size = UDim2.fromOffset(math.round(math.max(142 * k, 112)), math.round(math.max(54 * k, 46))),
+					position = UDim2.new(1, -math.round(10 * k), 1, -math.round(10 * k)),
+					anchor = Vector2.new(1, 1),
+					z = 12,
+				})
+			end
+			flow(buildTrove, card, gradient, "Card", i, nil, 14)
+		end
+		return h
+	end
+
+	local function freeBlock(parent: Instance, p: Plan, y: number): number
+		local h = math.round(math.max(190 * p.k, 150))
+		local k = p.k
+		local card, _, gradient = CarKit.card(parent, "Free", {
+			size = UDim2.fromOffset(p.inner, h),
+			position = UDim2.fromOffset(0, y),
+			radius = 14,
+			z = 2,
+			name = "FreeCard",
+		})
+		local artSide = h * 1.12
+		CarKit.art(card, "art_gift", {
+			size = UDim2.fromOffset(artSide, artSide),
+			position = UDim2.new(0, artSide * 0.56, 0.5, -h * 0.02),
+			z = 6,
+			name = "Art",
+		})
+		local offer = Catalog.get("free-legion")
+		local px = fontPx(p, 58, 26)
+		CarKit.title(card, offer and offer.name or "FREE GIFT", px, {
+			position = UDim2.fromOffset(artSide * 1.1, math.round(10 * k)),
+			size = UDim2.new(0.6, 0, 0, px * 1.1),
+			top = CarKit.White,
+			bottom = CarKit.Yellow,
+			z = 8,
+		})
+		CarKit.text(card, "Join our group for a free paint. Coming soon!", fontPx(p, 21, 14), {
+			position = UDim2.fromOffset(artSide * 1.1, px * 1.15 + 12 * k),
+			size = UDim2.new(0.5, 0, 0, fontPx(p, 54, 34)),
+			wrap = true,
+			alignY = Enum.TextYAlignment.Top,
+			stroke = 1.5,
+			z = 8,
+		})
+		CarKit.button(card, {
+			text = "SEE REWARD",
+			tone = "Blue",
+			px = fontPx(p, 34, 22),
+			size = UDim2.fromOffset(math.round(math.max(220 * k, 170)), math.round(math.max(62 * k, 50))),
+			position = UDim2.new(1, -math.round(14 * k), 1, -math.round(14 * k)),
+			anchor = Vector2.new(1, 1),
+			z = 12,
+			name = "SeeReward",
+			onPress = function()
+				if opts.onFreeReward then
+					opts.onFreeReward()
+				end
+			end,
+		})
+		flow(buildTrove, card, gradient, "Card", 5, nil, 14)
+		return h
+	end
+
+	-- THE STORE PAGE --------------------------------------------------------------------------------------------
+
+	local function buildPage(host: Frame, p: Plan)
+		local bar = if p.tier == "Phone" then 6 else 12
+		local scroll = make("ScrollingFrame", {
 			Name = "Page",
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			Position = UDim2.fromOffset(L.pageX, L.pageY),
-			Size = UDim2.fromOffset(L.pageW, L.pageH),
-			CanvasSize = UDim2.fromOffset(0, L.pageH),
-			AutomaticCanvasSize = Enum.AutomaticSize.None,
-			ScrollingDirection = Enum.ScrollingDirection.Y,
-			ScrollBarThickness = 8,
-			ScrollBarImageColor3 = WHITE,
-			ScrollBarImageTransparency = 0.25,
-			VerticalScrollBarInset = Enum.ScrollBarInset.None,
-			ClipsDescendants = true,
-			Selectable = false,
-			ZIndex = 6,
-			Parent = shell,
-		})
-		page = pageFrame
-		motion.setViewport(pageFrame) -- a card scrolled out of the page is offscreen and rests
-		local y = 6
-		for _, section in sections do
-			table.insert(sectionOrder, section.id)
-			sectionY[section.id] = if section.id == "featured" then 0 else y
-			local frame: Frame = make("Frame", {
-				Name = "Section_" .. section.id,
-				Position = UDim2.fromOffset(0, y),
-				Size = UDim2.fromOffset(L.contentW, 10),
-				BackgroundTransparency = 1,
-				ZIndex = 7,
-				Parent = pageFrame,
-			})
-			local height: number
-			if section.id == "featured" then
-				height = buildFeatured(frame, L)
-			elseif section.id == "passes" then
-				height = buildPasses(frame, section, L)
-			elseif section.id == "free" then
-				height = buildFree(frame, section, L)
-			else
-				height = buildGridSection(frame, section, L)
-			end
-			frame.Size = UDim2.fromOffset(L.contentW, height)
-			y += height + L.sectionGap
-		end
-		-- the honest footer: a harness caption (hidden in the player-facing view), never a sales line
-		footerText = "Preview shop: every price is a proposal and nothing can be bought in this build."
-		local footer = ShopKit.paragraph(pageFrame, footerText, 16, {
-			name = "PreviewNote",
-			colour = ShopPalette.Color.Grey,
-			xAlign = Enum.TextXAlignment.Center,
-			z = 8,
-		})
-		footer.Position = UDim2.fromOffset(0, y)
-		footer.Size = UDim2.fromOffset(L.contentW, 40)
-		footer:SetAttribute("PreviewCaption", true)
-		y += L.footerH
-		pageFrame.CanvasSize = UDim2.fromOffset(0, y)
-		scrollMax = math.max(y - L.pageH, 0)
-		buildTrove:Connect(pageFrame:GetPropertyChangedSignal("CanvasPosition"), onScroll)
-
-		-- the scroll cue: a calm chip in its OWN footer row under the page (ShopLayout reserves it), so it never covers the
-		-- BEST DEAL banner's price chips. A phone has no row to spare, so it has no cue (the scrollbar says there is more).
-		if L.cueH > 0 then
-			local scrollCue =
-				ShopKit.chip(shell, { text = "Scroll for more", fill = "Steel", size = 16, z = 12, name = "ScrollCue" })
-			scrollCue.AnchorPoint = Vector2.new(0.5, 0.5)
-			scrollCue.Position = UDim2.new(0.5, 0, 0, L.pageY + L.pageH + L.cueH / 2)
-			cue = scrollCue
-		end
-
-		-- HEADER -------------------------------------------------------------------------------------------------
-		local z = 20
-		local header: Frame = make("Frame", {
-			Name = "Header",
-			Size = UDim2.new(1, 0, 0, L.headerH),
-			BackgroundTransparency = 1,
-			ZIndex = z,
-			Parent = shell,
-		})
-		local rowCentre = L.topPad + L.rowH / 2
-		local title = ShopKit.label(header, "SHOP", L.titleSize, {
-			name = "Title",
-			outline = if L.tier == "Desktop" then 6 else 4,
-			z = z + 1,
-		})
-		title.AnchorPoint = Vector2.new(0, 0.5)
-		title.Position = UDim2.fromOffset(L.margin, rowCentre)
-		title.Size = UDim2.fromOffset(titleW, L.titleSize + 14)
-
-		local closeButton = ShopKit.squareButton(header, {
-			name = "Close",
-			size = L.closeSize,
-			fill = "Red",
-			icon = "Close",
-			z = z + 1,
-			trove = buildTrove,
-			sound = "Close",
-			onActivate = function()
-				shop:close()
-			end,
-		})
-		closeButton.root.AnchorPoint = Vector2.new(1, 0.5)
-		closeButton.root.Position = UDim2.fromOffset(L.margin + L.contentW, rowCentre)
-		closeBody = closeButton.body
-
-		local cashBox: Frame = make("Frame", {
-			Name = "Cash",
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.fromOffset(L.margin + L.contentW - L.closeSize - L.gap, rowCentre),
-			Size = UDim2.fromOffset(cashW, L.closeSize),
-			BackgroundColor3 = WHITE,
-			BorderSizePixel = 0,
-			ZIndex = z + 1,
-			Parent = header,
-		})
-		Arcade.corner(cashBox, L.closeSize)
-		Arcade.outline(cashBox, "Button")
-		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = cashBox })
-		local cashIcon: Frame = make("Frame", {
-			Name = "Icon",
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 10, 0.5, 0),
-			Size = UDim2.fromOffset(cashIconPx, cashIconPx),
-			BackgroundTransparency = 1,
-			ZIndex = z + 2,
-			Parent = cashBox,
-		})
-		ShopKit.icon(cashIcon, if fixtures.missingArt then "__missing__" else "CashStack")
-		local numLabel = ShopKit.label(cashBox, "", numSize, {
-			name = "Amount",
-			italic = true,
-			face = "Cash",
-			z = z + 2,
-		})
-		numLabel.AnchorPoint = Vector2.new(0, 0.5)
-		numLabel.Position = UDim2.new(0, 12 + cashIconPx + 6, 0.5, 0)
-		numLabel.Size = UDim2.fromOffset(numW, numSize + 8)
-		local counter = ShopKit.countUp(numLabel, { format = Format.cash, startValue = cashValue() })
-		cashCount = counter
-		buildTrove:Add(function()
-			counter.destroy()
-		end)
-		local plus = ShopKit.squareButton(cashBox, {
-			name = "Plus",
-			size = plusSize,
-			fill = "Lime",
-			icon = "Plus",
-			z = z + 2,
-			trove = buildTrove,
-			onActivate = function()
-				if fixtures.cash then
-					scrollTo("cash", true)
-					return
-				end
-				-- Cash is off: open Featured with a small honest explanation, not an empty section (M10-03a)
-				scrollTo("featured", true)
-				local bubble = tip
-				if bubble then
-					bubble.Visible = true
-					local previous = tipThread
-					if previous then
-						pcall(task.cancel, previous)
-					end
-					tipThread = task.delay(3.2, function()
-						bubble.Visible = false
-					end)
-				end
-			end,
-		})
-		plus.root.AnchorPoint = Vector2.new(1, 0.5)
-		plus.root.Position = UDim2.new(1, -6, 0.5, 0)
-
-		local bubble: Frame = make("Frame", {
-			Name = "CashTip",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.fromOffset(L.margin + L.contentW - L.closeSize - L.gap, L.topPad + L.rowH + 4),
-			Size = UDim2.fromOffset(math.min(300, L.contentW - 20), 30),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundColor3 = WHITE,
-			BorderSizePixel = 0,
-			Visible = false,
-			ZIndex = z + 10,
-			Parent = header,
-		})
-		Arcade.corner(bubble, 10)
-		Arcade.outline(bubble, "Button")
-		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = bubble })
-		make("UIPadding", {
-			PaddingLeft = UDim.new(0, 8),
-			PaddingRight = UDim.new(0, 8),
-			PaddingTop = UDim.new(0, 6),
-			PaddingBottom = UDim.new(0, 6),
-			Parent = bubble,
-		})
-		ShopKit.paragraph(
-			bubble,
-			"Cash packs are not available yet. Drive to earn Cash!",
-			16,
-			{ name = "Text", z = z + 11 }
-		)
-		tip = bubble
-
-		-- the pill tab bar: centred on the first row when it fits, its own scrollable row otherwise
-		local barW, barX, barY
-		if L.tabsInline then
-			barW = tabsW + 16
-			local freeLeft = L.margin + titleW + L.gap
-			local freeRight = L.margin + L.contentW - L.closeSize - L.gap - cashW - L.gap
-			barX = freeLeft + math.max(math.floor((freeRight - freeLeft - barW) / 2), 0)
-			barY = rowCentre - (L.tabH + 10) / 2
-		else
-			barW = L.contentW
-			barX = L.margin
-			barY = L.topPad + L.rowH + L.tabGap
-		end
-		local bar: Frame = make("Frame", {
-			Name = "TabBar",
-			Position = UDim2.fromOffset(barX, barY),
-			Size = UDim2.fromOffset(barW, L.tabH + 10),
-			BackgroundColor3 = WHITE,
-			BorderSizePixel = 0,
-			ZIndex = z + 1,
-			Parent = header,
-		})
-		Arcade.corner(bar, L.tabH + 10)
-		Arcade.outline(bar, "Button")
-		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = bar })
-		local scroller: ScrollingFrame = make("ScrollingFrame", {
-			Name = "Tabs",
-			Position = UDim2.fromOffset(6, 0),
-			Size = UDim2.new(1, -12, 1, 0),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			CanvasSize = UDim2.fromOffset(tabsW + 4, 0),
-			AutomaticCanvasSize = Enum.AutomaticSize.None,
-			ScrollingDirection = Enum.ScrollingDirection.X,
-			ScrollBarThickness = 0,
-			ClipsDescendants = true,
-			Selectable = false,
-			ZIndex = z + 2,
-			Parent = bar,
-		})
-		tabScroll = scroller
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			VerticalAlignment = Enum.VerticalAlignment.Center,
-			Padding = UDim.new(0, 4),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			Parent = scroller,
-		})
-		for order, section in sections do
-			local tab = ShopKit.tab(scroller, {
-				name = "Tab_" .. section.id,
-				label = section.title,
-				icon = if fixtures.missingArt then "__missing__" else section.icon,
-				z = z + 3,
-				trove = buildTrove,
-				height = L.tabH,
-				onActivate = function()
-					scrollTo(section.id, true)
-				end,
-			})
-			tab.root.LayoutOrder = order
-			tabs[section.id] = tab
-		end
-
-		buildSoon(shell, L)
-		-- the open / close fade (a veil that never takes input)
-		local fade: Frame = make("Frame", {
-			Name = "OpenVeil",
 			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = A.Ink,
+			ScrollBarThickness = if p.tier == "Phone" then 4 else 8,
+			ScrollBarImageColor3 = CarKit.ChromeBottom,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			ClipsDescendants = true,
+			ZIndex = 2,
+			Selectable = false,
+		}, host) :: ScrollingFrame
+		page = scroll
+		local q: Plan = table.clone(p)
+		q.inner = p.inner - bar
+		local body = make("Frame", {
+			Name = "Body",
 			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			Visible = false,
-			ZIndex = 90,
-			Parent = shell,
+			Size = UDim2.new(1, 0, 0, 10),
+			ZIndex = 2,
+		}, scroll) :: Frame
+
+		local y = 4
+		sectionY.featured = 0
+		local peek = math.round(math.max(96 * p.k, 60))
+		local bannerH = math.round(math.max(112 * p.k, 76))
+		local rowH = math.max(p.pageH - bannerH - peek - p.gap * 2 - 8, math.round(230 * p.k))
+		local heroW = math.floor(q.inner * 0.645)
+		local sideW = q.inner - heroW - p.gap
+		local slot = make("Frame", {
+			Name = "HeroSlot",
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(0, y),
+			Size = UDim2.fromOffset(heroW, rowH),
+			ZIndex = 2,
+		}, body) :: Frame
+		slot:SetAttribute("W", heroW)
+		slot:SetAttribute("H", rowH)
+		heroSlot = slot
+		renderHero()
+		local sideH = math.floor((rowH - p.gap) / 2)
+		sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = heroW + p.gap, y = y, w = sideW, h = sideH })
+		sideCard(body, "double-lap-pay", "Lap", "art_doublelap", "DOUBLE LAP PAY", "2x Cash per lap!", q, {
+			x = heroW + p.gap,
+			y = y + sideH + p.gap,
+			w = sideW,
+			h = sideH,
 		})
-		veil = fade
-		-- the carousel tick lives in the animator (so it runs only while the shop is open, visible and not in Reduced
-		-- Motion): the hero moves on by itself only while nothing hovers, presses or focuses it (M10-03a)
-		motion.every({
-			seconds = 0.25,
-			fn = function()
-				counters.ticks += 1
-				local h = hero
-				if not h or soonOpen or not shopOpen or not visible then
-					return
+		y += rowH + p.gap
+		y += dealBanner(body, q, y) + p.gap * 2
+
+		sectionY.cash = y - p.gap
+		y += sectionHeader(body, q, y, "cash", "CASH PACKS", "Packs grow as your Raceway grows!") + p.gap
+		y += cashRowBlock(body, q, y) + p.gap * 2
+
+		sectionY.passes = y - p.gap
+		y += sectionHeader(body, q, y, "vip", "PASSES", "Forever yours, in every World") + p.gap
+		y += passRows(body, q, y) + p.gap * 2
+
+		sectionY.free = y - p.gap
+		y += sectionHeader(body, q, y, "freeGift", "FREE", nil) + p.gap
+		y += freeBlock(body, q, y) + p.gap
+
+		CarKit.text(body, "PREVIEW: prices and contents are proposals. Nothing can be bought yet.", 14, {
+			size = UDim2.new(1, 0, 0, 22),
+			position = UDim2.fromOffset(0, y),
+			align = Enum.TextXAlignment.Center,
+			color = CarKit.Soft,
+			z = 3,
+			name = "PreviewFooter",
+		})
+		y += 30
+		body.Size = UDim2.new(1, 0, 0, y)
+		scroll.CanvasSize = UDim2.fromOffset(0, y)
+		buildTrove:Connect(scroll:GetPropertyChangedSignal("CanvasPosition"), function()
+			if view ~= "store" then
+				return
+			end
+			local canvasH = scroll.CanvasSize.Y.Offset
+			local at = scroll.CanvasPosition.Y / (if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1) + 40
+			local best = "featured"
+			for _, id in { "featured", "cash", "passes", "free" } do
+				if at >= (sectionY[id] or 0) then
+					best = id
 				end
-				local now = os.clock()
-				if h.isEngaged() or pendingId ~= nil then
-					carouselPausedUntil = now + M.CarouselPause
+			end
+			if best ~= activeTab then
+				activeTab = best
+				for tab, refs in tabButtons do
+					refs.paint(tab == best)
 				end
-				if
-					opts.autoAdvance ~= false
-					and UserInputService:GetLastInputType() ~= Enum.UserInputType.Touch -- never swap under a still thumb
-					and h.count() > 1
-					and now >= carouselPausedUntil
-					and now >= carouselNextAt
-					and heroInView()
-				then
-					h.advance()
-					counters.advances += 1
-					carouselNextAt = now + M.CarouselSeconds
-				end
+			end
+		end)
+		motion.setViewport(scroll)
+	end
+
+	local function mountStudio(host: Frame, tab: string, size: Vector2)
+		local StyleStudio = require(script.Parent.StyleStudio) :: any
+		studio = StyleStudio.new(ctx, host, {
+			tab = tab,
+			size = size,
+			trove = buildTrove,
+			onGetCash = function()
+				showTab("cash", true)
+			end,
+			onBuy = function(id: string, title: string, art: string?)
+				press(id, title, art)
 			end,
 		})
-		refreshViews()
-		setViewLoops(shopOpen and visible)
-		if preserveScroll then
-			local target = if sectionY[anchorId] ~= nil then anchorId else (sectionOrder[1] or "featured")
-			local goal = math.clamp((sectionY[target] or 0) + anchorDelta, 0, scrollMax)
-			programmaticUntil = os.clock() + 0.1
-			pageFrame.CanvasPosition = Vector2.new(0, goal)
-			activeSection = target
-		end
-		setActiveTab(if sectionY[activeSection] ~= nil then activeSection else (sectionOrder[1] or "featured"))
-		onScroll()
-		if soonOpen then
-			soonOpen = false -- a relayout while the card was up: it simply closes (the press already ended)
-		end
 	end
 
-	-- LOOPS ------------------------------------------------------------------------------------------------------
+	build = function()
+		buildTrove:Clean()
+		heroTrove = buildTrove:Extend()
+		table.clear(buttons)
+		table.clear(tabButtons)
+		table.clear(cashRow)
+		page = nil
+		heroSlot = nil
+		studio = nil
+		cashLabel = nil
+		motion.clear()
+		counters.builds += 1
 
-	local function addBlur()
-		if opts.blur == false or blur ~= nil then
-			return
+		local D = overlay:designSize()
+		builtFor = D
+		local p = plan(D)
+		currentPlan = p
+		CarKit.setStrokeScale(ctx.screen:uiScale())
+		local root = buildTrove:Add(make("Frame", {
+			Name = "ShopRoot",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 2,
+		}, overlay.content)) :: Frame
+		local shell = CarKit.board(root, {
+			size = UDim2.fromOffset(p.panel.X, p.panel.Y),
+			position = UDim2.fromScale(0.5, 0.5),
+			anchor = Vector2.new(0.5, 0.5),
+			z = 2,
+			radius = if p.tier == "Phone" then 12 else 18,
+			name = "Panel",
+		})
+		panel = shell
+
+		-- header: title, tabs, Cash, close
+		local header = make("Frame", {
+			Name = "Header",
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -p.pad * 2, 0, p.headerH),
+			Position = UDim2.fromOffset(p.pad, 4),
+			ZIndex = 5,
+		}, shell) :: Frame
+		local titlePx = if p.tier == "Phone" then 40 else 62
+		local titleW = math.round(titlePx * 1.75)
+		CarKit.title(header, "SHOP", titlePx, {
+			position = UDim2.fromOffset(2, 0),
+			size = UDim2.fromOffset(titleW, p.headerH),
+			top = CarKit.White,
+			bottom = Color3.fromRGB(190, 214, 255),
+			z = 6,
+			name = "ShopTitle",
+		})
+		local flagW = if p.tier == "Phone" then 0 else titlePx * 1.1
+		if flagW > 0 then
+			CarKit.art(header, "fx_flag", {
+				size = UDim2.fromOffset(flagW, flagW / 2),
+				position = UDim2.new(0, titleW + flagW / 2, 0, p.headerH * 0.46),
+				z = 6,
+				rotation = 8,
+				placeholder = false,
+			})
 		end
-		local effect = Instance.new("BlurEffect")
-		effect.Name = "ShopBlur"
-		effect.Size = 0
-		effect.Parent = workspace.CurrentCamera or game:GetService("Lighting")
-		blur = effect
-		if Motion.reduced() then
-			effect.Size = M.Blur
-		else
-			Motion.tween(effect, "blur", Motion.info(M.OpenSeconds), { Size = M.Blur })
-		end
-	end
-	local function removeBlur()
-		local effect = blur
-		blur = nil
-		if not effect then
-			return
-		end
-		Debris:AddItem(effect, 1) -- never leaves a stray blur behind, whatever happens to the tween
-		if Motion.reduced() then
-			effect:Destroy()
-		else
-			local tween = Motion.tween(effect, "blur", Motion.info(M.CloseSeconds), { Size = 0 })
-			tween.Completed:Once(function()
-				effect:Destroy()
+		local closePx = if p.tier == "Phone" then 44 else 52
+		local close = make("ImageButton", {
+			Name = "Close",
+			BackgroundTransparency = 1,
+			Image = "",
+			Size = UDim2.fromOffset(closePx, closePx),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			ZIndex = 8,
+		}, header) :: ImageButton
+		CarKit.slot(close, "close", closePx, { position = UDim2.fromScale(0.5, 0.5), z = 8, fallback = "Close" })
+		close.Activated:Connect(function()
+			shop:close()
+		end)
+		-- the Cash counter with its green plus
+		local cashW = if p.tier == "Phone" then 140 else 204
+		local cashBox = CarKit.board(header, {
+			size = UDim2.fromOffset(cashW, if p.tier == "Phone" then 40 else 50),
+			position = UDim2.new(1, -closePx - 8, 0.5, 0),
+			anchor = Vector2.new(1, 0.5),
+			z = 7,
+			radius = 10,
+			top = CarKit.Well,
+			bottom = CarKit.Well,
+			name = "CashBox",
+		})
+		local iconPx = if p.tier == "Phone" then 32 else 48
+		CarKit.slot(cashBox, "cash", iconPx, { position = UDim2.new(0, iconPx / 2 + 2, 0.5, 0), z = 8 })
+		cashLabel = CarKit.title(cashBox, money(cash()), if p.tier == "Phone" then 20 else 28, {
+			position = UDim2.fromOffset(iconPx + 4, 0),
+			size = UDim2.new(1, -iconPx - 42, 1, 0),
+			color = CarKit.CashText,
+			shadow = false,
+			stroke = 2,
+			z = 9,
+			name = "CashValue",
+		})
+		local plus = make("ImageButton", {
+			Name = "CashPlus",
+			BackgroundTransparency = 1,
+			Image = "",
+			Size = UDim2.fromOffset(36, 36),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -2, 0.5, 0),
+			ZIndex = 9,
+		}, cashBox) :: ImageButton
+		CarKit.slot(plus, "plus", 32, { position = UDim2.fromScale(0.5, 0.5), z = 9, fallback = "Plus" })
+		plus.Activated:Connect(function()
+			showTab("cash", true)
+		end)
+		-- tabs
+		local tabsX = titleW + flagW + 8
+		local tabsW = p.inner - tabsX - cashW - closePx - 16
+		local gap = 4
+		local tabW = math.floor((tabsW - gap * (#TABS - 1)) / #TABS)
+		local tabH = if p.tier == "Phone" then 40 else 48
+		for i, tab in TABS do
+			local px = math.clamp(math.round(tabW / 3.4), 16, 30)
+			local button = make("TextButton", {
+				Name = "Tab_" .. tab.id,
+				Text = "",
+				AutoButtonColor = false,
+				BackgroundColor3 = CarKit.Well,
+				Position = UDim2.new(0, tabsX + (i - 1) * (tabW + gap), 0.5, -tabH / 2),
+				Size = UDim2.fromOffset(tabW, tabH),
+				ZIndex = 7,
+				Selectable = true,
+			}, header) :: TextButton
+			make("UICorner", { CornerRadius = UDim.new(0, 9) }, button)
+			make(
+				"UIStroke",
+				{ Thickness = 2, Color = CarKit.ChromeBottom, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				button
+			)
+			local label = CarKit.title(button, tab.label, px, {
+				align = Enum.TextXAlignment.Center,
+				shadow = false,
+				stroke = 2,
+				z = 8,
+				name = "Label",
+			})
+			local function paintTab(on: boolean)
+				button.BackgroundColor3 = if on then CarKit.Yellow else CarKit.Well
+				label.TextColor3 = if on then CarKit.Ink else CarKit.White
+				local s = label:FindFirstChildOfClass("UIStroke")
+				if s then
+					s.Enabled = not on
+				end
+			end
+			paintTab(tab.id == activeTab)
+			tabButtons[tab.id] = { paint = paintTab, button = button }
+			button.Activated:Connect(function()
+				pcall(function()
+					Sounds.play("Press")
+				end)
+				showTab(tab.id, true)
 			end)
+		end
+
+		local stage = make("Frame", {
+			Name = "Stage",
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(p.pad, p.headerH + 6),
+			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8),
+			ZIndex = 3,
+		}, shell) :: Frame
+		if view == "store" then
+			buildPage(stage, p)
+		else
+			mountStudio(stage, if activeTab == "trails" then "Trails" else "Paint", Vector2.new(p.inner, p.pageH))
+		end
+		if isShopOpen and visible then
+			motion.start()
+		end
+		refresh()
+	end
+
+	showTab = function(id: string, animate: boolean?)
+		local wantStudio = id == "style" or id == "trails"
+		activeTab = id
+		if wantStudio ~= (view == "studio") then
+			view = if wantStudio then "studio" else "store"
+			build()
+		elseif wantStudio and studio then
+			studio:setTab(if id == "trails" then "Trails" else "Paint")
+		end
+		for tab, refs in tabButtons do
+			refs.paint(tab == id)
+		end
+		if not wantStudio then
+			shop:scrollTo(id, animate)
+		end
+	end
+
+	-- PUBLIC ----------------------------------------------------------------------------------------------------
+
+	function shop.scrollTo(_self: Shop, id: string, animate: boolean?)
+		local scroll = page
+		if not scroll then
+			return
+		end
+		-- canvas positions are real pixels; the page is laid out in design pixels
+		local canvasH = scroll.CanvasSize.Y.Offset
+		local y = (sectionY[id] or 0) * (if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1)
+		if animate and not Motion.reduced() then
+			Motion.tween(scroll, "ShopScroll", Motion.info(0.32), { CanvasPosition = Vector2.new(0, y) })
+		else
+			scroll.CanvasPosition = Vector2.new(0, y)
+		end
+	end
+
+	function shop.setSlide(_self: Shop, index: number)
+		slide = ((index - 1) % #SLIDES) + 1
+		renderHero()
+		refresh()
+	end
+
+	local function setBlur(on: boolean)
+		if opts.blur == false then
+			return
+		end
+		if on and not blur then
+			local b = Instance.new("BlurEffect")
+			b.Name = "ShopBlur"
+			b.Size = 10
+			b.Parent = Lighting
+			blur = b
+		elseif not on and blur then
+			blur:Destroy()
+			blur = nil
 		end
 	end
 	trove:Add(function()
-		local effect = blur
-		blur = nil
-		if effect then
-			effect:Destroy()
-		end
+		setBlur(false)
 	end)
 
-	startLoops = function()
-		openTrove:Clean()
-		if destroyed or not shopOpen or not visible then
+	function shop.open(self: Shop, returnTo: GuiObject?)
+		if isShopOpen then
 			return
 		end
-		addBlur()
-		setViewLoops(true)
-		carouselPausedUntil = os.clock()
-		carouselNextAt = os.clock() + M.CarouselSeconds
-		-- THE driver: one Heartbeat connection for every effect, connected only while the shop is open and visible
+		isShopOpen = true
+		view = "store"
+		activeTab = "featured"
+		slide = 1
+		overlay:setBack(function()
+			self:close()
+		end)
+		overlay:applyScale()
+		overlay:open(nil, returnTo)
+		build()
+		setBlur(true)
 		motion.start()
-		openTrove:Add(function()
-			motion.stop()
-		end)
-		openTrove:Add(Motion.onReducedChanged(function()
-			if shopOpen then
-				refreshViews()
-			end
-		end))
-		openTrove:Add(ctx.store:subscribe("cash", function(value: any)
-			local counter = cashCount
-			if counter and fixtures.cashValue == nil and type(value) == "number" then
-				counter.set(value, true)
-			end
-		end))
-		openTrove:Connect(adapter.Changed, function()
-			if shopOpen then
-				refreshViews()
-			end
-		end)
-		-- gamepad: a focused card scrolls into view
-		openTrove:Connect(GuiService:GetPropertyChangedSignal("SelectedObject"), function()
-			local p = page
-			local selected = GuiService.SelectedObject
-			if not p or not selected or not selected:IsDescendantOf(p) or not selected:IsA("GuiObject") then
-				return
-			end
-			local gui = selected :: GuiObject
-			local relTop = gui.AbsolutePosition.Y - p.AbsolutePosition.Y + p.CanvasPosition.Y
-			local relBottom = relTop + gui.AbsoluteSize.Y
-			local y = p.CanvasPosition.Y
-			local viewH = p.AbsoluteSize.Y
-			if relTop < y + 4 then
-				y = relTop - 12
-			elseif relBottom > y + viewH - 4 then
-				y = relBottom - viewH + 12
-			end
-			programmaticUntil = os.clock() + 0.2
-			p.CanvasPosition = Vector2.new(0, math.clamp(y, 0, scrollMax))
-		end)
-	end
-
-	stopLoops = function()
-		openTrove:Clean()
-		motion.stop() -- idempotent: the connection is gone and every effect rests
-		setViewLoops(false)
-		removeBlur()
-	end
-
-	-- COMING SOON ----------------------------------------------------------------------------------------------------
-
-	showComingSoon = function(offerId: string)
-		local s = soon
-		local offer = Catalog.get(offerId)
-		if not s or not offer then
-			return
-		end
-		for _, child in s.artHolder:GetChildren() do
-			child:Destroy()
-		end
-		ShopArt.build(s.artHolder, offer.art, s.artPx, { z = 66, missing = fixtures.missingArt })
-		s.name.Text = offer.name
-		s.root.Visible = true
-		soonOpen = true
-		motion.rescan() -- the pop-up's own gradient starts moving at once
-		ShopKit.noteSoundDependency("ShopComingSoon")
-		Sounds.play("Toast")
-		Motion.cancelAll(s.pop)
-		if Motion.reduced() then
-			s.pop.Scale = 1
-		else
-			s.pop.Scale = 0.9
-			Motion.tween(
-				s.pop,
-				"pop",
-				Motion.info(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-				{ Scale = 1 }
-			)
-		end
-		if lastInputIsGamepad() then
-			GuiService.SelectedObject = s.button.body
+		nextAdvance = os.clock() + 9
+		if not Motion.reduced() and panel then
+			Motion.pop(panel, 0.94)
 		end
 	end
 
-	closeSoon = function()
-		local s = soon
-		if not s or not soonOpen then
-			return
-		end
-		soonOpen = false
-		Motion.cancelAll(s.pop)
-		s.root.Visible = false
-		motion.rescan()
-		local source = lastSource
-		if source and source:IsDescendantOf(game) and lastInputIsGamepad() then
-			GuiService.SelectedObject = source
-		elseif GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(s.root) then
-			GuiService.SelectedObject = nil
+	function shop.openSection(self: Shop, name: string, returnTo: GuiObject?)
+		self:open(returnTo)
+		showTab(string.lower(name), false)
+	end
+
+	function shop.openAt(self: Shop, sectionId: string?, _offerId: string?, returnTo: GuiObject?)
+		self:open(returnTo)
+		if sectionId then
+			showTab(string.lower(sectionId), false)
 		end
 	end
 
-	-- OPEN, CLOSE -----------------------------------------------------------------------------------------------------
-
-	-- Open (N6-02b): 0.18 s opacity plus a 0.97 to 1 scale, Quad Out. Reduced Motion: 0.1 s opacity only, no scale.
-	local function fadeVeil(from: number, to: number, seconds: number, hideAtEnd: boolean)
-		local fade = veil
-		if not fade then
-			return
-		end
-		Motion.cancelAll(fade)
-		fade.Visible = true
-		fade.BackgroundTransparency = from
-		local tween = Motion.tween(fade, "fade", Motion.info(seconds), { BackgroundTransparency = to })
-		tween.Completed:Once(function(playback)
-			if hideAtEnd and playback == Enum.PlaybackState.Completed then
-				fade.Visible = false
-			end
-		end)
+	function shop.openExpandedPaddock(self: Shop, returnTo: GuiObject?)
+		self:openSection("passes", returnTo)
 	end
 
-	local function popIn()
-		local scale = popScale
-		if not scale then
-			return
-		end
-		Motion.cancelAll(scale)
-		if Motion.reduced() then
-			scale.Scale = 1
-			fadeVeil(0.1, 1, T.ReducedFade, true)
-		else
-			scale.Scale = T.OpenFrom
-			Motion.tween(
-				scale,
-				"pop",
-				Motion.info(T.OpenSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-				{ Scale = 1 }
-			)
-			fadeVeil(0.1, 1, T.OpenSeconds, true)
-		end
+	function shop.openDoubleLapPay(self: Shop, returnTo: GuiObject?)
+		self:openSection("passes", returnTo)
 	end
 
-	-- Brings an offer to the player's eye (the parking-full entry): a steady ring for a moment, and gamepad focus.
-	local function focusOffer(offerId: string)
-		local list = views[offerId]
-		local view = list and list[#list]
-		if not view then
+	function shop.close(_self: Shop)
+		if not isShopOpen then
 			return
 		end
-		local target: GuiObject = view.root
-		local ring = ShopKit.pulseRing(target, { padding = 4, radius = 16, z = 40, trove = openTrove })
-		ring.setActive(true)
-		openTrove:Add(task.delay(2.6, function()
-			ring.destroy()
-		end))
-		local focus = if view.button then view.button.body else view.hit
-		if focus and lastInputIsGamepad() then
-			GuiService.SelectedObject = focus
+		isShopOpen = false
+		if pendingHandle then
+			pendingHandle:cancel()
+			pendingHandle = nil
+			pendingId = nil
 		end
-	end
-
-	local function openShop(returnTo: GuiObject?, sectionId: string?, offerId: string?)
-		if destroyed then
-			return
-		end
-		if overlay:isOpen() then
-			-- already open (a second entry point fired): take the player to that section and offer instead
-			if sectionId and sectionY[sectionId] ~= nil then
-				scrollTo(sectionId, true)
-			end
-			if offerId then
-				focusOffer(offerId)
-			end
-			return
-		end
-		shopOpen = true
-		openToken += 1
-		pendingId = nil
-		soonOpen = false
-		buildAll(false)
-		overlay:open(closeBody, returnTo)
-		overlay.root.Visible = visible
-		startLoops()
-		popIn()
-		local p = page
-		if sectionId and sectionY[sectionId] ~= nil then
-			scrollTo(sectionId, false)
-		elseif p then
-			p.CanvasPosition = Vector2.zero
-			setActiveTab(sectionOrder[1] or "featured")
-		end
-		if offerId then
-			focusOffer(offerId)
-		end
-	end
-
-	local function closeShop()
-		if not shopOpen or not overlay:isOpen() then
-			return
-		end
-		-- close during "Checking..." cancels the request here, and nothing it answers later can reopen anything
-		openToken += 1
-		local handle = pendingHandle
-		pendingHandle = nil
-		pendingId = nil
-		if handle then
-			handle:cancel()
-		end
-		adapter:cancelAll()
-		soonOpen = false
-		shopOpen = false
-		local scale = popScale
-		if scale then
-			Motion.cancelAll(scale)
-			if Motion.reduced() then
-				fadeVeil(1, 0.55, T.ReducedFade, false)
-			else
-				-- close (N6-02b): 0.12 s, a small shrink and a fade
-				Motion.tween(
-					scale,
-					"pop",
-					Motion.info(T.CloseSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-					{ Scale = T.CloseTo }
-				)
-				fadeVeil(1, 0.55, T.CloseSeconds, false)
-			end
-		end
-		stopLoops()
+		closeSoon()
+		motion.stop()
+		setBlur(false)
 		overlay:close()
-		refreshViews() -- a reopened shop shows idle buttons, never a stale "Checking..."
 		if opts.onClose then
 			opts.onClose()
 		end
 	end
 
-	overlay:setBack(function()
-		if soonOpen then
-			closeSoon()
+	function shop.isOpen(_self: Shop): boolean
+		return isShopOpen
+	end
+
+	-- a rebuild drops the page's scroll and picks, so only a real size change gets one
+	function shop.layout(_self: Shop)
+		if isShopOpen and overlay:designSize() ~= builtFor then
+			overlay:applyScale()
+			build()
+		end
+	end
+
+	function shop.setVisible(_self: Shop, on: boolean)
+		visible = on
+		overlay.root.Visible = on and isShopOpen
+		if on and isShopOpen then
+			motion.start()
 		else
-			closeShop()
+			motion.stop()
+		end
+	end
+
+	function shop.forceState(_self: Shop, id: string, state: string?)
+		forced[id] = state
+		refresh()
+	end
+
+	function shop.resetFixtures(_self: Shop)
+		table.clear(forced)
+		adapter:clearFixtures()
+		refresh()
+	end
+
+	function shop.pressOffer(_self: Shop, id: string)
+		local offer = Catalog.get(id)
+		press(id, if offer then offer.name else id, nil)
+	end
+
+	-- the Style page, for tests and the Launch Pad's paint corner
+	function shop.styleTab(_self: Shop, name: string)
+		if studio then
+			studio:setTab(name)
+		end
+	end
+
+	function shop.styleSelect(_self: Shop, id: string): boolean
+		return studio ~= nil and studio:select(id)
+	end
+
+	function shop.styleAction(_self: Shop)
+		if studio then
+			studio:pressAction()
+		end
+	end
+
+	function shop.getAdapter(_self: Shop): ShopPurchaseAdapter.Adapter
+		return adapter
+	end
+
+	function shop.getDebugState(_self: Shop): { [string]: any }
+		return {
+			open = isShopOpen,
+			view = view,
+			tab = activeTab,
+			slide = slide,
+			builds = counters.builds,
+			requests = counters.requests,
+			pending = pendingId,
+			motion = motion.stats(),
+			adapter = adapter:stats(),
+			tier = currentPlan and currentPlan.tier,
+			k = currentPlan and currentPlan.k,
+			studio = if studio then studio:getDebugState() else nil,
+		}
+	end
+
+	function shop.destroy(_self: Shop)
+		trove:Destroy()
+	end
+
+	shop.root = overlay.root
+
+	trove:Connect(ctx.store.Changed, function(key: string)
+		if isShopOpen and key == "cash" then
+			refresh()
+		end
+	end)
+	trove:Connect(adapter.Changed, function()
+		if isShopOpen then
+			refresh()
 		end
 	end)
 
-	requestRelayout = function()
-		if not shopOpen or relayoutQueued then
-			return
-		end
-		relayoutQueued = true
-		task.defer(function()
-			relayoutQueued = false
-			if destroyed or not shopOpen then
-				return
+	-- carousel and live relayout, only while open
+	trove:Add(task.spawn(function()
+		while true do
+			task.wait(0.5)
+			if not isShopOpen or not visible then
+				continue
 			end
-			buildAll(true)
-		end)
-	end
-	trove:Connect(ctx.screen.Changed, function()
-		requestRelayout()
-	end)
-	trove:Connect(overlay.root:GetPropertyChangedSignal("AbsoluteSize"), function()
-		requestRelayout()
-	end)
-
-	-- FIXTURES -----------------------------------------------------------------------------------------------------
-
-	local function eachId(value: any, fn: (id: string) -> ())
-		if type(value) == "string" then
-			fn(value)
-		elseif type(value) == "table" then
-			for _, id in value do
-				if type(id) == "string" then
-					fn(id)
-				end
+			shop:layout()
+			if
+				view == "store"
+				and opts.autoAdvance ~= false
+				and not Motion.reduced()
+				and os.clock() >= nextAdvance
+				and not pendingId
+				and not soon
+			then
+				nextAdvance = os.clock() + 9
+				shop:setSlide(slide + 1)
 			end
 		end
-	end
-
-	local function afterFixture(rebuild: boolean)
-		if shopOpen then
-			if rebuild then
-				buildAll(true)
-			else
-				refreshViews()
-			end
-		end
-	end
-
-	local function clearStates(id: string)
-		adapter:setOwned(id, false)
-		adapter:setUnavailable(id, false)
-		adapter:setError(id, false)
-		fixtures.forcedPending[id] = nil
-	end
-
-	shop = {
-		root = overlay.root,
-		layout = function(_self: Shop)
-			if shopOpen then
-				buildAll(true)
-			end
-		end,
-		setVisible = function(_self: Shop, on: boolean)
-			visible = on
-			overlay.root.Visible = on and overlay:isOpen()
-			if on and shopOpen then
-				startLoops()
-			elseif not on then
-				stopLoops()
-			end
-		end,
-		open = function(_self: Shop, returnTo: GuiObject?)
-			openShop(returnTo, nil, nil)
-		end,
-		openAt = function(_self: Shop, sectionId: string?, offerId: string?, returnTo: GuiObject?)
-			openShop(returnTo, sectionId, offerId)
-		end,
-		-- a named section, any case: "Featured", "Passes", "Style", "Cash", "Free". An unknown name (or Cash while its
-		-- section is off) simply opens at Featured.
-		openSection = function(_self: Shop, name: string, returnTo: GuiObject?)
-			openShop(returnTo, Catalog.sectionId(name), nil)
-		end,
-		-- "Get more spots" (the Raceway parking panel): Passes, with a ring on Expanded Paddock
-		openExpandedPaddock = function(_self: Shop, returnTo: GuiObject?)
-			openShop(returnTo, "passes", "expanded-paddock")
-		end,
-		-- "Earn faster" (the Results card): Passes, with a ring on Double Lap Pay
-		openDoubleLapPay = function(_self: Shop, returnTo: GuiObject?)
-			openShop(returnTo, "passes", "double-lap-pay")
-		end,
-		close = function(_self: Shop)
-			closeShop()
-		end,
-		isOpen = function(_self: Shop): boolean
-			return overlay:isOpen()
-		end,
-		scrollTo = function(_self: Shop, sectionId: string, animate: boolean?)
-			scrollTo(sectionId, animate)
-		end,
-		setFixture = function(_self: Shop, name: string, value: any, on: boolean?)
-			local flag = if on == nil then true else on
-			if name == "owned" or name == "unavailable" or name == "error" then
-				eachId(value, function(id: string)
-					if name == "owned" then
-						adapter:setOwned(id, flag)
-					elseif name == "unavailable" then
-						adapter:setUnavailable(id, flag)
-					else
-						adapter:setError(id, flag)
-					end
-				end)
-				afterFixture(name == "owned" and (value == "starter-pack" or value == "*"))
-			elseif name == "pending" then
-				eachId(value, function(id: string)
-					fixtures.forcedPending[id] = if flag then true else nil
-				end)
-				afterFixture(false)
-			elseif name == "hold" then
-				adapter:holdPending(value == true)
-			elseif name == "cash" then
-				fixtures.cash = value == true
-				afterFixture(true)
-			elseif name == "previewValue" then
-				fixtures.previewValue = value == true
-				afterFixture(true)
-			elseif name == "longText" then
-				fixtures.longText = value == true
-				afterFixture(true)
-			elseif name == "missingArt" then
-				fixtures.missingArt = value == true
-				afterFixture(true)
-			elseif name == "cashAmountsPending" then
-				fixtures.cashAmountsPending = value == true
-				afterFixture(true)
-			elseif name == "cashValue" then
-				fixtures.cashValue = if type(value) == "number" then value else nil
-				local counter = cashCount
-				if counter then
-					counter.set(cashValue(), true)
-				end
-			else
-				warn("[ShopMock] unknown fixture: " .. tostring(name))
-			end
-		end,
-		forceState = function(_self: Shop, offerId: string, state: string?)
-			clearStates(offerId)
-			if state == "owned" then
-				adapter:setOwned(offerId, true)
-			elseif state == "unavailable" then
-				adapter:setUnavailable(offerId, true)
-			elseif state == "error" then
-				adapter:setError(offerId, true)
-			elseif state == "pending" then
-				fixtures.forcedPending[offerId] = true
-			end
-			afterFixture(offerId == "starter-pack")
-		end,
-		resetFixtures = function(_self: Shop)
-			adapter:clearFixtures()
-			table.clear(fixtures.forcedPending)
-			fixtures.cash = opts.cash == true
-			fixtures.previewValue = opts.previewValue ~= false
-			fixtures.longText = false
-			fixtures.missingArt = false
-			fixtures.cashAmountsPending = false
-			fixtures.cashValue = nil
-			afterFixture(true)
-		end,
-		pressOffer = function(_self: Shop, offerId: string)
-			local list = views[offerId]
-			local view = list and list[1]
-			press(offerId, if view then view.hit else nil)
-		end,
-		setSlide = function(_self: Shop, index: number)
-			local h = hero
-			if h then
-				h.setIndex(index)
-			end
-		end,
-		getAdapter = function(_self: Shop): ShopPurchaseAdapter.Adapter
-			return adapter
-		end,
-		destroy = function(_self: Shop)
-			if destroyed then
-				return
-			end
-			destroyed = true
-			shopOpen = false
-			local handle = pendingHandle
-			if handle then
-				handle:cancel()
-			end
-			local thread = tipThread
-			if thread then
-				pcall(task.cancel, thread)
-			end
-			overlay:destroy()
-		end,
-		getDebugState = function(_self: Shop): DebugState
-			local prices: { string } = {}
-			local buttons: { { [string]: any } } = {}
-			for id, list in views do
-				for index, view in list do
-					local button = view.button
-					if button then
-						table.insert(
-							buttons,
-							{ id = id, view = index, state = button.getState(), label = button.getLabel() }
-						)
-						if button.getState() == "Idle" then
-							table.insert(prices, button.getLabel())
-						end
-					end
-				end
-			end
-			table.sort(buttons, function(a, b)
-				if a.id ~= b.id then
-					return a.id < b.id
-				end
-				return a.view < b.view
-			end)
-			local claims = { bestDeal = 0, save = 0, strike = 0, previewValue = 0, previewLine = 0 }
-			local badges, hits, minHit, spinners = 0, 0, math.huge, 0
-			for _, d in overlay.root:GetDescendants() do
-				if not d:IsA("GuiObject") then
-					continue
-				end
-				local shown = true
-				local node: Instance? = d
-				while node and node ~= overlay.root do
-					if node:IsA("GuiObject") and not (node :: GuiObject).Visible then
-						shown = false
-						break
-					end
-					node = node.Parent
-				end
-				if not shown then
-					continue
-				end
-				if d.Name == "Badge" then
-					badges += 1
-				elseif d.Name == "BestDealRibbon" then
-					claims.bestDeal += 1
-				elseif d.Name == "SaveChip" then
-					claims.save += 1
-				elseif d.Name == "StrikePrice" then
-					claims.strike += 1
-				elseif d.Name == "PreviewValueTag" then
-					claims.previewValue += 1
-				elseif d.Name == "PreviewLine" then
-					claims.previewLine += 1
-				elseif d.Name == "Spinner" then
-					spinners += 1
-				end
-				if d:IsA("TextButton") and d.Name ~= "Scrim" and d.Name ~= "Dim" then
-					local height = d.Size.Y.Offset
-					if height > 0 then
-						hits += 1
-						minHit = math.min(minHit, height)
-					end
-				end
-			end
-			local p = page
-			local h = hero
-			local adapterStats = adapter:stats()
-			local motionStats = motion.stats()
-			local info = layoutInfo
-			return {
-				open = overlay:isOpen(),
-				kind = overlay:kind(),
-				passes = #Catalog.PassIds,
-				prices = prices,
-				labels = { footerText },
-				badges = badges,
-				instances = #overlay.root:GetDescendants(),
-				tier = if info then info.tier else nil,
-				designSize = { x = overlay:designSize().X, y = overlay:designSize().Y }, -- JSON-safe: the harness encodes every debug state
-				sections = sectionOrder,
-				section = activeSection,
-				cashSection = fixtures.cash,
-				previewValue = fixtures.previewValue,
-				fixtures = {
-					longText = fixtures.longText,
-					missingArt = fixtures.missingArt,
-					cashAmountsPending = fixtures.cashAmountsPending,
-					cashValue = fixtures.cashValue,
-				},
-				slide = if h then h.index() else 0,
-				slides = if h then h.count() else 0,
-				scrollY = if p then p.CanvasPosition.Y else 0,
-				scrollMax = scrollMax,
-				pendingId = pendingId,
-				comingSoon = soonOpen,
-				adapter = adapterStats,
-				claims = claims,
-				buttons = buttons,
-				hits = hits,
-				minHit = if minHit == math.huge then 0 else minHit,
-				loops = {
-					scheduler = motionStats.running, -- the ONE driver connection (true only while open and visible)
-					driver = motionStats.connections, -- 0 or 1, never more
-					effects = motionStats.effects, -- registered effect records
-					gradients = motionStats.gradients, -- ACTIVE now (budget 6)
-					breathing = motionStats.breathing, -- ACTIVE now (budget 1)
-					sparkleMarks = motionStats.sparkleMarks, -- ACTIVE now (budget 4)
-					shines = motionStats.shines,
-					steps = motionStats.steps,
-					ticks = counters.ticks,
-					advances = counters.advances,
-					spinners = spinners,
-					blur = blur ~= nil,
-				},
-				builds = counters.builds,
-				reduced = Motion.reduced(),
-				visible = visible,
-			}
-		end,
-	}
+	end))
 
 	return shop
 end

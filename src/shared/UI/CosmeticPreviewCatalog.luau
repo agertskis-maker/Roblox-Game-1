@@ -10,7 +10,7 @@
 -- Showpiece), shown as words as well as colour. The medal conditions are PRESENTATION states: Brian R supplies the achievement
 -- evidence, Brian L approves the entitlement. An unknown medal stays locked; nothing is unlocked by a made-up race result.
 --
---   Counts: 33 paints (8 free + 25), 15 decals (plus "No decal"), 10 wheels.
+--   Counts: 33 paints (8 free + 25), 14 decals (plus "No decal"), 10 wheels, 9 trails (plus "No trail").
 --   CosmeticPreviewCatalog.Items[tab] / .Tiers[tab] / .byId(tab, id) / .counts() / .tierItems(tab, tierId)
 --   CosmeticPreviewCatalog.defaultOwnership() / .defaultEquipped() / .stateOf(item, ownership, equippedId)
 --
@@ -26,7 +26,7 @@ CosmeticPreviewCatalog.Source =
 	"PREVIEW catalog: prices, tiers and medal conditions are arbitrary starting values (Brian L calibrates the real ones)"
 CosmeticPreviewCatalog.Caption = "PREVIEW"
 
-export type TabId = "Paint" | "Decals" | "Wheels"
+export type TabId = "Paint" | "Decals" | "Wheels" | "Trails"
 export type MedalKey = "gold" | "silver" | "bronze"
 export type RarityName = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary"
 export type PaintKind = "solid" | "metallic" | "pearl" | "gradient" | "animated"
@@ -50,13 +50,17 @@ export type Item = {
 	cycleSeconds: number?, -- animated paints: one full colour cycle
 	render: Render,
 	note: string, -- one honest line on how the preview shows it
-	isNone: boolean?, -- the "No decal" entry (not counted)
+	isNone: boolean?, -- the "No decal" and "No trail" entries (not counted)
+	key: string?, -- the texture or mesh this item uses
+	robux: number?, -- Trails: a PREVIEW Robux price instead of Cash
 }
 
-CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels" } :: { TabId })
-CosmeticPreviewCatalog.TabLabels = table.freeze({ Paint = "PAINT", Decals = "DECALS", Wheels = "WHEELS" })
+CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels", "Trails" } :: { TabId })
+CosmeticPreviewCatalog.TabLabels =
+	table.freeze({ Paint = "PAINT", Decals = "DECALS", Wheels = "WHEELS", Trails = "TRAILS" })
 -- the family-art icon for each tab (painter names)
-CosmeticPreviewCatalog.TabIcons = table.freeze({ Paint = "PaintBucket", Decals = "Decal", Wheels = "Wheel" })
+CosmeticPreviewCatalog.TabIcons =
+	table.freeze({ Paint = "PaintBucket", Decals = "Decal", Wheels = "Wheel", Trails = "Trail" })
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -82,6 +86,12 @@ CosmeticPreviewCatalog.Tiers = table.freeze({
 		tier("street", "STREET", "Uncommon"),
 		tier("track", "TRACK", "Rare"),
 		tier("elite", "ELITE", "Epic"),
+	}),
+	Trails = table.freeze({
+		tier("street", "STREET", "Uncommon"),
+		tier("track", "TRACK", "Rare"),
+		tier("elite", "ELITE", "Epic"),
+		tier("showpiece", "SHOWPIECE", "Legendary"),
 	}),
 	Wheels = table.freeze({
 		tier("stock", "STOCK", "Common"),
@@ -206,7 +216,7 @@ local paints: { Item } = {
 	}),
 }
 
--- DECALS (15 plus "No decal") --------------------------------------------------------------------------------------------------
+-- DECALS (14 plus "No decal") --------------------------------------------------------------------------------------------------
 
 local function decal(
 	name: string,
@@ -235,6 +245,12 @@ local RED = rgb(232, 56, 64)
 local CYAN = rgb(90, 220, 255)
 local ORANGE = rgb(255, 140, 40)
 
+-- `key` names the decal's texture (decal_<key>) and its card picture (thumb_decal_<key>).
+local function art(item: Item, key: string): Item
+	item.key = key
+	return item
+end
+
 local decals: { Item } = {
 	{
 		id = "none",
@@ -247,35 +263,20 @@ local decals: { Item } = {
 		note = "Clears the decal.",
 		isNone = true,
 	},
-	decal("Twin Sprint", "starter", 400, { WHITE }, "car", "Two broad offset stripes on the hood."),
-	decal("Side Slash", "starter", 500, { WHITE, GOLD }, "car", "An angular stripe on each door side."),
-	decal("Checker Corner", "starter", 650, { WHITE, INK }, "car", "A small checker patch at the rear quarter."),
-	decal("Lucky Seven", "starter", 650, { WHITE, INK }, "approx", "A round number 7, built from simple bars."),
-	decal("Comet Tail", "street", 900, { GOLD, WHITE }, "approx", "A swept star with a tapering trail (flat blocks)."),
-	decal("Zigzag Charge", "street", 900, { GOLD }, "car", "A bold broken lightning stroke on the hood."),
-	decal(
-		"Friendly Fangs",
-		"street",
-		1100,
-		{ WHITE, RED },
-		"approx",
-		"Playful teeth along the hood edge (diamond shapes)."
-	),
-	decal("Bubble Burst", "street", 1100, { CYAN, WHITE }, "car", "Three overlapping round bubble marks."),
-	decal("Summit Steps", "track", 1400, { WHITE, CYAN }, "car", "Layered mountain-step blocks."),
-	decal(
-		"Dust Devil",
-		"track",
-		1400,
-		{ rgb(240, 190, 110), WHITE },
-		"swatch",
-		"A curling sand swirl. Card preview only."
-	),
-	decal("Star Scatter", "track", 1800, { GOLD, WHITE }, "car", "Sparse stars of different sizes on the hood."),
-	decal("Circuit Lines", "track", 1800, { CYAN, WHITE }, "approx", "An electronic path pattern (straight segments)."),
-	decal("Solar Flare", "elite", 2400, { ORANGE, GOLD, WHITE }, "approx", "Flame tongues drawn as slanted blocks."),
-	decal("Night Orbit", "elite", 2800, { WHITE, GOLD }, "approx", "An offset ring with tiny moons (ring of blocks)."),
-	decal("Checkered Comet", "elite", 3400, { WHITE, INK, GOLD }, "approx", "A checker patch blending into a tail."),
+	art(decal("Racing Stripes", "starter", 500, { WHITE }, "car", "Twin stripes, nose to tail."), "stripes"),
+	art(decal("Flames", "starter", 1000, { ORANGE, GOLD }, "car", "Hot-rod flames off the nose."), "flames"),
+	art(decal("Speed Lines", "starter", 1200, { WHITE }, "car", "Three lines down each side."), "speedline"),
+	art(decal("Lightning", "street", 1500, { CYAN, WHITE }, "car", "A bolt down each side."), "lightning"),
+	art(decal("Number 7", "street", 2000, { WHITE, INK }, "car", "A race number on each door."), "seven"),
+	art(decal("Checkers", "street", 2500, { WHITE, INK }, "car", "Checkers that fade toward the nose."), "checkers"),
+	art(decal("Stars", "track", 3000, { WHITE }, "car", "Stars across the hood and sides."), "stars"),
+	art(decal("Shark Teeth", "track", 3500, { WHITE, RED }, "car", "A friendly grin on the nose."), "shark"),
+	art(decal("Comet Trail", "track", 4000, { WHITE, CYAN }, "car", "A comet down each side."), "comet"),
+	art(decal("Tiger Claws", "elite", 5000, { INK }, "car", "Dark stripes over any paint."), "tiger"),
+	art(decal("Pixel Burst", "elite", 5500, { CYAN, RED }, "car", "Pixels bursting toward the tail."), "pixel"),
+	art(decal("Hex Hood", "elite", 6000, { INK }, "car", "A dark honeycomb hood."), "hex"),
+	art(decal("Wings", "elite", 7500, { GOLD }, "car", "Golden wings on each door."), "wings"),
+	art(decal("Paint Splash", "elite", 9000, { GOLD, RED, CYAN }, "car", "Splashes of every colour."), "splash"),
 }
 
 -- WHEELS (10) ---------------------------------------------------------------------------------------------------------------------
@@ -305,85 +306,211 @@ local DARK = rgb(44, 48, 66)
 local WHEELS_NOTE = "Same tyre size, mounts and handling: only the look changes."
 
 local wheels: { Item } = {
-	wheel(
-		"Stock Five",
-		"stock",
+	art(
+		wheel(
+			"Stock Five",
+			"stock",
+			0,
+			{ STEEL, DARK, rgb(120, 126, 146) },
+			"car",
+			"A simple chunky five-spoke. " .. WHEELS_NOTE
+		),
+		"five"
+	),
+	art(
+		wheel(
+			"Rally Block",
+			"street",
+			900,
+			{ rgb(226, 230, 240), DARK, rgb(226, 230, 240) },
+			"car",
+			"Squared spokes on a dark inset. " .. WHEELS_NOTE
+		),
+		"block"
+	),
+	art(
+		wheel(
+			"Classic Disc",
+			"street",
+			1200,
+			{ rgb(236, 240, 250), rgb(60, 66, 90), rgb(150, 156, 176) },
+			"car",
+			"A clean disc with small vent cuts. " .. WHEELS_NOTE
+		),
+		"disc"
+	),
+	art(
+		wheel(
+			"Split Six",
+			"street",
+			1600,
+			{ STEEL, DARK, rgb(240, 244, 252) },
+			"car",
+			"Six paired spokes. " .. WHEELS_NOTE
+		),
+		"split"
+	),
+	art(
+		wheel(
+			"Trail Chunk",
+			"track",
+			2000,
+			{ rgb(176, 182, 198), DARK, rgb(30, 34, 48) },
+			"approx",
+			"Twin chunky spokes. " .. WHEELS_NOTE
+		),
+		"twin"
+	),
+	art(
+		wheel(
+			"Star Runner",
+			"track",
+			2800,
+			{ rgb(255, 214, 80), DARK, rgb(255, 244, 190) },
+			"car",
+			"A broad rounded star hub. " .. WHEELS_NOTE
+		),
+		"star"
+	),
+	art(
+		wheel(
+			"Golden Turbine",
+			"elite",
+			3500,
+			{ rgb(255, 204, 60), DARK, rgb(255, 232, 140) },
+			"car",
+			"Swept gold spokes. " .. WHEELS_NOTE
+		),
+		"turbine"
+	),
+	art(
+		wheel(
+			"Neon Halo",
+			"elite",
+			4500,
+			{ DARK, rgb(60, 70, 100), rgb(90, 240, 255) },
+			"approx",
+			"Thin spokes with a steady neon glow. " .. WHEELS_NOTE
+		),
+		"ten"
+	),
+	art(
+		wheel(
+			"Moon Dish",
+			"elite",
+			5000,
+			{ rgb(232, 236, 255), rgb(190, 176, 240), rgb(250, 252, 255) },
+			"approx",
+			"Pearly split spokes. " .. WHEELS_NOTE
+		),
+		"y"
+	),
+	art(
+		wheel(
+			"Monster Mini",
+			"showpiece",
+			6000,
+			{ rgb(176, 182, 198), DARK, rgb(240, 90, 60) },
+			"approx",
+			"A deep dish with a red hot lip. " .. WHEELS_NOTE
+		),
+		"deep"
+	),
+}
+
+-- TRAILS (9 plus "No trail"). Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. Cheaper ones cost PREVIEW Cash,
+-- flashy ones PREVIEW Robux (`robux`); both are proposals for Brian L. In a run they are a plain Trail behind the car.
+
+local function trail(
+	name: string,
+	tierId: string,
+	cash: number,
+	robux: number?,
+	key: string,
+	colours: { Color3 },
+	note: string
+): Item
+	return {
+		id = slug(name),
+		name = name,
+		tab = "Trails",
+		tier = tierId,
+		price = cash,
+		robux = robux,
+		key = key,
+		colours = colours,
+		render = "car",
+		note = note,
+	}
+end
+
+local trails: { Item } = {
+	{
+		id = "no_trail",
+		name = "No trail",
+		tab = "Trails",
+		tier = "street",
+		price = 0,
+		colours = { rgb(150, 160, 190) },
+		render = "car",
+		note = "No trail behind your car.",
+		isNone = true,
+	},
+	trail("Smoke Ring", "street", 800, nil, "smoke", { rgb(220, 226, 236), rgb(150, 160, 180) }, "Soft white smoke."),
+	trail(
+		"Spark Dust",
+		"street",
+		1500,
+		nil,
+		"spark",
+		{ rgb(255, 236, 120), rgb(255, 150, 40) },
+		"Hot sparks off the road."
+	),
+	trail(
+		"Bubble Pop",
+		"street",
+		2200,
+		nil,
+		"bubble",
+		{ rgb(150, 230, 255), rgb(255, 170, 230) },
+		"Bubbles that drift away."
+	),
+	trail("Neon Line", "track", 3000, nil, "neon", { rgb(70, 240, 255), rgb(60, 110, 255) }, "A clean neon ribbon."),
+	trail("Star Drift", "track", 4500, nil, "star", { rgb(255, 228, 110), rgb(255, 255, 255) }, "Falling stars."),
+	trail(
+		"Flame Rush",
+		"elite",
 		0,
-		{ STEEL, DARK, rgb(120, 126, 146) },
-		"car",
-		"A simple chunky five-spoke. " .. WHEELS_NOTE
+		99,
+		"flame",
+		{ rgb(255, 210, 60), rgb(240, 50, 20) },
+		"Your car on fire, in a good way."
 	),
-	wheel(
-		"Rally Block",
-		"street",
-		900,
-		{ rgb(226, 230, 240), DARK, rgb(226, 230, 240) },
-		"car",
-		"Squared spokes on a dark inset. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Classic Disc",
-		"street",
-		1200,
-		{ rgb(236, 240, 250), rgb(60, 66, 90), rgb(150, 156, 176) },
-		"car",
-		"A clean disc with small vent cuts. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Split Six",
-		"street",
-		1600,
-		{ STEEL, DARK, rgb(240, 244, 252) },
-		"car",
-		"Six paired spokes. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Trail Chunk",
-		"track",
-		2000,
-		{ rgb(176, 182, 198), DARK, rgb(30, 34, 48) },
-		"approx",
-		"Off-road tread blocks inside the tyre size. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Star Runner",
-		"track",
-		2800,
-		{ rgb(255, 214, 80), DARK, rgb(255, 244, 190) },
-		"car",
-		"A broad rounded star hub. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Golden Turbine",
+	trail(
+		"Confetti Party",
 		"elite",
-		3500,
-		{ rgb(255, 204, 60), DARK, rgb(255, 232, 140) },
-		"car",
-		"Swept gold spokes. " .. WHEELS_NOTE
+		0,
+		129,
+		"confetti",
+		{ rgb(255, 80, 150), rgb(70, 220, 255), rgb(255, 214, 40) },
+		"Every run is a party."
 	),
-	wheel(
-		"Neon Halo",
-		"elite",
-		4500,
-		{ DARK, rgb(60, 70, 100), rgb(90, 240, 255) },
-		"approx",
-		"A thin steady neon ring, no flashing and no glow bloom in the preview. " .. WHEELS_NOTE
-	),
-	wheel(
-		"Moon Dish",
-		"elite",
-		5000,
-		{ rgb(232, 236, 255), rgb(190, 176, 240), rgb(250, 252, 255) },
-		"approx",
-		"A smooth pearly dish (no pearl sheen in the preview). " .. WHEELS_NOTE
-	),
-	wheel(
-		"Monster Mini",
+	trail("Rainbow Road", "showpiece", 0, 199, "rainbow", {
+		rgb(255, 60, 70),
+		rgb(255, 170, 30),
+		rgb(255, 236, 60),
+		rgb(70, 220, 110),
+		rgb(60, 150, 255),
+		rgb(170, 90, 255),
+	}, "The full rainbow behind you."),
+	trail(
+		"Galaxy Tail",
 		"showpiece",
-		6000,
-		{ rgb(176, 182, 198), DARK, rgb(240, 90, 60) },
-		"approx",
-		"An exaggerated tread silhouette inside the fit envelope. A visual treatment only. " .. WHEELS_NOTE
+		0,
+		249,
+		"galaxy",
+		{ rgb(120, 70, 255), rgb(255, 90, 220), rgb(100, 220, 255) },
+		"A slice of deep space."
 	),
 }
 
@@ -391,6 +518,7 @@ CosmeticPreviewCatalog.Items = table.freeze({
 	Paint = table.freeze(paints),
 	Decals = table.freeze(decals),
 	Wheels = table.freeze(wheels),
+	Trails = table.freeze(trails),
 } :: { [string]: { Item } })
 
 -- QUERIES ------------------------------------------------------------------------------------------------------------------------
@@ -428,7 +556,7 @@ function CosmeticPreviewCatalog.tierOf(tab: TabId, tierId: string): Tier?
 	return nil
 end
 
--- 33 / 15 / 10 (the "No decal" entry is not a decal)
+-- 33 / 14 / 10 / 9 (the "No decal" and "No trail" entries are not items)
 function CosmeticPreviewCatalog.counts(): { [string]: number }
 	local out: { [string]: number } = {}
 	for _, tab in CosmeticPreviewCatalog.Tabs do
@@ -451,21 +579,27 @@ export type Ownership = {
 	unavailable: { [string]: boolean }, -- item id -> not available for this car
 }
 
-export type Equipped = { Paint: string, Decals: string, Wheels: string }
+export type Equipped = { Paint: string, Decals: string, Wheels: string, Trails: string }
 
 -- PREVIEW Cash the screen starts with (a fixture balance, never the player's real Cash).
 CosmeticPreviewCatalog.DefaultBalance = 5000
 
 function CosmeticPreviewCatalog.defaultOwnership(): Ownership
 	return {
-		owned = { tangerine_pop = true, brushed_steel = true, twin_sprint = true, rally_block = true },
+		owned = {
+			tangerine_pop = true,
+			brushed_steel = true,
+			racing_stripes = true,
+			rally_block = true,
+			smoke_ring = true,
+		},
 		medals = { bronze = true, silver = false, gold = false },
-		unavailable = { night_orbit = true },
+		unavailable = {},
 	}
 end
 
 function CosmeticPreviewCatalog.defaultEquipped(): Equipped
-	return { Paint = "downtown_blue", Decals = "none", Wheels = "stock_five" }
+	return { Paint = "downtown_blue", Decals = "none", Wheels = "stock_five", Trails = "no_trail" }
 end
 
 export type ItemState = "equipped" | "owned" | "locked" | "priced" | "unavailable"
@@ -479,7 +613,7 @@ function CosmeticPreviewCatalog.stateOf(item: Item, ownership: Ownership, equipp
 	if item.id == equippedId then
 		return "equipped"
 	end
-	if item.price == 0 or ownership.owned[item.id] then
+	if (item.price == 0 and item.robux == nil) or ownership.owned[item.id] then
 		return "owned"
 	end
 	local medal = item.medal
