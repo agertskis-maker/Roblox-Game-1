@@ -196,6 +196,16 @@ local function panel(key: string): any
 	return shell and shell.components[key]
 end
 
+-- A panel left open must not ride along through a portal.
+local function closeHomePanels()
+	for _, key in { "shop", "garage", "missions", "settings", "stuntBoard" } do
+		local c = panel(key)
+		if c and c.isOpen and c.close and c:isOpen() then
+			c:close()
+		end
+	end
+end
+
 local function anyPanelOpen(): boolean
 	for _, key in { "launchStyle", "carStall", "shop" } do
 		local c = panel(key)
@@ -274,6 +284,7 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	setPhase("pad")
 	world = name
 	returnTo = islandCFrame
+	closeHomePanels()
 	wipe(WORLD_TITLE[name], function()
 		local pad = padFor(name)
 		setLight(name)
