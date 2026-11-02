@@ -42,7 +42,7 @@ Icons were cut from one sheet, then shown from 96 px previews through EditableIm
 | N2-03 | Fixed slots | done | CarKit.slot, boxArt | |
 | N2-04 | Load behaviour | partial | images reveal after fetch, placeholders; loading-screen preload not wired | Each image fetches on first show |
 | N2-05 | Crisp 2x | done | shop-desktop-beta | Printed in the art |
-| N2-06 | One upload | done | `art/upload` 132 items | Needs Adam |
+| N2-06 | One upload | done | 132 of 132 group-owned (`verify-ids.js`), wired into `GameIconIds`, all load in Studio Play | Done 2026-11-02 |
 | N3-01 to 05 | Shop rebuilt | done | shop-* frames | Scores in RESULT |
 | N3-06 | Honesty | done | deal math derived, PREVIEW footer, no timers | |
 | N3-07 | Get more spots | partial | code wired; not pressed in Studio | Appears only when all spots are owned |
