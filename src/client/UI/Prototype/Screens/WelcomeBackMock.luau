@@ -240,6 +240,10 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	end)
 
 	local header = Style.header(panel, { fill = "Green", title = "WELCOME BACK!", icon = "Track" })
+	-- nothing here is real money yet, so the card says so at all times
+	local previewStamp = Style.stamp(header.band, "PREVIEW", "Gold", 9)
+	previewStamp.frame.AnchorPoint = Vector2.new(1, 0.5)
+	previewStamp.frame.Position = UDim2.new(1, -66, 0.5, 0)
 	local closeX = SupportKit.closeX(panel, function()
 		welcome:close()
 	end)

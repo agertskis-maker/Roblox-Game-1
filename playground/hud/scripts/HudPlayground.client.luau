@@ -472,7 +472,11 @@ mount("portalCard", { "Screens", "PortalCardMock" }, "Overlay", {
 	end,
 })
 mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {})
-mount("shop", { "Screens", "ShopMock" }, "Overlay", {})
+mount("shop", { "Screens", "ShopMock" }, "Overlay", {
+	onFreeReward = function()
+		api.open("groupReward")
+	end,
+})
 mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
 mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
 mount("missionTracker", { "Screens", "MissionTracker" }, "Hud", {})

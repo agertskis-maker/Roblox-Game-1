@@ -190,8 +190,8 @@ local function buildClaims(env: Env, parent: Instance, offer: Catalog.Offer, z: 
 		return
 	end
 	local math_ = Catalog.bundleMath(offer.id)
-	if not math_ or not math_.isBetter then
-		return
+	if not math_ or not math_.isBetter or env.stateOf(offer.id).kind ~= "Idle" then
+		return -- no saving is claimed on a bundle this player cannot buy as a whole
 	end
 	local row: Frame = make("Frame", {
 		Name = "Claims",
@@ -250,7 +250,7 @@ local function buildSwatches(
 	local row: Frame = make("Frame", {
 		Name = "Swatches",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 36),
+		Size = UDim2.new(1, 0, 0, 44),
 		LayoutOrder = order,
 		ZIndex = z,
 		Parent = parent,
@@ -259,21 +259,31 @@ local function buildSwatches(
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = if centred then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 6),
+		Padding = UDim.new(0, 0),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = row,
 	})
 	for i, colour in offer.swatches or {} do
-		local chip: TextButton = make("TextButton", {
+		-- the button is the 44 px touch target; the 30 px dot inside it is only the picture
+		local hit: TextButton = make("TextButton", {
 			Name = "Swatch" .. i,
-			Size = UDim2.fromOffset(30, 30),
-			BackgroundColor3 = colour,
+			Size = UDim2.fromOffset(44, 44),
+			BackgroundTransparency = 1,
 			AutoButtonColor = false,
 			Text = "",
 			Selectable = true,
 			LayoutOrder = i,
 			ZIndex = z,
 			Parent = row,
+		})
+		local chip: Frame = make("Frame", {
+			Name = "Dot",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(30, 30),
+			BackgroundColor3 = colour,
+			ZIndex = z,
+			Parent = hit,
 		})
 		Arcade.corner(chip, 15)
 		make("UIStroke", {
@@ -282,7 +292,7 @@ local function buildSwatches(
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			Parent = chip,
 		})
-		env.trove:Connect(chip.Activated, function()
+		env.trove:Connect(hit.Activated, function()
 			env.swatch(offer.id, colour)
 		end)
 	end
@@ -439,7 +449,7 @@ function Cards.offer(env: Env, parent: Instance, offer: Catalog.Offer, plan: Pla
 		if bundle and bundle.isBetter then
 			ShopKit.ribbon(
 				content,
-				{ text = "BEST DEAL", fill = "Red", size = 108, z = contentZ + 8, name = "BestDealRibbon" }
+				{ text = "BEST DEAL", fill = "Red", size = 84, z = contentZ + 8, name = "BestDealRibbon" }
 			)
 		end
 	end
@@ -625,7 +635,7 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 			if bundle and bundle.isBetter then
 				ShopKit.ribbon(
 					slide,
-					{ text = "BEST DEAL", fill = "Red", size = 108, z = contentZ + 8, name = "BestDealRibbon" }
+					{ text = "BEST DEAL", fill = "Red", size = 84, z = contentZ + 8, name = "BestDealRibbon" }
 				)
 			end
 		end

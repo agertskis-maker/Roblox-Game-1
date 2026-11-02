@@ -251,7 +251,7 @@ end
 -- Level 12: how much wider the ground right straight is, toward the infield, where the loop stands
 -- (Adam: "make that part of the track wider so that the loop actually fits"). 0 elsewhere. The
 -- extra width blends in and out over a smooth taper, so the loop stands on the road, not on a pad.
-local LOOP_WIDEN = 6.8
+local LOOP_WIDEN = 7.5
 local function loopWiden(u: number): number
 	local lo = Path.Loop
 	local a0, a1 = lo.SBendU + 2, lo.SBendU + lo.SBend
@@ -267,98 +267,69 @@ end
 -- The one marking language of the whole circuit, on every level from 4 up (M4-01): a white edge
 -- line on both sides following the road, red and white curbs only on the inside of the corners, no
 -- centre line. The outer line stops where a pit lane joins and the pit lane's own lines take over.
--- `widened` is the level 12 right straight: the road, its inner line and nothing else move.
+-- `widened` is the level 12 right straight: from the first taper to the last the road is one
+-- smooth surface between two straight or gently tapered edges, so the S-bends the cars take stay
+-- inside it and no strip of road sticks out at an angle. Its lines follow those edges.
 local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { number } }, widened: boolean?)
-	local function extra(s: number): number
+	local lo = Path.Loop
+	local wideFrom, wideTo = lo.SBendU, lo.SBendU + 2 * lo.SBend + 2 * lo.Runout
+	local function inWide(s: number): boolean
 		if not widened then
-			return 0
+			return false
 		end
 		local p = Path.planPoint(path, s)
-		return if p.X > 0 and p.Y > uS and p.Y < uS + Path.Straight then loopWiden(p.Y) else 0
+		return p.X > 0 and p.Y >= wideFrom and p.Y <= wideTo
 	end
-	for _, range in ranges do
-		local list: { number } = {}
-		for _, s in samples(path, range[1], range[2]) do
-			local last = list[#list]
-			if widened and last then
-				local n = math.ceil((s - last) / 1.5)
-				for k = 1, n - 1 do
-					table.insert(list, last + (s - last) * k / n)
-				end
-			end
-			table.insert(list, s)
-		end
-		layer(folder, ctx, path, list, 0, HALF_W * 2, 0.4, 0, {
-			name = "Surface",
-			color = C.Asphalt,
-			material = Enum.Material.Asphalt,
-			collide = true,
-			castShadow = false,
-		}, 2)
-		layer(
-			folder,
-			ctx,
-			path,
-			list,
-			function(s)
-				return -(HALF_W - 0.6) - extra(s)
-			end,
-			0.3,
-			PAINT_THICK,
-			PAINT,
-			{
-				name = "EdgeLine",
-				color = C.White,
-				castShadow = false,
-			},
-			0.2
-		)
+	local function splitRuns(list: { number }, keep: (number) -> boolean): { { number } }
 		local pieces: { { number } } = {}
 		local run: { number } = {}
 		for _, s in list do
-			local p, d = Path.planPoint(path, s)
-			local at = p + Vector2.new(d.Y, -d.X) * (HALF_W - 0.6)
-			if inPitGap(Vector2.new(at.X + (if at.X > 0 then 5 else -5), at.Y)) then
+			if keep(s) then
+				table.insert(run, s)
+			else
 				if #run > 1 then
 					table.insert(pieces, run)
 				end
 				run = {}
-			else
-				table.insert(run, s)
 			end
 		end
 		if #run > 1 then
 			table.insert(pieces, run)
 		end
-		for _, piece in pieces do
-			layer(folder, ctx, path, piece, HALF_W - 0.6, 0.3, PAINT_THICK, PAINT, {
-				name = "EdgeLine",
-				color = C.White,
-				castShadow = false,
-			}, 0.2)
-		end
-		-- the widening itself: a smooth edge of long thin triangles butted to the road's inner edge,
-		-- at the road's own height and in its own asphalt, so the two read as one surface
-		if widened then
-			local lo = Path.Loop
-			local u0, u1 = lo.SBendU, lo.SBendU + 2 * lo.SBend + 2 * lo.Runout
-			local x0 = R - HALF_W + 0.02
-			local fill = {
+		return pieces
+	end
+	for _, range in ranges do
+		local list = samples(path, range[1], range[2])
+		for _, run in
+			splitRuns(list, function(s)
+				return not inWide(s)
+			end)
+		do
+			layer(folder, ctx, path, run, 0, HALF_W * 2, 0.4, 0, {
 				name = "Surface",
 				color = C.Asphalt,
 				material = Enum.Material.Asphalt,
 				collide = true,
 				castShadow = false,
-			}
-			local n = math.ceil((u1 - u0) / 2)
-			for k = 0, n - 1 do
-				local ua, ub = u0 + (u1 - u0) * k / n, u0 + (u1 - u0) * (k + 1) / n
-				local a, b = Ctx.at(ctx, x0, ua), Ctx.at(ctx, x0, ub)
-				local c = Ctx.at(ctx, x0 - loopWiden(ub), ub)
-				local d = Ctx.at(ctx, x0 - loopWiden(ua), ua)
-				Kit.triangle(folder, a, b, c, Path.TrackTop, 0.4, fill)
-				Kit.triangle(folder, a, c, d, Path.TrackTop, 0.4, fill)
-			end
+			}, 2)
+			layer(folder, ctx, path, run, -(HALF_W - 0.6), 0.3, PAINT_THICK, PAINT, {
+				name = "EdgeLine",
+				color = C.White,
+				castShadow = false,
+			}, 0.2)
+		end
+		for _, run in
+			splitRuns(list, function(s)
+				local p, d = Path.planPoint(path, s)
+				local at = p + Vector2.new(d.Y, -d.X) * (HALF_W - 0.6)
+				return not inWide(s) and not inPitGap(Vector2.new(at.X + (if at.X > 0 then 5 else -5), at.Y))
+			end)
+		do
+			layer(folder, ctx, path, run, HALF_W - 0.6, 0.3, PAINT_THICK, PAINT, {
+				name = "EdgeLine",
+				color = C.White,
+				castShadow = false,
+			}, 0.2)
 		end
 		-- curbs: one white band round the inside of each corner with red blocks on top of it, so no
 		-- two curb faces ever share a plane
@@ -387,6 +358,48 @@ local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { numb
 				end
 			end
 		end
+	end
+	if widened then
+		-- the widened stretch: fine quads between the two edges, in the road's own asphalt and height
+		local xOut = R + HALF_W
+		local fill = {
+			name = "Surface",
+			color = C.Asphalt,
+			material = Enum.Material.Asphalt,
+			collide = true,
+			castShadow = false,
+		}
+		local paint = { name = "EdgeLine", color = C.White, castShadow = false }
+		local n = math.ceil((wideTo - wideFrom) / 2)
+		for k = 0, n - 1 do
+			local ua = wideFrom + (wideTo - wideFrom) * k / n
+			local ub = wideFrom + (wideTo - wideFrom) * (k + 1) / n
+			local xa, xb = R - HALF_W - loopWiden(ua), R - HALF_W - loopWiden(ub)
+			local a, b = Ctx.at(ctx, xa, ua), Ctx.at(ctx, xb, ub)
+			local c, d = Ctx.at(ctx, xOut, ub), Ctx.at(ctx, xOut, ua)
+			Kit.triangle(folder, a, b, c, Path.TrackTop, 0.4, fill)
+			Kit.triangle(folder, a, c, d, Path.TrackTop, 0.4, fill)
+			Kit.slab(
+				folder,
+				Ctx.at(ctx, xa + 0.6, ua, Path.TrackTop + PAINT),
+				Ctx.at(ctx, xb + 0.6, ub, Path.TrackTop + PAINT),
+				Vector3.yAxis,
+				0.3,
+				PAINT_THICK,
+				paint,
+				0.1
+			)
+		end
+		Kit.slab(
+			folder,
+			Ctx.at(ctx, xOut - 0.6, wideFrom, Path.TrackTop + PAINT),
+			Ctx.at(ctx, xOut - 0.6, wideTo, Path.TrackTop + PAINT),
+			Vector3.yAxis,
+			0.3,
+			PAINT_THICK,
+			paint,
+			0
+		)
 	end
 end
 
@@ -530,8 +543,8 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 				tip - along * 0.7 + Vector3.yAxis * 0.2,
 				tip + along * 0.7 + Vector3.yAxis * 0.2,
 				Vector3.yAxis,
-				1.16,
-				which.height + 0.1,
+				1.4,
+				which.height + 0.2,
 				{
 					name = "BankWallEnd",
 					color = C.WallEnd,
@@ -793,20 +806,6 @@ function Track.loop(major: Folder, minor: Folder, ctx: Ctx)
 			castShadow = false,
 		}, 0.1)
 	end
-	local right = path.marks.groundRight
-	local into = samples(path, right[1] + (lo.SBendU - uS), l[1], 1.5)
-	local outOf = samples(path, l[2], right[2] - (uS + Path.Straight - (lo.SBendU + 2 * lo.SBend + 2 * lo.Runout)), 1.5)
-	-- the inner side of each lane is the road's own edge line; this is the line between them
-	layer(minor, ctx, path, into, halfLane - 0.6, 0.3, PAINT_THICK, PAINT, {
-		name = "LaneLine",
-		color = C.White,
-		castShadow = false,
-	}, 0.1)
-	layer(minor, ctx, path, outOf, -(halfLane - 0.6), 0.3, PAINT_THICK, PAINT, {
-		name = "LaneLine",
-		color = C.White,
-		castShadow = false,
-	}, 0.1)
 end
 
 -- Levels 11 and 12: a low eased hump on the ground right straight (a hop, no gap, no flying),
