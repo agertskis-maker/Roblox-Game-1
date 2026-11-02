@@ -33,7 +33,7 @@ Bangers slants forward, so it reads as speed and looks like no other Roblox shop
 | Starter | Orange `#FF8A14` | Speed lines |
 | VIP | Gold `#FFC629` on black | Chevrons |
 | Double Lap Pay | Royal blue `#1E72FF` | Lap lines |
-| Expanded Paddock | Teal `#10B9A6` | Parking stripes |
+| Extra Parking | Teal `#10B9A6` | Parking stripes |
 | Bundle | Steel `#8BA3C7` | Checker |
 | Cash | Money green `#2ACB4F`, deepening to red and gold on the biggest | Rays |
 | Paint | Pink `#FF3F9C` | Halftone |
@@ -49,13 +49,13 @@ Radius 14 at desktop, 10 on a phone. Do not give every card the same size.
 
 | Card | Share | Holds |
 |---|---|---|
-| Hero | 2/3 of the row | One big art overlapping the bottom edge, title, contents, price |
+| Hero | 2/3 of the row (full width on a phone) | One big art in its own box, title, contents, price |
 | Side | 1/3 of the row, stacked | Title, art, price |
 | Banner | Full width, short | Title left, art centre, deal and price right |
 | Pack | 1/5, growing to the right | Amount on top, art, label, price |
 | Item | Grid, identical | Name, art in a fixed slot, price |
 
-Every card: 3 px ink line, 2 px chrome inner edge, one family fill, one pattern at low opacity. Light comes from the top left; shadows fall down and right by 4 px.
+Art always fits a box inside its card and is still the biggest thing there (Adam, 2026-11-02). Every card: 3 px ink line, 2 px chrome inner edge, one family fill, one pattern at low opacity. Light comes from the top left; shadows fall down and right by 4 px.
 
 ## Icon and art slots
 Icons never float. Sizes, including padding: 24, 32, 48, 64, 96. An icon image fills its slot; its padding is baked in by the art tool (10 percent), so optical size matches across a row. Rows share a baseline. Product art is authored at 1024 and shown at 512 or less; icons are authored at 512 and shown at 256 or less. Nothing upscales.
@@ -80,6 +80,7 @@ Generated, original and tinted per family: checker, speed lines, tread, rays, ha
 | Shine sweep | 0.65 s, every 6 to 8 s, hero and deals only |
 | Price breathing | 2.4 s, scale 1 to 1.03, primary only |
 | Hover / press | 0.11 s / 0.07 s |
+| Trail preview | Ribbon sway, pulses, at most 14 pieces |
 | Count-up | 0.45 to 0.7 s |
 
 All of it runs from one animator while the screen is open. Reduce Motion: no flow, no drift, no sweep, no breathing; hovers keep colour only.
