@@ -264,7 +264,7 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 	local statusLabel = SupportKit.label(panel, "Status", 20, 6)
 	-- the conspicuous no-grant note (a chip, not fine print)
 	local noteChip: Frame = make("Frame", {
-		Name = "PreviewNote",
+		Name = "HonestyNote",
 		BackgroundColor3 = A.Ink,
 		BackgroundTransparency = 0.2,
 		BorderSizePixel = 0,
