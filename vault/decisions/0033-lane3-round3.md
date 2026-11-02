@@ -39,7 +39,7 @@ Brief [[lane3-round3]], ledger [[lane3-round3-ledger]]. Builds on [[0032-lane3-r
 ## Run
 - **The camera re-aims one step after Brian R's,** so his smoothing and jolts stay. "Higher" is the beta default.
 - **Stamina lives on the run object as a `requestHop` field,** in front of his method. Ten bolts is the Round 2 proposal; a respawn gives 3. This is a stopgap for Brian R.
-- **Free revives come first, then a PREVIEW 19 Robux respawn.** Adam asked for the Robux respawn. It touches run outcomes, so it's flagged to Brian L; removal is one line.
+- **Free revives come first, then a PREVIEW 19 Robux respawn.** Adam asked for the Robux respawn. On 2026-11-02, told it helps a run and may conflict with "no paid gameplay advantage", he chose to keep it at 19 Robux. It stays PREVIEW: selling it needs Brian L's Developer Product and a server-checked grant.
 - **Results Cash is a PREVIEW formula.**
 - **The window scale now covers the run HUD and two cards:** the phone rule made the Heat panel huge on a laptop.
 
@@ -60,4 +60,4 @@ Brief [[lane3-round3]], ledger [[lane3-round3-ledger]]. Builds on [[0032-lane3-r
 ## Left alone on purpose
 - **No audio in videos:** Application Control still blocks the recorder.
 - **Figma step skipped:** Adam's brief supplies the mockups and asks for an autonomous round.
-- **Icons are not uploaded:** no Open Cloud key. One package is ready.
+- **Icons were not uploaded in the round itself:** no Open Cloud key. Adam imported all 132 items later the same day.
