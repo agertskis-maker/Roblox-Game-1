@@ -66,6 +66,7 @@ type Lane = {
 	lastF: { number },
 	dust: { ParticleEmitter },
 	level: number,
+	placed: boolean,
 }
 
 local FOLDER_NAME = "Lane3_LappingPreview"
@@ -158,6 +159,7 @@ function LappingPreview.start(options: Options?)
 			lastF = {},
 			dust = {},
 			level = levelOf(plot),
+			placed = false,
 		}
 		for k = 1, carsPerPlot do
 			local rarity = LappingPreview.Rarities[(k - 1) % #LappingPreview.Rarities + 1]
@@ -241,7 +243,8 @@ function LappingPreview.start(options: Options?)
 				end
 				lane.lastF[k] = f
 				lane.dust[k].Enabled = active and dusty
-				if active then
+				-- every car gets its place on the first frame: a paused plot's cars must not wait at the world origin, the fountain
+				if active or not lane.placed then
 					local s = Path.distanceAt(path, f)
 					local pos, look, up = Path.sample(path, s)
 					local wp = lane.frame * (pos + up * Path.carLift(path, s, WHEELBASE))
@@ -251,6 +254,7 @@ function LappingPreview.start(options: Options?)
 					table.insert(cframes, base * lane.offsets[k])
 				end
 			end
+			lane.placed = true
 		end
 		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 		if recording then

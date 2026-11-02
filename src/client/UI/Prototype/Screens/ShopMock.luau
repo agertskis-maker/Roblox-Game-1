@@ -89,6 +89,14 @@ local SLIDES: { Slide } = {
 	},
 }
 
+-- How far Shop art is zoomed past its box. Adam, 2026-11-02: bigger is better, and a crop at the card edge is fine.
+local ART_ZOOM = 1.25
+local ART_ZOOM_BY_KEY: { [string]: number } = {
+	art_cash5 = 1.55, -- the Cash Vault
+	art_vip = 1.5,
+	art_doublelap = 1.6,
+}
+
 local function money(n: number): string
 	return "$" .. Format.group(math.floor(n))
 end
@@ -388,7 +396,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 	end
 
-	-- Art fills a box inside its card: as big as it can be, and never over the edge.
+	-- Art grows past its box, centred on it. The card crops the overflow, and words and buttons sit in front.
 	local function boxArt(
 		parent: Instance,
 		key: string,
@@ -399,9 +407,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		z: number,
 		name: string?
 	)
-		return CarKit.art(parent, key, {
-			size = UDim2.fromOffset(w, h),
-			position = UDim2.fromOffset(x + w / 2, y + h / 2),
+		local border = 3
+		local crop = make("Frame", {
+			Name = "ArtCrop",
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(1, -border * 2, 1, -border * 2),
+			ZIndex = z,
+		}, parent)
+		local zoom = ART_ZOOM_BY_KEY[key] or ART_ZOOM
+		return CarKit.art(crop, key, {
+			size = UDim2.fromOffset(w * zoom, h * zoom),
+			position = UDim2.fromOffset(x + w / 2 - border, y + h / 2 - border),
 			z = z,
 			name = name or "Art",
 		})
@@ -465,12 +484,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local tileW = math.floor((right - 20 * k - buyW) / 3)
 			local plateH = if phone
 				then h - titlePx * 1.04 - inset * 2
-				else h - titlePx * 1.2 - math.max(84 * k, 52) - math.round(30 * k)
+				else h - titlePx * 0.5 - math.max(84 * k, 52) - math.round(30 * k)
 			local plate = CarKit.board(card, {
 				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
 				position = if phone
 					then UDim2.fromOffset(artW + inset * 2, titlePx * 1.04 + inset)
-					else UDim2.new(1, -math.round(10 * k), 0, titlePx * 1.2),
+					else UDim2.new(1, -math.round(10 * k), 0, titlePx * 0.5),
 				anchor = if phone then Vector2.zero else Vector2.new(1, 0),
 				z = 9,
 				radius = math.round(12 * math.max(k, 0.6)),
@@ -492,7 +511,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local tileH = plateH - tileTop - labelPx * 2.1
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
-				local side = math.min(tileW - 6, tileH)
+				local side = math.min(tileW - 2, tileH * 1.2)
 				CarKit.art(plate, part.art, {
 					size = UDim2.fromOffset(side, side),
 					position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
@@ -613,12 +632,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local inset = math.round(7 * k)
 		local buyW = math.round(math.max(132 * k, 108))
 		if id == "vip" then
-			local top = px * 0.5
-			boxArt(card, art, inset, top, w - buyW - inset * 3, h - top - inset, 6)
+			boxArt(card, art, inset, 0, w - buyW - inset * 3, h - inset, 6)
 		else
 			px = fontPx(p, 54, 24)
-			local top = px * 0.9
-			boxArt(card, art, inset * 2, top, h - top - inset, h - top - inset, 6)
+			local side = h - inset
+			boxArt(card, art, math.max(inset * 2, w * 0.62 - side / 2), 0, side, side, 6) -- right of the title, so the 2x reads
 		end
 		CarKit.title(card, title, px, {
 			position = UDim2.fromOffset(math.round(12 * k), math.round(4 * k)),

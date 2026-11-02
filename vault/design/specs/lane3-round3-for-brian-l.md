@@ -66,3 +66,11 @@ After a crash, once free revives are used, the card offers a respawn for a PREVI
 ### Brian L
 
 _(your answer here)_
+
+## Added 2026-11-02: Missions and Goals ladder
+
+Adam asked for many more quests and goals, paying more the harder they are. All of it is a display fixture in `src/client/UI/Prototype/SupportFixtures/MissionFixtures.luau`; nothing is granted, saved or tracked.
+
+- The seam changed: `missions[]` can hold up to 15 active rows (it was 3), and `goals[]` rows gain an optional `reward`.
+- Proposal to accept or change: 27 mission templates in five tiers (Easy $150 to $300, Medium $750 to $1,500, Hard $3,000 to $6,000, Expert $10,000 to $20,000, Legend $40,000 to $75,000) and 24 goals from $500 to $500,000.
+- Decisions for you: whether these amounts fit the economy, whether goals pay out at all, how progress is tracked, and whether Silver and Gold medals exist. Six goals are the approved names; 18 are new.

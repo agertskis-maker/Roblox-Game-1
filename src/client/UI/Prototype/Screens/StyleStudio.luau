@@ -228,7 +228,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				bottom = CarKit.Well,
 				name = "Current_" .. name,
 			})
-			CarKit.slot(slot, TAB_ICON[name], 32, { position = UDim2.new(0, 22, 0.5, 0), z = 9 })
+			CarKit.slot(slot, TAB_ICON[name], 38, { position = UDim2.new(0, 21, 0.5, 0), z = 9 })
 			CarKit.text(slot, name, 13, {
 				position = UDim2.fromOffset(42, 6),
 				size = UDim2.new(1, -46, 0, 16),
@@ -396,7 +396,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			CarKit.art(holder, prefix .. (item.key or ""), {
 				z = z,
 				placeholder = false,
-				size = UDim2.fromScale(0.9, 0.86),
+				size = UDim2.fromScale(1, 1),
 			})
 		end
 	end
@@ -451,9 +451,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			local holder = make("Frame", {
 				Name = "Thumb",
 				BackgroundTransparency = 1,
-				Position = UDim2.new(0.5, 0, 0, 37),
+				Position = UDim2.new(0.5, 0, 0, 22),
 				AnchorPoint = Vector2.new(0.5, 0),
-				Size = UDim2.new(1, -8, 1, -64),
+				Size = UDim2.new(1, -2, 1, -30),
 				ZIndex = 6,
 			}, button) :: Frame
 			thumbFor(item, holder, 6)
@@ -531,7 +531,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		make("UICorner", { CornerRadius = UDim.new(0, 10) }, button)
 		make("UIStroke", { Thickness = 2.5, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, button)
 		make("UIGradient", { Rotation = 90, Color = ColorSequence.new(family.top, family.bottom) }, button)
-		local slotPx = if phone then 24 else 32
+		local slotPx = if phone then 28 else 40
 		CarKit.slot(button, TAB_ICON[name], slotPx, { position = UDim2.new(0, slotPx / 2 + 4, 0.5, 0), z = 6 })
 		local label = CarKit.title(button, string.upper(name), if phone then 18 else 26, {
 			position = UDim2.fromOffset(slotPx + 6, 0),

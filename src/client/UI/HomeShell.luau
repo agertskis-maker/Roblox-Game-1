@@ -371,6 +371,10 @@ end
 function HomeShell.runEnded(self: any, earnFaster: boolean?)
 	self.running = false
 	self.queue:unblock("run")
+	local route = self.components.route
+	if route and route.setVisible then
+		route:setVisible(true)
+	end
 	if self.hud then
 		self.hud:setVisible(true)
 		if earnFaster then
