@@ -440,7 +440,7 @@ mount("menu", { "Home", "LeftMenu" }, "Hud", {
 		api.open("shop")
 	end,
 	onMissions = function()
-		api.harness("Missions (mock): nothing to claim yet")
+		api.open("missions")
 	end,
 	onSettings = function()
 		local menu = components.menu
@@ -455,6 +455,10 @@ mount("toasts", { "Home", "ToastStack" }, "Feedback")
 mount("route", { "Home", "TutorialRoute" }, "Hud")
 mount("settings", { "Home", "SettingsPanel" }, "Modal", {
 	onClosed = function() end,
+	onReplayTutorial = function()
+		local Tutorial = (require :: any)((Prototype.Parent :: any).Tutorial)
+		Tutorial.replay()
+	end,
 })
 -- Screens and cards
 mount("garage", { "Screens", "GarageMock" }, "Overlay", {
@@ -468,7 +472,19 @@ mount("portalCard", { "Screens", "PortalCardMock" }, "Overlay", {
 	end,
 })
 mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {})
-mount("shop", { "Screens", "ShopMock" }, "Overlay", {})
+mount("shop", { "Screens", "ShopMock" }, "Overlay", {
+	onFreeReward = function()
+		api.open("groupReward")
+	end,
+})
+mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
+mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
+mount("missionTracker", { "Screens", "MissionTracker" }, "Hud", {})
+mount("iconsSheet", { "IconsSheet" }, "Overlay", {})
+mount("stuntPreRace", { "Screens", "StuntPreRace" }, "Overlay", {})
+mount("stuntResults", { "Screens", "StuntResults" }, "Modal", {})
+mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+mount("stuntCustomize", { "Screens", "StuntCustomize" }, "Overlay", {})
 mount("results", { "Screens", "ResultsCard" }, "Modal", {
 	onRetry = function()
 		goRun()
@@ -991,6 +1007,7 @@ function api.setProfile(name: string)
 	applyMode(store:get().mode)
 end
 function api.reset()
+	(require :: any)((Prototype.Parent :: any).Tutorial).stop()
 	scenarios:cancel()
 	priority:clear()
 	local specimen = components.specimen
@@ -1031,6 +1048,13 @@ local control = Instance.new("BindableFunction")
 control.Name = "Lane3HudControl"
 control.OnInvoke = function(command: string, ...: any): any
 	local args = { ... }
+	if command == "call" then
+		-- drive one component from a test: call(key, method, arguments...)
+		local c = components[args[1]]
+		assert(c, "no component " .. tostring(args[1]))
+		local result = c[args[2]](c, table.unpack(args, 3))
+		return if type(result) == "table" then HttpService:JSONEncode(result) else result
+	end
 	if command == "debug" then
 		local out: { [string]: any } = { mode = store:get().mode, profile = screen:profile().name, failures = failures }
 		out.priority = priority:getDebugState()
