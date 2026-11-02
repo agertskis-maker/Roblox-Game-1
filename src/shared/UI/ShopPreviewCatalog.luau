@@ -12,12 +12,17 @@
 --   Catalog.sections() -> { Section }               -- Featured, Passes, Cash (flag), Style, Free, in page order
 --   Catalog.priceLabel(offer) -> string             -- "PREVIEW · 199 Robux" (the word, never a symbol)
 --   Catalog.bundleMath(bundleId) -> BundleMath?     -- component sum, saving and percent from the real fixture prices
---   Catalog.PreviewValueTag                         -- "PREVIEW VALUE": the mark every deal claim carries in fixtures
+--   Catalog.sectionId(name) -> string?              -- "Cash", "cash", "Passes" ... -> the section id (or nil)
+--   Catalog.PreviewValueTag                         -- "PREVIEW VALUE": the mark every deal claim carries
 --
--- Honesty (BRIEF M10-11 / M10-11a): a deal claim (BEST DEAL, SAVE x%, a struck-through sum) is only ever DERIVED from
--- the component prices here, never typed in, and the Shop suppresses all three in its normal preview presentation:
--- they show only as a test fixture marked PREVIEW VALUE. No countdowns, no "LIMITED", no player counts, no paid
--- randomness, no gift, no real purchase.
+-- Honesty (BRIEF M10-11 / M10-11a, Round 2 N6-03 and N6-03a): a deal claim (BEST DEAL, SAVE x%, a struck-through sum)
+-- is only ever DERIVED from the component prices here, never typed in. Round 2 turned the BEST DEAL spotlight back on
+-- as the normal view, because it is true INSIDE this PREVIEW catalog: the bundle costs less than the sum of its parts
+-- in the same fixture currency. savings = floor(100 * (componentTotal - bundlePrice) / componentTotal), where
+-- componentTotal = sum(price * quantity) over the bundle's included parts (a part listed twice counts twice). The Shop
+-- hides every claim when the total is zero, any part is unpriced, or the saving is not positive, and it labels the
+-- claim PREVIEW VALUE on the card itself. No countdowns, no "LIMITED", no player counts, no invented history prices, no
+-- paid randomness, no gift, no real purchase.
 
 local Catalog = {}
 
@@ -34,7 +39,7 @@ export type Offer = {
 	previewLine: string?, -- the conspicuous PREVIEW line
 	icon: string, -- Icons2 name for the small tile
 	art: string, -- ShopArt composition key
-	fill: string, -- PreviewTokens.Shop.Fill key
+	fill: string, -- Screens/Shop/ShopPalette fill name (a vivid gradient)
 	price: number?, -- Robux PREVIEW price, nil = none proposed
 	includes: { string }?, -- Bundle: offer ids it names
 	stamp: string?, -- NEW (the stamp is a catalog field, never a timer)
@@ -110,7 +115,7 @@ local offers: { Offer } = {
 		detail = "Online and offline. No change to race stats, Heat or Keys.",
 		icon = "DoubleLapPay",
 		art = "double-lap-pay",
-		fill = "Teal",
+		fill = "Sky",
 		price = 199,
 		stamp = "NEW",
 	},
@@ -124,7 +129,7 @@ local offers: { Offer } = {
 		detail = "Extra spots above the normal maximum, plus a pit garage. Each car earns at its normal rate.",
 		icon = "Paddock",
 		art = "expanded-paddock",
-		fill = "Sky",
+		fill = "Lime",
 		price = 149,
 	},
 	{
@@ -135,7 +140,7 @@ local offers: { Offer } = {
 		body = "Three passes. One collection.",
 		icon = "Bundle",
 		art = "all-passes-bundle",
-		fill = "Orange",
+		fill = "Gold",
 		price = 549,
 		includes = { "double-lap-pay", "expanded-paddock", "vip" },
 	},
@@ -166,7 +171,7 @@ local offers: { Offer } = {
 		body = "Pick your finishing touch.",
 		icon = "Decal",
 		art = "style-decal",
-		fill = "Yellow",
+		fill = "Orange",
 		actionLabel = "Preview decals",
 		note = Catalog.StyleNote,
 		swatches = { rgb(255, 255, 255), rgb(255, 214, 40), rgb(48, 206, 248), rgb(255, 92, 186) },
@@ -178,7 +183,7 @@ local offers: { Offer } = {
 		body = "A new look for your wheels.",
 		icon = "Wheel",
 		art = "style-wheel",
-		fill = "Sky",
+		fill = "Teal",
 		actionLabel = "Preview wheels",
 		note = Catalog.StyleNote,
 		swatches = { rgb(206, 216, 232), rgb(255, 204, 48), rgb(238, 58, 78), rgb(56, 204, 92) },
@@ -246,7 +251,7 @@ local offers: { Offer } = {
 		body = "A vault of Cash.",
 		icon = "CashVault",
 		art = "cash-vault",
-		fill = "Steel",
+		fill = "Violet",
 		amount = 50000,
 		previewLine = Catalog.CashPreviewNote,
 	},
@@ -358,6 +363,18 @@ function Catalog.priceLabel(offer: Offer): string
 	return offer.actionLabel or "Coming soon"
 end
 
+-- A section id from a name a caller may use: "Cash", "cash", "PASSES" ... Matches the id or the title, ignoring case.
+-- nil when no section has that name (the Cash section only exists behind its flag, so the caller checks `sections()`).
+function Catalog.sectionId(name: string): string?
+	local key = string.lower(name)
+	for _, section in SECTIONS do
+		if string.lower(section.id) == key or string.lower(section.title) == key then
+			return section.id
+		end
+	end
+	return nil
+end
+
 -- Component sum, saving and percent from the fixture prices (nil for anything that is not a priced bundle).
 function Catalog.bundleMath(bundleId: string): BundleMath?
 	local bundle = byId[bundleId]
@@ -375,7 +392,8 @@ function Catalog.bundleMath(bundleId: string): BundleMath?
 		table.insert(components, id)
 	end
 	local saving = sum - bundle.price
-	local percent = if sum > 0 and saving > 0 then math.floor(saving / sum * 100) else 0
+	-- N6-03a: floor(100 * saving / total); multiplying first keeps whole percents exact (29 / 100 * 100 is 28.999...)
+	local percent = if sum > 0 and saving > 0 then math.floor(100 * saving / sum) else 0
 	return {
 		componentSum = sum,
 		price = bundle.price,

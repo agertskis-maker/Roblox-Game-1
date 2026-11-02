@@ -7,6 +7,8 @@
 -- track moved there and now arrives at level 4 (Adam, 2026-10-28; decision 0025). Visuals only:
 -- no ownership, saved data or gameplay.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local KitAssets = require(script.Parent.Parent.Environment.KitAssets)
 local Kit = require(script.Parent.Parent.Parent.Kit)
 local Layout = require(script.Parent.Parent.Layout)
@@ -38,36 +40,6 @@ local function rect(
 	return Kit.strip(parent, a, b, math.abs(x1 - x0), thickness, topY, options, 0)
 end
 
-local function polyline(
-	parent: Instance,
-	bearing: number,
-	points: { Vector2 },
-	width: number,
-	topY: number,
-	options: Kit.PartOptions
-)
-	-- each strip runs past a joint just far enough for the outer edges to meet in a mitre
-	local function mitre(u: Vector2, v: Vector2): number
-		return math.min(width / 2 * math.tan(math.acos(math.clamp(u:Dot(v), -1, 1)) / 2) + 0.02, width)
-	end
-	for i = 1, #points - 1 do
-		local a, b = points[i], points[i + 1]
-		local d = (b - a).Unit
-		local before = if i > 1 then mitre((a - points[i - 1]).Unit, d) else 0
-		local after = if i < #points - 1 then mitre(d, (points[i + 2] - b).Unit) else 0
-		Kit.strip(
-			parent,
-			Layout.plotToWorld(bearing, a - d * before),
-			Layout.plotToWorld(bearing, b + d * after),
-			width,
-			0.1,
-			topY,
-			options,
-			0
-		)
-	end
-end
-
 -- Task 4 plot gate (brief §11; gates family, assets/island/kit/kit_gates.py; concept-review M14):
 -- one assembled frame shared by all six plots, stone bases, cream pillars, navy beam, round
 -- lamps, checker strips, two flags, a start line and hedge stubs, with only the accent (bands,
@@ -83,7 +55,8 @@ local GATE_PIECES = {
 	"PlotGateChecker",
 	"PlotGateFlagpoles",
 }
-local COURT_TOP = SURFACE + 0.1 -- the court slab's top (buildFront)
+local ROAD_TOP = SURFACE + 0.2 -- every paved surface of the plot front: flush with the track (Round 2 N1)
+local COURT_TOP = ROAD_TOP -- the court slab's top (buildFront)
 local LAMP_COLOUR = Color3.fromRGB(255, 212, 150) -- warm globe light (Tunable)
 local FLAG_LENGTH = 3 -- studs out from the pole (Tunable; "two modest flags")
 local FLAG_TIP = 0.15 -- the flag tapers to this width: a pennant, not a square (review J8)
@@ -257,9 +230,9 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 		cx0,
 		cu0,
 		cx1,
-		cu1,
-		SURFACE + 0.1,
-		0.2,
+		cu1 + 2, -- up to the Paddock's edge: no strip of grass between them
+		COURT_TOP,
+		0.3,
 		{ name = "Court", color = Palette.Court, collide = true, castShadow = false }
 	)
 
@@ -271,34 +244,39 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 	-- (Shared/Island/Speedway/Props.shop; Raceway round 2, 2026-10-29); the old KioskBooth mesh and its
 	-- blank panel are no longer placed here
 
-	local wx0, wu0, wx1, wu1 = Layout.bounds(Layout.reservation("PlotWalk").poly)
-	rect(
-		front,
-		bearing,
-		wx0,
-		wu0,
-		wx1,
-		wu1,
-		SURFACE + 0.1,
-		0.2,
-		{ name = "Walkway", color = Palette.Paving, collide = true, castShadow = false }
-	)
+	-- the plot walk: from the Paddock to the track's outer edge, where the gate in the barrier stands.
+	-- Its far end is shaped to the road's own edge (Shared/Island/Speedway/RoadNet).
+	local Speedway = ReplicatedStorage:WaitForChild("Shared").Island.Speedway :: any
+	local RoadNet = (require :: any)(Speedway.RoadNet)
+	local SpeedwayKit = (require :: any)(Speedway.Kit)
+	local _, wu0 = Layout.bounds(Layout.reservation("PlotWalk").poly)
+	local walk = RoadNet.walkPolygon(wu0)
+	for _, tri in RoadNet.triangulate(walk) do
+		local a, b, c = tri[1], tri[2], tri[3]
+		SpeedwayKit.triangle(front, W(a.X, a.Y), W(b.X, b.Y), W(c.X, c.Y), ROAD_TOP, 0.3, {
+			name = "Walkway",
+			color = Palette.Paving,
+			collide = true,
+		})
+	end
 
-	-- Paddock: floor, aisle and pit lanes
+	-- Paddock: floor and aisle, three flush surfaces edge to edge at the road's height, so a lane runs
+	-- straight onto the aisle and the floor (the pit lanes and their paint are part of the road network,
+	-- assembled per client with the track: Shared/Island/Speedway/RoadNet, Track.pitRoads)
 	local paddock = Instance.new("Folder")
 	paddock.Name = "Paddock"
 	paddock.Parent = visual
 	local px0, pu0, px1, pu1 = Layout.bounds(Layout.reservation("Paddock").poly)
-	-- height layers: concrete floor, then the asphalt aisle and pit lanes (one surface, one colour),
-	-- then the track above them where a lane joins it
-	rect(paddock, bearing, px0 - 0.1, pu0, px1 + 0.1, pu1, SURFACE + 0.04, 0.2, {
-		name = "Floor",
-		color = Color3.fromRGB(206, 200, 190),
-		material = Enum.Material.Concrete,
-		collide = true,
-		castShadow = false,
-	})
-	rect(paddock, bearing, px0, Layout.Aisle[1], px1, Layout.Aisle[2], SURFACE + 0.12, 0.2, {
+	for _, band in { { pu0, Layout.Aisle[1] }, { Layout.Aisle[2], pu1 } } do
+		rect(paddock, bearing, px0, band[1], px1, band[2], ROAD_TOP, 0.3, {
+			name = "Floor",
+			color = Color3.fromRGB(206, 200, 190),
+			material = Enum.Material.Concrete,
+			collide = true,
+			castShadow = false,
+		})
+	end
+	rect(paddock, bearing, px0, Layout.Aisle[1], px1, Layout.Aisle[2], ROAD_TOP, 0.3, {
 		name = "Aisle",
 		color = PIT_ASPHALT,
 		material = Enum.Material.Asphalt,
@@ -308,22 +286,6 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 	-- the bays themselves (owned bays' cream lines, the next bay's barrier, the parking sign) are drawn
 	-- per client from the plot's owned spot count (Shared/Island/Speedway/Parking; Raceway round 2); the
 	-- floor stays plain under the bays nobody owns. The Lane 2 bay markers (Hub/Markers) are unchanged.
-	polyline(
-		paddock,
-		bearing,
-		Layout.PitOut,
-		Layout.PitLaneWidth,
-		SURFACE + 0.12,
-		{ name = "PitOut", color = PIT_ASPHALT, material = Enum.Material.Asphalt, castShadow = false }
-	)
-	polyline(
-		paddock,
-		bearing,
-		Layout.PitIn,
-		Layout.PitLaneWidth,
-		SURFACE + 0.12,
-		{ name = "PitIn", color = PIT_ASPHALT, material = Enum.Material.Asphalt, castShadow = false }
-	)
 end
 
 function PlotRecipe.build(plot: Model, index: number)

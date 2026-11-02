@@ -9,16 +9,28 @@
 -- Three tiers, chosen by the design size:
 --   Desktop  design width >= 1000 and height >= 560 (1920 x 1080 is 1280 x 681 design px at the 1.5 cap):
 --            content 90% of the width, title left, tabs centre, Cash and X right, hero 66% beside two stacked side
---            cards, passes in ONE row (the bundle twice as wide), Style in four columns.
+--            cards with the BEST DEAL banner right under them (N6-04: the whole Featured page is visible with no
+--            scroll), passes in ONE row (the bundle twice as wide), Style in four columns.
 --   Tablet   everything else with a height of 420 or more (1024 x 768, the Tablet frame): 94% width, hero 62% and
---            side 38% while the benefit text fits, the bundle full width over three pass cards, Style in two columns.
+--            side 38% while the benefit text fits (else the hero is full width and the two side cards come after the
+--            banner), the bundle full width over three pass cards, Style in two columns.
 --   Phone    design height under 420 (landscape phones): 96% width, a compact title / Cash / X row with the tabs as a
---            SEPARATE scrollable row, the hero full width at about 3:1 with the copy left and the art right, the two
---            side cards as the next row, passes as wide horizontal cards, Style in two wide columns.
+--            SEPARATE scrollable row, the hero full width with the copy left and the art right and the BEST DEAL
+--            banner right under it, both visible without scrolling (N6-04); the two side cards come next, passes as
+--            wide horizontal cards, Style in two wide columns.
+--   Every touch target is at least 48 px after scaling (the tabs too), a primary button 56 px.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PreviewTokens = require(script.Parent.Parent.Parent.PreviewTokens)
+local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 
 local L = PreviewTokens.Shop.Layout
+
+-- The hero is a little taller than the Round 1 ratios so the Featured page fills the screen like the reference; the BEST
+-- DEAL banner sits under it. (Local numbers: PreviewTokens stays untouched.)
+local HERO_RATIO: { [string]: number } = { Desktop = 1.9, Tablet = 1.7, Phone = 3 }
+local DEAL_H: { [string]: number } = { Desktop = 118, Tablet = 112, Phone = 76 }
 
 local ShopLayout = {}
 
@@ -54,8 +66,10 @@ export type Layout = {
 	heroH: number,
 	sideW: number,
 	sideH: number,
-	sideStacked: boolean, -- two side cards stacked beside the hero (Desktop, Tablet); false = a row under it (Phone)
+	sideStacked: boolean, -- two side cards stacked beside the hero (Desktop, Tablet); false = a row under the banner
 	sideBody: boolean, -- room for a benefit line in a side card (the card builder also drops rows that do not fit)
+	dealW: number, -- the BEST DEAL banner under the hero (full content width)
+	dealH: number,
 	-- sections
 	sectionHeaderH: number,
 	sectionGap: number,
@@ -119,7 +133,7 @@ function ShopLayout.compute(i: Inputs): Layout
 	local rowH = closeSize + (if phone then 4 else 8)
 	local topPad = if phone then 2 else 8
 	local tabGap = if phone then 4 else 6
-	local tabH = L.TabHeight -- 44 on every tier: a tab is a touch target
+	local tabH = math.max(L.TabHeight, Tokens.Touch.Minimum) -- a tab is a touch target: 48 on every tier
 
 	-- the tabs share the first row when they fit between the title and the Cash counter, leaving room for the X
 	local inlineNeed = i.titleW + i.tabsW + i.cashW + closeSize + 5 * gap
@@ -130,15 +144,22 @@ function ShopLayout.compute(i: Inputs): Layout
 	local pageW = math.min(contentW + 14, W - margin)
 
 	-- Featured -------------------------------------------------------------------------------------------------
-	-- Two side cards beside the hero only when each is tall enough for a name and a 52 px button (128 px); otherwise
-	-- the hero takes the full width and the side cards become the next row (M10-14a, M10-14b).
+	-- The page is: hero (with two stacked side cards beside it when each is tall enough for a name and a 56 px button,
+	-- 128 px), then the BEST DEAL banner across the full width. When the side cards do not fit beside the hero they become
+	-- a row after the banner, below the fold on a short screen (N6-04: the hero and the deal always show).
+	local dealH = DEAL_H[tier]
+	if phone and pageH < 200 then
+		dealH = 66 -- the smallest phone viewport: a slimmer banner keeps the hero usable
+	end
+	local dealW = contentW
 	local heroW, heroH, sideW, sideH
 	local sideStacked = false
+	local room = pageH - dealH - gap - 8 -- what the hero may take so hero + banner fit with no scroll
 	if tier ~= "Phone" then
 		local share = (L.HeroShare :: any)[tier] :: number
 		local stackedW = math.floor((contentW - gap) * share)
-		local stackedH = math.floor(stackedW / ((L.HeroRatio :: any)[tier] :: number))
-		stackedH = math.min(stackedH, math.max(pageH - 170, 200)) -- the Passes heading stays above the fold
+		local stackedH = math.floor(stackedW / HERO_RATIO[tier])
+		stackedH = math.min(stackedH, math.max(room, 200))
 		if math.floor((stackedH - gap) / 2) >= 128 then
 			sideStacked = true
 			heroW = stackedW
@@ -150,8 +171,8 @@ function ShopLayout.compute(i: Inputs): Layout
 	if not sideStacked then
 		heroW = contentW
 		sideW = math.floor((contentW - gap) / 2)
-		local ratio = if phone then (L.HeroRatio :: any).Phone else 2.6
-		heroH = math.max(math.min(math.floor(heroW / ratio), pageH - 14), 150)
+		local ratio = if phone then HERO_RATIO.Phone else 2.6
+		heroH = math.max(math.min(math.floor(heroW / ratio), room), if phone then 96 else 150)
 		sideH = if phone then 118 else 128
 	end
 	local sideBody = sideStacked and sideH >= 150
@@ -219,6 +240,8 @@ function ShopLayout.compute(i: Inputs): Layout
 		sideH = sideH,
 		sideStacked = sideStacked,
 		sideBody = sideBody,
+		dealW = dealW,
+		dealH = dealH,
 		sectionHeaderH = if tier == "Desktop" then 70 elseif tier == "Tablet" then 62 else 54,
 		sectionGap = if tier == "Phone" then 14 else 22,
 		passMode = passMode,

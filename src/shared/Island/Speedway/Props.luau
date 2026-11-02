@@ -689,69 +689,6 @@ function Props.pitProps(folder: Folder, ctx: Ctx)
 	end
 end
 
--- Pit lanes painted in the track's language: white edge lines both sides, and a pit entry and exit
--- line across the lane where it meets the track (Hub/Layout PitOut / PitIn).
-Props.PitOut = {
-	Vector2.new(33, 284.187),
-	Vector2.new(31, 305.187),
-	Vector2.new(51.5, 340.187),
-	Vector2.new(51.5, 364.187),
-	Vector2.new(46, 392.187),
-	Vector2.new(41.5, 406.187),
-}
-local PIT_LINE_TOP = 0.29 -- over the road's own paint where a lane meets the track
-function Props.pitPaint(folder: Folder, ctx: Ctx)
-	for _, sign in { 1, -1 } do
-		local pts = {}
-		for _, p in Props.PitOut do
-			table.insert(pts, Vector2.new(p.X * sign, p.Y))
-		end
-		for i = 1, #pts - 1 do
-			local a, b = pts[i], pts[i + 1]
-			local d = (b - a).Unit
-			local n = Vector2.new(-d.Y, d.X)
-			for _, off in { -4.1, 4.1 } do
-				local pa, pb = a + n * off, b + n * off
-				local before = if i > 1
-					then math.tan(math.acos(math.clamp((a - pts[i - 1]).Unit:Dot(d), -1, 1)) / 2) * 4.1
-					else 0
-				local after = if i < #pts - 1
-					then math.tan(math.acos(math.clamp(d:Dot((pts[i + 2] - b).Unit), -1, 1)) / 2) * 4.1
-					else 0
-				Kit.slab(
-					folder,
-					Ctx.at(ctx, (pa - d * before).X, (pa - d * before).Y, PIT_LINE_TOP),
-					Ctx.at(ctx, (pb + d * after).X, (pb + d * after).Y, PIT_LINE_TOP),
-					Vector3.yAxis,
-					0.3,
-					0.2,
-					{
-						name = "PitLine",
-						color = Color3.new(1, 1, 1),
-						castShadow = false,
-					},
-					0
-				)
-			end
-		end
-		-- the pit entry or exit line: where the lane leaves the track's outer line
-		local a, b = pts[#pts - 1], pts[#pts]
-		local d = (b - a).Unit
-		local mid = b - d * 3
-		local n = Vector2.new(-d.Y, d.X)
-		Kit.slab(
-			folder,
-			Ctx.at(ctx, (mid - n * 4.1).X, (mid - n * 4.1).Y, PIT_LINE_TOP),
-			Ctx.at(ctx, (mid + n * 4.1).X, (mid + n * 4.1).Y, PIT_LINE_TOP),
-			Vector3.yAxis,
-			0.5,
-			0.2,
-			{ name = "PitLine", color = Color3.new(1, 1, 1), castShadow = false },
-			0
-		)
-	end
-end
-
 function Props.mechanic(life: Folder, ctx: Ctx)
 	local base = Ctx.face(ctx, 60.8, A.PitGarage.Y, WEST) -- on the apron, clear of the pit wall
 	local body = Kit.place("SwMechanic", base)

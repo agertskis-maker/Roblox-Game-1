@@ -9,6 +9,7 @@
 local Ctx = require(script.Parent.Ctx)
 local Kit = require(script.Parent.Kit)
 local Path = require(script.Parent.Path)
+local RoadNet = require(script.Parent.RoadNet)
 
 local Track = {}
 
@@ -123,12 +124,6 @@ local function layer(
 	end
 end
 
--- The barrier opens where the pit lanes join the straights (Hub/Layout.inPitGap).
-local function inPitGap(p: Vector2): boolean
-	return math.abs(p.X) > R + 5 and p.Y > uS - 2 and p.Y < uS + 17
-end
-Track.inPitGap = inPitGap
-
 local function onArc(path: LapPath, s: number): boolean
 	for _, seg in path.segments do
 		if seg.kind == "arc" and s >= seg.s0 - 1e-6 and s < seg.s0 + seg.length - 1e-6 then
@@ -138,8 +133,33 @@ local function onArc(path: LapPath, s: number): boolean
 	return false
 end
 
+-- A tidy end for a barrier run: a low red post just past the run's last piece.
+local function runCap(parent: Instance, ctx: Ctx, path: LapPath, s: number, offset: number)
+	local p, d = Path.planPoint(path, s)
+	local at = p + Vector2.new(d.Y, -d.X) * offset
+	local base = Ctx.at(ctx, at.X, at.Y, 0)
+	local dir = Ctx.dir(ctx, d)
+	Kit.part(
+		parent,
+		Vector3.new(2, 2.4, 1),
+		CFrame.lookAt(base + Vector3.yAxis * 1.2, base + Vector3.yAxis * 1.2 + dir),
+		{
+			name = "RunCap",
+			color = C.CurbRed,
+			castShadow = false,
+		}
+	)
+	Kit.part(
+		parent,
+		Vector3.new(2.1, 0.5, 1.1),
+		CFrame.lookAt(base + Vector3.yAxis * 1.75, base + Vector3.yAxis * 1.75 + dir),
+		{ name = "RunCapBand", color = C.White, castShadow = false }
+	)
+end
+
 -- Edge meshes (hay, tyres, rope, tyre wall) along the path at `offset`, every `spacing`, the
--- mesh's front toward the road. `keep(s, p)` filters positions.
+-- mesh's front toward the road. `keep(s, p)` filters positions. A piece stands only where its whole
+-- length clears the openings of the road network; each run that stops at an opening gets an end post.
 local function runs(
 	parent: Instance,
 	ctx: Ctx,
@@ -153,27 +173,61 @@ local function runs(
 )
 	local count = math.max(1, math.floor((s1 - s0) / spacing + 0.5))
 	local step = (s1 - s0) / count
+	local outerSide = offset > 0
+	local kept = false
 	for k = 0, count - 1 do
 		local s = s0 + step * (k + 0.5)
 		local p, d = Path.planPoint(path, s)
 		local out = Vector2.new(d.Y, -d.X)
 		local at = p + out * offset
-		if not inPitGap(at) and (not keep or keep(s, at)) then
+		local open = outerSide and RoadNet.barrierOpen(s, step / 2 + 1.2)
+		local stand = not open and (not keep or keep(s, at))
+		if stand then
 			Ctx.place(ctx, parent, name, at.X, at.Y, -out)
 		end
+		if outerSide then
+			if stand and not kept and k > 0 then
+				runCap(parent, ctx, path, s - step / 2 - 0.5, offset)
+			elseif kept and not stand then
+				runCap(parent, ctx, path, s - step / 2 + 0.5, offset)
+			end
+		end
+		kept = stand
 	end
 end
 
 -- ------------------------------------------------------------------ dirt (levels 1 to 3)
 
+-- The road ribbon from a to b, either side of the junctions. Where a piece stops at a junction its last
+-- slab is one chord of RoadNet.EndChord with nothing past its end, and that slab's end edge is the
+-- junction's edge (RoadNet takes its corners from the same chord), so the two meet exactly.
+local function ribbon(folder: Folder, ctx: Ctx, path: LapPath, a: number, b: number, options: Kit.PartOptions)
+	local chord = RoadNet.EndChord
+	for _, piece in RoadNet.cutRanges(a, b) do
+		local from, to = piece[1], piece[2]
+		local cutFrom, cutTo = from > a, to < b
+		local inFrom = if cutFrom then from + chord else from
+		local inTo = if cutTo then to - chord else to
+		if inTo > inFrom then
+			layer(folder, ctx, path, samples(path, inFrom, inTo), 0, HALF_W * 2, 0.4, 0, options, 2)
+		end
+		if cutFrom then
+			layer(folder, ctx, path, { from, from + chord }, 0, HALF_W * 2, 0.4, 0, options, 0)
+		end
+		if cutTo then
+			layer(folder, ctx, path, { to - chord, to }, 0, HALF_W * 2, 0.4, 0, options, 0)
+		end
+	end
+end
+
 local function dirtSurface(folder: Folder, ctx: Ctx, colour: Color3)
 	local path = Path.forLevel(1)
-	layer(folder, ctx, path, samples(path, 0, path.length), 0, HALF_W * 2, 0.4, 0, {
+	ribbon(folder, ctx, path, 0, path.length, {
 		name = "Surface",
 		color = colour,
 		collide = true,
 		castShadow = false,
-	}, 2)
+	})
 end
 
 function Track.dirt(folder: Folder, ctx: Ctx)
@@ -248,91 +302,53 @@ end
 
 -- ------------------------------------------------------------------ asphalt (level 4 on)
 
--- Level 12: how much wider the ground right straight is, toward the infield, where the loop stands
--- (Adam: "make that part of the track wider so that the loop actually fits"). 0 elsewhere. The
--- extra width blends in and out over a smooth taper, so the loop stands on the road, not on a pad.
-local LOOP_WIDEN = 7.5
-local function loopWiden(u: number): number
-	local lo = Path.Loop
-	local a0, a1 = lo.SBendU + 2, lo.SBendU + lo.SBend
-	local b1 = lo.SBendU + 2 * lo.SBend + 2 * lo.Runout
-	local b0 = b1 - 14
-	local function ease(t: number): number
-		t = math.clamp(t, 0, 1)
-		return t * t * (3 - 2 * t)
-	end
-	return LOOP_WIDEN * ease((u - a0) / (a1 - a0)) * (1 - ease((u - b0) / (b1 - b0)))
-end
-
 -- The one marking language of the whole circuit, on every level from 4 up (M4-01): a white edge
 -- line on both sides following the road, red and white curbs only on the inside of the corners, no
--- centre line. The outer line stops where a pit lane joins and the pit lane's own lines take over.
--- `widened` is the level 12 right straight: from the first taper to the last the road is one
--- smooth surface between two straight or gently tapered edges, so the S-bends the cars take stay
--- inside it and no strip of road sticks out at an angle. Its lines follow those edges.
-local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { number } }, widened: boolean?)
-	local lo = Path.Loop
-	local wideFrom, wideTo = lo.SBendU, lo.SBendU + 2 * lo.SBend + 2 * lo.Runout
-	local function inWide(s: number): boolean
-		if not widened then
-			return false
-		end
-		local p = Path.planPoint(path, s)
-		return p.X > 0 and p.Y >= wideFrom and p.Y <= wideTo
-	end
-	local function splitRuns(list: { number }, keep: (number) -> boolean): { { number } }
-		local pieces: { { number } } = {}
-		local run: { number } = {}
-		for _, s in list do
-			if keep(s) then
-				table.insert(run, s)
-			else
-				if #run > 1 then
-					table.insert(pieces, run)
-				end
-				run = {}
-			end
-		end
-		if #run > 1 then
-			table.insert(pieces, run)
-		end
-		return pieces
+-- centre line. The lines stop where a junction takes over; its own chains (RoadNet) carry them on, so
+-- a line is never drawn twice. `apronPath`: on level 12 the right straight's inner edge moves into the
+-- infield (Track.loopApron paints that edge), so the ribbon draws no inner line there.
+local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { number } }, apronPath: LapPath?)
+	local function onApron(s: number): boolean
+		return apronPath ~= nil and s > RoadNet.ArcEnd and s < path.marks.farCurve[1]
 	end
 	for _, range in ranges do
-		local list = samples(path, range[1], range[2])
-		for _, run in
-			splitRuns(list, function(s)
-				return not inWide(s)
-			end)
-		do
-			layer(folder, ctx, path, run, 0, HALF_W * 2, 0.4, 0, {
-				name = "Surface",
-				color = C.Asphalt,
-				material = Enum.Material.Asphalt,
-				collide = true,
-				castShadow = false,
-			}, 2)
-			layer(folder, ctx, path, run, -(HALF_W - 0.6), 0.3, PAINT_THICK, PAINT, {
+		ribbon(folder, ctx, path, range[1], range[2], {
+			name = "Surface",
+			color = C.Asphalt,
+			material = Enum.Material.Asphalt,
+			collide = true,
+			castShadow = false,
+		})
+		for _, piece in RoadNet.cutRanges(range[1], range[2]) do
+			local list = samples(path, piece[1], piece[2])
+			layer(folder, ctx, path, list, HALF_W - 0.6, 0.3, PAINT_THICK, PAINT, {
 				name = "EdgeLine",
 				color = C.White,
 				castShadow = false,
-			}, 0.2)
-		end
-		for _, run in
-			splitRuns(list, function(s)
-				local p, d = Path.planPoint(path, s)
-				local at = p + Vector2.new(d.Y, -d.X) * (HALF_W - 0.6)
-				return not inWide(s) and not inPitGap(Vector2.new(at.X + (if at.X > 0 then 5 else -5), at.Y))
-			end)
-		do
-			layer(folder, ctx, path, run, HALF_W - 0.6, 0.3, PAINT_THICK, PAINT, {
-				name = "EdgeLine",
-				color = C.White,
-				castShadow = false,
-			}, 0.2)
+			}, 0.1)
+			local inner: { number } = {}
+			local function flush()
+				if #inner > 1 then
+					layer(folder, ctx, path, inner, -(HALF_W - 0.6), 0.3, PAINT_THICK, PAINT, {
+						name = "EdgeLine",
+						color = C.White,
+						castShadow = false,
+					}, 0.1)
+				end
+				inner = {}
+			end
+			for _, s in list do
+				if onApron(s) then
+					flush()
+				else
+					table.insert(inner, s)
+				end
+			end
+			flush()
 		end
 		-- curbs: one white band round the inside of each corner with red blocks on top of it, so no
-		-- two curb faces ever share a plane
+		-- two curb faces ever share a plane; each end tapers to a point on the road's edge
+		local list = samples(path, range[1], range[2])
 		local i = 0
 		for k = 1, #list - 1 do
 			local sa, sb = list[k], list[k + 1]
@@ -356,51 +372,198 @@ local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { numb
 						castShadow = false,
 					}, 0)
 				end
+				for _, tip in { { sa, -1 }, { sb, 1 } } do
+					local at, dir = tip[1], tip[2]
+					if not onArc(path, at + dir * 0.5) and math.abs(Path.bank(path, at)) < 1e-3 then
+						local inA = RoadNet.trackPoint(at, -HALF_W)
+						local inB = RoadNet.trackPoint(at, -HALF_W - 1)
+						local point = RoadNet.trackPoint(at + dir * 5, -HALF_W)
+						Kit.triangle(
+							folder,
+							Ctx.at(ctx, inA.X, inA.Y),
+							Ctx.at(ctx, inB.X, inB.Y),
+							Ctx.at(ctx, point.X, point.Y),
+							Path.TrackTop + 0.12,
+							0.3,
+							{ name = "CurbTip", color = C.White }
+						)
+					end
+				end
 			end
 		end
 	end
-	if widened then
-		-- the widened stretch: fine quads between the two edges, in the road's own asphalt and height
-		local xOut = R + HALF_W
-		local fill = {
-			name = "Surface",
-			color = C.Asphalt,
-			material = Enum.Material.Asphalt,
-			collide = true,
-			castShadow = false,
-		}
-		local paint = { name = "EdgeLine", color = C.White, castShadow = false }
-		local n = math.ceil((wideTo - wideFrom) / 2)
-		for k = 0, n - 1 do
-			local ua = wideFrom + (wideTo - wideFrom) * k / n
-			local ub = wideFrom + (wideTo - wideFrom) * (k + 1) / n
-			local xa, xb = R - HALF_W - loopWiden(ua), R - HALF_W - loopWiden(ub)
-			local a, b = Ctx.at(ctx, xa, ua), Ctx.at(ctx, xb, ub)
-			local c, d = Ctx.at(ctx, xOut, ub), Ctx.at(ctx, xOut, ua)
-			Kit.triangle(folder, a, b, c, Path.TrackTop, 0.4, fill)
-			Kit.triangle(folder, a, c, d, Path.TrackTop, 0.4, fill)
-			Kit.slab(
-				folder,
-				Ctx.at(ctx, xa + 0.6, ua, Path.TrackTop + PAINT),
-				Ctx.at(ctx, xb + 0.6, ub, Path.TrackTop + PAINT),
-				Vector3.yAxis,
-				0.3,
-				PAINT_THICK,
-				paint,
-				0.1
-			)
-		end
+end
+
+-- A chain of painted line along plan points, in the road's own line height.
+local function paintChain(folder: Instance, ctx: Ctx, points: { Vector2 }, width: number?, name: string?)
+	local options = { name = name or "EdgeLine", color = C.White, castShadow = false }
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
 		Kit.slab(
 			folder,
-			Ctx.at(ctx, xOut - 0.6, wideFrom, Path.TrackTop + PAINT),
-			Ctx.at(ctx, xOut - 0.6, wideTo, Path.TrackTop + PAINT),
+			Ctx.at(ctx, a.X, a.Y, Path.TrackTop + PAINT),
+			Ctx.at(ctx, b.X, b.Y, Path.TrackTop + PAINT),
 			Vector3.yAxis,
-			0.3,
+			width or RoadNet.LineWidth,
 			PAINT_THICK,
-			paint,
-			0
+			options,
+			0.1
 		)
 	end
+end
+
+-- The pit lanes and their junctions with the track: the road network's surfaces and its paint. On the
+-- dirt levels the lanes are dirt too, with no paint.
+local function pitRoads(folder: Folder, ctx: Ctx, colour: Color3, material: Enum.Material?, paint: boolean)
+	local fill = { name = "Surface", color = colour, material = material, collide = true, castShadow = false }
+	local thick = 0.4
+	for _, j in RoadNet.Junctions do
+		local road = Instance.new("Folder")
+		road.Name = if j.side > 0 then "PitOut" else "PitIn"
+		road.Parent = folder
+		for _, tri in j.triangles do
+			Kit.triangle(
+				road,
+				Ctx.at(ctx, tri[1].X, tri[1].Y),
+				Ctx.at(ctx, tri[2].X, tri[2].Y),
+				Ctx.at(ctx, tri[3].X, tri[3].Y),
+				Path.TrackTop,
+				thick,
+				fill
+			)
+		end
+		-- the lane: strips with mitred joints; its two ends stop exactly at the aisle and the junction
+		local pts = j.laneStrip
+		local halfLane = RoadNet.LaneWidth / 2
+		local function mitre(u: Vector2, v: Vector2): number
+			return math.min(halfLane * math.tan(math.acos(math.clamp(u:Dot(v), -1, 1)) / 2) + 0.02, halfLane)
+		end
+		for i = 1, #pts - 1 do
+			local a, b = pts[i], pts[i + 1]
+			local d = (b - a).Unit
+			local before = if i > 1 then mitre((a - pts[i - 1]).Unit, d) else 0
+			local after = if i < #pts - 1 then mitre(d, (pts[i + 2] - b).Unit) else 0
+			local pa, pb = a - d * before, b + d * after
+			Kit.slab(
+				road,
+				Ctx.at(ctx, pa.X, pa.Y, Path.TrackTop),
+				Ctx.at(ctx, pb.X, pb.Y, Path.TrackTop),
+				Vector3.yAxis,
+				RoadNet.LaneWidth,
+				thick,
+				fill,
+				0
+			)
+		end
+		if paint then
+			for _, chain in j.lines do
+				paintChain(road, ctx, chain.points, nil, chain.name)
+			end
+			for _, dash in j.dashes do
+				paintChain(road, ctx, dash, RoadNet.LineWidth, "MergeDash")
+			end
+		end
+	end
+end
+
+function Track.pitRoadsDirt(folder: Folder, ctx: Ctx)
+	pitRoads(folder, ctx, C.Dirt, nil, false)
+end
+
+function Track.pitRoadsRaked(folder: Folder, ctx: Ctx)
+	pitRoads(folder, ctx, C.DirtRaked, nil, false)
+end
+
+function Track.pitRoadsAsphalt(folder: Folder, ctx: Ctx)
+	pitRoads(folder, ctx, C.Asphalt, Enum.Material.Asphalt, true)
+end
+
+-- The walk's gate in the track's outer barrier: two white posts and a short open gate, the road's edge
+-- just past them. The plot walk (Hub/Recipes/Plot) ends on that edge.
+function Track.walkGate(folder: Folder, ctx: Ctx)
+	local w = RoadNet.WalkHalfWidth + 0.6
+	local foot = uS - math.sqrt((R + HALF_W) ^ 2 - w * w) - 0.5
+	local dir = Ctx.dir(ctx, Vector2.new(0, -1))
+	for _, side in { -1, 1 } do
+		local base = Ctx.at(ctx, side * w, foot, 0)
+		Kit.part(folder, Vector3.new(0.7, 3.6, 0.7), CFrame.new(base + Vector3.yAxis * 1.8), {
+			name = "WalkGatePost",
+			color = C.White,
+			collide = true,
+		})
+		Kit.part(folder, Vector3.new(0.95, 0.3, 0.95), CFrame.new(base + Vector3.yAxis * 3.75), {
+			name = "WalkGateCap",
+			color = C.CurbRed,
+			castShadow = false,
+		})
+		-- the gate leaf stands open, along the walk's side
+		local leaf = base + Vector3.yAxis * 1.3 + dir * 1.7
+		for _, y in { 0.4, -0.3 } do
+			local at = leaf + Vector3.yAxis * y
+			Kit.part(folder, Vector3.new(0.14, 0.2, 2.8), CFrame.lookAt(at, at + dir), {
+				name = "WalkGateRail",
+				color = C.White,
+				castShadow = false,
+			})
+		end
+	end
+end
+
+-- Level 12: the widened straight. The road's inner edge moves 16 into the infield (two full track widths
+-- in all) over a 48-stud taper from the turn, runs straight past the loop, and comes back along the
+-- exit bend's own edge. It is one polygon joined edge to edge to the ribbon at x = R - HALF_W.
+function Track.loopApron(folder: Folder, ctx: Ctx)
+	local path = Path.forLevel(12)
+	local xIn = R - HALF_W
+	local extra = 2 * HALF_W
+	local taper = 3 * extra
+	local bend = path.marks.exitBend
+	local farU = uS + Path.Straight
+	local function ease(t: number): number
+		t = math.clamp(t, 0, 1)
+		return t * t * (3 - 2 * t)
+	end
+	local edge: { Vector2 } = {}
+	for k = 1, 16 do
+		table.insert(edge, Vector2.new(xIn - extra * ease(k / 16), uS + taper * k / 16))
+	end
+	for k = 0, 15 do
+		local p, d = Path.planPoint(path, bend[1] + (bend[2] - bend[1]) * k / 16)
+		table.insert(edge, p + Vector2.new(-d.Y, d.X) * HALF_W)
+	end
+	local poly: { Vector2 } = { Vector2.new(xIn, uS) }
+	for _, p in edge do
+		table.insert(poly, p)
+	end
+	table.insert(poly, Vector2.new(xIn, farU))
+	local fill = {
+		name = "Surface",
+		color = C.Asphalt,
+		material = Enum.Material.Asphalt,
+		collide = true,
+		castShadow = false,
+	}
+	for _, tri in RoadNet.triangulate(poly) do
+		Kit.triangle(
+			folder,
+			Ctx.at(ctx, tri[1].X, tri[1].Y),
+			Ctx.at(ctx, tri[2].X, tri[2].Y),
+			Ctx.at(ctx, tri[3].X, tri[3].Y),
+			Path.TrackTop,
+			0.4,
+			fill
+		)
+	end
+	-- the road's inner line follows the new edge, 0.6 in from it, and picks up the ribbon's line
+	local lineAt: { Vector2 } = { Vector2.new(xIn + 0.6, uS) }
+	for i, p in edge do
+		local a = edge[math.max(i - 1, 1)]
+		local b = edge[math.min(i + 1, #edge)]
+		local d = (b - a).Unit
+		table.insert(lineAt, p + Vector2.new(d.Y, -d.X) * 0.6)
+	end
+	table.insert(lineAt, Vector2.new(xIn + 0.6, farU))
+	paintChain(folder, ctx, lineAt)
 end
 
 function Track.asphaltFlat(folder: Folder, ctx: Ctx)
@@ -421,9 +584,10 @@ function Track.groundRanges(path: LapPath): { { number } }
 	return { { d[2], path.length }, { 0, far[1] + 2 } }
 end
 
-function Track.asphaltGround(folder: Folder, ctx: Ctx, widened: boolean?)
-	local path = Path.forLevel(10)
-	asphalt(folder, ctx, path, Track.groundRanges(path), widened)
+function Track.asphaltGround(folder: Folder, ctx: Ctx, apron: boolean?)
+	local path = Path.forLevel(if apron then 12 else 10)
+	local ground = Path.forLevel(10)
+	asphalt(folder, ctx, ground, Track.groundRanges(ground), apron and path or nil)
 end
 
 -- Checkered start / finish line: 8 tiles across, 3 rows (Task 3 base track).
@@ -476,7 +640,13 @@ function Track.tyreWall(folder: Folder, ctx: Ctx, which: string)
 	for _, range in ranges do
 		runs(folder, ctx, path, range[1], range[2], HALF_W + 1.3, "SwTyreWall", spacing, function(s)
 			if which == "straights" or which == "ground" then
-				return not onArc(path, s)
+				if onArc(path, s) then
+					return false
+				end
+				-- stop short of the banked wall that starts before the far turn (level 9)
+				local far = path.segments[4]
+				local reach = Path.BankEase + spacing / 2 + 1.5
+				return which ~= "straights" or s < far.s0 - reach or s > far.s0 + far.length + reach
 			end
 			return true
 		end)
@@ -496,26 +666,35 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 	-- the near turn faces the plaza: a lower lip and no catch fence, so the track reads over it
 	local lip = if turn == "near" then 0.4 else 2.2
 	local edgeTall = math.min(0.3, lip - 0.05) -- the cream upper edge
+	-- one even wall: every piece runs from the height at its start to the height at its end, so the
+	-- top is one continuous slope, not a staircase. The body runs down into the ground. Each stretch
+	-- between openings ends in one coral marker.
 	local list = samples(path, a, b, 3)
-	local ends: { { a: Vector3, b: Vector3, height: number } } = {}
+	local function heightAt(s: number): number
+		return Path.TrackTop + 2 * HALF_W * math.sin(math.rad(Path.bank(path, s))) + lip
+	end
+	type Piece = { a: Vector3, b: Vector3, height: number }
+	local stretches: { { Piece } } = {}
+	local stretch: { Piece }? = nil
 	for i = 1, #list - 1 do
 		local sa, sb = list[i], list[i + 1]
-		local pa, da = Path.planPoint(path, sa)
-		local pb, db = Path.planPoint(path, sb)
-		local oa = pa + Vector2.new(da.Y, -da.X) * (HALF_W + 0.9)
-		local ob = pb + Vector2.new(db.Y, -db.X) * (HALF_W + 0.9)
-		if not inPitGap((oa + ob) / 2) then
-			local bank = math.rad(Path.bank(path, (sa + sb) / 2))
-			local edge = Path.TrackTop + 2 * HALF_W * math.sin(bank)
-			local height = edge + lip
-			local wa, wb = Ctx.at(ctx, oa.X, oa.Y, height), Ctx.at(ctx, ob.X, ob.Y, height)
+		if RoadNet.barrierOpen((sa + sb) / 2, 1.5) then
+			stretch = nil
+		else
+			local pa, da = Path.planPoint(path, sa)
+			local pb, db = Path.planPoint(path, sb)
+			local oa = pa + Vector2.new(da.Y, -da.X) * (HALF_W + 0.9)
+			local ob = pb + Vector2.new(db.Y, -db.X) * (HALF_W + 0.9)
+			local ha, hb = heightAt(sa), heightAt(sb)
+			local wa, wb = Ctx.at(ctx, oa.X, oa.Y, ha), Ctx.at(ctx, ob.X, ob.Y, hb)
+			local tall = math.max(ha, hb)
 			Kit.slab(
 				major,
 				wa - Vector3.yAxis * edgeTall,
 				wb - Vector3.yAxis * edgeTall,
 				Vector3.yAxis,
 				0.9,
-				height - edgeTall,
+				tall + 0.4,
 				{
 					name = "BankWall",
 					color = C.Wall,
@@ -524,20 +703,26 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 				},
 				0.5
 			)
-			Kit.slab(major, wa, wb, Vector3.yAxis, 1.12, edgeTall, {
+			Kit.slab(major, wa + Vector3.yAxis * 0.02, wb + Vector3.yAxis * 0.02, Vector3.yAxis, 1.12, edgeTall, {
 				name = "BankWallCap",
 				color = C.WallCap,
 				collide = true,
 				castShadow = false,
 			}, 0.5)
-			table.insert(ends, { a = wa, b = wb, height = height })
+			local run = stretch
+			if not run then
+				run = {}
+				stretch = run
+				table.insert(stretches, run :: { Piece })
+			end
+			table.insert(run :: { Piece }, { a = wa, b = wb, height = tall })
 		end
 	end
-	-- one restrained coral marker at each end of the wall (a short painted block over the wall end)
-	if #ends > 0 then
-		for _, which in { ends[1], ends[#ends] } do
+	-- one restrained coral marker at each end of a stretch (a short painted block over the wall end)
+	for _, run in stretches do
+		for k, which in { run[1], run[#run] } do
 			local along = (which.b - which.a).Unit
-			local tip = if which == ends[1] then which.a + along * 0.6 else which.b - along * 0.6
+			local tip = if k == 1 then which.a - along * 0.2 else which.b + along * 0.2
 			Kit.slab(
 				major,
 				tip - along * 0.7 + Vector3.yAxis * 0.2,
@@ -562,11 +747,7 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 		local p, d = Path.planPoint(path, s)
 		local out = Vector2.new(d.Y, -d.X)
 		local at = p + out * (HALF_W + 0.9)
-		if not inPitGap(at) then
-			local bank = math.rad(Path.bank(path, s))
-			local top = Path.TrackTop + 2 * HALF_W * math.sin(bank) + lip
-			Ctx.place(ctx, minor, "SwCatchFence", at.X, at.Y, -out, top)
-		end
+		Ctx.place(ctx, minor, "SwCatchFence", at.X, at.Y, -out, heightAt(s))
 	end
 end
 
@@ -773,42 +954,110 @@ function Track.descent(major: Folder, minor: Folder, ctx: Ctx)
 	Track.deck(major, minor, ctx, path, m[1], m[2])
 end
 
--- Level 12: the loop on the widened right straight, built along the cars' own lap path out of
--- the track's own road, lines and curbs, so it reads as part of the circuit and the cars ride it
--- without clipping. The S-bends onto it and off it are painted with lane lines that run out of the
--- road's lines. Visitors walk under it: nothing here collides.
+-- Level 12: the teardrop loop, built along the cars' own lap path out of the track's own road, lines
+-- and curbs, so it reads as part of the circuit and the wheels stay on it. It is the road's 16 wide
+-- where it leaves the ground, so the road's lines run straight onto it, and 14 up in the loop. A blue
+-- steel backbone runs behind the road, and four slim steel legs carry it at the ring's widest points.
+-- Slices are at most 4 degrees of turn (no facets from the walkway). Visitors walk under it: nothing
+-- here collides.
+local LOOP_STEEL = Color3.fromRGB(28, 96, 214)
+local LOOP_STEEL_DARK = Color3.fromRGB(20, 66, 158)
+
 function Track.loop(major: Folder, minor: Folder, ctx: Ctx)
 	local path = Path.forLevel(12)
 	local lo = Path.Loop
 	local l = path.marks.loop
-	local halfLane = lo.Width / 2
-	local list = {}
-	for k = 0, 56 do
-		table.insert(list, l[1] + (l[2] - l[1]) * k / 56)
+	local length = l[2] - l[1]
+	-- the slices: start where the road has left the surface below it, stop where it comes back
+	local list: { number } = {}
+	local ds = 0
+	while ds < length do
+		local height, kappa = Path.loopShape(ds)
+		if height >= 0.06 then
+			table.insert(list, l[1] + ds)
+		end
+		ds += math.min(3, math.rad(4) / math.max(kappa, 1e-3))
 	end
-	layer(major, ctx, path, list, 0, lo.Width, 0.4, 0, {
+	local function widthAt(s: number): number
+		local t = (s - l[1]) / length
+		local f = math.clamp(math.min(t, 1 - t) / 0.1, 0, 1)
+		return lo.RoadWidth + (lo.Width - lo.RoadWidth) * f * f * (3 - 2 * f)
+	end
+	layer(major, ctx, path, list, 0, widthAt, 0.4, 0, {
 		name = "LoopRoad",
 		color = C.Asphalt,
 		material = Enum.Material.Asphalt,
 		castShadow = true,
-	}, 0.5)
+	}, 0.35)
+	layer(major, ctx, path, list, 0, function(s)
+		return widthAt(s) + 0.5
+	end, 0.8, -0.4, { name = "LoopBackbone", color = LOOP_STEEL, castShadow = false }, 0.35)
+	-- the curbs start once the road is well off the ground
+	local curbs: { number } = {}
+	for _, s in list do
+		if Path.loopShape(s - l[1]) >= 0.4 then
+			table.insert(curbs, s)
+		end
+	end
 	for _, side in { -1, 1 } do
-		layer(major, ctx, path, list, side * (halfLane + 0.35), 0.7, 0.7, 0.14, function(i)
-			return {
-				name = "LoopCurb",
-				color = if i % 2 == 0 then C.CurbRed else C.White,
-				castShadow = false,
-			}
-		end, 0)
-		layer(minor, ctx, path, list, side * (halfLane - 0.6), 0.3, PAINT_THICK, PAINT, {
-			name = "EdgeLine",
-			color = C.White,
+		layer(
+			major,
+			ctx,
+			path,
+			curbs,
+			function(s)
+				return side * (widthAt(s) / 2 + 0.3)
+			end,
+			0.6,
+			0.75,
+			0.2,
+			function(i)
+				return {
+					name = "LoopCurb",
+					color = if (i // 3) % 2 == 0 then C.CurbRed else C.White,
+					castShadow = false,
+				}
+			end,
+			0
+		)
+		layer(minor, ctx, path, list, function(s)
+			return side * (widthAt(s) / 2 - 0.6)
+		end, 0.3, PAINT_THICK, PAINT, { name = "EdgeLine", color = C.White, castShadow = false }, 0.1)
+	end
+	-- the steel: two slim legs under each side of the ring, at its widest points, joined by one low
+	-- brace and tied to the backbone by a short strut, so the teardrop itself is what you see. The legs
+	-- stand where no car runs on the ground: clear of the other ribbon by construction of the offset.
+	local function beam(a: Vector3, b: Vector3, width: number, colour: Color3, name: string)
+		Kit.part(major, Vector3.new(width, width, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), {
+			name = name,
+			color = colour,
 			castShadow = false,
-		}, 0.1)
+		})
+	end
+	local widest = { 0.32, 0.68 } -- of the way round: the ring's front and back
+	for _, t in widest do
+		local cf = Ctx.onPath(ctx, path, l[1] + length * t, 0, -1.2)
+		local legs: { Vector3 } = {}
+		for _, side in { -1, 1 } do
+			local at = cf * Vector3.new(side * 4.5, 0, 0) - cf.UpVector * 2
+			local foot = Vector3.new(at.X, 0, at.Z)
+			table.insert(legs, foot)
+			beam(foot - Vector3.yAxis * 0.2, at + Vector3.yAxis, 1.6, LOOP_STEEL, "LoopLeg")
+			beam(at, at + cf.UpVector * 2, 1, LOOP_STEEL_DARK, "LoopStrut")
+			Kit.part(major, Vector3.new(3, 0.3, 3), CFrame.new(foot + Vector3.yAxis * 0.4), {
+				name = "LoopFoot",
+				color = C.Concrete,
+				castShadow = false,
+			})
+		end
+		local low, high = Vector3.yAxis * 2, Vector3.yAxis * 12
+		beam(legs[1] + low, legs[2] + high, 0.6, LOOP_STEEL_DARK, "LoopBrace")
+		beam(legs[2] + low, legs[1] + high, 0.6, LOOP_STEEL_DARK, "LoopBrace")
+		beam(legs[1] + high, legs[2] + high, 0.7, LOOP_STEEL_DARK, "LoopRung")
 	end
 end
 
--- Levels 11 and 12: a low eased hump on the ground right straight (a hop, no gap, no flying),
+-- Level 11: a low eased hump on the ground right straight (a hop, no gap, no flying),
 -- solid underneath and walkable.
 function Track.hump(major: Folder, minor: Folder, ctx: Ctx)
 	local path = Path.forLevel(11)

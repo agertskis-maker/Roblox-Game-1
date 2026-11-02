@@ -4,21 +4,23 @@
 -- Nunito italic for numbers; no new font), the same reduced-motion mechanism (Motion.reduced / onReducedChanged).
 --
 --   ShopKit.icon(holder, name, opts?) -> boolean              family art with a solid "?" fallback (never a blank hole)
---   ShopKit.fill(name) -> ColorSequence                        a Shop or arcade fill by name
+--   ShopKit.fill(name) -> ColorSequence                        a vivid Shop fill (Screens/Shop/ShopPalette), else an arcade fill
 --   ShopKit.label(parent, text, size, opts?) -> TextLabel      outlined text that shrinks to fit (>= 16)
 --   ShopKit.paragraph(parent, text, size, opts?) -> TextLabel  wrapped outlined copy that grows downward
 --   ShopKit.chip(parent, spec) -> Frame                        a small coloured tag ("2x LAP PAY")
 --   ShopKit.stamp(parent, spec) -> Frame                       a tilted tag ("NEW", "SALE")
 --   ShopKit.ribbon(parent, spec) -> Ribbon                     a diagonal corner ribbon ("BEST DEAL")
---   ShopKit.panel(parent, spec) -> Frame                       a dark outlined container
+--   ShopKit.burst(parent, spec) -> Burst                       a starburst badge ("SAVE 15%")
+--   ShopKit.panel(parent, spec) -> Frame                       a deep indigo outlined container
+--   ShopKit.plate(parent, spec) -> Frame                       the quiet surface under copy and prices
+--   ShopKit.vividBackground(frame, trove?, opts?) -> UIGradient  a vivid moving-gradient background for ANY pop-up
 --   ShopKit.pattern(parent, size, z, transparency?) -> Frame   a subtle repeating wheel / diamond motif
 --   ShopKit.card(parent, spec) -> Card                         a gradient card with a pattern, lift, press and focus ring
 --   ShopKit.priceButton(parent, spec) -> PriceButton           a glossy price button with every state
 --   ShopKit.squareButton(parent, spec) -> SquareButton         the big red close X / green plus
---   ShopKit.tab(parent, spec) -> Tab                           a pill tab (green when active)
+--   ShopKit.tab(parent, spec) -> Tab                           a pill tab (green when active), 48 px tall
 --   ShopKit.spinner(parent, px, z) -> Spinner                  the pending ring
---   ShopKit.shine(parent, spec) -> Shine                       one clipped highlight sweep (650 ms)
---   ShopKit.sparkles(parent, spec) -> Sparkles                 4 to 6 small stars over 600 ms
+--   ShopKit.shine(parent, spec) -> Shine                       one clipped highlight sweep (0.7 s), played by ShopMotion
 --   ShopKit.hand(parent, spec) -> Hand                         the pointing hand (the tutorial uses it)
 --   ShopKit.pulseRing(parent, spec) -> PulseRing               a pulsing highlight ring (the tutorial uses it)
 --   ShopKit.mask(parent, spec) -> Mask                         a dim mask that cuts out one target (the tutorial uses it)
@@ -26,8 +28,9 @@
 --
 -- Rules every part keeps: hit regions never move when the art moves (the art scales inside a fixed slot); hover is
 -- mouse-only; press is strong for touch; reduced motion means a short fade or nothing and final numbers at once;
--- nothing loops while hidden (loops are finite tweens a scheduler starts, except the pending spinner, which a hidden
--- shop switches off); every connection belongs to a Trove the caller owns; a missing sound is silent and logged.
+-- nothing loops while hidden (continuous motion is ShopMotion's single driver, which exists only while the Shop is open;
+-- the one other loop is the pending spinner, which a hidden shop switches off); every connection belongs to a Trove the
+-- caller owns; a missing sound is silent and logged. Every touch target is at least 48 px (56 px for a primary button).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
@@ -36,6 +39,8 @@ local UserInputService = game:GetService("UserInputService")
 local Arcade = require(script.Parent.Arcade)
 local Motion = require(script.Parent.Motion)
 local PreviewTokens = require(script.Parent.PreviewTokens)
+local ShopMotion = require(script.Parent.ShopMotion)
+local ShopPalette = require(script.Parent.Screens.Shop.ShopPalette)
 local Sounds = require(script.Parent.Sounds)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -43,6 +48,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local A = PreviewTokens.Arcade
 local S = PreviewTokens.Shop
 local M = S.Motion
+local T = ShopMotion.Timing
 local make = Arcade.make
 local WHITE = Color3.new(1, 1, 1)
 local MIN_TEXT = Tokens.TextSize.Minimum
@@ -83,8 +89,59 @@ end
 
 export type IconOptions = { tint: Color3?, tilt: number? }
 
--- Family art with a tint; falls back to the kit's neutral "?" glyph, so a missing icon is never a hole.
-function ShopKit.icon(holder: Frame, name: string, opts: IconOptions?): boolean
+-- THE ICON SEAM (Round 2 N5). Every icon the Shop draws goes through drawIcon below, and nowhere else.
+-- To switch the whole Shop to the shared game icons (src/client/UI/Prototype/GameIcons.luau, API
+-- `GameIcons.image(parent, key, size, position?) -> ImageLabel`), change USE_GAME_ICONS to true: a name with a key in
+-- GAME_ICON_KEYS is then drawn from GameIcons, and anything that has no key (or whose module fails to load) still draws
+-- the existing family art, so no icon is ever a hole. The Double Lap Pay art must come from the `doubleLapPay` key:
+-- no "2x" is ever typed here. `size` is passed as a UDim2 filling the holder; if GameIcons wants pixels, change that
+-- one argument.
+local USE_GAME_ICONS = false
+
+-- Icons2 family name -> GameIcons key.
+local GAME_ICON_KEYS: { [string]: string } = {
+	Star = "shop",
+	CashStack = "cash",
+	VipCrown = "vip",
+	DoubleLapPay = "doubleLapPay",
+	StarterPack = "starterPack",
+	Bundle = "bundle",
+	PaintBucket = "paint",
+	Decal = "decal",
+	Wheel = "wheel",
+	Paddock = "parkingSpot",
+	Gift = "freeGift",
+	Lock = "lock",
+	Close = "close",
+	Plus = "plus",
+}
+
+local GameIcons: any = nil
+if USE_GAME_ICONS then
+	local module = script.Parent:FindFirstChild("GameIcons")
+	if module and module:IsA("ModuleScript") then
+		local ok, result = pcall(require, module)
+		if ok then
+			GameIcons = result
+		else
+			warn("[ShopKit] GameIcons failed to load: " .. tostring(result))
+		end
+	end
+end
+
+local function drawIcon(holder: Frame, name: string, opts: IconOptions?): boolean
+	local key = GAME_ICON_KEYS[name]
+	if GameIcons ~= nil and key ~= nil then
+		local ok, image = pcall(GameIcons.image, holder, key, UDim2.fromScale(1, 1))
+		if ok and image ~= nil then
+			local picture = image :: ImageLabel
+			picture.ZIndex = holder.ZIndex + 1
+			if opts and opts.tilt then
+				picture.Rotation = opts.tilt
+			end
+			return true
+		end
+	end
 	if Icons2 and Icons2.draw then
 		local ok, drawn = pcall(Icons2.draw, holder, name, opts)
 		if ok and drawn then
@@ -94,7 +151,17 @@ function ShopKit.icon(holder: Frame, name: string, opts: IconOptions?): boolean
 	return Arcade.icon(holder, name)
 end
 
+-- Family art with a tint; falls back to the kit's neutral "?" glyph, so a missing icon is never a hole.
+function ShopKit.icon(holder: Frame, name: string, opts: IconOptions?): boolean
+	return drawIcon(holder, name, opts)
+end
+
+-- A vivid Shop fill by name (ShopPalette), else a Shop fill from the tokens, else an arcade fill, else Violet.
 function ShopKit.fill(name: string): ColorSequence
+	local vivid = (ShopPalette.Fill :: any)[name]
+	if vivid then
+		return vivid
+	end
 	local shop = (S.Fill :: any)[name]
 	if shop then
 		return shop
@@ -103,7 +170,7 @@ function ShopKit.fill(name: string): ColorSequence
 	if arcade then
 		return arcade
 	end
-	return S.Fill.Violet
+	return ShopPalette.Fill.Violet
 end
 
 local function lastInputIsTouch(): boolean
@@ -340,8 +407,135 @@ function ShopKit.panel(parent: Instance, spec: PanelSpec): Frame
 	})
 	Arcade.corner(frame, spec.radius or 14)
 	Arcade.outline(frame, "Button")
-	make("UIGradient", { Color = S.Fill.Well, Rotation = 90, Parent = frame })
+	make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = frame })
 	return frame
+end
+
+export type PlateSpec = {
+	name: string?,
+	z: number,
+	position: UDim2?,
+	size: UDim2?,
+	radius: number?,
+	automatic: boolean?, -- grow downward with the content (AutomaticSize Y)
+}
+
+-- THE QUIET PLATE (N6-02a): a deep indigo, softly see-through rounded surface that sits under descriptive copy and prices
+-- on a glowing card, so the words never fight the gradient. It carries a thin lighter edge, never a heavy outline.
+function ShopKit.plate(parent: Instance, spec: PlateSpec): Frame
+	local frame: Frame = make("Frame", {
+		Name = spec.name or "Plate",
+		Position = spec.position or UDim2.new(),
+		Size = spec.size or UDim2.fromScale(1, 1),
+		AutomaticSize = if spec.automatic then Enum.AutomaticSize.Y else Enum.AutomaticSize.None,
+		BackgroundColor3 = ShopPalette.Color.Plate,
+		BackgroundTransparency = ShopPalette.PlateTransparency,
+		BorderSizePixel = 0,
+		ZIndex = spec.z,
+		Parent = parent,
+	})
+	Arcade.corner(frame, spec.radius or 12)
+	make("UIStroke", {
+		Thickness = 1.5,
+		Color = ShopPalette.Color.PlateEdge,
+		Transparency = 0.45,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = frame,
+	})
+	return frame
+end
+
+export type VividOptions = { fill: string?, recipe: string?, phase: number?, priority: number? }
+
+-- THE REUSABLE POP-UP BACKGROUND (N6-02): turns `frame` into a vivid, slowly moving gradient surface. The frame gets the
+-- named fill (default "Popup": violet to hot pink to orange) and ShopMotion sways its Offset and Rotation while the frame
+-- is visible. Reduced Motion keeps the colours and stops the sway. Give it the screen's Trove so the sway is removed with
+-- the screen. Any other screen (the group reward pop-up, an offer pop-up) calls this one function. Returns the gradient.
+function ShopKit.vividBackground(frame: GuiObject, trove: Trove.Trove?, options: VividOptions?): UIGradient
+	local o: VividOptions = options or {}
+	frame.BackgroundColor3 = WHITE
+	frame.BackgroundTransparency = 0
+	local gradient: UIGradient = make("UIGradient", {
+		Color = ShopKit.fill(o.fill or "Popup"),
+		Rotation = ShopPalette.Angle.Popup,
+		Parent = frame,
+	})
+	local stop = ShopMotion.movingGradient(gradient, {
+		recipe = o.recipe or "Popup",
+		phase = o.phase,
+		host = frame,
+		priority = o.priority,
+	})
+	if trove then
+		trove:Add(stop)
+	end
+	return gradient
+end
+
+export type BurstSpec = {
+	text: string,
+	fill: string?,
+	size: number?, -- the badge's side in design px (default 96)
+	z: number?,
+	name: string?,
+	rotation: number?,
+}
+export type Burst = { root: Frame, label: TextLabel }
+
+-- A starburst badge ("SAVE 15%"): two squares, one turned 45 degrees, outlined together so no inner edge shows, with a
+-- bold two-line label. The label shrinks to fit and never goes under the 16 minimum.
+function ShopKit.burst(parent: Instance, spec: BurstSpec): Burst
+	local side = spec.size or 96
+	local z = spec.z or 20
+	local root: Frame = make("Frame", {
+		Name = spec.name or "Burst",
+		Size = UDim2.fromOffset(side, side),
+		Rotation = spec.rotation or -8,
+		BackgroundTransparency = 1,
+		ZIndex = z,
+		Parent = parent,
+	})
+	local body = math.floor(side * 0.74)
+	local fillColour = ShopKit.fill(spec.fill or "Red")
+	-- the outline pass first (both squares stroked), then the fill pass on top without strokes
+	for pass = 1, 2 do
+		for _, angle in { 0, 45 } do
+			local square: Frame = make("Frame", {
+				Name = if pass == 1 then "Edge" else "Fill",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromOffset(body, body),
+				Rotation = angle,
+				BackgroundColor3 = if pass == 1 then ShopPalette.Ink else WHITE,
+				BorderSizePixel = 0,
+				ZIndex = z + pass,
+				Parent = root,
+			})
+			Arcade.corner(square, math.floor(body * 0.12))
+			if pass == 1 then
+				make("UIStroke", {
+					Thickness = 4,
+					Color = ShopPalette.Ink,
+					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+					LineJoinMode = Enum.LineJoinMode.Round,
+					Parent = square,
+				})
+			else
+				make("UIGradient", { Color = fillColour, Rotation = 90, Parent = square })
+			end
+		end
+	end
+	local label = ShopKit.label(root, spec.text, 22, {
+		name = "Text",
+		xAlign = Enum.TextXAlignment.Center,
+		yAlign = Enum.TextYAlignment.Center,
+		z = z + 4,
+	})
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromOffset(math.floor(side * 0.74), math.floor(side * 0.46))
+	label.TextWrapped = true
+	return { root = root, label = label }
 end
 
 -- PATTERN ------------------------------------------------------------------------------------------------------
@@ -426,6 +620,7 @@ type WireParts = {
 type Wire = {
 	setEnabled: (boolean) -> (),
 	isHover: () -> boolean,
+	isPressed: () -> boolean,
 }
 
 -- Hover (mouse only: a lift, an outline glow and a quiet tick), press (a squash, a bright flash that works without
@@ -465,7 +660,7 @@ local function wire(
 		end
 		local goal = 1
 		if pressed then
-			goal = if lastInputIsTouch() then M.PressScaleTouch else (parts.press or M.PressScale)
+			goal = if lastInputIsTouch() then T.PressScaleTouch else (parts.press or T.PressScale)
 		elseif hovering then
 			goal = parts.hover or M.HoverScale
 		end
@@ -477,7 +672,7 @@ local function wire(
 		if flash then
 			flash.Visible = down
 		end
-		applyScale(if down then M.PressSeconds else M.ReleaseSeconds)
+		applyScale(if down then T.PressSeconds else T.ReleaseSeconds)
 	end
 
 	trove:Connect(hit.MouseEnter, function()
@@ -546,6 +741,9 @@ local function wire(
 		isHover = function(): boolean
 			return hovering
 		end,
+		isPressed = function(): boolean
+			return pressed
+		end,
 	}
 end
 
@@ -613,6 +811,7 @@ export type Card = {
 	root: Frame, -- the fixed slot (never scales): place and size this
 	visual: Frame, -- what scales on hover and press
 	face: Frame,
+	gradient: UIGradient, -- the face's colour gradient: ShopMotion sways its Offset and Rotation
 	content: Frame, -- put the card's content here (ZIndex above z + 5)
 	hit: TextButton?,
 	setEnabled: (boolean) -> (),
@@ -672,16 +871,17 @@ function ShopKit.card(parent: Instance, spec: CardSpec): Card
 	})
 	Arcade.corner(face, radius)
 	Arcade.outline(face, spec.outline or "Button")
-	make("UIGradient", { Color = ShopKit.fill(spec.fill), Rotation = spec.rotation or 90, Parent = face })
+	local faceGradient: UIGradient =
+		make("UIGradient", { Color = ShopKit.fill(spec.fill), Rotation = spec.rotation or 90, Parent = face })
 	if spec.pattern then
 		ShopKit.pattern(face, Vector2.new(spec.size.X, spec.size.Y - lipHeight), z + 3, 0.9)
 	end
 	local sheen: Frame = make("Frame", {
 		Name = "Sheen",
 		Position = UDim2.fromOffset(3, 3),
-		Size = UDim2.new(1, -6, 0.4, 0),
+		Size = UDim2.new(1, -6, 0.32, 0),
 		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.55,
+		BackgroundTransparency = 0.74,
 		BorderSizePixel = 0,
 		ZIndex = z + 4,
 		Parent = face,
@@ -712,6 +912,7 @@ function ShopKit.card(parent: Instance, spec: CardSpec): Card
 		root = root,
 		visual = visual,
 		face = face,
+		gradient = faceGradient,
 		content = content,
 		hit = hit,
 		setEnabled = function(on: boolean)
@@ -780,10 +981,11 @@ export type PriceState = "Idle" | "Pending" | "Owned" | "Unavailable" | "Error" 
 export type PriceSpec = {
 	name: string,
 	label: string,
-	size: Vector2, -- design px, height at least 48
+	size: Vector2, -- design px; the height is at least 56 (48 when `secondary`)
 	z: number,
 	trove: Trove.Trove,
-	fill: string?, -- the idle fill (default Green)
+	fill: string?, -- the idle fill (default Lime: lime is the action colour)
+	secondary: boolean?, -- a smaller action: the 48 px minimum instead of the 56 px primary one
 	onActivate: (() -> ())?,
 	sound: Sounds.Hook?,
 }
@@ -792,12 +994,13 @@ export type PriceButton = {
 	body: TextButton,
 	face: Frame,
 	label: TextLabel,
+	breath: UIScale, -- the idle breathing scale: ShopMotion drives it, only for the one primary button
 	setState: (state: PriceState, label: string?) -> (),
 	getState: () -> PriceState,
 	getLabel: () -> string,
 	setLoops: (on: boolean) -> (),
-	bounce: () -> (),
 	isHover: () -> boolean,
+	isPressed: () -> boolean,
 }
 
 local STATE_FILL: { [string]: string } = {
@@ -811,7 +1014,8 @@ local STATE_FILL: { [string]: string } = {
 }
 
 function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
-	local w, h = spec.size.X, math.max(spec.size.Y, Tokens.Touch.Minimum)
+	local minimum = if spec.secondary then Tokens.Touch.Minimum else Tokens.Touch.Primary
+	local w, h = spec.size.X, math.max(spec.size.Y, minimum)
 	local z = spec.z
 	local lipHeight = 4
 	local radius = 10
@@ -833,9 +1037,9 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 		ZIndex = z,
 		Parent = root,
 	})
-	-- the idle bounce lives on its own wrapper (one UIScale per object), so it never fights hover or press
+	-- the idle breathing lives on its own wrapper (one UIScale per object), so it never fights hover or press
 	local bouncer: Frame = make("Frame", {
-		Name = "Bouncer",
+		Name = "Breather",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(w / 2, h / 2),
 		Size = UDim2.fromOffset(w, h),
@@ -843,7 +1047,7 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 		ZIndex = z + 1,
 		Parent = root,
 	})
-	local bounceScale: UIScale = make("UIScale", { Name = "Bounce", Parent = bouncer })
+	local breathScale: UIScale = make("UIScale", { Name = "Breath", Parent = bouncer })
 	local visual: Frame = make("Frame", {
 		Name = "Visual",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -874,7 +1078,7 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 	Arcade.corner(face, radius)
 	Arcade.outline(face, "Button")
 	local gradient: UIGradient = make("UIGradient", {
-		Color = ShopKit.fill(spec.fill or "Green"),
+		Color = ShopKit.fill(spec.fill or "Lime"),
 		Rotation = 90,
 		Parent = face,
 	})
@@ -940,7 +1144,7 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 			shownLabel = newLabel
 			label.Text = newLabel
 		end
-		local fillName = STATE_FILL[newState] or spec.fill or "Green"
+		local fillName = STATE_FILL[newState] or spec.fill or "Lime"
 		gradient.Color = ShopKit.fill(fillName)
 		local dim = newState == "Unavailable" or newState == "Blocked" or newState == "Disabled"
 		label.TextTransparency = if dim then 0.25 else 0
@@ -964,31 +1168,11 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 		spin.setSpinning(state == "Pending" and on)
 		spin.root.Visible = state == "Pending"
 		if not on then
-			Motion.cancelAll(bounceScale)
-			bounceScale.Scale = 1
+			breathScale.Scale = 1
 		end
-	end
-
-	-- one soft bounce (finite); the scheduler decides when, and never during hover, press or hidden
-	local function bounce()
-		if not loops or Motion.reduced() or state ~= "Idle" or wiring.isHover() then
-			return
-		end
-		local t = Motion.tween(bounceScale, "bounce", Motion.info(M.BounceSeconds * 0.45), { Scale = 1.05 })
-		t.Completed:Once(function(playback)
-			if playback == Enum.PlaybackState.Completed then
-				Motion.tween(
-					bounceScale,
-					"bounce",
-					Motion.info(M.BounceSeconds * 0.55, Enum.EasingStyle.Bounce),
-					{ Scale = 1 }
-				)
-			end
-		end)
 	end
 
 	trove:Add(function()
-		Motion.cancelAll(bounceScale)
 		spin.setSpinning(false)
 	end)
 	setState("Idle", spec.label)
@@ -1004,9 +1188,10 @@ function ShopKit.priceButton(parent: Instance, spec: PriceSpec): PriceButton
 		getLabel = function(): string
 			return shownLabel
 		end,
+		breath = breathScale,
 		setLoops = setLoops,
-		bounce = bounce,
 		isHover = wiring.isHover,
+		isPressed = wiring.isPressed,
 	}
 end
 
@@ -1121,14 +1306,14 @@ local TAB_LABEL_SIZE = 18
 
 -- The width a tab takes: padding, the icon, the word. The screen sums these before it lays the header out.
 function ShopKit.tabWidth(label: string, height: number?): number
-	local h = height or S.Layout.TabHeight
+	local h = math.max(height or S.Layout.TabHeight, Tokens.Touch.Minimum)
 	return math.ceil(12 + (h - 12) + 6 + textWidth(label, TAB_LABEL_SIZE) * 1.12 + 22)
 end
 
 -- A pill tab: an icon and a word; the active one is a bright green pill with a thicker outline (state is never
 -- colour alone: the label turns white and outlined too).
 function ShopKit.tab(parent: Instance, spec: TabSpec): Tab
-	local h = spec.height or S.Layout.TabHeight
+	local h = math.max(spec.height or S.Layout.TabHeight, Tokens.Touch.Minimum)
 	local z = spec.z
 	local labelSize = TAB_LABEL_SIZE
 	local iconPx = h - 12
@@ -1155,7 +1340,7 @@ function ShopKit.tab(parent: Instance, spec: TabSpec): Tab
 	})
 	stroke.Transparency = 1
 	local gradient: UIGradient = make("UIGradient", {
-		Color = A.Fill.Green,
+		Color = ShopKit.fill("Lime"),
 		Rotation = 90,
 		Enabled = false,
 		Parent = root,
@@ -1172,7 +1357,7 @@ function ShopKit.tab(parent: Instance, spec: TabSpec): Tab
 	ShopKit.icon(iconHolder, spec.icon)
 	local label = ShopKit.label(root, spec.label, labelSize, {
 		name = "Label",
-		colour = S.Color.TextSoft,
+		colour = ShopPalette.Color.TextSoft,
 		z = z + 1,
 	})
 	label.AnchorPoint = Vector2.new(0, 0.5)
@@ -1216,7 +1401,7 @@ function ShopKit.tab(parent: Instance, spec: TabSpec): Tab
 		root.BackgroundTransparency = if on then 0 else 1
 		gradient.Enabled = on
 		stroke.Transparency = if on then 0 else 1
-		label.TextColor3 = if on then WHITE else S.Color.TextSoft
+		label.TextColor3 = if on then WHITE else ShopPalette.Color.TextSoft
 	end
 	setActive(false)
 	return { root = root, width = width, setActive = setActive }
@@ -1225,15 +1410,18 @@ end
 -- SHINE --------------------------------------------------------------------------------------------------------
 
 export type ShineSpec = { radius: number, z: number, trove: Trove.Trove }
-export type Shine = { root: CanvasGroup, play: () -> boolean }
+export type Shine = { root: CanvasGroup, play: () -> boolean, hide: () -> () }
 
--- One soft highlight band that crosses the card in 650 ms. The band lives in a CanvasGroup so it follows the card's
--- rounded corners; it is a plain Frame (never Active), so it never takes a press. Reduced motion: no sweep.
+-- One narrow, translucent, diagonal band that crosses the card in 0.7 s. ShopMotion calls play() once per period (the
+-- hero and the deal 3 s apart, so two sweeps never overlap). The band lives in a CanvasGroup so it follows the card's
+-- rounded corners; the group is hidden whenever nothing is sweeping, and it is a plain Frame (never Active), so it never
+-- takes a press. Reduced motion: no sweep.
 function ShopKit.shine(parent: GuiObject, spec: ShineSpec): Shine
 	local group: CanvasGroup = spec.trove:Add(make("CanvasGroup", {
 		Name = "Shine",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
+		Visible = false,
 		ZIndex = spec.z,
 		Parent = parent,
 	}))
@@ -1242,18 +1430,17 @@ function ShopKit.shine(parent: GuiObject, spec: ShineSpec): Shine
 		Name = "Band",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(-0.3, 0.5),
-		Size = UDim2.fromScale(0.2, 1.8),
+		Size = UDim2.fromScale(0.16, 1.8),
 		Rotation = 18,
 		BackgroundColor3 = WHITE,
 		BorderSizePixel = 0,
-		Visible = false,
 		ZIndex = spec.z + 1,
 		Parent = group,
 	})
 	make("UIGradient", {
 		Transparency = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.5, 0.4),
+			NumberSequenceKeypoint.new(0.5, 0.45),
 			NumberSequenceKeypoint.new(1, 1),
 		}),
 		Parent = band,
@@ -1266,97 +1453,26 @@ function ShopKit.shine(parent: GuiObject, spec: ShineSpec): Shine
 			return false
 		end
 		band.Position = UDim2.fromScale(-0.3, 0.5)
-		band.Visible = true
+		group.Visible = true
 		local tween = Motion.tween(
 			band,
 			"sweep",
-			TweenInfo.new(M.ShineSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+			TweenInfo.new(T.ShineSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 			{ Position = UDim2.fromScale(1.3, 0.5) }
 		)
-		tween.Completed:Once(function()
-			band.Visible = false
+		tween.Completed:Once(function(playback)
+			if playback == Enum.PlaybackState.Completed then
+				group.Visible = false
+			end
 		end)
 		return true
 	end
-	return { root = group, play = play }
-end
-
--- SPARKLES -----------------------------------------------------------------------------------------------------
-
-export type SparkleSpec = {
-	z: number,
-	trove: Trove.Trove,
-	count: number?,
-	region: { number }?, -- x0, y0, x1, y1 as fractions of the parent
-	seed: number?,
-}
-export type Sparkles = { root: Frame, burst: () -> boolean, clear: () -> () }
-
--- 4 to 6 small four-point stars that grow and fade over about 600 ms, then are destroyed. Never a full-screen flash,
--- never a loop (the scheduler fires one burst at a time). Reduced motion: none.
-function ShopKit.sparkles(parent: GuiObject, spec: SparkleSpec): Sparkles
-	local layer: Frame = spec.trove:Add(make("Frame", {
-		Name = "Sparkles",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ZIndex = spec.z,
-		Parent = parent,
-	}))
-	local rng = Random.new(spec.seed or 11)
-	local region = spec.region or { 0.1, 0.1, 0.9, 0.9 }
-	local function clear()
-		layer:ClearAllChildren()
+	-- the resting state: no band anywhere (called when the card goes offscreen, the Shop closes or Reduced Motion starts)
+	local function hide()
+		Motion.cancelAll(band)
+		group.Visible = false
 	end
-	spec.trove:Add(clear)
-	local function burst(): boolean
-		if Motion.reduced() or not layer.Parent then
-			return false
-		end
-		ShopKit.noteSoundDependency("ShopSparkle")
-		local count = math.clamp(spec.count or M.SparkleCount, 4, 6)
-		for _ = 1, count do
-			local star: Frame = make("Frame", {
-				Name = "Star",
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(rng:NextNumber(region[1], region[3]), rng:NextNumber(region[2], region[4])),
-				Size = UDim2.fromOffset(18, 18),
-				Rotation = rng:NextNumber(-20, 20),
-				BackgroundTransparency = 1,
-				ZIndex = spec.z,
-				Parent = layer,
-			})
-			local scale: UIScale = make("UIScale", { Scale = 0, Parent = star })
-			for _, dims in { Vector2.new(18, 5), Vector2.new(5, 18) } do
-				local bar: Frame = make("Frame", {
-					Name = "Bar",
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					Position = UDim2.fromScale(0.5, 0.5),
-					Size = UDim2.fromOffset(dims.X, dims.Y),
-					BackgroundColor3 = Color3.fromRGB(255, 246, 176),
-					BorderSizePixel = 0,
-					ZIndex = spec.z,
-					Parent = star,
-				})
-				Arcade.corner(bar, 3)
-			end
-			local up = M.SparkleSeconds * 0.4
-			local info =
-				TweenInfo.new(up, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, rng:NextNumber(0, 0.2))
-			local grow = Motion.tween(scale, "star", info, { Scale = 1 })
-			grow.Completed:Once(function(playback)
-				if playback ~= Enum.PlaybackState.Completed then
-					star:Destroy()
-					return
-				end
-				local fade = Motion.tween(scale, "star", Motion.info(M.SparkleSeconds * 0.6), { Scale = 0 })
-				fade.Completed:Once(function()
-					star:Destroy()
-				end)
-			end)
-		end
-		return true
-	end
-	return { root = layer, burst = burst, clear = clear }
+	return { root = group, play = play, hide = hide }
 end
 
 -- HAND ---------------------------------------------------------------------------------------------------------
