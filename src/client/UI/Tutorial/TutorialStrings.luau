@@ -47,12 +47,12 @@ local STEPS: { [number]: StepText } = {
 	},
 	[2] = {
 		title = "Steer your car!",
-		line = "{SteerControl} to move left and right.",
+		line = "Steer to avoid cars!", -- no keys named: phones play too (Adam, 2026-11-02)
 		hint = "Try steering both ways: {done}/2.",
 	},
 	[3] = {
 		title = "Hop to another car!",
-		line = "{HopControl}, then land on a car.",
+		line = "Hop, then land on a car.",
 		hint = "Aim for the next car before you jump.",
 	},
 	[4] = {
