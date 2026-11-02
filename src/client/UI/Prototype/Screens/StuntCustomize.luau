@@ -26,9 +26,11 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 	local buildTrove = trove:Extend()
 	local studio: any = nil
 	local isOpen = false
+	local openView: { title: string?, tabs: { string }?, tab: string? }? = nil
 	local self: { [string]: any } = {}
 
-	local function build()
+	local function build(view: { title: string?, tabs: { string }?, tab: string? }?)
+		local v = view or {}
 		buildTrove:Clean()
 		CarKit.setStrokeScale(ctx.screen:uiScale())
 		local D = overlay:designSize()
@@ -41,7 +43,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 			radius = 16,
 			name = "Panel",
 		})) :: Frame
-		CarKit.title(shell, "CUSTOMIZE", 44, {
+		CarKit.title(shell, v.title or "CUSTOMIZE", 44, {
 			position = UDim2.fromOffset(14, 2),
 			size = UDim2.new(1, -80, 0, 50),
 			top = CarKit.White,
@@ -69,7 +71,8 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 			ZIndex = 3,
 		}, shell) :: Frame
 		studio = StyleStudio.new(ctx, stage, {
-			tab = "Paint",
+			tab = v.tab or "Paint",
+			tabs = v.tabs,
 			size = Vector2.new(w - 20, h - 62),
 			trove = buildTrove,
 			onBuy = opts.onBuy,
@@ -77,7 +80,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 		})
 	end
 
-	function self.open(_self: any, returnTo: GuiObject?)
+	function self.open(_self: any, returnTo: GuiObject?, view: { title: string?, tabs: { string }?, tab: string? }?)
 		if isOpen then
 			return
 		end
@@ -87,7 +90,8 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 		end)
 		overlay:applyScale()
 		overlay:open(nil, returnTo)
-		build()
+		openView = view
+		build(view)
 	end
 
 	function self.close(_self: any)
@@ -110,7 +114,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): { [string]: an
 	function self.layout(_self: any)
 		if isOpen then
 			overlay:applyScale()
-			build()
+			build(openView)
 		end
 	end
 

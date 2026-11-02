@@ -170,6 +170,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local heroSlot: Frame? = nil
 	local heroTrove = buildTrove:Extend()
 	local currentPlan: Plan? = nil
+	local builtFor = Vector2.zero
 	local build: () -> ()
 	local renderHero: () -> ()
 	local showTab: (id: string, animate: boolean?) -> ()
@@ -1073,6 +1074,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		counters.builds += 1
 
 		local D = overlay:designSize()
+		builtFor = D
 		local p = plan(D)
 		currentPlan = p
 		CarKit.setStrokeScale(ctx.screen:uiScale())
@@ -1357,8 +1359,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		return isShopOpen
 	end
 
+	-- a rebuild drops the page's scroll and picks, so only a real size change gets one
 	function shop.layout(_self: Shop)
-		if isShopOpen then
+		if isShopOpen and overlay:designSize() ~= builtFor then
 			overlay:applyScale()
 			build()
 		end
@@ -1446,21 +1449,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	end)
 
 	-- carousel and live relayout, only while open
-	local lastSize = Vector2.zero
 	trove:Add(task.spawn(function()
 		while true do
 			task.wait(0.5)
 			if not isShopOpen or not visible then
 				continue
 			end
-			local D = overlay:designSize()
-			if D ~= lastSize then
-				if lastSize ~= Vector2.zero then
-					overlay:applyScale()
-					build()
-				end
-				lastSize = D
-			end
+			shop:layout()
 			if
 				view == "store"
 				and opts.autoAdvance ~= false

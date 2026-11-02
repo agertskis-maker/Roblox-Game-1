@@ -77,7 +77,7 @@ function HomeShell.start(options: Options?): any
 		folder.Parent = Workspace
 		world = folder
 	end
-	self.screen, self.store, self.world = screen, store, world
+	self.screen, self.store, self.world, self.gui = screen, store, world, gui
 
 	local function layer(name: string, z: number): Frame
 		local f = Instance.new("Frame")
@@ -122,6 +122,11 @@ function HomeShell.start(options: Options?): any
 		else
 			warn("[HomeShell] " .. key .. " failed: " .. tostring(result))
 		end
+	end
+
+	-- later panels (the Launch Pad's) mount the same way
+	function self.mountPanel(_self: any, key: string, path: { string }, layerName: string, opts: any?)
+		mount(key, path, layerName, opts)
 	end
 
 	local queue = ModalQueue.new({ onLog = log })
