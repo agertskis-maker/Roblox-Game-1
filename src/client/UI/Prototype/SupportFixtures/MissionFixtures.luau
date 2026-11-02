@@ -19,6 +19,9 @@ MissionFixtures.Source = "PREVIEW fixture: missions, rewards, progress and refre
 
 export type ClaimState = "None" | "Pending" | "Claimed" | "Error"
 export type Format = "count" | "cash"
+-- What the reward is. nil means Cash, the amount in `reward`. A cosmetic reward (the preview shows its art and its word, not
+-- an amount) keeps a `reward` number only so every template carries one; the screen does not show it.
+export type RewardKind = "Cash" | "Paint" | "Decal" | "Wheel" | "Trail"
 
 export type Mission = {
 	id: string,
@@ -29,7 +32,19 @@ export type Mission = {
 	progress: number?, -- nil = unknown
 	format: Format,
 	reward: number, -- PREVIEW dollars
+	rewardKind: RewardKind?, -- PREVIEW: nil = Cash
 	claim: ClaimState,
+}
+
+type Template = {
+	id: string,
+	text: string,
+	sub: string,
+	icon: string,
+	target: number,
+	format: Format,
+	reward: number,
+	rewardKind: RewardKind?,
 }
 
 export type Goal = {
@@ -71,6 +86,7 @@ MissionFixtures.Templates = table.freeze({
 		target = 1,
 		format = "count",
 		reward = 500,
+		rewardKind = "Paint",
 	},
 	{
 		id = "reach1000",
@@ -80,6 +96,7 @@ MissionFixtures.Templates = table.freeze({
 		target = 1000,
 		format = "count",
 		reward = 400,
+		rewardKind = "Decal",
 	},
 	{
 		id = "lappay500",
@@ -98,6 +115,7 @@ MissionFixtures.Templates = table.freeze({
 		target = 1,
 		format = "count",
 		reward = 600,
+		rewardKind = "Wheel",
 	},
 	{
 		id = "hop30",
@@ -107,8 +125,9 @@ MissionFixtures.Templates = table.freeze({
 		target = 30,
 		format = "count",
 		reward = 450,
+		rewardKind = "Trail",
 	},
-})
+} :: { Template })
 
 -- The six approved milestone names (BRIEF M13-01b).
 MissionFixtures.GoalNames = table.freeze({
@@ -129,8 +148,9 @@ local function mission(template: number, progress: number?, claim: ClaimState?):
 		icon = t.icon,
 		target = t.target,
 		progress = progress,
-		format = t.format :: Format,
+		format = t.format,
 		reward = t.reward,
+		rewardKind = t.rewardKind,
 		claim = claim or "None",
 	}
 end

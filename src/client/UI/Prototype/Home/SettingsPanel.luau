@@ -47,8 +47,10 @@
 --   :getControls() -> { music, sfx, musicMute, sfxMute, motionRoblox, motionOn, motionOff, haptics, close, replay? }  (test hook)
 --
 -- Replay tutorial (BRIEF M11-07): when options.onReplayTutorial is given, a "Replay tutorial" button sits in the header band,
--- left of the X (a 48 px hit box). It closes the card and calls the option. It is a button in the header and not a fifth
--- row because the card has no spare height on the tablet and phone frames (the rows already fill about 450 and 270 design px).
+-- centred in the band's free middle (between the title word and the X, and on the band's own middle line; a 48 px hit box).
+-- It closes the card and calls the option. It is a button in the header and not a fifth row because the card has no spare
+-- height on the tablet and phone frames (the rows already fill about 450 and 270 design px). On the short phone frames the
+-- harness caption then moves from the band to a line under the rows.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -104,6 +106,7 @@ local TRACK_FILL = Color3.fromRGB(72, 214, 84) -- the slider fill: green, the sa
 local CARD_FILL = ColorSequence.new(PanelKit.CardTop, PanelKit.CardBottom)
 local SEGMENT_OFF = Color3.fromRGB(52, 72, 128)
 local HEADER_FILL: Arcade.FillName = "Garage"
+local TITLE = "Settings"
 -- Haptics row text (child-facing)
 local HAPTICS_ON_LINE = "Buzz when you get a car"
 local HAPTICS_OFF_LINE = "Buzz is off"
@@ -722,7 +725,9 @@ function SettingsPanel._setHaptics(self: any, on: boolean)
 	Haptics.setEnabled(self._ctx.store, on) -- writes settings.haptics, stops a running cue when OFF; the subscriber refreshes
 end
 
--- One labelled row; returns the control frame, the value label and the row height.
+-- One labelled row; returns the control frame, the value label and the row height. A row with a value line under its label
+-- stacks the two from the top; a `single` row (no value line, Haptics) centres its icon and label on the row, level with
+-- its control, which is centred on the row too.
 function SettingsPanel._row(
 	_self: any,
 	parent: Instance,
@@ -730,9 +735,12 @@ function SettingsPanel._row(
 	icons: { string },
 	text: string,
 	cardInner: number,
-	m: Metrics
+	m: Metrics,
+	single: boolean?
 ): (Frame, TextLabel, number)
 	local rowH = m.rowH
+	local labelY = if single then (rowH - m.labelH) // 2 else 0
+	local iconY = labelY + (m.labelH - 30) // 2 -- the icon (30 high) is centred on the label line
 	local row = PanelKit.row(parent, "Row" .. order, 42, if order % 2 == 0 then "Alt" else nil)
 	row.LayoutOrder = order
 	row.Size = UDim2.fromOffset(cardInner, rowH)
@@ -744,7 +752,7 @@ function SettingsPanel._row(
 	local iconHolder = make("Frame", {
 		Name = "Icon",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 2),
+		Position = UDim2.fromOffset(0, iconY),
 		Size = UDim2.fromOffset(30, 30),
 		ZIndex = 43,
 		Parent = row,
@@ -759,7 +767,7 @@ function SettingsPanel._row(
 		z = 43,
 	})
 	PanelKit.ink(label)
-	label.Position = UDim2.fromOffset(38, 0)
+	label.Position = UDim2.fromOffset(38, labelY)
 	label.Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 12, m.labelH)
 	local value = Arcade.text(row, {
 		text = "",
@@ -836,7 +844,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	-- the header band: the Settings icon, the big outlined title and the red square X (48 px), as on every panel
 	local header = Style.header(card, {
 		fill = HEADER_FILL,
-		title = "Settings",
+		title = TITLE,
 		icon = "Settings",
 		height = m.headerH,
 		rightInset = 8 + Tokens.Touch.Minimum + 8,
@@ -851,9 +859,19 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	self._replayButton = nil :: GuiObject?
 	local onReplay = self._opts.onReplayTutorial
 	if onReplay then
-		-- the title is about 150 design px wide ("Settings" at the Display size): the button starts after it
+		-- Centred in the free part of the band: across, between the end of the title word and the X; up and down, on the
+		-- band's own middle. The button is a face with a 4 px lip under it, so its box (hit box plus lip) is centred, not
+		-- its top edge (the old top-left placement sat 6 px low and its lip crossed the dark rule under the band).
 		local replayW = 196
 		local replayH = 40
+		local titleEnd = header.title.Position.X.Offset + math.ceil(measure(TITLE, A.Text.Display)) + 6
+		local closeLeft = cardWidth - 8 - Tokens.Touch.Minimum
+		local halfW = replayW / 2
+		local centreX = math.clamp(
+			(titleEnd + closeLeft) / 2,
+			titleEnd + 8 + halfW,
+			math.max(closeLeft - 8 - halfW, titleEnd + 8 + halfW)
+		)
 		local replay = Arcade.button(card, {
 			name = "ReplayTutorial",
 			label = TutorialStrings.get("replay.button"),
@@ -863,7 +881,8 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 			height = replayH,
 			icon = "Hand",
 			sound = "Tap",
-			position = UDim2.fromOffset(header.title.Position.X.Offset + 150 + 14, (m.headerH - replayH) // 2),
+			anchor = Vector2.new(0.5, 0.5),
+			position = UDim2.fromOffset(math.floor(centreX + 0.5), m.headerH / 2),
 			onActivate = function()
 				self:close()
 				onReplay()
@@ -976,7 +995,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 
 	-- Haptics (R3-F5): the kit's ON / OFF switch, the state line beside it. The switch fills the control so its label
 	-- (the state line) has the control's whole width after the 92 px track.
-	local hapticsControl, hapticsValue, h4 = self:_row(list, 4, { "Haptics", "Motion" }, "Haptics", inner, m)
+	local hapticsControl, hapticsValue, h4 = self:_row(list, 4, { "Haptics", "Motion" }, "Haptics", inner, m, true)
 	hapticsValue.Visible = false -- the line sits beside the switch instead (it needs more than the label column)
 	local toggle = PanelKit.toggle(hapticsControl, {
 		name = "HapticsSwitch",
@@ -1014,19 +1033,22 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	self._hapticsLabel = line
 	total += h4
 
+	-- the short phone frames keep the caption on the header band, unless the Replay button is there too: it takes the band's
+	-- free middle, so the caption drops to a line under the rows (the card still fits the 300 px frame: 56 + 204 + 30)
+	local noteInTitle = m.noteInTitle and onReplay == nil
 	local footer = Arcade.text(card, {
 		text = "Preview: kept this session, not saved",
 		role = "Small",
 		name = "PreviewNote", -- harness caption (hidden in player-facing captures)
 		size = VALUE,
 		colour = PanelKit.Warm,
-		xAlign = if m.noteInTitle then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
+		xAlign = if noteInTitle then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
 		z = 44,
 	})
 	PanelKit.ink(footer)
 	footer.TextColor3 = PanelKit.Warm
 	footer:SetAttribute("PreviewCaption", true)
-	if m.noteInTitle then
+	if noteInTitle then
 		-- short phone frames: the caption shares the header band, left of the X
 		footer.AnchorPoint = Vector2.new(1, 0)
 		footer.Position = UDim2.new(1, -(Tokens.Touch.Minimum + 16), 0, (m.headerH - 22) // 2)
@@ -1034,11 +1056,11 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		footer.TextColor3 = Color3.new(1, 1, 1)
 		Arcade.outline(footer, "Minor")
 	else
-		footer.Position = UDim2.fromOffset(PAD, m.rowsTop + total + 10)
+		footer.Position = UDim2.fromOffset(PAD, m.rowsTop + total + (if m.noteInTitle then 4 else 10))
 		footer.Size = UDim2.new(1, -2 * PAD, 0, 22)
 	end
 	list.Size = UDim2.fromOffset(inner, total)
-	local cardH = m.rowsTop + total + m.footer
+	local cardH = m.rowsTop + total + (if m.noteInTitle and onReplay ~= nil then 30 else m.footer)
 	holder.Size = UDim2.fromOffset(cardWidth, cardH)
 	self._cardHeight = cardH
 
