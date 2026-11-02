@@ -75,7 +75,10 @@ function CashPackPreview.list(rate: number, cash: number): { Row }
 	local bestIndex, bestValue = 0, -1
 	for i, pack in CashPackPreview.Packs do
 		local amount = CashPackPreview.amount(pack, rate, cash)
-		table.insert(rows, { pack = pack, amount = amount, label = CashPackPreview.timeLabel(pack.minutes), best = false })
+		table.insert(
+			rows,
+			{ pack = pack, amount = amount, label = CashPackPreview.timeLabel(pack.minutes), best = false }
+		)
 		local value = amount / pack.robux
 		if value > bestValue then
 			bestIndex, bestValue = i, value

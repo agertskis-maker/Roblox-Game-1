@@ -578,9 +578,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local artSide = if id == "vip" then math.min(h * 1.32, w * 0.8) else math.min(h * 0.92, w * 0.5)
 		CarKit.art(card, art, {
 			size = UDim2.fromOffset(artSide, artSide),
-			position = if id == "vip"
-				then UDim2.new(0.42, 0, 0.52, 0)
-				else UDim2.new(0, artSide * 0.54, 0.6, 0),
+			position = if id == "vip" then UDim2.new(0.42, 0, 0.52, 0) else UDim2.new(0, artSide * 0.54, 0.6, 0),
 			z = 6,
 			name = "Art",
 		})
@@ -680,7 +678,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				ZIndex = 13,
 			}, card)
 			make("UICorner", { CornerRadius = UDim.new(0, 5) }, ribbon)
-			make("UIStroke", { Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ribbon)
+			make(
+				"UIStroke",
+				{ Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				ribbon
+			)
 			CarKit.title(ribbon, ("SAVE %d%%"):format(sums.percent), fontPx(p, 28, 16), {
 				align = Enum.TextXAlignment.Center,
 				z = 14,
@@ -725,7 +727,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		return h
 	end
 
-	local function sectionHeader(parent: Instance, p: Plan, y: number, icon: string, title: string, sub: string?): number
+	local function sectionHeader(
+		parent: Instance,
+		p: Plan,
+		y: number,
+		icon: string,
+		title: string,
+		sub: string?
+	): number
 		local h = fontPx(p, 58, 36)
 		CarKit.slot(parent, icon, h, {
 			position = UDim2.fromOffset(h / 2, y + h / 2),
@@ -1191,7 +1200,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				Selectable = true,
 			}, header) :: TextButton
 			make("UICorner", { CornerRadius = UDim.new(0, 9) }, button)
-			make("UIStroke", { Thickness = 2, Color = CarKit.ChromeBottom, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, button)
+			make(
+				"UIStroke",
+				{ Thickness = 2, Color = CarKit.ChromeBottom, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				button
+			)
 			local label = CarKit.title(button, tab.label, px, {
 				align = Enum.TextXAlignment.Center,
 				shadow = false,

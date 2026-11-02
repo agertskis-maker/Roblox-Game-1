@@ -174,7 +174,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	setYaw(yaw)
 
 	trove:Connect(view.InputBegan, function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			dragging = true
 			dragX = input.Position.X
 		end
@@ -182,7 +185,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	trove:Connect(UserInputService.InputChanged, function(input: InputObject)
 		if
 			dragging
-			and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch)
+			and (
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch
+			)
 		then
 			setYaw(yaw + (input.Position.X - dragX) * 0.012)
 			dragX = input.Position.X
@@ -190,7 +196,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		end
 	end)
 	trove:Connect(UserInputService.InputEnded, function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			dragging = false
 		end
 	end)
@@ -375,7 +384,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		elseif item.isNone then
 			CarKit.art(holder, "thumb_car_none", { z = z, placeholder = false, fallbackIcon = "Close" })
 		else
-			local prefix = if item.tab == "Decals" then "thumb_decal_" elseif item.tab == "Wheels" then "thumb_wheel_" else "ribbon_"
+			local prefix = if item.tab == "Decals"
+				then "thumb_decal_"
+				elseif item.tab == "Wheels" then "thumb_wheel_"
+				else "ribbon_"
 			CarKit.art(holder, prefix .. (item.key or ""), { z = z, placeholder = false })
 		end
 	end
@@ -452,7 +464,11 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				Visible = false,
 			}, button)
 			make("UICorner", { CornerRadius = UDim.new(0, 8) }, ring)
-			make("UIStroke", { Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
+			make(
+				"UIStroke",
+				{ Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				ring
+			)
 			local refs = { item = item, ring = ring, status = status, lock = lock }
 			cards[item.id] = refs
 			button.Activated:Connect(function()
@@ -642,7 +658,13 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		for _ in cards do
 			count += 1
 		end
-		return { tab = tab, cards = count, previewed = previewed, equipped = StyleState.get().equipped, rig = rig ~= nil }
+		return {
+			tab = tab,
+			cards = count,
+			previewed = previewed,
+			equipped = StyleState.get().equipped,
+			rig = rig ~= nil,
+		}
 	end
 
 	function self.destroy(_self: any)

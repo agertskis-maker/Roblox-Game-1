@@ -56,9 +56,11 @@ export type Item = {
 }
 
 CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels", "Trails" } :: { TabId })
-CosmeticPreviewCatalog.TabLabels = table.freeze({ Paint = "PAINT", Decals = "DECALS", Wheels = "WHEELS", Trails = "TRAILS" })
+CosmeticPreviewCatalog.TabLabels =
+	table.freeze({ Paint = "PAINT", Decals = "DECALS", Wheels = "WHEELS", Trails = "TRAILS" })
 -- the family-art icon for each tab (painter names)
-CosmeticPreviewCatalog.TabIcons = table.freeze({ Paint = "PaintBucket", Decals = "Decal", Wheels = "Wheel", Trails = "Trail" })
+CosmeticPreviewCatalog.TabIcons =
+	table.freeze({ Paint = "PaintBucket", Decals = "Decal", Wheels = "Wheel", Trails = "Trail" })
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -304,86 +306,116 @@ local DARK = rgb(44, 48, 66)
 local WHEELS_NOTE = "Same tyre size, mounts and handling: only the look changes."
 
 local wheels: { Item } = {
-	art(wheel(
-		"Stock Five",
-		"stock",
-		0,
-		{ STEEL, DARK, rgb(120, 126, 146) },
-		"car",
-		"A simple chunky five-spoke. " .. WHEELS_NOTE
-	), "five"),
-	art(wheel(
-		"Rally Block",
-		"street",
-		900,
-		{ rgb(226, 230, 240), DARK, rgb(226, 230, 240) },
-		"car",
-		"Squared spokes on a dark inset. " .. WHEELS_NOTE
-	), "block"),
-	art(wheel(
-		"Classic Disc",
-		"street",
-		1200,
-		{ rgb(236, 240, 250), rgb(60, 66, 90), rgb(150, 156, 176) },
-		"car",
-		"A clean disc with small vent cuts. " .. WHEELS_NOTE
-	), "disc"),
-	art(wheel(
-		"Split Six",
-		"street",
-		1600,
-		{ STEEL, DARK, rgb(240, 244, 252) },
-		"car",
-		"Six paired spokes. " .. WHEELS_NOTE
-	), "split"),
-	art(wheel(
-		"Trail Chunk",
-		"track",
-		2000,
-		{ rgb(176, 182, 198), DARK, rgb(30, 34, 48) },
-		"approx",
-		"Twin chunky spokes. " .. WHEELS_NOTE
-	), "twin"),
-	art(wheel(
-		"Star Runner",
-		"track",
-		2800,
-		{ rgb(255, 214, 80), DARK, rgb(255, 244, 190) },
-		"car",
-		"A broad rounded star hub. " .. WHEELS_NOTE
-	), "star"),
-	art(wheel(
-		"Golden Turbine",
-		"elite",
-		3500,
-		{ rgb(255, 204, 60), DARK, rgb(255, 232, 140) },
-		"car",
-		"Swept gold spokes. " .. WHEELS_NOTE
-	), "turbine"),
-	art(wheel(
-		"Neon Halo",
-		"elite",
-		4500,
-		{ DARK, rgb(60, 70, 100), rgb(90, 240, 255) },
-		"approx",
-		"Thin spokes with a steady neon glow. " .. WHEELS_NOTE
-	), "ten"),
-	art(wheel(
-		"Moon Dish",
-		"elite",
-		5000,
-		{ rgb(232, 236, 255), rgb(190, 176, 240), rgb(250, 252, 255) },
-		"approx",
-		"Pearly split spokes. " .. WHEELS_NOTE
-	), "y"),
-	art(wheel(
-		"Monster Mini",
-		"showpiece",
-		6000,
-		{ rgb(176, 182, 198), DARK, rgb(240, 90, 60) },
-		"approx",
-		"A deep dish with a red hot lip. " .. WHEELS_NOTE
-	), "deep"),
+	art(
+		wheel(
+			"Stock Five",
+			"stock",
+			0,
+			{ STEEL, DARK, rgb(120, 126, 146) },
+			"car",
+			"A simple chunky five-spoke. " .. WHEELS_NOTE
+		),
+		"five"
+	),
+	art(
+		wheel(
+			"Rally Block",
+			"street",
+			900,
+			{ rgb(226, 230, 240), DARK, rgb(226, 230, 240) },
+			"car",
+			"Squared spokes on a dark inset. " .. WHEELS_NOTE
+		),
+		"block"
+	),
+	art(
+		wheel(
+			"Classic Disc",
+			"street",
+			1200,
+			{ rgb(236, 240, 250), rgb(60, 66, 90), rgb(150, 156, 176) },
+			"car",
+			"A clean disc with small vent cuts. " .. WHEELS_NOTE
+		),
+		"disc"
+	),
+	art(
+		wheel(
+			"Split Six",
+			"street",
+			1600,
+			{ STEEL, DARK, rgb(240, 244, 252) },
+			"car",
+			"Six paired spokes. " .. WHEELS_NOTE
+		),
+		"split"
+	),
+	art(
+		wheel(
+			"Trail Chunk",
+			"track",
+			2000,
+			{ rgb(176, 182, 198), DARK, rgb(30, 34, 48) },
+			"approx",
+			"Twin chunky spokes. " .. WHEELS_NOTE
+		),
+		"twin"
+	),
+	art(
+		wheel(
+			"Star Runner",
+			"track",
+			2800,
+			{ rgb(255, 214, 80), DARK, rgb(255, 244, 190) },
+			"car",
+			"A broad rounded star hub. " .. WHEELS_NOTE
+		),
+		"star"
+	),
+	art(
+		wheel(
+			"Golden Turbine",
+			"elite",
+			3500,
+			{ rgb(255, 204, 60), DARK, rgb(255, 232, 140) },
+			"car",
+			"Swept gold spokes. " .. WHEELS_NOTE
+		),
+		"turbine"
+	),
+	art(
+		wheel(
+			"Neon Halo",
+			"elite",
+			4500,
+			{ DARK, rgb(60, 70, 100), rgb(90, 240, 255) },
+			"approx",
+			"Thin spokes with a steady neon glow. " .. WHEELS_NOTE
+		),
+		"ten"
+	),
+	art(
+		wheel(
+			"Moon Dish",
+			"elite",
+			5000,
+			{ rgb(232, 236, 255), rgb(190, 176, 240), rgb(250, 252, 255) },
+			"approx",
+			"Pearly split spokes. " .. WHEELS_NOTE
+		),
+		"y"
+	),
+	art(
+		wheel(
+			"Monster Mini",
+			"showpiece",
+			6000,
+			{ rgb(176, 182, 198), DARK, rgb(240, 90, 60) },
+			"approx",
+			"A deep dish with a red hot lip. " .. WHEELS_NOTE
+		),
+		"deep"
+	),
 }
 
 -- TRAILS (9 plus "No trail"). Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. Cheaper ones cost PREVIEW Cash,
@@ -425,11 +457,35 @@ local trails: { Item } = {
 		isNone = true,
 	},
 	trail("Smoke Ring", "street", 800, nil, "smoke", { rgb(220, 226, 236), rgb(150, 160, 180) }, "Soft white smoke."),
-	trail("Spark Dust", "street", 1500, nil, "spark", { rgb(255, 236, 120), rgb(255, 150, 40) }, "Hot sparks off the road."),
-	trail("Bubble Pop", "street", 2200, nil, "bubble", { rgb(150, 230, 255), rgb(255, 170, 230) }, "Bubbles that drift away."),
+	trail(
+		"Spark Dust",
+		"street",
+		1500,
+		nil,
+		"spark",
+		{ rgb(255, 236, 120), rgb(255, 150, 40) },
+		"Hot sparks off the road."
+	),
+	trail(
+		"Bubble Pop",
+		"street",
+		2200,
+		nil,
+		"bubble",
+		{ rgb(150, 230, 255), rgb(255, 170, 230) },
+		"Bubbles that drift away."
+	),
 	trail("Neon Line", "track", 3000, nil, "neon", { rgb(70, 240, 255), rgb(60, 110, 255) }, "A clean neon ribbon."),
 	trail("Star Drift", "track", 4500, nil, "star", { rgb(255, 228, 110), rgb(255, 255, 255) }, "Falling stars."),
-	trail("Flame Rush", "elite", 0, 99, "flame", { rgb(255, 210, 60), rgb(240, 50, 20) }, "Your car on fire, in a good way."),
+	trail(
+		"Flame Rush",
+		"elite",
+		0,
+		99,
+		"flame",
+		{ rgb(255, 210, 60), rgb(240, 50, 20) },
+		"Your car on fire, in a good way."
+	),
 	trail(
 		"Confetti Party",
 		"elite",
@@ -530,7 +586,13 @@ CosmeticPreviewCatalog.DefaultBalance = 5000
 
 function CosmeticPreviewCatalog.defaultOwnership(): Ownership
 	return {
-		owned = { tangerine_pop = true, brushed_steel = true, racing_stripes = true, rally_block = true, smoke_ring = true },
+		owned = {
+			tangerine_pop = true,
+			brushed_steel = true,
+			racing_stripes = true,
+			rally_block = true,
+			smoke_ring = true,
+		},
 		medals = { bronze = true, silver = false, gold = false },
 		unavailable = {},
 	}

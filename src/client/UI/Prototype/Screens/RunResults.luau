@@ -119,7 +119,11 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, parent) :: Frame
 		make("UICorner", { CornerRadius = UDim.new(0, 10) }, holder)
 		make("UIStroke", { Thickness = 2.5, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, holder)
-		make("UIGradient", { Rotation = 90, Color = ColorSequence.new(CarKit.White, Color3.fromRGB(150, 160, 190)) }, holder)
+		make(
+			"UIGradient",
+			{ Rotation = 90, Color = ColorSequence.new(CarKit.White, Color3.fromRGB(150, 160, 190)) },
+			holder
+		)
 		CarKit.art(holder, "thumb_car_body", {
 			size = UDim2.new(1, -6, 1, -24),
 			position = UDim2.new(0.5, 0, 0.5, -8),
@@ -151,7 +155,11 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				ZIndex = z + 5,
 			}, holder)
 			make("UICorner", { CornerRadius = UDim.new(0, 5) }, stamp)
-			make("UIStroke", { Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stamp)
+			make(
+				"UIStroke",
+				{ Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				stamp
+			)
 			CarKit.title(stamp, "NEW!", 18, {
 				align = Enum.TextXAlignment.Center,
 				z = z + 6,
@@ -285,7 +293,8 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			cw = math.min(cw, math.round(ch * 1.7))
 			local x0 = ((w - 28 * k) - (cw * shown + gap * (shown - 1))) / 2
 			for i = 1, shown do
-				local c = carCard(band, data.cars[i], UDim2.fromOffset(x0 + (i - 1) * (cw + gap), 24), Vector2.new(cw, ch), 7)
+				local c =
+					carCard(band, data.cars[i], UDim2.fromOffset(x0 + (i - 1) * (cw + gap), 24), Vector2.new(cw, ch), 7)
 				c.Visible = Motion.reduced()
 				table.insert(cards, c)
 			end
@@ -309,7 +318,12 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				z = 7,
 				placeholder = false,
 			})
-			CarKit.title(slot, "?", math.round(70 * k), { align = Enum.TextXAlignment.Center, z = 8, color = CarKit.Soft })
+			CarKit.title(
+				slot,
+				"?",
+				math.round(70 * k),
+				{ align = Enum.TextXAlignment.Center, z = 8, color = CarKit.Soft }
+			)
 		end
 		y += bandH + math.round(8 * k)
 

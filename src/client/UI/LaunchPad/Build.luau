@@ -169,9 +169,21 @@ function Build.build(world: string, origin: CFrame): Pad
 	ramp.Color = rgb(48, 50, 60)
 	ramp.Material = Enum.Material.SmoothPlastic
 	ramp.Parent = folder
-	box("Road", Vector3.new(18, 2, 460), CFrame.new(0, rise - 1, -31 - rampLen - 230), theme.road, Enum.Material.Asphalt, true)
+	box(
+		"Road",
+		Vector3.new(18, 2, 460),
+		CFrame.new(0, rise - 1, -31 - rampLen - 230),
+		theme.road,
+		Enum.Material.Asphalt,
+		true
+	)
 	for i = 1, 16 do
-		box("RoadLine", Vector3.new(0.5, 0.05, 11), CFrame.new(0, rise + 0.03, -31 - rampLen - 8 - i * 26), rgb(248, 214, 90))
+		box(
+			"RoadLine",
+			Vector3.new(0.5, 0.05, 11),
+			CFrame.new(0, rise + 0.03, -31 - rampLen - 8 - i * 26),
+			rgb(248, 214, 90)
+		)
 	end
 	local slope = math.atan2(rise, rampLen)
 	local along = CFrame.new(0, rise / 2 + 0.12, -31 - rampLen / 2) * CFrame.Angles(slope, 0, 0)
@@ -181,7 +193,12 @@ function Build.build(world: string, origin: CFrame): Pad
 	for i = 1, 3 do
 		local c = along * CFrame.new(0, 0.1, rampLen / 2 - i * 5.2)
 		for _, s in { 1, -1 } do
-			neon("Chevron", Vector3.new(5.6, 0.14, 1.1), c * CFrame.new(s * 2.2, 0, 0) * CFrame.Angles(0, s * math.rad(-32), 0), theme.neonA)
+			neon(
+				"Chevron",
+				Vector3.new(5.6, 0.14, 1.1),
+				c * CFrame.new(s * 2.2, 0, 0) * CFrame.Angles(0, s * math.rad(-32), 0),
+				theme.neonA
+			)
 		end
 	end
 	-- a soft pool of light on the ramp, so it reads from anywhere on the pad
@@ -265,13 +282,25 @@ function Build.build(world: string, origin: CFrame): Pad
 
 	-- three trail swatches on the wall of the Trail stall
 	for i, c in { rgb(255, 80, 60), rgb(255, 214, 60), rgb(120, 90, 255) } do
-		neon("TrailSwatch", Vector3.new(6, 0.5, 0.3), trailAt * CFrame.new(-4, 3 + i * 1.7, 6.1) * CFrame.Angles(0, 0, math.rad(12)), c)
+		neon(
+			"TrailSwatch",
+			Vector3.new(6, 0.5, 0.3),
+			trailAt * CFrame.new(-4, 3 + i * 1.7, 6.1) * CFrame.Angles(0, 0, math.rad(12)),
+			c
+		)
 	end
 	for i = 1, 3 do
 		neon("TrailPad", Vector3.new(2.6, 0.2, 2.6), trailAt * CFrame.new(-7 + i * 3.4, 0.5, 2), theme.neonB)
 	end
 	-- a paint wall
-	local swatches = { rgb(230, 50, 60), rgb(255, 140, 30), rgb(255, 214, 50), rgb(70, 210, 100), rgb(50, 160, 255), rgb(150, 90, 240) }
+	local swatches = {
+		rgb(230, 50, 60),
+		rgb(255, 140, 30),
+		rgb(255, 214, 50),
+		rgb(70, 210, 100),
+		rgb(50, 160, 255),
+		rgb(150, 90, 240),
+	}
 	for i, c in swatches do
 		box("Swatch", Vector3.new(2.4, 5, 0.3), paintAt * CFrame.new(-8.2 + i * 2.7, 5, 6.2), c, Enum.Material.Neon)
 	end
@@ -295,7 +324,12 @@ function Build.build(world: string, origin: CFrame): Pad
 			local x = -240 + i * 22
 			local h = 60 + (i * 37 % 120)
 			if math.abs(x) > 16 then
-				box("Tower", Vector3.new(18, h, 18), CFrame.new(x, h / 2 + 3, -210 - (i * 53 % 120)), colours[i % 4 + 1])
+				box(
+					"Tower",
+					Vector3.new(18, h, 18),
+					CFrame.new(x, h / 2 + 3, -210 - (i * 53 % 120)),
+					colours[i % 4 + 1]
+				)
 			end
 		end
 		for _, s in { 1, -1 } do
@@ -327,10 +361,29 @@ function Build.build(world: string, origin: CFrame): Pad
 		})
 		local rock = { rgb(186, 106, 66), rgb(170, 90, 56), rgb(204, 130, 84) }
 		for i, m in
-			{ { -210, -320, 150, 90 }, { -80, -420, 200, 120 }, { 110, -390, 170, 80 }, { 250, -300, 120, 110 }, { -330, -210, 110, 70 }, { 340, -200, 130, 60 } }
+			{
+				{ -210, -320, 150, 90 },
+				{ -80, -420, 200, 120 },
+				{ 110, -390, 170, 80 },
+				{ 250, -300, 120, 110 },
+				{ -330, -210, 110, 70 },
+				{ 340, -200, 130, 60 },
+			}
 		do
-			box("Mesa", Vector3.new(m[3], m[4], m[3] * 0.7), CFrame.new(m[1], m[4] / 2, m[2]), rock[i % 3 + 1], Enum.Material.Rock)
-			box("MesaCap", Vector3.new(m[3] * 0.82, m[4] * 0.3, m[3] * 0.56), CFrame.new(m[1], m[4] * 1.15, m[2]), rock[(i + 1) % 3 + 1], Enum.Material.Rock)
+			box(
+				"Mesa",
+				Vector3.new(m[3], m[4], m[3] * 0.7),
+				CFrame.new(m[1], m[4] / 2, m[2]),
+				rock[i % 3 + 1],
+				Enum.Material.Rock
+			)
+			box(
+				"MesaCap",
+				Vector3.new(m[3] * 0.82, m[4] * 0.3, m[3] * 0.56),
+				CFrame.new(m[1], m[4] * 1.15, m[2]),
+				rock[(i + 1) % 3 + 1],
+				Enum.Material.Rock
+			)
 		end
 		for i, c in { { -40, -60 }, { 46, -70 }, { -62, -120 }, { 70, -130 } } do
 			local h = 8 + i % 3 * 3
@@ -346,9 +399,21 @@ function Build.build(world: string, origin: CFrame): Pad
 				box("WindowBar", Vector3.new(7, 0.4, 0.5), CFrame.new(s * (17 + i * 11), 8.2, -29.8), theme.frame)
 			end
 			for i = 0, 7 do
-				box("Log", Vector3.new(27.6, 0.7, 0.8), CFrame.new(s * 24.5, 0.7 + i * 2.2, -29.9), theme.frame, Enum.Material.WoodPlanks)
+				box(
+					"Log",
+					Vector3.new(27.6, 0.7, 0.8),
+					CFrame.new(s * 24.5, 0.7 + i * 2.2, -29.9),
+					theme.frame,
+					Enum.Material.WoodPlanks
+				)
 			end
-			box("Roof", Vector3.new(29, 2, 26), CFrame.new(s * 22, 21, -28) * CFrame.Angles(0, 0, s * math.rad(-28)), rgb(236, 242, 250), Enum.Material.Snow)
+			box(
+				"Roof",
+				Vector3.new(29, 2, 26),
+				CFrame.new(s * 22, 21, -28) * CFrame.Angles(0, 0, s * math.rad(-28)),
+				rgb(236, 242, 250),
+				Enum.Material.Snow
+			)
 		end
 		box("Lintel", Vector3.new(22, 3, 2.4), CFrame.new(0, 15, -31), theme.frame, Enum.Material.WoodPlanks)
 		local warm = Instance.new("PointLight")
@@ -358,7 +423,18 @@ function Build.build(world: string, origin: CFrame): Pad
 		warm.Parent = box("Glow", Vector3.new(1, 1, 1), CFrame.new(0, 10, -24), theme.neonA)
 		local greens = { rgb(44, 96, 76), rgb(36, 84, 70), rgb(56, 110, 84) }
 		for i, t in
-			{ { -46, -48 }, { 46, -44 }, { -62, -20 }, { 62, -16 }, { -56, 22 }, { 58, 26 }, { -30, -70 }, { 32, -74 }, { -70, -60 }, { 74, -62 } }
+			{
+				{ -46, -48 },
+				{ 46, -44 },
+				{ -62, -20 },
+				{ 62, -16 },
+				{ -56, 22 },
+				{ 58, 26 },
+				{ -30, -70 },
+				{ 32, -74 },
+				{ -70, -60 },
+				{ 74, -62 },
+			}
 		do
 			local w = 12 + i % 3 * 3
 			local g = greens[i % 3 + 1]
@@ -368,8 +444,20 @@ function Build.build(world: string, origin: CFrame): Pad
 			pyramid(CFrame.new(t[1], 17, t[2]), w * 0.54, 8, rgb(226, 236, 244), Enum.Material.Snow)
 		end
 		for i, m in { { -200, -340, 220, 170 }, { 40, -420, 300, 240 }, { 260, -330, 230, 180 } } do
-			pyramid(CFrame.new(m[1], 0, m[2]), m[3], m[4], rgb(120 + i * 8, 136 + i * 8, 164 + i * 6), Enum.Material.Rock)
-			pyramid(CFrame.new(m[1], m[4] * 0.62, m[2]), m[3] * 0.38, m[4] * 0.38, rgb(240, 246, 252), Enum.Material.Snow)
+			pyramid(
+				CFrame.new(m[1], 0, m[2]),
+				m[3],
+				m[4],
+				rgb(120 + i * 8, 136 + i * 8, 164 + i * 6),
+				Enum.Material.Rock
+			)
+			pyramid(
+				CFrame.new(m[1], m[4] * 0.62, m[2]),
+				m[3] * 0.38,
+				m[4] * 0.38,
+				rgb(240, 246, 252),
+				Enum.Material.Snow
+			)
 		end
 	end
 

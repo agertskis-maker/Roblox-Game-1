@@ -33,7 +33,8 @@ export type Hooks = {
 	onPhase: ((phase: string) -> ())?,
 }
 
-local WORLD_TITLE: { [string]: string } = { Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
+local WORLD_TITLE: { [string]: string } =
+	{ Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
 local ORIGINS: { [string]: CFrame } = {
 	Downtown = CFrame.new(6000, 1200, 0),
 	DustyHighway = CFrame.new(7400, 1200, 0),

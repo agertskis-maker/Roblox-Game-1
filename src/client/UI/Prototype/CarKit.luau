@@ -77,22 +77,134 @@ export type Family = {
 
 -- One signature colour per product family (style guide).
 CarKit.Family = table.freeze({
-	Starter = { top = rgb(255, 168, 28), bottom = rgb(196, 56, 8), motif = "speed", motifColor = rgb(255, 232, 150), motifAlpha = 0.45, edge = rgb(255, 214, 110) },
-	Vip = { top = rgb(52, 44, 26), bottom = rgb(14, 12, 12), motif = "chevron", motifColor = rgb(255, 198, 41), motifAlpha = 0.9, edge = rgb(255, 214, 80) },
-	Lap = { top = rgb(40, 132, 255), bottom = rgb(12, 48, 170), motif = "speed", motifColor = rgb(170, 220, 255), motifAlpha = 0.6, edge = rgb(150, 210, 255) },
-	Paddock = { top = rgb(24, 214, 186), bottom = rgb(6, 104, 120), motif = "stripes", motifColor = rgb(170, 255, 236), motifAlpha = 0.9, edge = rgb(150, 255, 230) },
-	Bundle = { top = rgb(38, 56, 100), bottom = rgb(14, 22, 52), motif = "checker", motifColor = rgb(160, 186, 230), motifAlpha = 0.92, edge = rgb(216, 228, 248) },
-	Cash = { top = rgb(52, 214, 96), bottom = rgb(6, 112, 62), motif = "rays", motifColor = rgb(200, 255, 190), motifAlpha = 0.72, edge = rgb(150, 255, 150) },
-	CashBlue = { top = rgb(34, 136, 240), bottom = rgb(8, 44, 120), motif = "rays", motifColor = rgb(190, 230, 255), motifAlpha = 0.76, edge = rgb(120, 200, 255) },
-	CashTeal = { top = rgb(16, 170, 130), bottom = rgb(4, 74, 76), motif = "rays", motifColor = rgb(190, 255, 230), motifAlpha = 0.76, edge = rgb(110, 240, 190) },
-	CashGold = { top = rgb(250, 176, 28), bottom = rgb(150, 74, 6), motif = "rays", motifColor = rgb(255, 240, 180), motifAlpha = 0.72, edge = rgb(255, 216, 100) },
-	CashPurple = { top = rgb(134, 62, 240), bottom = rgb(50, 16, 130), motif = "rays", motifColor = rgb(226, 200, 255), motifAlpha = 0.76, edge = rgb(200, 150, 255) },
-	CashVault = { top = rgb(232, 38, 38), bottom = rgb(120, 8, 18), motif = "rays", motifColor = rgb(255, 214, 120), motifAlpha = 0.66, edge = rgb(255, 214, 60) },
-	Paint = { top = rgb(255, 84, 170), bottom = rgb(160, 14, 104), motif = "halftone", motifColor = rgb(255, 200, 236), motifAlpha = 0.84, edge = rgb(255, 170, 220) },
-	Decal = { top = rgb(255, 204, 40), bottom = rgb(208, 112, 6), motif = "checker", motifColor = rgb(255, 244, 190), motifAlpha = 0.9, edge = rgb(255, 234, 140) },
-	Wheel = { top = rgb(132, 86, 255), bottom = rgb(50, 20, 158), motif = "tread", motifColor = rgb(210, 190, 255), motifAlpha = 0.84, edge = rgb(190, 170, 255) },
-	Trail = { top = rgb(240, 70, 214), bottom = rgb(104, 16, 150), motif = "speed", motifColor = rgb(255, 210, 246), motifAlpha = 0.6, edge = rgb(255, 170, 240) },
-	Free = { top = rgb(150, 232, 48), bottom = rgb(36, 132, 40), motif = "rays", motifColor = rgb(240, 255, 200), motifAlpha = 0.74, edge = rgb(210, 255, 150) },
+	Starter = {
+		top = rgb(255, 168, 28),
+		bottom = rgb(196, 56, 8),
+		motif = "speed",
+		motifColor = rgb(255, 232, 150),
+		motifAlpha = 0.45,
+		edge = rgb(255, 214, 110),
+	},
+	Vip = {
+		top = rgb(52, 44, 26),
+		bottom = rgb(14, 12, 12),
+		motif = "chevron",
+		motifColor = rgb(255, 198, 41),
+		motifAlpha = 0.9,
+		edge = rgb(255, 214, 80),
+	},
+	Lap = {
+		top = rgb(40, 132, 255),
+		bottom = rgb(12, 48, 170),
+		motif = "speed",
+		motifColor = rgb(170, 220, 255),
+		motifAlpha = 0.6,
+		edge = rgb(150, 210, 255),
+	},
+	Paddock = {
+		top = rgb(24, 214, 186),
+		bottom = rgb(6, 104, 120),
+		motif = "stripes",
+		motifColor = rgb(170, 255, 236),
+		motifAlpha = 0.9,
+		edge = rgb(150, 255, 230),
+	},
+	Bundle = {
+		top = rgb(38, 56, 100),
+		bottom = rgb(14, 22, 52),
+		motif = "checker",
+		motifColor = rgb(160, 186, 230),
+		motifAlpha = 0.92,
+		edge = rgb(216, 228, 248),
+	},
+	Cash = {
+		top = rgb(52, 214, 96),
+		bottom = rgb(6, 112, 62),
+		motif = "rays",
+		motifColor = rgb(200, 255, 190),
+		motifAlpha = 0.72,
+		edge = rgb(150, 255, 150),
+	},
+	CashBlue = {
+		top = rgb(34, 136, 240),
+		bottom = rgb(8, 44, 120),
+		motif = "rays",
+		motifColor = rgb(190, 230, 255),
+		motifAlpha = 0.76,
+		edge = rgb(120, 200, 255),
+	},
+	CashTeal = {
+		top = rgb(16, 170, 130),
+		bottom = rgb(4, 74, 76),
+		motif = "rays",
+		motifColor = rgb(190, 255, 230),
+		motifAlpha = 0.76,
+		edge = rgb(110, 240, 190),
+	},
+	CashGold = {
+		top = rgb(250, 176, 28),
+		bottom = rgb(150, 74, 6),
+		motif = "rays",
+		motifColor = rgb(255, 240, 180),
+		motifAlpha = 0.72,
+		edge = rgb(255, 216, 100),
+	},
+	CashPurple = {
+		top = rgb(134, 62, 240),
+		bottom = rgb(50, 16, 130),
+		motif = "rays",
+		motifColor = rgb(226, 200, 255),
+		motifAlpha = 0.76,
+		edge = rgb(200, 150, 255),
+	},
+	CashVault = {
+		top = rgb(232, 38, 38),
+		bottom = rgb(120, 8, 18),
+		motif = "rays",
+		motifColor = rgb(255, 214, 120),
+		motifAlpha = 0.66,
+		edge = rgb(255, 214, 60),
+	},
+	Paint = {
+		top = rgb(255, 84, 170),
+		bottom = rgb(160, 14, 104),
+		motif = "halftone",
+		motifColor = rgb(255, 200, 236),
+		motifAlpha = 0.84,
+		edge = rgb(255, 170, 220),
+	},
+	Decal = {
+		top = rgb(255, 204, 40),
+		bottom = rgb(208, 112, 6),
+		motif = "checker",
+		motifColor = rgb(255, 244, 190),
+		motifAlpha = 0.9,
+		edge = rgb(255, 234, 140),
+	},
+	Wheel = {
+		top = rgb(132, 86, 255),
+		bottom = rgb(50, 20, 158),
+		motif = "tread",
+		motifColor = rgb(210, 190, 255),
+		motifAlpha = 0.84,
+		edge = rgb(190, 170, 255),
+	},
+	Trail = {
+		top = rgb(240, 70, 214),
+		bottom = rgb(104, 16, 150),
+		motif = "speed",
+		motifColor = rgb(255, 210, 246),
+		motifAlpha = 0.6,
+		edge = rgb(255, 170, 240),
+	},
+	Free = {
+		top = rgb(150, 232, 48),
+		bottom = rgb(36, 132, 40),
+		motif = "rays",
+		motifColor = rgb(240, 255, 200),
+		motifAlpha = 0.74,
+		edge = rgb(210, 255, 150),
+	},
 } :: { [string]: Family })
 
 CarKit.Rarity = table.freeze({
@@ -386,7 +498,11 @@ export type BoardOptions = {
 -- Outer ink line plus a chrome inner edge.
 function CarKit.edges(frame: GuiObject, radius: number, chrome: boolean?, edge: Color3?)
 	make("UICorner", { CornerRadius = UDim.new(0, radius) }, frame)
-	make("UIStroke", { Thickness = 3 * strokeScale, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, frame)
+	make(
+		"UIStroke",
+		{ Thickness = 3 * strokeScale, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+		frame
+	)
 	if chrome ~= false then
 		local inner = make("Frame", {
 			Name = "ChromeEdge",
@@ -426,7 +542,12 @@ function CarKit.board(parent: Instance, options: BoardOptions?): Frame
 			local bolt = make("Frame", {
 				Name = "Bolt",
 				AnchorPoint = Vector2.new(corner[1], corner[2]),
-				Position = UDim2.new(corner[1], if corner[1] == 0 then 8 else -8, corner[2], if corner[2] == 0 then 8 else -8),
+				Position = UDim2.new(
+					corner[1],
+					if corner[1] == 0 then 8 else -8,
+					corner[2],
+					if corner[2] == 0 then 8 else -8
+				),
 				Size = UDim2.fromOffset(8, 8),
 				BackgroundColor3 = CarKit.ChromeBottom,
 				ZIndex = z + 2,
@@ -539,7 +660,11 @@ function CarKit.button(parent: Instance, o: ButtonOptions): Button
 		ZIndex = z,
 	}, root) :: Frame
 	make("UICorner", { CornerRadius = UDim.new(0, radius) }, lip)
-	make("UIStroke", { Thickness = 3 * strokeScale, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, lip)
+	make(
+		"UIStroke",
+		{ Thickness = 3 * strokeScale, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+		lip
+	)
 	local face = make("Frame", {
 		Name = "Face",
 		BackgroundColor3 = CarKit.White,

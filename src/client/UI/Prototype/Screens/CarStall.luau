@@ -123,7 +123,11 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 				ZIndex = 9,
 			}, button) :: Frame
 			make("UICorner", { CornerRadius = UDim.new(0, 10) }, ring)
-			make("UIStroke", { Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
+			make(
+				"UIStroke",
+				{ Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				ring
+			)
 			rings[car.id] = ring
 			button.Activated:Connect(function()
 				state.car = car.id
