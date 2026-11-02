@@ -211,7 +211,7 @@ end
 function RECIPES.RanchShedB(m)
 	local f = shell(m, 20, 12, 7, ADOBE)
 	box(m, "FlatRoof", Vector3.new(21, 0.6, 13), Vector3.new(0, 7.3, 0), CHARCOAL)
-	door(m, 5, f, TURQ)
+	door(m, 8, f, TURQ)
 	windows(m, 20, 4, f, 2, GLASS)
 end
 
@@ -309,7 +309,7 @@ end
 -- Red Rock Arches: a kid-friendly old mining settlement
 function RECIPES.MineEntrance(m)
 	box(m, "Hill", Vector3.new(32, 16, 16), Vector3.new(0, 8, 4), ROCK)
-	box(m, "HillTop", Vector3.new(22, 7, 12), Vector3.new(0, 19, 6), ROCK:Lerp(ADOBE, 0.4))
+	box(m, "HillTop", Vector3.new(22, 7, 10), Vector3.new(0, 19, 5), ROCK:Lerp(ADOBE, 0.4))
 	box(m, "MineDark", Vector3.new(10, 9, 0.2), Vector3.new(0, 4.5, -4.1), rgb(36, 28, 26))
 	for _, s in { 1, -1 } do
 		box(m, "MinePost", Vector3.new(1.4, 11, 1.4), Vector3.new(s * 6, 5.5, -4.6), WOOD_DARK)
@@ -391,7 +391,7 @@ end
 function RECIPES.OverlookA(m)
 	box(m, "Deck", Vector3.new(18, 0.6, 12), Vector3.new(0, 0.3, 0), PALE)
 	ramada(m, 12, 8, 7, WOOD_DARK, ROCK)
-	box(m, "Rail", Vector3.new(18, 2.4, 0.5), Vector3.new(0, 1.4, 6), rgb(170, 140, 116))
+	box(m, "Rail", Vector3.new(17, 2.4, 0.5), Vector3.new(0, 1.7, 5.5), rgb(170, 140, 116))
 end
 
 function RECIPES.OverlookB(m)
