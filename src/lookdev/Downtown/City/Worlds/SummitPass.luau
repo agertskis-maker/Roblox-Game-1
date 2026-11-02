@@ -1011,8 +1011,8 @@ return {
 					{ m = "SP_Lot_LodgeWing_B", x = "rightOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_Annex36", x = "rightOf", z = 30, gap = 40, label = "LODGE ANNEX" },
 					{ m = "SP_LM_FestivalStage", x = 6, z = 44, label = "FESTIVAL STAGE" },
-					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = -4, label = "PENNANT POLE" },
-					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = -4, label = "PENNANT POLE" },
+					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = 4, label = "PENNANT POLE" },
+					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = 4, label = "PENNANT POLE" },
 				},
 			},
 			-- the observatory stands on a rock knoll

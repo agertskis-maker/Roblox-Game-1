@@ -748,7 +748,7 @@ function CarKit.button(parent: Instance, o: ButtonOptions): Button
 	root.Activated:Connect(function()
 		if enabled and o.onPress then
 			pcall(function()
-				Sounds.play(o.sound or "Press")
+				Sounds.play(o.sound or "Tap")
 			end)
 			o.onPress()
 		end

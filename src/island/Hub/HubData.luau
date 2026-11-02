@@ -1526,10 +1526,6 @@ return {
 				kind = "GardenRing",
 				width = 8,
 				points = {
-					Vector2.new(-132.949, 23.443),
-					Vector2.new(-132.52, 25.759),
-					Vector2.new(-132.05, 28.068),
-					Vector2.new(-131.54, 30.368),
 					Vector2.new(-130.99, 32.659),
 					Vector2.new(-130.4, 34.941),
 					Vector2.new(-129.77, 37.211),
@@ -1683,10 +1679,6 @@ return {
 					Vector2.new(129.77, 37.211),
 					Vector2.new(130.4, 34.941),
 					Vector2.new(130.99, 32.659),
-					Vector2.new(131.54, 30.368),
-					Vector2.new(132.05, 28.068),
-					Vector2.new(132.52, 25.759),
-					Vector2.new(132.949, 23.443),
 				},
 			},
 			{
