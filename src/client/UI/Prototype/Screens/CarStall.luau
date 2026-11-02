@@ -11,7 +11,6 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Overlay = require(script.Parent.Overlay)
 local RealCar = require(Prototype.RealCar)
-local RunKit = require(Prototype.Run.RunKit)
 local StyleState = require(Prototype.StyleState)
 
 local make = CarKit.make
@@ -147,10 +146,7 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 				local p = pending[i]
 				if p.holder.AbsolutePosition.Y < bottom then
 					table.remove(pending, i)
-					local thumb = RunKit.thumb(p.holder, { model = p.name } :: any)
-					if thumb then
-						thumb.ZIndex = 6
-					end
+					RealCar.thumb(p.holder, p.name)
 				end
 			end
 		end

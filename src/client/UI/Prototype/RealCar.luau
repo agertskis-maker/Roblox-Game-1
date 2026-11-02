@@ -6,7 +6,7 @@
 --   local rig = RealCar.mount(parent, { length = number?, height = number? })
 --   rig:setCar(name)  rig:pivotTo(cf)  rig:setPaint(item?, phase?)  rig:tick(phase)  rig:setDecal(item?)  rig:setWheels(item?)
 --   rig.source -> the car's name, "Supercar" or nil        rig:destroy()
---   RealCar.isAnimated(item?) -> boolean
+--   RealCar.thumb(holder, name) -> ViewportFrame?          RealCar.isAnimated(item?) -> boolean
 --
 -- HOW IT DRAWS. The cars' textures are baked per car, so the Supercar's shells cannot map onto them. Paint is a see-through coloured
 -- copy of the body, which keeps the car's detail (it tints the glass too); pattern paints show their first colour. Decals are real
@@ -130,6 +130,25 @@ end
 local Body = {}
 Body.__index = Body
 
+-- In the built place a model's pivot sits at its middle, and some are not turned along the car, so a display copy finds its own
+-- from its wheels: bottom centre, front toward -Z. Returns the car's size along those axes.
+local function squareUp(model: Model, wheels: { BasePart }): Vector3
+	local front, rear = Vector3.zero, Vector3.zero
+	for _, wheel in wheels do
+		if string.find(wheel.Name, "front", 1, true) then
+			front += wheel.Position
+		else
+			rear += wheel.Position
+		end
+	end
+	local forward = ((front - rear) * Vector3.new(1, 0, 1)).Unit
+	local right = forward:Cross(Vector3.yAxis)
+	model.WorldPivot = CFrame.fromMatrix(model:GetPivot().Position, right, Vector3.yAxis)
+	local cf, size = model:GetBoundingBox()
+	model.WorldPivot = CFrame.fromMatrix(cf.Position - Vector3.yAxis * size.Y / 2, right, Vector3.yAxis)
+	return size
+end
+
 local function buildBody(entry: Entry, length: number, height: number): any
 	local model = entry.model:Clone()
 	model.Name = "RealCar"
@@ -150,8 +169,8 @@ local function buildBody(entry: Entry, length: number, height: number): any
 			d:Destroy() -- a display copy: nothing runs, nothing sounds
 		end
 	end
-	local _, size = model:GetBoundingBox()
-	model:ScaleTo(math.min(length / math.max(size.X, size.Z), height / size.Y))
+	local size = squareUp(model, wheels)
+	model:ScaleTo(math.min(length / size.Z, height / size.Y))
 	local self = setmetatable({ model = model, _wheels = wheels, _rims = {}, _rimMeshes = {} } :: any, Body)
 	self._body = assert(body, "a showroom car has no body_geom")
 	local wash = self._body:Clone() :: MeshPart
@@ -255,6 +274,32 @@ end
 
 function Body.destroy(self: any)
 	self.model:Destroy()
+end
+
+-- A still picture of a car for a card: no spin and no render loop. nil when the car is not here, so the caller keeps its own art.
+function RealCar.thumb(holder: Frame, name: string?): ViewportFrame?
+	local entry = find(name)
+	if not entry or failed[entry.name] then
+		return nil
+	end
+	local vp = Instance.new("ViewportFrame")
+	vp.Name = "CarThumb"
+	vp.BackgroundTransparency = 1
+	vp.Size = UDim2.fromScale(1, 1)
+	vp.Ambient = Color3.fromRGB(170, 172, 186)
+	vp.LightColor = Color3.fromRGB(255, 250, 240)
+	vp.LightDirection = Vector3.new(-0.6, -1, -0.5)
+	vp.ZIndex = holder.ZIndex + 1
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 22
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 2.2, 0))
+	camera.Parent = vp
+	vp.CurrentCamera = camera
+	local model = buildBody(entry, LENGTH, HEIGHT).model
+	model:PivotTo(CFrame.Angles(0, math.rad(215), 0))
+	model.Parent = vp
+	vp.Parent = holder
+	return vp
 end
 
 -- The Supercar, at a display size: its meshes scale, so the pieces move in to match.

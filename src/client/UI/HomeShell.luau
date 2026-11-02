@@ -11,6 +11,7 @@
 -- the Update Log. Returning: the Update Log, then Welcome back. No offer opens by itself: the group reward is not real yet.
 
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -185,7 +186,29 @@ function HomeShell.start(options: Options?): any
 			Tutorial.replay()
 		end,
 	})
-	mount("garage", { "Screens", "GarageMock" }, "Overlay", {})
+	mount("customize", { "Screens", "StuntCustomize" }, "Modal", {
+		onBuy = function(_id: string, title: string, _art: string?)
+			if self.hud then
+				self.hud:notify(title .. ": coming soon!", "Trail")
+			end
+		end,
+		onViewShop = function()
+			components.customize:close()
+			self.shopAt("Cash")
+		end,
+	})
+	local CUSTOMIZE_VIEW = { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels" }, tab = "Paint" }
+	mount("garage", { "Screens", "GarageMock" }, "Overlay", {
+		onCustomize = function()
+			components.customize:open(nil, CUSTOMIZE_VIEW)
+		end,
+	})
+	-- the Garage building on the island
+	trove:Connect(ProximityPromptService.PromptTriggered, function(prompt: ProximityPrompt, who: Player)
+		if prompt.Name == "OpenGarage" and who == player then
+			userPanel("customize", nil, CUSTOMIZE_VIEW)
+		end
+	end)
 	mount("shop", { "Screens", "ShopMock" }, "Overlay", {
 		onFreeReward = function()
 			userPanel("groupReward")

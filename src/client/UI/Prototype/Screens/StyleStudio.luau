@@ -1,5 +1,5 @@
 --!strict
--- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Shop's Style and Trails tabs, the Stunt customization
+-- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Garage's Customize screen, the Shop's Trails tab, the Stunt customization
 -- screen and the Launch Pad's stalls, so they cannot disagree. A turntable car on the left; PAINT, DECALS, WHEELS and TRAILS on the
 -- right, each a grid of identical cards; one big action button.
 --
@@ -21,7 +21,6 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local RealCar = require(Prototype.RealCar)
-local RunKit = require(Prototype.Run.RunKit)
 local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
@@ -363,7 +362,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function thumbFor(item: Catalog.Item, holder: Frame, z: number)
-		if item.id == "factory_paint" and RunKit.thumb(holder, { model = rig.source } :: any) then
+		if item.id == "factory_paint" and RealCar.thumb(holder, rig.source) then
 			return -- the car itself, as Brian L made it
 		elseif item.tab == "Paint" then
 			local body = CarKit.art(holder, "thumb_car_body", { z = z, placeholder = false, color = item.colours[1] })

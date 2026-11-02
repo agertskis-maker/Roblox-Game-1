@@ -19,7 +19,7 @@
 -- No texture from the spec is uploaded; each face has a one-line hook where its approved texture
 -- id would go.
 --
--- Presentation (turntable spin, the start-light preview countdown, the "Open Garage" reply) is on
+-- Presentation (turntable spin, the start-light preview countdown) is on
 -- each client: src/client/Home/Island/Destinations.client.luau. Nothing here sends, saves or
 -- reads player data, and the prompt has no server handler.
 
@@ -893,8 +893,8 @@ local function buildGarage(root: Instance, report: Report): Model
 		previewTag(bg, math.floor(h * 0.17), UDim2.fromScale(0.5, 0.8), Vector2.new(0.5, 0.5))
 	end
 
-	-- the "Open Garage" prompt at the recorded PromptPoint, outside the entrance. Preview only:
-	-- each client shows "Not connected yet" to whoever pressed it (Destinations.client.luau).
+	-- the "Open Garage" prompt at the recorded PromptPoint, outside the entrance. Each client opens the
+	-- Customize screen for whoever pressed it (HomeShell).
 	local promptAt = needPoint("GarageShell", "PromptPoint.position")
 	local promptPart = plain("PromptPoint", Vector3.one, base * CFrame.new(promptAt), model)
 	promptPart:SetAttribute("Zone", "Forecourt")
@@ -905,11 +905,6 @@ local function buildGarage(root: Instance, report: Report): Model
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 10 -- spec proposal
 	prompt.RequiresLineOfSight = false
-	prompt:SetAttribute("PressedText", "Not connected yet")
-	prompt:SetAttribute("PressedSeconds", 3)
-	-- Production hook: the Garage screen opens here once it exists. It is new screen UI, so it goes
-	-- through vault/decisions/0012-figma-ui-workflow.md; until then nothing is sent or saved.
-	prompt:SetAttribute("ProductionHook", "open the Garage screen (not built; 0012 Figma workflow)")
 	prompt.Parent = promptPart
 
 	-- colliders: the three volumes (simple boxes); the forecourt paving is walkable
