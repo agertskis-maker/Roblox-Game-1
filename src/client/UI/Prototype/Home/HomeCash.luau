@@ -95,7 +95,7 @@ local function buildIcon(parent: Instance, palette: any): Frame
 			BackgroundTransparency = 1,
 			Parent = parent,
 		})
-		if GameIcons.image(box, "cash", UDim2.fromOffset(CashIcon.ArtSize.X, CashIcon.ArtSize.Y)) then
+		if GameIcons.image(box, "cash", UDim2.fromOffset(CashIcon.ArtSize.X * 1.35, CashIcon.ArtSize.Y * 1.35)) then
 			return box
 		end
 		box:Destroy()
