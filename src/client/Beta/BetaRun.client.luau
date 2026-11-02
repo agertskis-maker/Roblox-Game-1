@@ -90,6 +90,15 @@ local function start(world: string, field: BasePart)
 		task.defer(finish)
 	end)
 	run:start()
+	-- the run's keyboard hint names keys and sits on the Heat panel; phones play too. A label only: nothing else changes.
+	local overlay = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
+	if overlay then
+		for _, d in overlay:GetDescendants() do
+			if d:IsA("TextLabel") and string.find(d.Text, "Cut lanes", 1, true) then
+				d.Visible = false
+			end
+		end
+	end
 	Tutorial.attachRun(run) -- the tutorial's run steps read the run, they never change it
 	if RunScenery.enabled() then
 		scenery = RunScenery.attach(world, run)
