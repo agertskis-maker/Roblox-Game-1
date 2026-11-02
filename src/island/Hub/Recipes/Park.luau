@@ -215,6 +215,8 @@ local function buildJoins(model: Model)
 	folder:SetAttribute("Fillets", made)
 end
 
+local PLAZA_COLLAR = 1 -- studs past the plaza's edge
+
 local function buildPlaza(model: Model)
 	Kit.disc(
 		model,
@@ -223,7 +225,17 @@ local function buildPlaza(model: Model)
 		0.3,
 		Layout.PlazaTop,
 		{ name = "Plaza", color = Palette.Paving, collide = true, castShadow = false }
+	) -- A thin paved collar just outside the plaza's edge, under the paths and fillets. Where two path fillets meet, a tip of
+	-- grass reached the rim and left a thin sliver beside it at every join (Adam, Round 2). It stops short of the grass noses.
+	Kit.disc(
+		model,
+		Vector3.zero,
+		(park.plazaRadius + PLAZA_COLLAR) * 2,
+		0.2,
+		PATH_TOP - 0.03,
+		{ name = "PlazaCollar", color = Palette.Paving, castShadow = false }
 	)
+
 	-- Fountain: a low rim (under 3, so it never blocks a view) round a water disc
 	Kit.disc(
 		model,
