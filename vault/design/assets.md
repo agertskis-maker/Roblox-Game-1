@@ -237,3 +237,5 @@ Dusty Highway and Summit Pass kit art (Round 2: 53 and 56 meshes) and the car mo
 | `worlds-SummitPass.obj` | 125 | 35,792 | `palette-SU.png` | about 130 |
 
 When the group exists: Adam clicks the Studio importer with the group as Creator; record each id and size here; wire the ids in the mesh table of the Worlds place; verify loading in Play; teammates re-import nothing. The Round 2 B2 kit has the same wait. Asset ids: none yet.
+
+**Big round (2026-11-01): no new uploads.** Everything added this round is Parts, code-drawn UI or already uploaded group meshes: Dusty structures (`Worlds/DustyStructures`), the sign family (`Shared/Island/SignKit`), PIT ROW, the statue fountain (group-owned `SwStatueCar`), the Stunt Circuit and the icon family (`IconsFamily`). No longer used, still uploaded: `FountainGrand`, `FountainGrandWater`, `SwLoopTrack`, `SwFlameDecal`, `SwPitGarage`, `SwRollDoor`, the shed, lemonade, barrel and barrow meshes. Fruit tree canopies are not planted until their mesh is re-exported with the apples on the leaves. Sound dependencies: the Shop sparkle and a two-note Coming soon cue have no asset yet, so they stay silent or reuse the Toast chime.

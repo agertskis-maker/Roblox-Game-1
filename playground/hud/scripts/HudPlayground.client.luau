@@ -455,6 +455,10 @@ mount("toasts", { "Home", "ToastStack" }, "Feedback")
 mount("route", { "Home", "TutorialRoute" }, "Hud")
 mount("settings", { "Home", "SettingsPanel" }, "Modal", {
 	onClosed = function() end,
+	onReplayTutorial = function()
+		local Tutorial = (require :: any)((Prototype.Parent :: any).Tutorial)
+		Tutorial.replay()
+	end,
 })
 -- Screens and cards
 mount("garage", { "Screens", "GarageMock" }, "Overlay", {
@@ -995,6 +999,7 @@ function api.setProfile(name: string)
 	applyMode(store:get().mode)
 end
 function api.reset()
+	(require :: any)((Prototype.Parent :: any).Tutorial).stop()
 	scenarios:cancel()
 	priority:clear()
 	local specimen = components.specimen
