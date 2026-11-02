@@ -63,6 +63,20 @@ local GROUND_COLOUR = Color3.fromRGB(150, 146, 134) -- darker paving: the pale t
 local WATER_COLOUR = Color3.fromRGB(46, 132, 190) -- harbour water under the bridge deck
 local WATER_ACROSS = 240 -- studs across the route: the deck, its frontage and a margin, not the skyline
 local WATER_Y = -0.25 -- centre; the ground tiles top out at -0.3
+-- scenery-only: the ground tile's centre lies this far under the run road's surface (below its slab), and the tile is 1 thick
+local SCENERY_GROUND_DROP = 2.2
+local SCENERY_GROUND_TOP = 0.5 - SCENERY_GROUND_DROP
+
+-- The roadside walk of the scenery-only Downtown (walkSpecs): a street tree or a planter every WALK_STEP studs along each side,
+-- trees and planters taking turns, the two sides half a step apart. WALK_*_AT is from the road's edge to the piece's centre; the
+-- kit tree reaches 4.5 studs each way and the kit planter 2.6, so the tree's canopy stays 0.4 outside the road margin.
+local WALK_TREE_MESH = "B2_Street_Tree"
+local WALK_PLANTER_MESH = "B2_Street_Planter"
+local WALK_STEP = 48
+local WALK_FIRST = 20 -- the left side's first piece, the right side's half a step on: both clear of the paving joints (0, 48, ...)
+local WALK_TREE_AT = 5.6
+local WALK_PLANTER_AT = 4.4
+local WALK_CLEAR = 10 -- no piece this close along the walk to a cart, flag or pigeon spot of the street life
 
 -- kit meshes for the midground and skyline masses (were plain blocks: "no crude boxes", §13),
 -- picked deterministically per district and scaled to each planned mass
@@ -158,7 +172,8 @@ export type Options = {
 	textureId: string?, -- an uploaded palette texture ("rbxassetid://...") for kit meshes
 	paletteColumn: string?, -- swatches column for vertex colours (default "B2", then "B")
 	meshIds: { [string]: string }?, -- uploaded mesh ids by name (used before EditableMesh)
-	sceneryOnly: boolean?, -- roadside only: no road, spans, hazards, bridge landmarks or gorge (the run owns all of those)
+	sceneryOnly: boolean?, -- roadside only: no road, spans, hazards, bridge landmarks or gorge (the run owns all of those);
+	-- Downtown (no World) gets its kerb, paving and street trees in the road's place (walkSpecs)
 	behind: number?,
 	ahead: number?,
 	skyBehind: number?,
@@ -678,6 +693,10 @@ function Assembler.prepare(self: Assembler)
 	for _, name in hazardMeshesOf(self.world) do
 		want(name)
 	end
+	if self.sceneryOnly and not self.world then
+		want(WALK_TREE_MESH)
+		want(WALK_PLANTER_MESH)
+	end
 	for _, e in self.plan.extras do
 		want(e.module)
 	end
@@ -1155,6 +1174,92 @@ local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolea
 	}
 end
 
+-- Downtown beside Brian R's run road (sceneryOnly, no World, buildings on the Downtown frontage line). His road has no sidewalk
+-- and the ground tile lies 1.7 studs under it, so the strip between his kerb and the building fronts was flat grey, with the
+-- street life's pigeons, carts and flags standing in the air. This lays a kerb and paving there (Proxies.walk: two blocks per
+-- bay, a long kerb, one pooled model per segment length) and, on the walk, a street tree or a planter at a steady rhythm.
+-- The pieces ride in the segment's own window like lots do, so they scroll and pool with the rest of the World. A tree or a
+-- planter goes in the kit mesh when it is there (one part, or merged into the segment in Play) and in a stand-in when not.
+-- Pieces are placed by route station, not by segment, so the rhythm holds across segment joins; none stands on a bridge deck,
+-- in an intersection mouth, or near a street-life spot.
+local function walkSpecs(self: Assembler, index: number): { Spec }
+	local plan = self.plan
+	local seg = plan.segments[index]
+	local g = self.geometry
+	local specs: { Spec } = {
+		{
+			key = string.format("walk:%.2f", seg.length),
+			kind = "Road",
+			tris = 0,
+			mesh = false,
+			make = function()
+				return Proxies.walk(seg.length, g, SCENERY_GROUND_TOP)
+			end,
+			place = function(inst: Instance)
+				pivotTo(inst, seg.start)
+			end,
+		},
+	}
+	if seg.kind == "BridgeDeck" then
+		return specs
+	end
+	local mouth = seg.startS + (seg.crossAt or seg.length / 2)
+	for _, side in { -1, 1 } do
+		local first = WALK_FIRST + (if side > 0 then WALK_STEP / 2 else 0)
+		local i = math.max(0, math.ceil((seg.startS - first) / WALK_STEP))
+		while first + i * WALK_STEP < seg.endS do
+			local station = first + i * WALK_STEP
+			local free = seg.kind ~= "Intersection" or math.abs(station - mouth) >= Route.MOUTH + 4
+			for _, spot in plan.life do
+				if spot.side == side and math.abs(spot.station - station) < WALK_CLEAR then
+					free = false
+					break
+				end
+			end
+			if free then
+				local isTree = (i + (if side > 0 then 1 else 0)) % 2 == 0
+				local lateral = side * (g.halfRoad + (if isTree then WALK_TREE_AT else WALK_PLANTER_AT))
+				-- a quarter turn about the piece's own axis, so the trees along one side are not all the same way round
+				local at = Route.frame(plan.segments, station, lateral, Proxies.SIDEWALK_TOP)
+					* CFrame.Angles(0, math.rad(90) * (math.floor(i / 2) % 4), 0)
+				local spec = meshOrProxy(
+					self,
+					if isTree then WALK_TREE_MESH else WALK_PLANTER_MESH,
+					"Props",
+					if isTree then "walk:tree" else "walk:planter",
+					if isTree then Proxies.streetTree else Proxies.streetPlanter,
+					function(t)
+						return at * centreOffset(t)
+					end,
+					at
+				)
+				local place = spec.place
+				spec.place = function(inst: Instance)
+					place(inst)
+					if inst:IsA("BasePart") then
+						inst.CastShadow = false -- a kit mesh part; the stand-ins are built without shadows
+					end
+				end
+				table.insert(specs, spec)
+				if isTree then
+					table.insert(specs, {
+						key = "walk:pit",
+						kind = "Props",
+						tris = 0,
+						mesh = false,
+						make = Proxies.treePit,
+						place = function(inst: Instance)
+							pivotTo(inst, at)
+						end,
+					})
+				end
+			end
+			i += 1
+		end
+	end
+	return specs
+end
+
 local function segmentSpecs(self: Assembler, index: number): { Spec }
 	local cached = self.specCache[index]
 	if cached then
@@ -1192,6 +1297,10 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end, seg.start)
 	if not self.sceneryOnly then
 		table.insert(specs, spec)
+	elseif not self.world and plan.frontage < g.halfRoad + g.sidewalk + 0.5 then
+		for _, walk in walkSpecs(self, index) do
+			table.insert(specs, walk)
+		end
 	end
 
 	-- lots, forecourts and signs
@@ -1740,7 +1849,7 @@ end
 local function updateGround(self: Assembler, points: { Vector3 })
 	local wanted: { [string]: Vector3 } = {}
 	-- scenery-only: the World's ground lies under the run road's own surfaces, at the road's height
-	local groundY = if self.sceneryOnly then self.plan.segments[1].start.Y - 2.2 else -0.8
+	local groundY = if self.sceneryOnly then self.plan.segments[1].start.Y - SCENERY_GROUND_DROP else -0.8
 	for _, p in points do
 		local cx, cz = math.floor(p.X / GROUND_CELL + 0.5), math.floor(p.Z / GROUND_CELL + 0.5)
 		for dx = -1, 1 do

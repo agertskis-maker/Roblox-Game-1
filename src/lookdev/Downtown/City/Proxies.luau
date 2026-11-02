@@ -819,4 +819,84 @@ function Proxies.board(width: number, height: number): Model
 	return finish(m)
 end
 
+-- Roadside paving for the scenery-only Downtown ------------------------------------------------------------------
+-- Brian R's run road has no sidewalk and the ground tile lies under it (Assembler SCENERY_GROUND_DROP), so the strip
+-- between his kerb and the building fronts was one flat grey. These pieces fill it: a kerb, paving cut into bays and a tree
+-- pit, a street tree or a planter at a steady rhythm. They are built about the start socket of a straight segment (x right,
+-- travel toward -Z, y 0 = the road's level) and keep the look-dev fixture's heights: the paving top is KERB_HEIGHT, which is
+-- where the plan already stands pigeons, carts and flags. Nothing comes within WALK_MARGIN of the road's half width, and
+-- every face sits at least 0.08 from any face it overlaps, so nothing can flicker. Every part is a plain block with no
+-- shadow, collision, query or touch.
+local PAVER = Color3.fromRGB(190, 180, 160) -- warm stone: lighter than the ground tile (150, 146, 134) without blooming white
+local CURB = Color3.fromRGB(224, 220, 210) -- a crisp light edge against the dark asphalt
+local PIT = Color3.fromRGB(100, 90, 78)
+local WALK_MARGIN = 0.7 -- clear of the road: RunScenery's ROAD_MARGIN (0.7) past RunConfig.ROAD_HALF_WIDTH
+local WALK_SINK = 0.2 -- how far the blocks reach into the ground tile, so no ground shows under them
+local WALK_BAY = 48 -- target paving bay length: 96 and 192, the common segment lengths, cut into 2 and 4 equal bays
+local WALK_JOINT = 0.3 -- the gap between bays: the ground tile shows through it as a joint line
+local PIT_LIFT = 0.08 -- a tree pit stands this far over the paving
+
+Proxies.SIDEWALK_TOP = KERB_HEIGHT
+
+-- Both sides of one straight segment: a kerb the length of the segment and paving in bays from the kerb to the frontage line
+-- (the road's half width plus g.sidewalk). `floorY` is the top of the ground tile, relative to the road's level.
+function Proxies.walk(length: number, g: Geometry, floorY: number): Model
+	local m = model("PROXY_Walk", "scenery-only kerb and paving beside the run road (it has none of its own)")
+	local inner = g.halfRoad + WALK_MARGIN
+	local kerbOuter = inner + g.kerb
+	local walkOuter = g.halfRoad + g.sidewalk
+	local bottom = floorY - WALK_SINK
+	local thick = KERB_HEIGHT - bottom
+	local midY = (KERB_HEIGHT + bottom) / 2
+	local bays = math.max(1, math.floor(length / WALK_BAY + 0.5))
+	local bay = length / bays
+	for _, side in { -1, 1 } do
+		box(
+			m,
+			"Kerb",
+			Vector3.new(g.kerb, thick, length),
+			CFrame.new(side * (inner + g.kerb / 2), midY, -length / 2),
+			CURB,
+			false
+		)
+		for k = 1, bays do
+			box(
+				m,
+				"Paving",
+				Vector3.new(walkOuter - kerbOuter, thick, bay - WALK_JOINT),
+				CFrame.new(side * (kerbOuter + walkOuter) / 2, midY, -(k - 0.5) * bay),
+				PAVER,
+				false
+			)
+		end
+	end
+	return finish(m)
+end
+
+-- A dark square set into the paving under a street tree; pivot on the paving surface.
+function Proxies.treePit(): Model
+	local m = model("PROXY_TreePit", "tree pit set into the paving")
+	box(m, "Pit", Vector3.new(3.6, 0.3, 3.6), CFrame.new(0, PIT_LIFT - 0.15, 0), PIT, false)
+	return finish(m)
+end
+
+-- Stand-ins for the kit's B2_Street_Tree (about 9 across, 15 tall) and B2_Street_Planter (5 across); pivot on the paving.
+function Proxies.streetTree(): Model
+	local m = model("PROXY_StreetTree", "street tree stand-in (B2_Street_Tree missing)")
+	tree(m, Vector3.zero, 1.2)
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CastShadow = false
+		end
+	end
+	return finish(m)
+end
+
+function Proxies.streetPlanter(): Model
+	local m = model("PROXY_StreetPlanter", "street planter stand-in (B2_Street_Planter missing)")
+	box(m, "Box", Vector3.new(5, 1.6, 5), CFrame.new(0, 0.8, 0), STEEL, false)
+	box(m, "Hedge", Vector3.new(4.2, 2.2, 4.2), CFrame.new(0, 2.7, 0), GREEN, false)
+	return finish(m)
+end
+
 return Proxies

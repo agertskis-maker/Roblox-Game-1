@@ -219,6 +219,7 @@ CarKit.Rarity = table.freeze({
 CarKit.ButtonTone = table.freeze({
 	Green = { CarKit.Green, CarKit.GreenDeep, CarKit.GreenLip },
 	Orange = { rgb(255, 170, 44), rgb(238, 92, 12), rgb(128, 40, 4) },
+	Gold = { rgb(255, 226, 90), rgb(240, 164, 20), rgb(130, 80, 6) },
 	Blue = { rgb(64, 168, 255), rgb(20, 92, 232), rgb(8, 44, 130) },
 	Navy = { rgb(38, 56, 104), rgb(20, 32, 68), rgb(6, 10, 26) },
 	Red = { rgb(255, 84, 84), rgb(214, 24, 40), rgb(112, 8, 22) },
@@ -656,7 +657,7 @@ function CarKit.button(parent: Instance, o: ButtonOptions): Button
 	local lip = make("Frame", {
 		Name = "Lip",
 		BackgroundColor3 = tone[3],
-		Size = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.fromScale(1, 1),
 		ZIndex = z,
 	}, root) :: Frame
 	make("UICorner", { CornerRadius = UDim.new(0, radius) }, lip)
@@ -677,7 +678,7 @@ function CarKit.button(parent: Instance, o: ButtonOptions): Button
 		Name = "Gloss",
 		BackgroundColor3 = CarKit.White,
 		BackgroundTransparency = 0.72,
-		Position = UDim2.new(0, 5, 0, 3),
+		Position = UDim2.fromOffset(5, 3),
 		Size = UDim2.new(1, -10, 0.34, 0),
 		ZIndex = z + 2,
 	}, face)
@@ -709,7 +710,7 @@ function CarKit.button(parent: Instance, o: ButtonOptions): Button
 		ZIndex = z + 3,
 	}, inner)
 	local label = baseLabel(labelHost, o.text, px, CarKit.display(), {
-		size = UDim2.new(0, 0, 1, 0),
+		size = UDim2.fromScale(0, 1),
 		z = z + 3,
 		name = "Label",
 	})
@@ -813,7 +814,7 @@ function CarKit.price(parent: Instance, o: PriceOptions): Button
 			ZIndex = button.label.ZIndex,
 		}, row)
 		local small = baseLabel(word, o.word, math.max(12, math.round(px * 0.46)), CarKit.body(), {
-			size = UDim2.new(0, 0, 1, 0),
+			size = UDim2.fromScale(0, 1),
 			z = button.label.ZIndex,
 			alignY = Enum.TextYAlignment.Bottom,
 			name = "Word",
@@ -875,7 +876,7 @@ function CarKit.stamp(parent: Instance, top: string, bottom: string?, px: number
 		CarKit.title(holder, bottom, textPx, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, 0, 0, h),
-			position = UDim2.new(0, 0, 0.5, 0),
+			position = UDim2.fromScale(0, 0.5),
 			z = z + 2,
 			top = CarKit.White,
 			bottom = CarKit.Gold,

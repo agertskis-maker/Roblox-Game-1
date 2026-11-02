@@ -73,7 +73,6 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local cards: { [string]: any } = {}
 	local message: TextLabel
 	local action: CarKit.Button
-	local stateTab: { [string]: any } = {}
 	local gridHost: ScrollingFrame
 	local yaw = math.rad(215)
 	local dragging = false
@@ -90,6 +89,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 
 	local leftW = math.floor(size.X * 0.48)
 	local rightW = size.X - leftW - 8
+	local showStrip = leftW >= 560 -- room to read what is worn; on smaller screens the car itself shows it
 
 	-- THE STAGE ---------------------------------------------------------------------------------------------------------
 	local stage = CarKit.board(root, {
@@ -119,14 +119,16 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local view = make("ViewportFrame", {
 		Name = "Turntable",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, if phone then -8 else -78),
+		Size = UDim2.new(1, 0, 1, if showStrip then -78 else -8),
 		Ambient = Color3.fromRGB(150, 150, 165),
 		LightColor = Color3.fromRGB(255, 250, 240),
 		LightDirection = Vector3.new(-0.6, -1, -0.5),
 		ZIndex = 6,
 		Active = true,
 	}, stage) :: ViewportFrame
-	local camera = make("Camera", { FieldOfView = 24 }, view) :: Camera
+	-- the whole car always fits, however tall the stage is
+	local stageAspect = leftW / math.max(size.Y - 6 - (if showStrip then 78 else 8), 1)
+	local camera = make("Camera", { FieldOfView = math.clamp(29 / stageAspect, 19, 36) }, view) :: Camera
 	view.CurrentCamera = camera
 	local world = make("WorldModel", {}, view) :: WorldModel
 	local rig = if Supercar.available() then Supercar.new() else nil
@@ -149,7 +151,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		Color = Color3.fromRGB(52, 62, 96),
 		Material = Enum.Material.SmoothPlastic,
 	}, world)
-	make("Part", {
+	local discEdge = make("Part", {
 		Name = "DiscEdge",
 		Anchored = true,
 		CanCollide = false,
@@ -160,7 +162,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		Material = Enum.Material.Neon,
 	}, world)
 	local function placeCamera()
-		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 1.5, 0))
+		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 1, 0))
 	end
 	placeCamera()
 	local function setYaw(a: number)
@@ -168,6 +170,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if rig then
 			rig.model:PivotTo(pivot * CFrame.Angles(0, a, 0))
 		end
+		disc.CFrame = CFrame.new(pivot.X, 0.32, 0) * CFrame.Angles(0, 0, math.pi / 2)
+		discEdge.CFrame = disc.CFrame
 	end
 	setYaw(yaw)
 
@@ -203,7 +207,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end)
 
 	-- WORN NOW ----------------------------------------------------------------------------------------------------------
-	if not phone then
+	if showStrip then
 		local strip = make("Frame", {
 			Name = "Current",
 			BackgroundTransparency = 1,
@@ -212,8 +216,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			Size = UDim2.new(1, -16, 0, 66),
 			ZIndex = 8,
 		}, stage)
-		local w = 1 / #tabNames
-		for i, name in tabNames do
+		local worn = { "Paint", "Decals", "Wheels", "Trails" }
+		local w = 1 / #worn
+		for i, name in worn do
 			local slot = CarKit.board(strip, {
 				size = UDim2.new(w, -6, 1, 0),
 				position = UDim2.fromScale((i - 1) * w, 0),
@@ -310,7 +315,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			elseif state == "locked" then "Win " .. string.upper(item.medal or "")
 			elseif state == "unavailable" then "N/A"
 			else priceText(item)
-		refs.status.TextColor3 = if state == "priced" then CarKit.CashText else CarKit.White
+		refs.pill.Visible = state == "priced"
+		refs.status.TextColor3 = CarKit.White
 		refs.lock.Visible = state == "locked"
 	end
 
@@ -321,7 +327,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		end
 		local state = isShown(item)
 		local name = item.name
-		message.Text = item.note
+		message.Text = string.match(item.note, "^[^.!]+[.!]") or item.note -- one short line
 		if state == "equipped" then
 			action.setText("EQUIPPED")
 			action.setTone("Grey")
@@ -349,7 +355,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		refreshCurrent()
 	end
 
-	local function select(id: string): boolean
+	local function pick(id: string): boolean
 		local item = Catalog.byId(tab :: any, id)
 		if not item or isShown(item) == "unavailable" then
 			return false
@@ -373,6 +379,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				make("UIGradient", { Color = ColorSequence.new(stops) }, image)
 			end
 			CarKit.art(holder, "thumb_car_top", { z = z + 2, placeholder = false })
+		elseif item.isNone and item.tab == "Trails" then
+			CarKit.art(holder, "close", { z = z, placeholder = false, size = UDim2.fromScale(0.5, 0.7) })
 		elseif item.isNone then
 			CarKit.art(holder, "thumb_car_none", { z = z, placeholder = false, fallbackIcon = "Close" })
 		else
@@ -380,7 +388,16 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				then "thumb_decal_"
 				elseif item.tab == "Wheels" then "thumb_wheel_"
 				else "ribbon_"
-			CarKit.art(holder, prefix .. (item.key or ""), { z = z, placeholder = false })
+			if item.tab == "Trails" then
+				holder.BackgroundTransparency = 0
+				holder.BackgroundColor3 = CarKit.Well
+				make("UICorner", { CornerRadius = UDim.new(0, 6) }, holder)
+			end
+			CarKit.art(holder, prefix .. (item.key or ""), {
+				z = z,
+				placeholder = false,
+				size = UDim2.fromScale(0.9, 0.86),
+			})
 		end
 	end
 
@@ -422,27 +439,39 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				shadow = false,
 				stroke = 1.5,
 			})
-			CarKit.text(button, rarity, 11, {
-				align = Enum.TextXAlignment.Center,
-				size = UDim2.new(1, 0, 0, 13),
-				position = UDim2.fromOffset(0, 24),
-				color = edge,
-				z = 7,
-			})
+			if not item.isNone then
+				CarKit.text(button, rarity, 14, {
+					align = Enum.TextXAlignment.Center,
+					size = UDim2.new(1, 0, 0, 15),
+					position = UDim2.fromOffset(0, 23),
+					color = edge,
+					z = 7,
+				})
+			end
 			local holder = make("Frame", {
 				Name = "Thumb",
 				BackgroundTransparency = 1,
-				Position = UDim2.new(0.5, 0, 0, 38),
+				Position = UDim2.new(0.5, 0, 0, 37),
 				AnchorPoint = Vector2.new(0.5, 0),
 				Size = UDim2.new(1, -8, 1, -64),
 				ZIndex = 6,
 			}, button) :: Frame
 			thumbFor(item, holder, 6)
+			local pill = make("Frame", {
+				Name = "PricePill",
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -3),
+				Size = UDim2.new(0.74, 0, 0, 22),
+				BackgroundColor3 = CarKit.GreenDeep,
+				ZIndex = 7,
+			}, button)
+			make("UICorner", { CornerRadius = UDim.new(0, 7) }, pill)
+			make("UIStroke", { Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pill)
 			local status = CarKit.title(button, "", if phone then 15 else 18, {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, -6, 0, 22),
 				position = UDim2.new(0, 3, 1, -24),
-				z = 7,
+				z = 8,
 				shadow = false,
 				stroke = 1.5,
 				name = "Status",
@@ -461,10 +490,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				{ Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
 				ring
 			)
-			local refs = { item = item, ring = ring, status = status, lock = lock }
+			local refs = { item = item, ring = ring, status = status, lock = lock, pill = pill }
 			cards[item.id] = refs
 			button.Activated:Connect(function()
-				select(item.id)
+				pick(item.id)
 			end)
 		end
 		refreshCards()
@@ -547,7 +576,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	}, well) :: ScrollingFrame
 	local cellW = math.floor((rightW - 22 - 8 * (columns - 1)) / columns)
 	make("UIGridLayout", {
-		CellSize = UDim2.fromOffset(cellW, math.round(cellW * 0.86)),
+		CellSize = UDim2.fromOffset(cellW, math.round(cellW * 1.02)),
 		CellPadding = UDim2.fromOffset(8, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
@@ -638,7 +667,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	function self.select(_self: any, id: string): boolean
-		return select(id)
+		return pick(id)
 	end
 
 	function self.pressAction(_self: any)

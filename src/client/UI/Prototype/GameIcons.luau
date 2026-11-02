@@ -73,6 +73,45 @@ GameIcons.Painter = {
 	Trail = "trail",
 }
 
+-- What the Shop and the HUD show first: fetched at join, so nothing appears half loaded.
+GameIcons.Common = {
+	"shop",
+	"garage",
+	"missions",
+	"settings",
+	"cash",
+	"plus",
+	"close",
+	"stamina",
+	"vip",
+	"leaderboard",
+	"portal",
+	"art_starter",
+	"art_vip",
+	"art_doublelap",
+	"art_paddock",
+	"art_bundle",
+	"art_cash1",
+	"art_cash2",
+	"art_cash3",
+	"art_cash4",
+	"art_cash5",
+	"art_trail",
+	"art_gift",
+	"stamp_seal",
+	"fx_flag",
+	"fx_glow",
+	"fx_checker",
+	"fx_speed",
+	"fx_rays",
+	"fx_chevron",
+	"fx_stripes",
+	"fx_tread",
+	"fx_halftone",
+	"item_stripe",
+	"decal",
+}
+
 -- Keys drawn once and shown under two names.
 GameIcons.Alias = {
 	doubleLapPay = "art_doublelap",

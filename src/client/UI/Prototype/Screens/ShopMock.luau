@@ -98,6 +98,8 @@ local function edgeTint(name: string): Color3
 	return if f then f.edge else CarKit.White
 end
 
+local FOOT = 18 -- the PREVIEW line at the foot of the panel, on every tab
+
 type Plan = {
 	tier: string,
 	k: number,
@@ -116,7 +118,7 @@ local function plan(D: Vector2): Plan
 	local pad = if tier == "Phone" then 8 else 12
 	local headerH = if tier == "Phone" then 50 else 68
 	local inner = panel.X - pad * 2
-	local pageH = panel.Y - headerH - pad * 2
+	local pageH = panel.Y - headerH - pad * 2 - FOOT
 	local k = math.clamp(math.min(inner / 1180, pageH / 620), 0.5, 1.3)
 	return {
 		tier = tier,
@@ -284,7 +286,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		CarKit.title(card, "COMING SOON!", 40, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -24, 0, 44),
-			position = UDim2.new(0, 12, 0, h * 0.5),
+			position = UDim2.fromOffset(12, h * 0.5),
 			z = 203,
 			top = CarKit.White,
 			bottom = CarKit.Gold,
@@ -293,7 +295,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			align = Enum.TextXAlignment.Center,
 			wrap = true,
 			size = UDim2.new(1, -40, 0, 46),
-			position = UDim2.new(0, 20, 0, h * 0.5 + 46),
+			position = UDim2.fromOffset(20, h * 0.5 + 46),
 			z = 203,
 			color = CarKit.Soft,
 		})
@@ -419,10 +421,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local w, h = slot:GetAttribute("W") :: number, slot:GetAttribute("H") :: number
 		local card, family, gradient =
 			CarKit.card(slot, s.family, { radius = math.round(16 * math.max(k, 0.6)), z = 2, name = "Hero" })
-		local titlePx = fontPx(p, 84, 34)
-		local inset = math.round(10 * k)
-		local artW = w * 0.56
-		local artY = titlePx * 0.86
+		-- on a phone the art takes the full height at the left, and the words go beside it
+		local phone = p.tier == "Phone"
+		local titlePx = if phone then 40 else fontPx(p, 84, 34)
+		local inset = if phone then 6 else math.round(10 * k)
+		local artW = if phone then math.min(h * 1.3, w * 0.36) else w * 0.56
+		local artY = if phone then inset else titlePx * 0.86
 		local artH = h - artY - inset
 		-- a glow under the art, in the family colour
 		CarKit.art(card, "fx_glow", {
@@ -434,17 +438,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			placeholder = false,
 		})
 		boxArt(card, s.art, inset, artY, artW, artH, 6, "HeroArt")
-		CarKit.art(card, "fx_flag", {
-			size = UDim2.fromOffset(titlePx * 1.5, titlePx * 0.8),
-			position = UDim2.new(0, -titlePx * 0.1, 0, titlePx * 0.12),
-			anchor = Vector2.zero,
-			z = 7,
-			rotation = -8,
-			placeholder = false,
-		})
+		if not phone then
+			CarKit.art(card, "fx_flag", {
+				size = UDim2.fromOffset(titlePx * 1.5, titlePx * 0.8),
+				position = UDim2.fromOffset(-titlePx * 0.1, titlePx * 0.12),
+				anchor = Vector2.zero,
+				z = 7,
+				rotation = -8,
+				placeholder = false,
+			})
+		end
+		local titleX = if phone then artW + inset * 2 else titlePx * 0.62
 		CarKit.title(card, s.title, titlePx, {
-			position = UDim2.new(0, titlePx * 0.62, 0, math.round(6 * k)),
-			size = UDim2.new(1, -titlePx * 0.62, 0, titlePx * 1.04),
+			position = UDim2.fromOffset(titleX, if phone then 2 else math.round(6 * k)),
+			size = UDim2.new(1, -titleX, 0, titlePx * 1.04),
 			top = CarKit.White,
 			bottom = CarKit.Yellow,
 			stroke = math.max(3, titlePx / 13),
@@ -454,34 +461,41 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local right = w - artW - inset * 2
 		local offer = s.offer and Catalog.get(s.offer)
 		if offer and offer.parts then
-			local tileW = math.floor((right - 20 * k) / 3)
-			local plateH = h * 0.46
+			local buyW = if phone then 132 else 0
+			local tileW = math.floor((right - 20 * k - buyW) / 3)
+			local plateH = if phone
+				then h - titlePx * 1.04 - inset * 2
+				else h - titlePx * 1.2 - math.max(84 * k, 52) - math.round(24 * k)
 			local plate = CarKit.board(card, {
 				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
-				position = UDim2.new(1, -math.round(10 * k), 0, titlePx * 1.2),
-				anchor = Vector2.new(1, 0),
+				position = if phone
+					then UDim2.fromOffset(artW + inset * 2, titlePx * 1.04 + inset)
+					else UDim2.new(1, -math.round(10 * k), 0, titlePx * 1.2),
+				anchor = if phone then Vector2.zero else Vector2.new(1, 0),
 				z = 9,
 				radius = math.round(12 * math.max(k, 0.6)),
 				top = Color3.fromRGB(20, 26, 50),
 				bottom = Color3.fromRGB(10, 14, 30),
 				name = "Includes",
 			})
-			CarKit.title(plate, "INCLUDES:", fontPx(p, 26, 14), {
-				size = UDim2.new(1, -14, 0, fontPx(p, 30, 16)),
-				position = UDim2.fromOffset(10, 2),
-				z = 11,
-				shadow = false,
-				stroke = 2,
-			})
+			if not phone then
+				CarKit.title(plate, "INCLUDES:", fontPx(p, 26, 14), {
+					size = UDim2.new(1, -14, 0, fontPx(p, 30, 16)),
+					position = UDim2.fromOffset(10, 2),
+					z = 11,
+					shadow = false,
+					stroke = 2,
+				})
+			end
 			local labelPx = fontPx(p, 19, 12)
-			local tileTop = fontPx(p, 32, 17)
-			local artH = plateH - tileTop - labelPx * 2.1
+			local tileTop = if phone then 4 else fontPx(p, 32, 17)
+			local tileH = plateH - tileTop - labelPx * 2.1
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
-				local side = math.min(tileW - 6, artH)
+				local side = math.min(tileW - 6, tileH)
 				CarKit.art(plate, part.art, {
 					size = UDim2.fromOffset(side, side),
-					position = UDim2.new(0, x + tileW / 2, 0, tileTop + artH / 2),
+					position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
 					z = 12,
 				})
 				CarKit.text(plate, part.label, labelPx, {
@@ -506,11 +520,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				stroke = 3,
 			})
 		end
-		local bw, bh = math.round(math.max(236 * k, 150)), math.round(math.max(84 * k, 52))
+		local bw = if phone then 124 else math.round(math.max(236 * k, 150))
+		local bh = if phone then 52 else math.round(math.max(84 * k, 52))
 		local spec = {
 			px = fontPx(p, 54, 28),
 			size = UDim2.fromOffset(bw, bh),
-			position = UDim2.new(1, -math.round(14 * k), 1, -math.round(14 * k)),
+			position = if phone
+				then UDim2.new(1, -inset, 1, -inset)
+				else UDim2.new(1, -math.round(14 * k), 1, -math.round(14 * k)),
 			anchor = Vector2.new(1, 1),
 			z = 12,
 		}
@@ -541,8 +558,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local dots = make("Frame", {
 			Name = "Dots",
 			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -math.round(8 * k)),
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -4, 0, 2),
 			Size = UDim2.fromOffset(#SLIDES * 34, 26),
 			ZIndex = 12,
 		}, card)
@@ -594,9 +611,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		local px = fontPx(p, 62, 24)
 		local inset = math.round(7 * k)
+		local buyW = math.round(math.max(158 * k, 112))
 		if id == "vip" then
-			boxArt(card, art, w * 0.09, inset, w * 0.56, h - inset * 2, 6)
+			local top = px * 0.5
+			boxArt(card, art, inset, top, w - buyW - inset * 3, h - top - inset, 6)
 		else
+			px = fontPx(p, 54, 24)
 			local top = px * 0.9
 			boxArt(card, art, inset * 2, top, h - top - inset, h - top - inset, 6)
 		end
@@ -608,12 +628,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			stroke = math.max(3, px / 13),
 			z = 8,
 		})
-		if line then
-			CarKit.title(card, line, fontPx(p, 30, 15), {
+		local linePx = fontPx(p, 30, 15)
+		if line and h - px * 1.04 - math.max(58 * k, 46) - 10 >= linePx * 1.2 then
+			CarKit.title(card, line, linePx, {
 				align = Enum.TextXAlignment.Right,
-				wrap = true,
-				size = UDim2.fromOffset(w * 0.46, fontPx(p, 66, 32)),
-				position = UDim2.new(1, -math.round(12 * k), 0, px * 1.08),
+				size = UDim2.fromOffset(w * 0.62, linePx * 1.2),
+				position = UDim2.new(1, -math.round(12 * k), 0, px * 1.04),
 				anchor = Vector2.new(1, 0),
 				alignY = Enum.TextYAlignment.Top,
 				color = CarKit.Yellow,
@@ -656,14 +676,17 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			placeholder = false,
 		})
 		CarKit.title(card, 'ALL PASSES <font color="#FFD23C">BUNDLE</font>', px, {
-			position = UDim2.new(0, px * 1.3, 0, 0),
-			size = UDim2.new(0.5, 0, 1, 0),
+			position = UDim2.fromOffset(px * 1.3, 0),
+			size = UDim2.fromScale(0.5, 1),
 			stroke = math.max(3, px / 12),
 			rich = true,
 			z = 8,
 			name = "DealTitle",
 		})
-		boxArt(card, "art_bundle", p.inner * 0.49, 5, h * 1.25, h - 10, 6)
+		local stampPx = math.round(h * 0.98)
+		local dealBuy = math.round(math.max(170 * k, 118)) + math.round(12 * k)
+		local stampX = p.inner - dealBuy - 116 - stampPx / 2
+		boxArt(card, "art_bundle", stampX - stampPx / 2 - h * 1.1, 5, h * 1.08, h - 10, 6)
 		if offer and offer.price then
 			priceButton(card, offer.id, "The bundle", "art_bundle", offer.price, {
 				px = fontPx(p, 40, 22),
@@ -674,8 +697,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			})
 		end
 		if sums and sums.isBetter then
-			CarKit.stamp(card, "BEST", "DEAL", math.round(h * 0.98), {
-				position = UDim2.new(0.69, 0, 0.5, 0),
+			CarKit.stamp(card, "BEST", "DEAL", stampPx, {
+				position = UDim2.new(0, stampX, 0.5, 0),
 				anchor = Vector2.new(0.5, 0.5),
 				z = 14,
 			})
@@ -700,11 +723,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				shadow = false,
 				stroke = 2,
 			})
+			local buyW = math.round(math.max(170 * k, 118)) + math.round(12 * k)
 			local strike = make("Frame", {
 				Name = "Was",
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(1, 1),
-				Position = UDim2.new(1, -math.round(190 * k) - 4, 1, -math.round(16 * k)),
+				Position = UDim2.new(1, -buyW - 12, 1, -math.round(10 * k)),
 				Size = UDim2.fromOffset(math.round(70 * k) + 14, math.round(36 * k) + 6),
 				ZIndex = 13,
 			}, card)
@@ -726,8 +750,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				ZIndex = 16,
 			}, strike)
 			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 11), {
-				size = UDim2.fromOffset(120, 16),
-				position = UDim2.new(1, -math.round(190 * k), 0, math.round(10 * k)),
+				size = UDim2.fromOffset(100, 16),
+				position = UDim2.new(1, -buyW - 12, 0, math.round(8 * k)),
 				anchor = Vector2.new(1, 0),
 				align = Enum.TextXAlignment.Right,
 				color = CarKit.Soft,
@@ -761,7 +785,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		if sub then
 			CarKit.text(parent, sub, fontPx(p, 19, 13), {
-				position = UDim2.new(0, 0, 0, y),
+				position = UDim2.fromOffset(0, y),
 				size = UDim2.new(1, -18, 0, h),
 				align = Enum.TextXAlignment.Right,
 				color = CarKit.Soft,
@@ -781,6 +805,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		local avail = p.inner - p.gap * (#rows - 1)
 		local tallest = math.round(math.clamp(avail / total * 1.36 * 1.34, 150, 340))
+		tallest = math.min(tallest, p.pageH - fontPx(p, 58, 36) - p.gap - 6)
 		local x = 0
 		for i, row in rows do
 			local w = math.floor(avail * weights[i] / total)
@@ -977,10 +1002,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 		local y = 4
 		sectionY.featured = 0
-		local peek = math.round(math.max(96 * p.k, 60))
+		local peek = math.round(math.max(110 * p.k, 60))
 		local bannerH = math.round(math.max(112 * p.k, 76))
-		local rowH = math.max(p.pageH - bannerH - peek - p.gap * 2 - 8, math.round(230 * p.k))
-		local heroW = math.floor(q.inner * 0.645)
+		local phone = p.tier == "Phone"
+		local rowH = if phone
+			then math.max(p.pageH - bannerH - p.gap - 26, 150)
+			else math.max(p.pageH - bannerH - peek - p.gap * 2 - 8, math.round(230 * p.k))
+		local heroW = if phone then q.inner else math.floor(q.inner * 0.645)
 		local sideW = q.inner - heroW - p.gap
 		local slot = make("Frame", {
 			Name = "HeroSlot",
@@ -994,15 +1022,30 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		heroSlot = slot
 		renderHero()
 		local sideH = math.floor((rowH - p.gap) / 2)
-		sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = heroW + p.gap, y = y, w = sideW, h = sideH })
-		sideCard(body, "double-lap-pay", "Lap", "art_doublelap", "DOUBLE LAP PAY", "2x Cash per lap!", q, {
-			x = heroW + p.gap,
-			y = y + sideH + p.gap,
-			w = sideW,
-			h = sideH,
-		})
-		y += rowH + p.gap
-		y += dealBanner(body, q, y) + p.gap * 2
+		local lapName, lapLine = "DOUBLE LAP PAY", "2x Cash per lap!"
+		if phone then
+			y += rowH + p.gap
+			y += dealBanner(body, q, y) + p.gap
+			local halfW = math.floor((q.inner - p.gap) / 2)
+			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = 0, y = y, w = halfW, h = 132 })
+			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
+				x = halfW + p.gap,
+				y = y,
+				w = halfW,
+				h = 132,
+			})
+			y += 132 + p.gap * 2
+		else
+			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = heroW + p.gap, y = y, w = sideW, h = sideH })
+			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
+				x = heroW + p.gap,
+				y = y + sideH + p.gap,
+				w = sideW,
+				h = sideH,
+			})
+			y += rowH + p.gap
+			y += dealBanner(body, q, y) + p.gap * 2
+		end
 
 		sectionY.cash = y - p.gap
 		y += sectionHeader(body, q, y, "cash", "CASH PACKS", "Packs grow as your Raceway grows!") + p.gap
@@ -1053,6 +1096,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local StyleStudio = require(script.Parent.StyleStudio) :: any
 		studio = StyleStudio.new(ctx, host, {
 			tab = tab,
+			tabs = if tab == "Trails" then { "Trails" } else { "Paint", "Decals", "Wheels" },
 			size = size,
 			trove = buildTrove,
 			onGetCash = function()
@@ -1098,6 +1142,15 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		panel = shell
 
+		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", 13, {
+			size = UDim2.new(1, -24, 0, FOOT),
+			position = UDim2.new(0, 12, 1, -FOOT - 3),
+			align = Enum.TextXAlignment.Center,
+			color = CarKit.Soft,
+			z = 6,
+			name = "PreviewFoot",
+		})
+
 		-- header: title, tabs, Cash, close
 		local header = make("Frame", {
 			Name = "Header",
@@ -1106,7 +1159,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Position = UDim2.fromOffset(p.pad, 4),
 			ZIndex = 5,
 		}, shell) :: Frame
-		local titlePx = if p.tier == "Phone" then 40 else 62
+		local titlePx = if p.tier == "Desktop" then 62 else 40
 		local titleW = math.round(titlePx * 1.75)
 		CarKit.title(header, "SHOP", titlePx, {
 			position = UDim2.fromOffset(2, 0),
@@ -1116,11 +1169,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			z = 6,
 			name = "ShopTitle",
 		})
-		local flagW = if p.tier == "Phone" then 0 else titlePx * 1.1
+		local flagW = if p.tier == "Desktop" then titlePx * 1.1 else 0
 		if flagW > 0 then
 			CarKit.art(header, "fx_flag", {
 				size = UDim2.fromOffset(flagW, flagW / 2),
-				position = UDim2.new(0, titleW + flagW / 2, 0, p.headerH * 0.46),
+				position = UDim2.fromOffset(titleW + flagW / 2, p.headerH * 0.46),
 				z = 6,
 				rotation = 8,
 				placeholder = false,
@@ -1133,7 +1186,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Image = "",
 			Size = UDim2.fromOffset(closePx, closePx),
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, 0, 0.5, 0),
+			Position = UDim2.fromScale(1, 0.5),
 			ZIndex = 8,
 		}, header) :: ImageButton
 		CarKit.slot(close, "close", closePx, { position = UDim2.fromScale(0.5, 0.5), z = 8, fallback = "Close" })
@@ -1141,9 +1194,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			shop:close()
 		end)
 		-- the Cash counter with its green plus
-		local cashW = if p.tier == "Phone" then 140 else 204
+		local cashW = if p.tier == "Desktop" then 204 else 140
 		local cashBox = CarKit.board(header, {
-			size = UDim2.fromOffset(cashW, if p.tier == "Phone" then 40 else 50),
+			size = UDim2.fromOffset(cashW, if p.tier == "Desktop" then 50 else 40),
 			position = UDim2.new(1, -closePx - 8, 0.5, 0),
 			anchor = Vector2.new(1, 0.5),
 			z = 7,
@@ -1152,9 +1205,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			bottom = CarKit.Well,
 			name = "CashBox",
 		})
-		local iconPx = if p.tier == "Phone" then 32 else 48
+		local iconPx = if p.tier == "Desktop" then 48 else 32
 		CarKit.slot(cashBox, "cash", iconPx, { position = UDim2.new(0, iconPx / 2 + 2, 0.5, 0), z = 8 })
-		cashLabel = CarKit.title(cashBox, money(cash()), if p.tier == "Phone" then 20 else 28, {
+		cashLabel = CarKit.title(cashBox, money(cash()), if p.tier == "Desktop" then 28 else 20, {
 			position = UDim2.fromOffset(iconPx + 4, 0),
 			size = UDim2.new(1, -iconPx - 42, 1, 0),
 			color = CarKit.CashText,
@@ -1183,7 +1236,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local tabW = math.floor((tabsW - gap * (#TABS - 1)) / #TABS)
 		local tabH = if p.tier == "Phone" then 40 else 48
 		for i, tab in TABS do
-			local px = math.clamp(math.round(tabW / 3.4), 16, 30)
+			local px = math.clamp(math.floor(tabW / 3.9), 15, 30)
 			local button = make("TextButton", {
 				Name = "Tab_" .. tab.id,
 				Text = "",
@@ -1229,7 +1282,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Name = "Stage",
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(p.pad, p.headerH + 6),
-			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8),
+			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8 - FOOT),
 			ZIndex = 3,
 		}, shell) :: Frame
 		if view == "store" then
@@ -1246,11 +1299,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	showTab = function(id: string, animate: boolean?)
 		local wantStudio = id == "style" or id == "trails"
 		activeTab = id
-		if wantStudio ~= (view == "studio") then
+		if wantStudio or view == "studio" then
 			view = if wantStudio then "studio" else "store"
 			build()
-		elseif wantStudio and studio then
-			studio:setTab(if id == "trails" then "Trails" else "Paint")
 		end
 		for tab, refs in tabButtons do
 			refs.paint(tab == id)

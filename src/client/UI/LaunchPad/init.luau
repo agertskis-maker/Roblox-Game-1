@@ -177,6 +177,7 @@ local function padFor(name: string): Build.Pad
 	local pad = pads[name]
 	if not pad then
 		pad = Build.build(name, ORIGINS[name] or ORIGINS.Downtown)
+		pad.folder.Parent = nil -- out of the world until someone stands on it
 		pads[name] = pad
 	end
 	return pad
@@ -287,6 +288,7 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	closeHomePanels()
 	wipe(WORLD_TITLE[name], function()
 		local pad = padFor(name)
+		pad.folder.Parent = Workspace
 		setLight(name)
 		moveTo(pad.arrival)
 		-- a pad built this frame has no collision yet: hold the player still for a moment
@@ -317,6 +319,10 @@ function LaunchPad.leave()
 			setLight(nil)
 			if returnTo then
 				moveTo(returnTo)
+			end
+			local pad = pads[world]
+			if pad then
+				pad.folder.Parent = nil
 			end
 		end)
 		task.wait(2) -- out of the portal's field before it can fire again
@@ -424,7 +430,7 @@ local function watchRun(run: any)
 					table.insert(cars, { name = title, rarity = rarityOf(title), isNew = true })
 				end
 				local metres = m.metres
-				local isBest = metres > bestMetres and bestMetres > 0
+				local isBest = metres > bestMetres
 				bestMetres = math.max(bestMetres, metres)
 				-- PREVIEW: the real payout is Lane 2's
 				local cash = math.floor((metres * 1.5 + m.hops * 10 + #cars * 250) / 10) * 10
@@ -511,6 +517,10 @@ local function home()
 			if returnTo then
 				moveTo(returnTo)
 			end
+			local pad = pads[world]
+			if pad then
+				pad.folder.Parent = nil
+			end
 		end)
 		task.wait(2)
 		setPhase("island")
@@ -592,9 +602,9 @@ end
 function LaunchPad.lockedAway()
 	pcall(function()
 		local Dialogue = (require :: any)(Prototype.Screens.DialogueCard)
-		for world in LOCK_PRESET do
+		for place in LOCK_PRESET do
 			local Fixtures = (require :: any)(Prototype.SupportFixtures.DialogueFixtures)
-			local spec = Fixtures.preset(LOCK_PRESET[world])
+			local spec = Fixtures.preset(LOCK_PRESET[place])
 			if spec then
 				Dialogue.clearSuppression(spec.key)
 			end
