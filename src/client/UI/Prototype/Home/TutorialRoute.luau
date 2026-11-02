@@ -1,6 +1,6 @@
 --!strict
 -- Home HUD: the ground arrows that lead the player (Lane 3, BRIEF M11-03; rebuilt in Round 2 at Adam's request: "they need
--- to move with the character with every step"). Original white chevrons on the ground, each built from two thin anchored
+-- to move with the character with every step"). Original glowing chevrons on the ground, each built from two thin anchored
 -- Parts forming a flat ">" with a darker backing a hair larger underneath, so a chevron still reads on pale paving. They
 -- follow a polyline of Vector3 points supplied by the tutorial (Tutorial/TutorialWaypoints builds it along the real paths;
 -- this module does no pathfinding and no raycasts, and it never touches movement).
@@ -27,11 +27,11 @@ local Motion = require(script.Parent.Parent.Motion)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
 
-local ARM_LENGTH = 3
-local ARM_WIDTH = 0.7
+local ARM_LENGTH = 3.4
+local ARM_WIDTH = 0.9
 local ARM_THICK = 0.12
 local ARM_ANGLE = math.rad(38)
-local BACK_GROW = 0.3 -- the dark backing is this much longer and wider than the white arm
+local BACK_GROW = 0.45 -- the dark backing is this much longer and wider than the arm, so an arrow reads on pale paving
 local LIFT = 0.1
 local MAX_CHEVRONS = 22
 local REACH = 100 -- studs of trail ahead of the character
@@ -40,7 +40,8 @@ local FLOW = 16 -- studs per second the chevrons run along the route
 local JOIN_AHEAD = 7 -- the trail meets the route this far past the nearest point, so it leads on instead of cutting square
 local FAR_OFF = 60 -- further than this from the route, the trail just shows the route itself
 local REST = 0.05 -- transparency at the brightest
-local BACK_TRANSPARENCY = 0.5
+local BACK_TRANSPARENCY = 0.15
+local GLOW = Color3.fromRGB(255, 214, 40) -- the arrows are warm yellow neon: they must read on pale paving and on grass
 local TURN_SAMPLE = 2 -- studs either side a chevron looks along the route to find its direction
 local INK = Color3.fromRGB(14, 20, 38)
 
@@ -68,7 +69,7 @@ local function part(parent: Instance, name: string, size: Vector3, colour: Color
 	p.CanQuery = false
 	p.CanTouch = false
 	p.CastShadow = false
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = if colour == GLOW then Enum.Material.Neon else Enum.Material.SmoothPlastic
 	p.Color = colour
 	p.Transparency = transparency
 	p.Size = size
@@ -91,10 +92,7 @@ local function makeChevron(): Chevron
 				BACK_TRANSPARENCY
 			)
 		)
-		table.insert(
-			arms,
-			part(model, "Arm" .. i, Vector3.new(ARM_WIDTH, ARM_THICK, ARM_LENGTH), Color3.new(1, 1, 1), REST)
-		)
+		table.insert(arms, part(model, "Arm" .. i, Vector3.new(ARM_WIDTH, ARM_THICK, ARM_LENGTH), GLOW, REST))
 	end
 	return { model = model, arms = arms, backs = backs }
 end

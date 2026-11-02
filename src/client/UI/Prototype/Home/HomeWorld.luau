@@ -9,7 +9,8 @@
 --                                              A bubble bobs gently (still in reduced motion) and sounds once when it appears.
 --   world:floatCash(at, amount)                a "+$1,250" label rising from a Vector3 or a BasePart (pool of 4, never one
 --   world:float(at, text)                      per event; combined when full). float() takes any short text.
---   world:setRate(id, target, rate?)           a persistent "$18.9K/s" label over an earning sign; nil removes it. Real rates only
+--   world:setRate(id, target, rate?, preview?) a persistent "$18.9K/s" label over an earning sign; nil removes it. Real rates only,
+--                                              except a fixture (a demo), which passes preview = true and gets a PREVIEW tag
 --   world:setCircle(id, position, diameter, colour?, active?)   a ground circle at an interactive spot (Prototype/World/GroundMarker);
 --                                              world:removeCircle(id)
 --   world:layout()  world:setVisible(on)  world:getDebugState()  world:destroy()
@@ -54,7 +55,7 @@ export type World = {
 	setBubble: (self: World, id: string, target: Instance?, kind: string?, height: number?) -> (),
 	floatCash: (self: World, at: Vector3 | BasePart, amount: number) -> (),
 	float: (self: World, at: Vector3 | BasePart, text: string) -> (),
-	setRate: (self: World, id: string, target: Instance?, rate: number?) -> (),
+	setRate: (self: World, id: string, target: Instance?, rate: number?, preview: boolean?) -> (),
 	setCircle: (
 		self: World,
 		id: string,
@@ -379,7 +380,7 @@ end
 
 -- RATE LABELS -------------------------------------------------------------------------------------------------------
 
-function HomeWorld.setRate(self: any, id: string, target: Instance?, rate: number?)
+function HomeWorld.setRate(self: any, id: string, target: Instance?, rate: number?, preview: boolean?)
 	local existing = self._rates[id]
 	if target == nil or type(rate) ~= "number" or rate ~= rate or rate <= 0 then
 		if existing then
@@ -407,7 +408,9 @@ function HomeWorld.setRate(self: any, id: string, target: Instance?, rate: numbe
 		return
 	end
 	local trove = Trove.new()
-	local board, scale, holder = newBoard(self._folder, "Rate_" .. id, Vector2.new(190, 48), BUBBLE_RANGE)
+	-- a fixture rate (a demo, never a real earning) carries a PREVIEW tag under the value, so it never reads as a real one
+	local board, scale, holder =
+		newBoard(self._folder, "Rate_" .. id, Vector2.new(190, if preview then 72 else 48), BUBBLE_RANGE)
 	trove:Add(board)
 	board.Adornee = adornee
 	board.StudsOffsetWorldSpace = Vector3.new(0, height, 0)
@@ -422,7 +425,20 @@ function HomeWorld.setRate(self: any, id: string, target: Instance?, rate: numbe
 		italic = true,
 		outline = "Major",
 	})
-	label.Size = UDim2.fromScale(1, 1)
+	label.Size = if preview then UDim2.new(1, 0, 0, 48) else UDim2.fromScale(1, 1)
+	if preview then
+		local tag = Arcade.text(holder, {
+			text = "PREVIEW",
+			role = "Small",
+			name = "PreviewTag",
+			colour = Color3.fromRGB(255, 236, 140),
+			xAlign = Enum.TextXAlignment.Center,
+			z = 6,
+		})
+		tag.Position = UDim2.fromOffset(0, 46)
+		tag.Size = UDim2.new(1, 0, 0, 22)
+		tag:SetAttribute("PersistentPreview", true)
+	end
 	self._rates[id] = { trove = trove, board = board, scale = scale, text = label }
 end
 

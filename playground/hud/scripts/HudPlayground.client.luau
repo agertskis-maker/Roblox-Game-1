@@ -32,6 +32,7 @@ local Motion = require(Prototype:WaitForChild("Motion"))
 local Music = require(Prototype:WaitForChild("Music"))
 local Priority = require(Prototype:WaitForChild("Priority"))
 local RunLayout = require(Prototype:WaitForChild("Run"):WaitForChild("RunLayout"))
+local PortalFixtures = require(Prototype:WaitForChild("SupportFixtures"):WaitForChild("PortalFixtures"))
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
@@ -918,8 +919,10 @@ function api.setHomeFixture(key: string, value: any)
 	return key
 end
 -- Round 2: shows every Home HUD piece at once for a review capture, like IMG-09 (true), or clears them again (false): a rate, a
--- ready gift, the event pill, the goal pill, a chevron trail to the portal, an UNLOCK! bubble, a $/s label, a ground circle
--- and a floating +$ label. Fixtures only.
+-- ready gift, the event pill, the goal pill, a chevron trail to the portal, a $/s label (tagged PREVIEW), a ground circle and a
+-- floating +$ label. Fixtures only. The goal pill reads the same lock fixture as the portal card and the dialogue card
+-- (PortalFixtures.Locks): Dusty Highway is LOCKED, so the pill asks for more Downtown cars and no UNLOCK! bubble stands over a
+-- portal that the portal card says is locked.
 function api.homeDemo(on: boolean): string
 	local hud = components.homeHud
 	local props = backdrop.props
@@ -933,10 +936,16 @@ function api.homeDemo(on: boolean): string
 		api.setHomeFixture("rate", 18900)
 		api.setHomeFixture("giftReady", true)
 		hud:notify("RACEWAY LEVEL 5!", "Star")
-		hud:setGoal({ title = "NEXT WORLD READY!", subtitle = "Walk into its portal!", progress = 1, icon = "Portal" })
-		hud.world:setBubble("portal", props.portal, "Unlock")
+		local lock = PortalFixtures.Locks.DustyHighway
+		hud:setGoal({
+			title = string.format("Get %d more %s cars", PortalFixtures.carsToGo("DustyHighway"), lock.previous),
+			subtitle = "Dusty Highway opens at " .. lock.carsNeed .. " cars",
+			progress = lock.cars / lock.carsNeed,
+			icon = "Car",
+		})
+		hud.world:setBubble("portal", nil, nil)
 		hud.world:setTrail({ ground(backdrop.homeSpot.Position), ground(props.portal.Position) })
-		hud.world:setRate("kiosk", props.kiosk, 18900)
+		hud.world:setRate("kiosk", props.kiosk, 18900, true)
 		hud.world:setCircle("garage", ground(props.garage.Position), 9)
 		hud.world:floatCash(props.garage, 1250)
 	else

@@ -355,12 +355,28 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	local scene: CanvasGroup = make("CanvasGroup", {
 		Name = "Scene",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 6,
 		Parent = sceneHolder,
 	})
 	Arcade.corner(scene, 12)
+	-- The sky is a frame of its own. (A UIGradient on the CanvasGroup itself tints EVERYTHING drawn in the group: the cars, the
+	-- stars and the PREVIEW tag all came out as dark navy shapes, dark on dark. Only this frame takes the gradient now, so
+	-- the cars show in their own colours.) The night is a little lighter than before for the same reason.
+	local sky: Frame = make("Frame", {
+		Name = "Sky",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 6,
+		Parent = scene,
+	})
+	make("UIGradient", {
+		Color = ColorSequence.new(rgb(24, 38, 112), rgb(92, 98, 190)),
+		Rotation = 90,
+		Parent = sky,
+	})
 	local sceneBorder: Frame = make("Frame", {
 		Name = "SceneBorder",
 		Size = UDim2.fromScale(1, 1),
@@ -370,12 +386,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	})
 	Arcade.corner(sceneBorder, 12)
 	Arcade.outline(sceneBorder, "Button")
-	make("UIGradient", {
-		Color = ColorSequence.new(rgb(12, 20, 74), rgb(62, 66, 156)),
-		Rotation = 90,
-		Parent = scene,
-	})
-	local glow = box(scene, "HorizonGlow", 0, 0.42, 1, 0.3, rgb(150, 110, 220), 7)
+	local glow = box(scene, "HorizonGlow", 0, 0.42, 1, 0.3, rgb(170, 130, 235), 7)
 	make("UIGradient", {
 		Transparency = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 1),
@@ -384,9 +395,9 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 		Rotation = 90,
 		Parent = glow,
 	})
-	box(scene, "HillA", -0.06, 0.5, 0.5, 0.6, rgb(26, 40, 112), 7, 0.5)
-	box(scene, "HillB", 0.42, 0.56, 0.66, 0.6, rgb(20, 32, 94), 7, 0.5)
-	local stand = box(scene, "Grandstand", 0.78, 0.24, 0.15, 0.46, rgb(38, 48, 118), 8, 0.06)
+	box(scene, "HillA", -0.06, 0.5, 0.5, 0.6, rgb(40, 58, 142), 7, 0.5)
+	box(scene, "HillB", 0.42, 0.56, 0.66, 0.6, rgb(32, 48, 122), 7, 0.5)
+	local stand = box(scene, "Grandstand", 0.78, 0.24, 0.15, 0.46, rgb(56, 68, 146), 8, 0.06)
 	for i = 0, 2 do
 		box(stand, "Window" .. i, 0.18 + i * 0.26, 0.14, 0.18, 0.12, rgb(255, 224, 120), 9)
 	end
@@ -397,7 +408,7 @@ function WelcomeBackMock.new(ctx: Overlay.Ctx, options: Options?): Welcome
 	end
 	local trackBand = box(scene, "Track", 0, 0.66, 1, 0.34, rgb(60, 66, 100), 10)
 	make("UIGradient", {
-		Color = ColorSequence.new(rgb(84, 92, 134), rgb(40, 44, 76)),
+		Color = ColorSequence.new(rgb(112, 120, 164), rgb(62, 68, 112)),
 		Rotation = 90,
 		Parent = trackBand,
 	})

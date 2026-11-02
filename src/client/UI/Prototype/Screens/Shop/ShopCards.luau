@@ -599,14 +599,42 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 	})
 	local content = card.content
 	local visualH = size.Y - LIP
-	local compact = visualH < (if phone then 150 else 120) -- a short hero: the headline and the button, the benefit only with room
-	local leftW = math.floor(size.X * (if phone then 0.58 else 0.52)) - 22
-	local artPx = math.floor(math.min(visualH - 24, size.X * 0.4))
-	local titleSize = if tier == "Desktop" then 54 elseif tier == "Tablet" then 40 elseif compact then 28 else 34
-	local bodySize = if tier == "Desktop" then 20 else 17
+	-- Two arrangements of the carousel controls (review fix, N6-04). FLANK (a phone, or any hero too short for a row of
+	-- controls under the art): the arrows sit either side of the art and the page dots sit under it, so nothing covers the
+	-- art. A tall hero keeps one row of controls at the bottom with the art ABOVE it, clear of the dots.
+	local flank = phone or visualH < 200
+	-- TIGHT: one line of copy and the FEATURED tag on the headline's row (a short hero cannot afford a tag row and a plate)
+	local tight = visualH < 200 and (phone or visualH < 170)
+	local arrowPx = Tokens.Touch.Minimum
+	local dotsW = 18 + 16 * math.max(#ids - 1, 0)
+	local rightMargin = if phone then 12 else 14
+	local artPx: number
+	local artTop: number
+	local artRight: number -- from the card's right edge to the art's centre line
+	local zoneW = 0 -- the flank arrangement: arrow, art, arrow
+	local leftX: number
+	local leftW: number
+	if flank then
+		artPx = math.floor(math.max(40, math.min(visualH - 32, size.X * 0.22, 130)))
+		zoneW = arrowPx + 6 + artPx + 6 + arrowPx
+		artTop = math.floor((visualH - artPx - 16) / 2) -- 16 = the gap and the row of dots under the art
+		artRight = rightMargin + arrowPx + 6 + artPx / 2
+		leftX = 20
+		leftW = math.floor(size.X - (rightMargin + zoneW + 12) - leftX - 4)
+	else
+		-- the controls row (52 px, 15 px up from the foot) is under the art, never over it
+		artPx = math.floor(math.max(60, math.min(visualH - 12 - 73, size.X * 0.4)))
+		artTop = 12
+		artRight = 26 + artPx / 2
+		leftX = 22
+		leftW = math.floor(size.X * 0.52) - 22
+	end
+	local titleSize = if tight then 28 elseif tier == "Desktop" then 54 elseif tier == "Tablet" then 40 else 34
+	local bodySize = if tier == "Desktop" then 20 elseif tight then 16 else 17
 	local buttonH = if visualH < 110 then Tokens.Touch.Minimum else BUTTON_H
-	local showBenefit = not compact
+	local showBenefit = visualH >= 98
 	local showContents = visualH >= 290
+	local tagW = math.ceil(ShopKit.textWidth("FEATURED", 16)) + 28
 
 	env.motion.gradient({
 		gradient = card.gradient,
@@ -643,46 +671,144 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 			Parent = content,
 		})
 		slides[i] = slide
+		-- the art's centre line sits left of the arrow (flank) or the card's edge, and its top clears the controls below it
 		local art = ShopArt.build(slide, offer.art, artPx, { z = contentZ + 1, missing = env.fixtures.missingArt })
-		art.root.AnchorPoint = Vector2.new(1, 0.5)
-		art.root.Position = UDim2.new(1, -(if phone then 16 else 26), 0.5, -(if phone then 10 else 0))
+		art.root.AnchorPoint = Vector2.new(0.5, 0)
+		art.root.Position = UDim2.new(1, -artRight, 0, artTop)
 		arts[i] = art.root
+
+		-- What fits in the copy column. A short hero cuts the stack back, the rows that carry no promise first: the
+		-- conspicuous PREVIEW line, then the tag row (the tag joins the headline's row), then the claims and the includes
+		-- line. The price button always says PREVIEW itself.
+		local deal = dealOf(env, id)
+		local benefitText = env.text(offer.body)
+		local textW = leftW - 22
+		local fullCopy = showBenefit and not tight
+		local plateH = if fullCopy then ShopKit.textHeight(benefitText, bodySize, textW) + 10 else 0
+		local containsH = if fullCopy
+				and showContents
+				and offer.contents
+			then ShopKit.textHeight(offer.contents, 16, textW) + 2
+			else 0
+		local includesH = if fullCopy and offer.kind == "Bundle"
+			then ShopKit.textHeight(includesText(offer), 16, textW) + 2
+			else 0
+		local inlineTag = tight
+		local keepLine = fullCopy and offer.previewLine ~= nil
+		local keepClaims = fullCopy and offer.kind == "Bundle" and deal ~= nil
+		local keepIncludes = includesH > 0
+		local function stackH(): number
+			local rows = 2 -- the headline and the button
+			local total = titleSize + 8 + buttonH
+			if not inlineTag then
+				rows += 1
+				total += 26
+			end
+			if plateH > 0 then
+				rows += 1
+				total += plateH + containsH + (if keepIncludes then includesH else 0)
+			elseif showBenefit then
+				rows += 1
+				total += 20
+			end
+			if keepClaims then
+				rows += 1
+				total += 30
+			end
+			if keepLine then
+				rows += 1
+				total += 26
+			end
+			return total + 6 * (rows - 1)
+		end
+		local avail = visualH - 14
+		if keepLine and stackH() > avail then
+			keepLine = false
+		end
+		if not inlineTag and stackH() > avail then
+			inlineTag = true
+		end
+		if keepClaims and stackH() > avail then
+			keepClaims = false
+		end
+		if keepIncludes and stackH() > avail then
+			keepIncludes = false
+		end
 
 		local column: Frame = make("Frame", {
 			Name = "Copy",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 22, 0.5, 0),
+			Position = UDim2.new(0, leftX, 0.5, 0),
 			Size = UDim2.fromOffset(leftW, 10),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			ZIndex = contentZ + 2,
 			Parent = slide,
 		})
-		make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = column })
+		make("UIListLayout", {
+			Padding = UDim.new(0, if tight then 2 else 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = column,
+		})
 		local order = 0
 		local function nextOrder(): number
 			order += 1
 			return order
 		end
-		-- on a short phone the tag rides the top right corner instead of costing the copy column a row
+		-- the tag rides the headline's row when the column is short, so it can never be cut by the controls
+		local headRow: Frame? = nil
+		if inlineTag then
+			headRow = make("Frame", {
+				Name = "HeadRow",
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, titleSize + (if tight then 2 else 6)),
+				LayoutOrder = nextOrder(),
+				ZIndex = contentZ + 2,
+				Parent = column,
+			})
+		end
 		local tag = ShopKit.chip(
-			if phone then slide else column,
+			headRow or column,
 			{ text = "FEATURED", fill = "Yellow", size = 16, z = contentZ + 3, name = "FeaturedTag", dark = true }
 		)
-		if phone then
-			tag.AnchorPoint = Vector2.new(1, 0)
-			tag.Position = UDim2.new(1, -16, 0, 10)
+		if headRow then
+			tag.AnchorPoint = Vector2.new(1, 0.5)
+			tag.Position = UDim2.fromScale(1, 0.5)
 		else
 			tag.LayoutOrder = nextOrder()
 		end
-		local title = ShopKit.label(column, env.text(offer.name), titleSize, {
+		local title = ShopKit.label(headRow or column, env.text(offer.name), titleSize, {
 			name = "Headline",
 			z = contentZ + 2,
-			outline = if compact then 3 else 4,
+			outline = if tight then 3 else 4,
 		})
-		title.Size = UDim2.new(1, 0, 0, titleSize + 8)
-		title.LayoutOrder = nextOrder()
-		if showBenefit then
+		if headRow then
+			title.AnchorPoint = Vector2.new(0, 0.5)
+			title.Position = UDim2.fromScale(0, 0.5)
+			title.Size = UDim2.new(1, -(tagW + 6), 1, 0)
+		else
+			title.Size = UDim2.new(1, 0, 0, titleSize + 8)
+			title.LayoutOrder = nextOrder()
+		end
+		if showBenefit and tight then
+			-- ONE line of description under the headline (cut with an ellipsis only if a longer string cannot fit)
+			local line: TextLabel = make("TextLabel", {
+				Name = "Benefit",
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 20),
+				FontFace = Tokens.font(),
+				Text = benefitText,
+				TextSize = 16,
+				TextColor3 = WHITE,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = false,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				LayoutOrder = nextOrder(),
+				ZIndex = contentZ + 2,
+				Parent = column,
+			})
+			Arcade.outline(line, "Minor")
+		elseif plateH > 0 then
 			-- the benefit (and, when roomy, what the pack holds) on the quiet plate
 			local copyPlate = ShopKit.plate(column, {
 				name = "CopyPlate",
@@ -702,8 +828,7 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 				"UIListLayout",
 				{ Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = copyPlate }
 			)
-			local body =
-				ShopKit.paragraph(copyPlate, env.text(offer.body), bodySize, { name = "Benefit", z = contentZ + 2 })
+			local body = ShopKit.paragraph(copyPlate, benefitText, bodySize, { name = "Benefit", z = contentZ + 2 })
 			body.LayoutOrder = 1
 			if showContents and offer.contents then
 				local contents = ShopKit.paragraph(copyPlate, offer.contents, 16, {
@@ -713,7 +838,7 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 				})
 				contents.LayoutOrder = 2
 			end
-			if offer.kind == "Bundle" then
+			if keepIncludes then
 				local includes = ShopKit.paragraph(copyPlate, includesText(offer), 16, {
 					name = "Includes",
 					colour = ShopPalette.Color.TextSoft,
@@ -723,13 +848,13 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 			end
 		end
 		local claimParts: { GuiObject } = {}
-		if offer.kind == "Bundle" and showBenefit then
+		if keepClaims then
 			local row = buildClaims(env, column, offer, contentZ + 2, nextOrder())
 			if row then
 				table.insert(claimParts, row)
 			end
 		end
-		if offer.previewLine and showBenefit then
+		if keepLine and offer.previewLine then
 			-- the conspicuous PREVIEW line (M10-05a): a bright chip, never a caption the harness can hide
 			local line = ShopKit.chip(column, {
 				text = offer.previewLine,
@@ -746,7 +871,7 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 		local button = ShopKit.priceButton(column, {
 			name = "Price",
 			label = state.label,
-			size = Vector2.new(math.min(leftW, 320), buttonH),
+			size = Vector2.new(math.min(leftW, if tight then 260 else 320), buttonH),
 			secondary = buttonH < BUTTON_H,
 			z = contentZ + 3,
 			trove = env.trove,
@@ -757,7 +882,8 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 		button.root.LayoutOrder = nextOrder()
 		buttons[i] = button
 		breatheButton(env, button, 1)
-		if offer.kind == "Bundle" and dealOf(env, id) ~= nil then
+		-- the corner ribbon would sit over the arrow of a flank hero: the BEST DEAL banner under the hero carries it there
+		if offer.kind == "Bundle" and deal ~= nil and not flank then
 			local ribbon = ShopKit.ribbon(
 				slide,
 				{ text = "BEST DEAL", fill = "Red", size = 84, z = contentZ + 8, name = "BestDealRibbon" }
@@ -781,24 +907,38 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 		env.register(id, view)
 	end
 
-	-- arrows and page dots, bottom right, above the art
-	local controls: Frame = make("Frame", {
-		Name = "Controls",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -14, 1, -(LIP + 10)),
-		Size = UDim2.fromOffset(10, 52),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 1,
-		ZIndex = contentZ + 10,
-		Parent = content,
-	})
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 8),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = controls,
-	})
+	-- Arrows and page dots. Flank: the arrows stand either side of the art and the dots sit under it (a zone as tall as
+	-- the card, placed by hand). Tall: one row at the bottom right, under the art (the art stops above it).
+	local controls: Frame
+	if flank then
+		controls = make("Frame", {
+			Name = "Controls",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -rightMargin, 0, 0),
+			Size = UDim2.fromOffset(zoneW, visualH),
+			BackgroundTransparency = 1,
+			ZIndex = contentZ + 10,
+			Parent = content,
+		})
+	else
+		controls = make("Frame", {
+			Name = "Controls",
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, -14, 1, -(LIP + 10)),
+			Size = UDim2.fromOffset(10, 52),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 1,
+			ZIndex = contentZ + 10,
+			Parent = content,
+		})
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = controls,
+		})
+	end
 	local dots: { Frame } = {}
 	local function paintDots()
 		for i, dot in dots do
@@ -834,7 +974,7 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 	leftArrow.root.LayoutOrder = 1
 	local dotRow: Frame = make("Frame", {
 		Name = "Dots",
-		Size = UDim2.fromOffset(10, 20),
+		Size = UDim2.fromOffset(dotsW, 20),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 		LayoutOrder = 2,
@@ -874,6 +1014,16 @@ function Cards.hero(env: Env, parent: Instance, size: Vector2, z: number): Hero
 		end,
 	})
 	rightArrow.root.LayoutOrder = 3
+	if flank then
+		-- [arrow] art [arrow], the dots centred under the art: nothing here is drawn over the art
+		local arrowY = artTop + artPx / 2
+		leftArrow.root.AnchorPoint = Vector2.new(0, 0.5)
+		leftArrow.root.Position = UDim2.fromOffset(0, arrowY)
+		rightArrow.root.AnchorPoint = Vector2.new(1, 0.5)
+		rightArrow.root.Position = UDim2.fromOffset(zoneW, arrowY)
+		dotRow.AnchorPoint = Vector2.new(0.5, 0.5)
+		dotRow.Position = UDim2.fromOffset(zoneW / 2, artTop + artPx + 6 + 5)
+	end
 	local arrowIcon = rightArrow.root:FindFirstChild("Icon", true)
 	if arrowIcon and arrowIcon:IsA("GuiObject") then
 		arrowIcon.Rotation = 180 -- the family has one arrow (Back); turned round it points forward
@@ -953,7 +1103,8 @@ function Cards.deal(env: Env, parent: Instance, size: Vector2, z: number): View?
 	})
 
 	local ribbonSide = if phone then 72 elseif tier == "Tablet" then 88 else 96
-	local plateW = if phone then 214 elseif tier == "Tablet" then 290 else 316
+	-- a phone with room gives the price button a little more width, so "PREVIEW - 549 Robux" stays on one line
+	local plateW = if phone then (if size.X >= 700 then 236 else 214) elseif tier == "Tablet" then 290 else 316
 	local plateX = size.X - plateW - 10
 	local textX = ribbonSide + 8
 

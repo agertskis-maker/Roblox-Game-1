@@ -261,9 +261,10 @@ local function drawPortrait(art: Frame, z: number)
 	unit(art, "BrowL", 36, 46, 10, 2.5, rgb(150, 92, 40), z + 7, true, -8)
 	unit(art, "BrowR", 54, 46, 10, 2.5, rgb(150, 92, 40), z + 7, true, 8)
 	unit(art, "Nose", 47, 58, 6, 4, rgb(238, 176, 130), z + 7, true)
-	local mouth = unit(art, "Mouth", 40, 66, 20, 9, rgb(150, 36, 52), z + 7, 0.45)
-	Arcade.outline(mouth, "Minor")
-	unit(art, "Teeth", 43, 66, 14, 3.4, Color3.new(1, 1, 1), z + 8, 0.3)
+	-- a friendly CLOSED smile (the old open red rectangle read as shouting): a dark crescent, made of one ellipse with a
+	-- skin-coloured ellipse cut from its top and its sides, so the ends curl up and no outline box is needed
+	unit(art, "Mouth", 40, 65, 20, 11, rgb(122, 38, 48), z + 7, true)
+	unit(art, "SmileCut", 38.5, 62, 23, 11, skin, z + 8, true)
 	-- hair framing the face under the cap
 	unit(art, "LockL", 24, 42, 9, 24, hair, z + 6, true)
 	unit(art, "LockR", 67, 42, 9, 24, hair, z + 6, true)

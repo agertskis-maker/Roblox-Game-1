@@ -117,8 +117,51 @@ PortalFixtures.Colours = table.freeze({
 	SummitPass = { light = rgb(190, 230, 255), mid = rgb(110, 176, 236), deep = rgb(70, 120, 200) },
 })
 
+-- THE ONE lock fixture of each locked World (review fix: one fixture source). The portal card (the presets below), the dialogue
+-- card (DialogueFixtures) and the Home HUD demo's goal pill ("Get 2 more Downtown cars", HudPlayground.homeDemo) all read these
+-- numbers, so a locked Dusty Highway says the same thing everywhere. They are made up for review; the real requirement rows and
+-- the lock verdict come from Brian L.
+--   previous   the World whose cars count; cars / carsNeed   the cars of it owned so far, and the count that opens the road;
+--   cash / cashNeed   the Cash row's progress.
+export type Lock = {
+	previous: string,
+	cars: number,
+	carsNeed: number,
+	cash: number,
+	cashNeed: number,
+}
+
+PortalFixtures.Locks = table.freeze({
+	DustyHighway = table.freeze({
+		previous = "Downtown",
+		cars = 1,
+		carsNeed = 3,
+		cash = 1200,
+		cashNeed = 5000,
+	} :: Lock),
+	SummitPass = table.freeze({
+		previous = "Dusty Highway",
+		cars = 2,
+		carsNeed = 5,
+		cash = 8400,
+		cashNeed = 20000,
+	} :: Lock),
+})
+
+-- remaining = max(0, need - have), computed once here for every reader of the lock fixture
+function PortalFixtures.carsToGo(worldId: string): number
+	local lock: Lock? = (PortalFixtures.Locks :: any)[worldId]
+	if lock == nil then
+		return 0
+	end
+	return math.max(0, lock.carsNeed - lock.cars)
+end
+
 -- The previous World's name for the "cars from the previous World" fixture row.
-local PREVIOUS: { [string]: string } = { DustyHighway = "Downtown", SummitPass = "Dusty Highway" }
+local PREVIOUS: { [string]: string } = {
+	DustyHighway = PortalFixtures.Locks.DustyHighway.previous,
+	SummitPass = PortalFixtures.Locks.SummitPass.previous,
+}
 
 local function roster(worldId: string, ownedIds: { string }): { RosterCar }
 	local out: { RosterCar } = {}
@@ -132,7 +175,8 @@ end
 
 local function requirements(worldId: string, cash: number?, cars: number?): { Requirement }
 	local previous = PREVIOUS[worldId]
-	if not previous then
+	local lock: Lock? = (PortalFixtures.Locks :: any)[worldId]
+	if not previous or lock == nil then
 		return {}
 	end
 	return {
@@ -142,7 +186,7 @@ local function requirements(worldId: string, cash: number?, cars: number?): { Re
 			label = "Cash",
 			kind = "cash",
 			have = cash,
-			need = if worldId == "SummitPass" then 20000 else 5000,
+			need = lock.cashNeed,
 		},
 		{
 			id = "cars",
@@ -150,7 +194,7 @@ local function requirements(worldId: string, cash: number?, cars: number?): { Re
 			label = previous .. " cars",
 			kind = "count",
 			have = cars,
-			need = if worldId == "SummitPass" then 5 else 3,
+			need = lock.carsNeed,
 		},
 	}
 end
@@ -200,7 +244,8 @@ for _, worldId in PortalFixtures.WorldOrder do
 	end
 end
 presets.Dusty_Locked_BothUnmet = function(): State
-	return build("DustyHighway", "Ready", false, 1200, 1, FEW.DustyHighway)
+	local lock = PortalFixtures.Locks.DustyHighway
+	return build("DustyHighway", "Ready", false, lock.cash, lock.cars, FEW.DustyHighway)
 end
 presets.Dusty_Locked_OneMet = function(): State
 	return build("DustyHighway", "Ready", false, 5200, 2, FEW.DustyHighway)
@@ -209,7 +254,8 @@ presets.Dusty_Unlocked_AllMet = function(): State
 	return build("DustyHighway", "Ready", true, 5200, 3, FEW.DustyHighway)
 end
 presets.Summit_Locked_BothUnmet = function(): State
-	return build("SummitPass", "Ready", false, 8400, 2, FEW.SummitPass)
+	local lock = PortalFixtures.Locks.SummitPass
+	return build("SummitPass", "Ready", false, lock.cash, lock.cars, FEW.SummitPass)
 end
 -- data unavailable: never LOCKED, never zero
 presets.Dusty_Checking = function(): State

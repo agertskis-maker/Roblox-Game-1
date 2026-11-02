@@ -402,6 +402,7 @@ function Style.tab(parent: Instance, spec: TabSpec): Tab
 	}))
 	Arcade.corner(root, A.Button.Radius)
 	local stroke = Arcade.outline(root, "Minor")
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- round the tab's edge, not round its (empty) button text
 	local grad: UIGradient = make("UIGradient", {
 		Color = A.Fill.Garage,
 		Rotation = 90,

@@ -9,8 +9,7 @@
 --
 -- Join flow (N13-01a). Nothing tells a new player from a returning one yet: there is no saved flag and this round adds none,
 -- so `joinMode` is an explicit choice of the caller, never a guess. New: the tutorial first, everything else waits; after it,
--- the Update Log. Returning: the Update Log, then Welcome back, then the goal and the trail. Either way one optional offer
--- (the group reward), only after 30 quiet seconds.
+-- the Update Log. Returning: the Update Log, then Welcome back. No offer opens by itself: the group reward is not real yet.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,6 +22,7 @@ local ModalQueue = require(Prototype:WaitForChild("Home"):WaitForChild("ModalQue
 local Priority = require(Prototype:WaitForChild("Priority")) :: any
 local Screen = require(Prototype:WaitForChild("Screen")) :: any
 local Store = require(Prototype:WaitForChild("Store")) :: any
+local GroupFixtures = require(Prototype:WaitForChild("SupportFixtures"):WaitForChild("GroupFixtures")) :: any
 
 local HomeShell = {}
 HomeShell.__index = HomeShell
@@ -39,18 +39,10 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{
-		icon = "Raceway",
-		title = "A cleaner Raceway",
-		text = "The roads join up properly, and the top level has a real loop.",
-	},
-	{
-		icon = "Shop",
-		title = "A brighter Shop",
-		text = "New look and new icons. Prices are previews: nothing can be bought yet.",
-	},
-	{ icon = "Garage", title = "Your Garage", text = "See every World's cars in one place." },
-	{ icon = "Portal", title = "Worlds", text = "Dusty Highway and Summit Pass now stand beside your run." },
+	{ icon = "Raceway", title = "A cleaner Raceway", text = "Roads join up. Real loop!" },
+	{ icon = "Shop", title = "A brighter Shop", text = "Nothing to buy yet." },
+	{ icon = "Garage", title = "Your Garage", text = "All your cars, by World." },
+	{ icon = "Portal", title = "Worlds", text = "Beside your run now." },
 }
 HomeShell.UpdateVersion = "beta-2.2"
 
@@ -189,7 +181,11 @@ function HomeShell.start(options: Options?): any
 		end,
 	})
 	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
-	mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
+	-- nothing joins and nothing is rewarded here yet, so the card must never say "You're in!": until the real join and reward
+	-- exist it answers "try later", and it is never offered by itself
+	mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {
+		gateway = GroupFixtures.fakeGateway({ outcomes = { "None" } }),
+	})
 	mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {
 		-- the coins of CLAIM fly to the Cash counter: a look only, the amount comes from the server later
 		cashTarget = function(): Vector2?
@@ -214,10 +210,7 @@ function HomeShell.start(options: Options?): any
 			getCash = function(): number?
 				return store:get().cash
 			end,
-			getOwned = function(): (number?, number?)
-				local garage = store:get().garage
-				return garage.owned, garage.total
-			end,
+
 			onShop = function()
 				shopAt(nil)
 			end,
@@ -239,13 +232,10 @@ function HomeShell.start(options: Options?): any
 			onVip = function()
 				shopAt("Passes")
 			end,
-			onFreeGift = function()
-				userPanel("groupReward")
-			end,
 			getMissionsClaimable = function(): number?
 				return store:get().missionsClaimable
 			end,
-			preview = { cash = o.cashPreview ~= false, owned = true },
+			preview = { cash = o.cashPreview ~= false },
 		}, { screen = screen, world = world })
 	end)
 	if ok then
@@ -310,26 +300,6 @@ function HomeShell._updateLog(self: any, o: Options)
 	})
 end
 
-function HomeShell._promotion(self: any)
-	self.queue:push({
-		key = "GroupReward",
-		class = "promo",
-		eligible = function()
-			return not self.running
-		end,
-		open = function(done)
-			self.openPanel("groupReward", done)
-		end,
-	})
-	-- the queue holds it until 30 quiet seconds have passed; look again now and then
-	self.trove:Add(task.spawn(function()
-		for _ = 1, 40 do
-			task.wait(5)
-			self.queue:pump()
-		end
-	end))
-end
-
 function HomeShell._join(self: any, o: Options)
 	if self.joinMode == "returning" then
 		self:_updateLog(o)
@@ -340,7 +310,6 @@ function HomeShell._join(self: any, o: Options)
 				self.openPanel("welcome", done)
 			end,
 		})
-		self:_promotion()
 		return
 	end
 	local Tutorial = (require :: any)(Prototype.Parent:WaitForChild("Tutorial"))
@@ -354,7 +323,6 @@ function HomeShell._join(self: any, o: Options)
 		self.log("tutorial " .. how)
 		self.queue:unblock("tutorial")
 		self:_updateLog(o)
-		self:_promotion()
 	end))
 	local c = self.components
 	Tutorial.start({

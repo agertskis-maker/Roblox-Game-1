@@ -196,7 +196,10 @@ function SupportKit.closeX(parent: Instance, onActivate: () -> ()): CloseX
 		Parent = parent,
 	}))
 	Arcade.corner(button, A.Button.Radius + 2)
-	Arcade.outline(button, "Button")
+	-- the kit's outline sits on a TextButton, where the default (contextual) stroke mode draws round the EMPTY button text,
+	-- so the X had no visible border: draw it round the button's edge, as PanelKit does
+	local stroke = Arcade.outline(button, "Button")
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	make("UIGradient", { Color = A.Fill.Settings, Rotation = 90, Parent = button })
 	Arcade.gloss(button)
 	local holder: Frame = make("Frame", {
