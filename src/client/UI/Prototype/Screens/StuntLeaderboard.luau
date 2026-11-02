@@ -134,9 +134,16 @@ function StuntLeaderboard.new(ctx: Overlay.Ctx, options: Options?): Leaderboard
 	local rowsTrove = trove:Extend()
 	local retryTrove = trove:Extend()
 	local content = overlay.content
-	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	-- the Round 2 garage-night family shared with Customize and the pre-race card
+	local shell = Style.panel(content, {
+		name = "Panel",
+		z = 3,
+		top = Color3.fromRGB(58, 52, 140),
+		bottom = Color3.fromRGB(26, 24, 78),
+	})
 	local panel = shell.body
-	local header = Style.header(panel, { fill = "Gold", title = "WEEKLY TOP TIMES", icon = "Trophy", rightInset = 200 })
+	local header =
+		Style.header(panel, { fill = "Gold", title = "WEEKLY TOP TIMES", icon = "Leaderboard", rightInset = 200 })
 	local closeX = SupportKit.closeX(panel, function()
 		leaderboard:close()
 	end)
@@ -178,12 +185,6 @@ function StuntLeaderboard.new(ctx: Overlay.Ctx, options: Options?): Leaderboard
 
 	-- ROWS -----------------------------------------------------------------------------------------------------------------
 
-	local rankColours: { [number]: Color3 } = {
-		[1] = StuntFixtures.Medals.gold.colour,
-		[2] = StuntFixtures.Medals.silver.colour,
-		[3] = StuntFixtures.Medals.bronze.colour,
-	}
-
 	local function buildRow(entry: StuntFixtures.Entry, index: number)
 		local row = if entry.you
 			then Style.plate(list, "Row" .. index, 7, "Garage")
@@ -194,21 +195,18 @@ function StuntLeaderboard.new(ctx: Overlay.Ctx, options: Options?): Leaderboard
 		row:SetAttribute("You", entry.you)
 		row:SetAttribute("Tied", entry.tied)
 		rowsTrove:Add(row)
-		-- a round rank mark for the first three places; the number is always there too
-		local markColour = rankColours[entry.rank]
-		if markColour then
-			local mark: Frame = make("Frame", {
-				Name = "RankMark",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 6, 0.5, 0),
-				Size = UDim2.fromOffset(geo.rowH - 10, geo.rowH - 10),
-				BackgroundColor3 = markColour,
-				BorderSizePixel = 0,
-				ZIndex = 8,
-				Parent = row,
-			})
-			Arcade.corner(mark, 99)
-			Arcade.outline(mark, 2)
+		-- a medal badge for the first three places (a round Bronze, a diamond Silver, a pointed Gold seal: the shape says it, not
+		-- only the colour); every row keeps the same mark slot so the numbers and names line up, and the rank number is always there
+		local markKey = if entry.rank == 1
+			then "gold"
+			elseif entry.rank == 2 then "silver"
+			elseif entry.rank == 3 then "bronze"
+			else nil
+		local slot = geo.rowH - 4
+		if markKey then
+			local badge = StuntKit.medalBadge(row, markKey, slot - 2, 8)
+			badge.AnchorPoint = Vector2.new(0, 0.5)
+			badge.Position = UDim2.new(0, 6, 0.5, 0)
 		end
 		local rank = Style.text(row, entry.rankText, "Value", {
 			name = "Rank",
@@ -217,18 +215,11 @@ function StuntLeaderboard.new(ctx: Overlay.Ctx, options: Options?): Leaderboard
 			xAlign = Enum.TextXAlignment.Center,
 			z = 9,
 		})
-		rank.Position = UDim2.fromOffset(2, 0)
-		rank.Size = UDim2.new(0, 56, 1, 0)
-		if markColour then
-			rank.TextColor3 = A.Ink
-			local stroke = rank:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				stroke.Enabled = false
-			end
-		end
+		rank.Position = UDim2.fromOffset(slot + 8, 0)
+		rank.Size = UDim2.new(0, 52, 1, 0)
 		local name = Style.text(row, if entry.you then "You" else entry.name, "Label", { name = "Name", z = 9 })
-		name.Position = UDim2.fromOffset(64, 0)
-		name.Size = UDim2.new(1, -64 - 112, 1, 0)
+		name.Position = UDim2.fromOffset(slot + 64, 0)
+		name.Size = UDim2.new(1, -(slot + 64) - 112, 1, 0)
 		local time = Style.text(row, StuntFixtures.formatTime(entry.time), "Value", {
 			name = "Time",
 			italic = true,

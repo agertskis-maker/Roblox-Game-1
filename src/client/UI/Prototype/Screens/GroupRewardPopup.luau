@@ -19,6 +19,11 @@
 -- again." The group's displayed name is confirmed before JOIN is offered; if it cannot be, the pop-up says so and offers no
 -- JOIN. Repeated JOIN presses while a prompt is open make no second prompt.
 --
+-- LOOK (Round 2 N7-02). The one panel family: a coloured header with an icon and an outlined title, a red square X, and a
+-- light card with navy text for the words. This is the SELLING surface, so the card body is ShopKit.vividBackground (the
+-- Shop's slowly moving violet, pink and orange; Reduce Motion keeps the colours and stops the sway): the reward art sits on
+-- it, and the words and buttons sit on a white card beside the art.
+--
 -- NOTHING IS GRANTED. A client-side prompt result is not authority to grant a reward: the result is forwarded through
 -- options.onJoinResult for Brian L's server-side verification, and the pop-up always shows "Reward preview. Claiming is not
 -- live yet." CLAIMED appears only when the Claimed view is selected explicitly (a fixture), never after a join.
@@ -33,7 +38,9 @@ local Arcade = require(Prototype.Arcade)
 local GroupFixtures = require(Prototype.SupportFixtures.GroupFixtures)
 local IconArt = require(Prototype.Home.IconArt)
 local Overlay = require(script.Parent.Overlay)
+local PanelKit = require(script.Parent.PanelKit)
 local PreviewTokens = require(Prototype.PreviewTokens)
+local ShopKit = require(Prototype.ShopKit)
 local Style = require(script.Parent.Style)
 local SupportKit = require(script.Parent.SupportKit)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -42,6 +49,10 @@ local A = PreviewTokens.Arcade
 local make = Arcade.make
 
 local GroupRewardPopup = {}
+
+-- the two footer buttons, sized so both fit inside the white card of the smallest frame (design px)
+local JOIN_W = 176
+local LATER_W = 124
 
 GroupRewardPopup.Headline = "Join the group, get a FREE reward!"
 GroupRewardPopup.PreviewNote = "Reward preview. Claiming is not live yet."
@@ -128,10 +139,10 @@ function GroupRewardPopup.geometry(ds: Vector2): Geo
 		pw = pw,
 		ph = ph,
 		headH = headH,
-		art = { x = 14, y = headH + 14, w = artW, h = artH },
-		text = { x = textX, y = headH + 10, w = pw - textX - 14, h = ph - headH - 90 },
-		joinSize = if fit == "Compact" then Vector2.new(190, 54) else Vector2.new(210, 58),
-		laterSize = Vector2.new(140, 48),
+		art = { x = 14, y = headH + math.max(math.floor((ph - headH - artH) / 2), 10), w = artW, h = artH },
+		text = { x = textX, y = headH + 14, w = pw - textX - 22, h = ph - headH - 90 },
+		joinSize = Vector2.new(JOIN_W, 58),
+		laterSize = Vector2.new(LATER_W, 48),
 	}
 end
 
@@ -233,8 +244,29 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 	local content = overlay.content
 	local shell = Style.panel(content, { name = "Panel", z = 3 })
 	local panel = shell.body
+	-- the selling surface: the panel's own gradient is replaced by the Shop's moving one (one gradient on the body)
+	for _, child in panel:GetChildren() do
+		if child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	ShopKit.vividBackground(panel, trove)
 	local header = Style.header(panel, { fill = "Gold", title = "FREE REWARD!", icon = "Star" })
-	local closeX = SupportKit.closeX(panel, function()
+	-- the white card for the words and the buttons (right of the art, under the header; below the header band in z)
+	local textCard: Frame = make("Frame", {
+		Name = "TextCard",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = panel,
+	})
+	Arcade.corner(textCard, 10)
+	Arcade.outline(textCard, "Button")
+	make(
+		"UIGradient",
+		{ Color = ColorSequence.new(PanelKit.CardTop, PanelKit.CardBottom), Rotation = 90, Parent = textCard }
+	)
+	local closeX = PanelKit.closeX(panel, function()
 		popup:pressNotNow()
 	end)
 	trove:Add(closeX.trove)
@@ -258,10 +290,9 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 	})
 	IconArt.draw(claimedTick, { "Check" })
 
-	local headline = SupportKit.label(panel, "Headline", 24, 6)
-	local groupLabel = SupportKit.label(panel, "Group", 18, 6)
-	groupLabel.TextColor3 = Style.TextSoft
-	local statusLabel = SupportKit.label(panel, "Status", 20, 6)
+	local headline = PanelKit.ink(SupportKit.label(panel, "Headline", 24, 6))
+	local groupLabel = PanelKit.ink(SupportKit.label(panel, "Group", 18, 6), true)
+	local statusLabel = PanelKit.ink(SupportKit.label(panel, "Status", 20, 6))
 	-- the conspicuous no-grant note (a chip, not fine print)
 	local noteChip: Frame = make("Frame", {
 		Name = "HonestyNote",
@@ -283,7 +314,7 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 		label = "JOIN",
 		fill = "Green",
 		size = "Custom",
-		width = 210,
+		width = JOIN_W,
 		height = 58,
 		pattern = true,
 		cooldown = 0.6,
@@ -298,7 +329,7 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 		label = "Not now",
 		fill = "Garage",
 		size = "Custom",
-		width = 140,
+		width = LATER_W,
 		height = 48,
 		onActivate = function()
 			popup:pressNotNow()
@@ -361,8 +392,8 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 		claimedStamp.frame.Visible = view == "Claimed"
 		claimedTick.Visible = view == "Claimed"
 		previewStamp.frame.Visible = view ~= "Claimed"
-		SupportKit.fitLabel(headline, headline.Text, geo.text.w, 62, 24)
-		SupportKit.fitLabel(statusLabel, statusLabel.Text, geo.text.w, 30, 20)
+		SupportKit.fitLabel(headline, headline.Text, geo.text.w, 58, 24)
+		SupportKit.fitLabel(statusLabel, statusLabel.Text, geo.text.w, 28, 20)
 	end
 
 	local function setViewNow(v: View)
@@ -383,27 +414,33 @@ function GroupRewardPopup.new(ctx: Overlay.Ctx, options: Options?): Popup
 		header.title.Size = UDim2.new(1, -left - 70, 0, math.min(A.Text.Display + 8, geo.headH - 6))
 		art.Position = UDim2.fromOffset(geo.art.x, geo.art.y)
 		art.Size = UDim2.fromOffset(geo.art.w, geo.art.h)
+		local cardX = geo.text.x - 8
+		local cardW = geo.pw - cardX - 10
+		textCard.Position = UDim2.fromOffset(cardX, geo.headH + 10)
+		textCard.Size = UDim2.fromOffset(cardW, geo.ph - geo.headH - 16)
 		claimedTick.Position = UDim2.new(0.5, 0, 0.5, -30)
 		local t = geo.text
 		headline.Position = UDim2.fromOffset(t.x, t.y)
-		headline.Size = UDim2.fromOffset(t.w, 62)
-		groupLabel.Position = UDim2.fromOffset(t.x, t.y + 64)
-		groupLabel.Size = UDim2.fromOffset(t.w, 26)
-		statusLabel.Position = UDim2.fromOffset(t.x, t.y + 92)
-		statusLabel.Size = UDim2.fromOffset(t.w, 30)
-		noteChip.Position = UDim2.fromOffset(t.x, t.y + 124)
-		noteChip.Size = UDim2.fromOffset(t.w, 44)
+		headline.Size = UDim2.fromOffset(t.w, 58)
+		groupLabel.Position = UDim2.fromOffset(t.x, t.y + 58)
+		groupLabel.Size = UDim2.fromOffset(t.w, 24)
+		statusLabel.Position = UDim2.fromOffset(t.x, t.y + 84)
+		statusLabel.Size = UDim2.fromOffset(t.w, 28)
+		noteChip.Position = UDim2.fromOffset(t.x, t.y + 114)
+		noteChip.Size = UDim2.fromOffset(t.w, 42)
 		-- the buttons, pinned to the foot of the card
-		local footY = geo.ph - 10
+		local footY = geo.ph - 12
 		joinButton.root.AnchorPoint = Vector2.new(0.5, 1)
 		laterButton.root.AnchorPoint = Vector2.new(0.5, 1)
 		okButton.root.AnchorPoint = Vector2.new(0.5, 1)
-		local gap = 14
-		local total = geo.laterSize.X + gap + geo.joinSize.X
-		local startX = (geo.pw - total) / 2
-		laterButton.root.Position = UDim2.fromOffset(startX + geo.laterSize.X / 2, footY)
-		joinButton.root.Position = UDim2.fromOffset(startX + geo.laterSize.X + gap + geo.joinSize.X / 2, footY)
-		okButton.root.Position = UDim2.fromOffset(geo.pw / 2, footY)
+		local gap = 10
+		local laterW = geo.laterSize.X
+		local joinW = geo.joinSize.X
+		local total = laterW + gap + joinW
+		local startX = cardX + (cardW - total) / 2
+		laterButton.root.Position = UDim2.fromOffset(startX + laterW / 2, footY)
+		joinButton.root.Position = UDim2.fromOffset(startX + laterW + gap + joinW / 2, footY)
+		okButton.root.Position = UDim2.fromOffset(cardX + cardW / 2, footY)
 		refresh()
 	end
 

@@ -7,6 +7,7 @@
 --   StuntKit.medalBadge(parent, key, size, z) -> Frame         -- Bronze a circle, Silver a diamond, Gold an eight-point seal
 --   StuntKit.pips(parent, value?, size, z) -> Frame            -- five diamonds; nil = all empty ("not set yet")
 --   StuntKit.statRow(parent, label, value?, z) -> Frame        -- "Speed", pips, and the number or "--"
+--   StuntKit.garageBackdrop(frame)                             -- the dark-violet garage backdrop (neon tubes, a pool of light)
 --   StuntKit.touchOk(report, minimum) -> { string }            -- the interactive objects smaller than `minimum` design px
 --
 -- Medals differ in SILHOUETTE as well as colour (M17-04a): a round Bronze, a diamond Silver, a pointed seal Gold, and each
@@ -199,6 +200,52 @@ function StuntKit.statRow(parent: Instance, label: string, value: number?, z: nu
 	number.Position = UDim2.fromScale(1, 0.5)
 	number.Size = UDim2.fromOffset(40, 24)
 	return row
+end
+
+-- GARAGE BACKDROP ------------------------------------------------------------------------------------------------------
+
+-- Turns a well-like frame into the Round 2 "garage at night" backdrop shared by the Stunt screens: a dark violet gradient, two thin
+-- neon tubes along the top and a soft pool of light (three fainter and fainter ellipses). Static: it costs a few frames and no loop.
+function StuntKit.garageBackdrop(box: Frame)
+	box.BackgroundColor3 = Color3.new(1, 1, 1)
+	box.BackgroundTransparency = 0
+	for _, child in box:GetChildren() do
+		if child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	make("UIGradient", {
+		Color = ColorSequence.new(Color3.fromRGB(46, 40, 112), Color3.fromRGB(14, 14, 44)),
+		Rotation = 90,
+		Parent = box,
+	})
+	local z = box.ZIndex + 1
+	for i, spec in { { 0.08, 0.36, Color3.fromRGB(255, 80, 170) }, { 0.62, 0.3, Color3.fromRGB(80, 210, 255) } } do
+		local tube: Frame = make("Frame", {
+			Name = "Neon" .. i,
+			Position = UDim2.fromScale(spec[1], 0.06),
+			Size = UDim2.fromScale(spec[2], 0.025),
+			BackgroundColor3 = spec[3],
+			BorderSizePixel = 0,
+			ZIndex = z,
+			Parent = box,
+		})
+		Arcade.corner(tube, 99)
+	end
+	for i, spec in { { 0.8, 0.26 }, { 0.62, 0.19 }, { 0.44, 0.13 } } do
+		local pool: Frame = make("Frame", {
+			Name = "LightPool" .. i,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.62),
+			Size = UDim2.fromScale(spec[1], spec[2]),
+			BackgroundColor3 = Color3.fromRGB(255, 244, 200),
+			BackgroundTransparency = 0.93 - i * 0.04,
+			BorderSizePixel = 0,
+			ZIndex = z,
+			Parent = box,
+		})
+		Arcade.corner(pool, 999)
+	end
 end
 
 -- TOUCH ----------------------------------------------------------------------------------------------------------------

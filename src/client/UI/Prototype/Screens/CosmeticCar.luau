@@ -22,6 +22,17 @@
 -- shows what the car shows. A decal design lives in a 1.6 : 1 rectangle laid on the hood (stripes, bolts) or on each door side
 -- (mirrored to both sides, never stretched over glass or lamps); the one swatch-only design is "Dust Devil" (a curl needs curved
 -- geometry), and the screen says "Card preview only" for it.
+--
+-- WHAT RENDERS ON THE CAR (the catalog's `render` field says the same per item, and `note` says how):
+--   paint  renders exactly: the 10 Basic solids, the 5 Metallic paints (body colour, metal material) and the 3 medal paints.
+--          APPROXIMATION: the 5 Pearl and 5 Two-Tone paints (a six-step blend, no real sheen or split line) and the 5 Animated
+--          paints (a colour cycle, no stars, lava, ribbon or wave texture).
+--   decal  renders: Twin Sprint, Side Slash, Checker Corner, Zigzag Charge, Bubble Burst, Summit Steps, Star Scatter.
+--          APPROXIMATION (flat blocks, a ring of blocks, diamond teeth): Lucky Seven, Comet Tail, Friendly Fangs, Circuit Lines,
+--          Solar Flare, Night Orbit, Checkered Comet. SWATCH-ONLY: Dust Devil. "No decal" clears.
+--   wheel  renders: Stock Five, Rally Block, Classic Disc, Split Six, Star Runner, Golden Turbine.
+--          APPROXIMATION: Trail Chunk and Monster Mini (tread blocks inside the tyre size; no diameter changes), Neon Halo (a steady
+--          neon ring, no glow bloom) and Moon Dish (no pearl sheen).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

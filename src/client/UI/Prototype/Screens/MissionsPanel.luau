@@ -35,6 +35,7 @@ local IconArt = require(Prototype.Home.IconArt)
 local MissionFixtures = require(Prototype.SupportFixtures.MissionFixtures)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local PanelKit = require(script.Parent.PanelKit)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Sounds = require(Prototype.Sounds)
 local Style = require(script.Parent.Style)
@@ -45,6 +46,8 @@ local make = Arcade.make
 
 local MissionsPanel = {}
 
+-- the light green of a claimed mission and a finished goal (the light card family)
+local CLAIMED_FILL = Color3.fromRGB(206, 244, 216)
 local MAX_MISSIONS = 3
 local PREVIEW_RESOLVE_SECONDS = 0.7
 local CLAIM_HOLD = 1.2 -- the claimed card stays until its feedback has finished
@@ -234,22 +237,22 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	local flowTrove = trove:Extend() -- claim round trips, holds and replacements
 	local content = overlay.content
 
-	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local shell = PanelKit.panel(content, { name = "Panel", z = 3 })
 	local panel = shell.body
 	local header = Style.header(panel, { fill = "Missions", title = "MISSIONS", icon = "Missions" })
-	local closeX = SupportKit.closeX(panel, function()
+	local closeX = PanelKit.closeX(panel, function()
 		panelObj:close()
 	end)
 	trove:Add(closeX.trove)
 
-	local missionsTab = Style.tab(panel, {
+	local missionsTab = PanelKit.tab(panel, {
 		name = "MissionsTab",
 		label = "Missions",
 		onActivate = function()
 			panelObj:selectTab("Missions")
 		end,
 	})
-	local goalsTab = Style.tab(panel, {
+	local goalsTab = PanelKit.tab(panel, {
 		name = "GoalsTab",
 		label = "Goals",
 		onActivate = function()
@@ -261,6 +264,8 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 
 	local missionList = Style.scroll(panel, "MissionList", 5)
 	missionList.ScrollBarThickness = 6
+	missionList.ScrollBarImageColor3 = PanelKit.InkSoft
+	missionList.ScrollBarImageTransparency = 0.1
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, 8),
@@ -269,13 +274,15 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	})
 	local goalList = Style.scroll(panel, "GoalList", 5)
 	goalList.ScrollBarThickness = 6
+	goalList.ScrollBarImageColor3 = PanelKit.InkSoft
+	goalList.ScrollBarImageTransparency = 0.1
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, 6),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = goalList,
 	})
-	local message = SupportKit.label(panel, "Message", 22, 6)
+	local message = PanelKit.ink(SupportKit.label(panel, "Message", 22, 6))
 	message.TextXAlignment = Enum.TextXAlignment.Center
 	local retryButton = Arcade.button(panel, {
 		name = "Retry",
@@ -417,9 +424,9 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			card.pillGradient.Color = A.Fill.Disabled
 			card.pillIcon.Visible = false
 		end
-		card.stroke.Color = if visual == "Ready" then PreviewTokens.Color.KeysLight else A.Ink
+		card.stroke.Color = if visual == "Ready" then PreviewTokens.Color.KeysDeep else PanelKit.RowEdge
 		card.stroke.Thickness = if visual == "Ready" then 4 else A.OutlineMinor
-		card.frame.BackgroundColor3 = if visual == "Claimed" then Color3.fromRGB(24, 90, 54) else Style.Well
+		card.frame.BackgroundColor3 = if visual == "Claimed" then CLAIMED_FILL else PanelKit.RowFill
 	end
 
 	local function layoutCard(card: Card)
@@ -446,7 +453,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	end
 
 	local function buildCard(index: number, mission: MissionFixtures.Mission): Card
-		local frame = Style.well(missionList, "Card" .. index, 6)
+		local frame = PanelKit.row(missionList, "Card" .. index, 6)
 		frame.LayoutOrder = index
 		local stroke = frame:FindFirstChildOfClass("UIStroke") :: UIStroke
 		make("UIScale", { Name = "Pop", Parent = frame })
@@ -457,9 +464,8 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			ZIndex = 7,
 			Parent = frame,
 		})
-		local title = SupportKit.label(frame, "Title", 20, 7)
-		local sub = SupportKit.label(frame, "Sub", 16, 7)
-		sub.TextColor3 = Style.TextSoft
+		local title = PanelKit.ink(SupportKit.label(frame, "Title", 20, 7))
+		local sub = PanelKit.ink(SupportKit.label(frame, "Sub", 16, 7), true)
 		local chip: Frame = make("Frame", {
 			Name = "RewardChip",
 			BackgroundColor3 = A.Ink,
@@ -634,15 +640,15 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 				isNext = true
 				nextFound = true
 			end
-			local frame = Style.well(goalList, "Goal_" .. g.id, 6)
+			local frame = PanelKit.row(goalList, "Goal_" .. g.id, 6)
 			frame.LayoutOrder = i
 			local stroke = frame:FindFirstChildOfClass("UIStroke") :: UIStroke
 			if isNext then
-				stroke.Color = PreviewTokens.Color.KeysLight
+				stroke.Color = PreviewTokens.Color.KeysDeep
 				stroke.Thickness = 4
 			end
 			if done then
-				frame.BackgroundColor3 = Color3.fromRGB(24, 90, 54)
+				frame.BackgroundColor3 = CLAIMED_FILL
 			end
 			local tick: Frame = make("Frame", {
 				Name = "Tick",
@@ -668,13 +674,13 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			else
 				IconArt.draw(tickIcon, { g.icon, "Star" })
 			end
-			local label = SupportKit.label(frame, "Text", 20, 7)
+			local label = PanelKit.ink(SupportKit.label(frame, "Text", 20, 7))
 			label.AnchorPoint = Vector2.new(0, 0.5)
 			label.Text = g.text
-			local right = SupportKit.label(frame, "Right", 16, 7)
+			local right = PanelKit.ink(SupportKit.label(frame, "Right", 16, 7), true)
 			right.AnchorPoint = Vector2.new(1, 0.5)
 			right.TextXAlignment = Enum.TextXAlignment.Right
-			right.TextColor3 = if isNext then PreviewTokens.Color.KeysLight else Style.TextSoft
+			right.TextColor3 = if isNext then PanelKit.Warm elseif done then PanelKit.Good else PanelKit.InkSoft
 			local row: GoalRow = {
 				frame = frame,
 				goal = g,

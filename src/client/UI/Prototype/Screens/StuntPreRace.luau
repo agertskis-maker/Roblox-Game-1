@@ -3,10 +3,11 @@
 -- stats (Speed, Jump and Grip, 1 to 5 pips) and the three medal targets, then START. CUSTOMIZE and TOP TIMES open the other
 -- two Stunt screens through callbacks the lead wires.
 --
---   local pre = StuntPreRace.new(ctx, { cars = { PreRaceCar }?, targets = Targets?, ghost = string?, onStart = fn?,
+--   local pre = StuntPreRace.new(ctx, { course = string?, state = CourseState?, cars = { PreRaceCar }?, targets = Targets?, ghost = string?, onStart = fn?,
 --                                       onCustomize = fn?, onTopTimes = fn?, onClose = fn? })
 --   pre:open(returnTo?)  pre:close()  pre:isOpen()
 --   pre:setCars(list)  pre:selectCar(index)  pre:getSelected() -> PreRaceCar?  pre:setGhost(text?)  pre:setTargets(t)
+--   pre:setState("Loading" | "Ready" | "Unavailable")   -- Loading and Unavailable switch START off and say why (N12-04a)
 --   pre:pressStart() -> boolean  pre:pressCustomize()  pre:pressTopTimes()  pre:pressPrev()  pre:pressNext()   -- test hooks
 --   pre:layout()  pre:setVisible(on)  pre:destroy()  pre:getDebugState()  pre:touchReport()
 --   StuntPreRace.geometry(designSize) -> Geo
@@ -36,7 +37,11 @@ local make = Arcade.make
 
 local StuntPreRace = {}
 
+export type CourseState = "Loading" | "Ready" | "Unavailable"
+
 export type Options = {
+	course: string?, -- the selected course's name (default "Stunt Circuit"); the course itself is Brian R's
+	state: CourseState?, -- Loading and Unavailable switch START off with a message (default Ready)
 	cars: { StuntFixtures.PreRaceCar }?,
 	targets: StuntFixtures.Targets?,
 	ghost: string?, -- e.g. "Your best 1:15.04"; nil = "No ghost yet"
@@ -74,6 +79,8 @@ export type DebugState = {
 	ghost: string,
 	message: string,
 	startEnabled: boolean,
+	state: string,
+	course: string,
 	startPresses: number,
 	startCalls: number,
 	caption: string,
@@ -92,6 +99,7 @@ export type PreRace = {
 	getSelected: (self: PreRace) -> StuntFixtures.PreRaceCar?,
 	setGhost: (self: PreRace, text: string?) -> (),
 	setTargets: (self: PreRace, targets: StuntFixtures.Targets) -> (),
+	setState: (self: PreRace, state: CourseState) -> (),
 	pressStart: (self: PreRace) -> boolean,
 	pressCustomize: (self: PreRace) -> (),
 	pressTopTimes: (self: PreRace) -> (),
@@ -140,6 +148,7 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 	local cars: { StuntFixtures.PreRaceCar } = opts.cars or StuntFixtures.cars()
 	local targets: StuntFixtures.Targets = opts.targets or table.clone(StuntFixtures.MedalTargets)
 	local ghostText: string? = opts.ghost
+	local courseState: CourseState = opts.state or "Ready"
 	local selected = 1
 	local geo = StuntPreRace.geometry(Vector2.new(750, 325))
 	local startPresses, startCalls = 0, 0
@@ -157,9 +166,19 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 	local trove = overlay.trove
 	local buttonsTrove = trove:Extend()
 	local content = overlay.content
-	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	-- the Round 2 garage-night family shared with Customize and the leaderboard
+	local shell = Style.panel(content, {
+		name = "Panel",
+		z = 3,
+		top = Color3.fromRGB(58, 52, 140),
+		bottom = Color3.fromRGB(26, 24, 78),
+	})
 	local panel = shell.body
-	local header = Style.header(panel, { fill = "Garage", title = "STUNT CIRCUIT", icon = "Flag" })
+	local header = Style.header(panel, {
+		fill = "Gold",
+		title = string.upper(opts.course or "Stunt Circuit"),
+		icon = "StuntCircuit",
+	})
 	local closeX = SupportKit.closeX(panel, function()
 		pre:close()
 	end)
@@ -169,6 +188,7 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 
 	-- the car carousel (left)
 	local carBox = Style.well(panel, "CarBox", 5)
+	StuntKit.garageBackdrop(carBox)
 	local carArt: Frame = make("Frame", {
 		Name = "CarArt",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -382,6 +402,7 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			size = "Custom",
 			width = geo.startSize.X,
 			height = geo.startSize.Y,
+			icon = "StuntCircuit",
 			pattern = true,
 			cooldown = 0.6,
 			onActivate = function()
@@ -392,11 +413,12 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		start.root.ZIndex = 12
 		local customize = Arcade.button(panel, {
 			name = "Customize",
-			label = "PAINT",
+			label = "CUSTOMIZE",
 			fill = "Missions",
 			size = "Custom",
 			width = geo.sideSize.X,
 			height = geo.sideSize.Y,
+			icon = "PaintBucket",
 			cooldown = 0.4,
 			onActivate = function()
 				pre:pressCustomize()
@@ -411,6 +433,7 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			size = "Custom",
 			width = geo.sideSize.X,
 			height = geo.sideSize.Y,
+			icon = "Leaderboard",
 			cooldown = 0.4,
 			onActivate = function()
 				pre:pressTopTimes()
@@ -436,7 +459,15 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 	local function applyStartEnabled()
 		local b = startButton
 		if b then
-			b.setEnabled(currentCar() ~= nil)
+			b.setEnabled(currentCar() ~= nil and courseState == "Ready")
+		end
+		-- loading and unavailable say so in words, and START stays off (a ready course keeps the car messages)
+		if courseState == "Loading" then
+			message.Visible = true
+			message.Text = "Getting the course ready..."
+		elseif courseState == "Unavailable" then
+			message.Visible = true
+			message.Text = "This course isn't available right now."
 		end
 	end
 
@@ -563,10 +594,16 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			targets = table.clone(t)
 			renderTargets()
 		end,
+		setState = function(_self: PreRace, state: CourseState)
+			courseState = state
+			renderCar() -- put the car's own messages back before the course state is applied over them
+			applyStartEnabled()
+			layoutNow()
+		end,
 		pressStart = function(_self: PreRace): boolean
 			startPresses += 1
 			local car = currentCar()
-			if not car or not guard:tryFire() then
+			if not car or courseState ~= "Ready" or not guard:tryFire() then
 				return false -- no car, or a second press for the same activation: nothing happens
 			end
 			startCalls += 1
@@ -622,7 +659,9 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 				),
 				ghost = ghostLabel.Text,
 				message = message.Text,
-				startEnabled = startButton ~= nil and car ~= nil,
+				startEnabled = startButton ~= nil and car ~= nil and courseState == "Ready",
+				state = courseState,
+				course = header.title.Text,
 				startPresses = startPresses,
 				startCalls = startCalls,
 				caption = preview.label.Text,
