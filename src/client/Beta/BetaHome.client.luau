@@ -14,6 +14,11 @@ end
 
 local HomeShell = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("HomeShell"))
 
+-- the Roblox player list would sit over the HUD's Settings button; the beta has few players
+pcall(function()
+	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+end)
+
 local player = Players.LocalPlayer
 local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) :: Instance
 local joinMode = config:GetAttribute("HomeJoinMode")
