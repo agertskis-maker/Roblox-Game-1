@@ -17,7 +17,10 @@
 -- NO FAKE LIVE COMPETITORS: the board's names are plainly placeholders ("Preview Racer 03") and the screens keep a PREVIEW
 -- caption on screen at all times.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Prototype = script.Parent.Parent
+local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Fixtures = require(Prototype.Fixtures)
 
 local StuntFixtures = {}
@@ -413,163 +416,79 @@ function StuntFixtures.board(name: string): Board
 	return makeBoard("NoTime", "You have no time yet", nil, "Ready")
 end
 
+-- REWARDS AND TARGET ROWS (Round 2 N12-02) --------------------------------------------------------------------------------------
+
+-- PREVIEW reward Cash per medal. Brian L owns the real rewards; these are made up for review and the card labels them PREVIEW.
+StuntFixtures.RewardPreview = table.freeze({ gold = 1500, silver = 900, bronze = 500, none = 150 })
+
+-- What a medal opens, as the card words it (PREVIEW): the medal-locked paint of the same name becomes buyable.
+StuntFixtures.UnlockPreview = table.freeze({
+	gold = "Gold Horizon paint unlocked!",
+	silver = "Silver Current paint unlocked!",
+	bronze = "Bronze Dash paint unlocked!",
+})
+
+export type GhostTone = "faster" | "slower" | "even" | "none"
+
+-- The gap to the player's ghost (their best before this run): "-1.37 vs your ghost" is faster. Missing ghost data says so (N12-02a).
+function StuntFixtures.ghostLine(result: Result): (string, GhostTone)
+	local time, best = result.time, result.best
+	if not result.finished or time == nil then
+		return "No ghost comparison", "none"
+	elseif best == nil then
+		return "No ghost comparison", "none"
+	elseif time < best then
+		return string.format("-%.2f vs your ghost", best - time), "faster"
+	elseif time == best then
+		return "Matched your ghost", "even"
+	end
+	return string.format("+%.2f vs your ghost", time - best), "slower"
+end
+
+export type MedalRow = { key: MedalKey, word: string, target: number, reached: boolean }
+
+-- Bronze, Silver, Gold with their target and whether THIS run reached it (an unfinished run reaches none).
+function StuntFixtures.medalRows(result: Result, targets: Targets?): { MedalRow }
+	local t = targets or StuntFixtures.MedalTargets
+	local rows: { MedalRow } = {}
+	for _, key in { "bronze", "silver", "gold" } :: { MedalKey } do
+		local target = t[key]
+		local time = result.time
+		local reached = result.finished and time ~= nil and time <= target
+		table.insert(rows, {
+			key = key,
+			word = (StuntFixtures.Medals :: { [string]: MedalInfo })[key].word,
+			target = target,
+			reached = reached,
+		})
+	end
+	return rows
+end
+
 -- CUSTOMIZATION --------------------------------------------------------------------------------------------------------
 
-export type Group = "Free" | "Cash" | "Medal"
-export type TabId = "Paint" | "Decals" | "Wheels"
-
-export type Item = {
-	id: string,
-	name: string,
-	tab: TabId,
-	group: Group,
-	colour: Color3,
-	price: number?, -- PREVIEW cash price (Cash group only)
-	medal: MedalKey?, -- the medal that unlocks it (Medal group only)
-	owned: boolean, -- a fixture: the player already has it
-	unavailable: boolean?, -- no art or not offered right now (not the same as locked)
-}
-
-local function paint(id: string, name: string, group: Group, colour: Color3, price: number?, medal: MedalKey?): Item
-	return {
-		id = id,
-		name = name,
-		tab = "Paint",
-		group = group,
-		colour = colour,
-		price = price,
-		medal = medal,
-		owned = group == "Free",
-	}
-end
-
--- Eight free paints, eight Cash-priced preview paints, and the medal paints (M17-05a).
-StuntFixtures.Paints = table.freeze({
-	paint("cloud", "Cloud White", "Free", rgb(236, 240, 248)),
-	paint("cherry", "Cherry Red", "Free", rgb(226, 60, 64)),
-	paint("sky", "Sky Blue", "Free", rgb(64, 150, 235)),
-	paint("lime", "Lime Green", "Free", rgb(90, 200, 90)),
-	paint("sun", "Sun Yellow", "Free", rgb(250, 206, 60)),
-	paint("pumpkin", "Pumpkin", "Free", rgb(255, 138, 40)),
-	paint("grape", "Grape", "Free", rgb(150, 90, 220)),
-	paint("midnight", "Midnight", "Free", rgb(36, 42, 66)),
-	paint("bubblegum", "Bubblegum", "Cash", rgb(255, 140, 200), 400),
-	paint("mint", "Mint Fizz", "Cash", rgb(120, 230, 190), 400),
-	paint("teal", "Ocean Teal", "Cash", rgb(30, 160, 170), 600),
-	paint("coral", "Coral Pop", "Cash", rgb(255, 110, 100), 600),
-	paint("rush", "Rush Amber", "Cash", rgb(240, 170, 40), 900),
-	paint("violet", "Violet Sky", "Cash", rgb(120, 100, 240), 900),
-	paint("lava", "Lava", "Cash", rgb(230, 70, 30), 1200),
-	paint("frost", "Frost", "Cash", rgb(190, 230, 250), 1200),
-	paint("m_bronze", "Bronze Finish", "Medal", rgb(205, 127, 50), nil, "bronze"),
-	paint("m_silver", "Silver Finish", "Medal", rgb(200, 208, 220), nil, "silver"),
-	paint("m_gold", "Gold Finish", "Medal", rgb(255, 200, 40), nil, "gold"),
-} :: { Item })
-
-local function decal(id: string, name: string, group: Group, colour: Color3, price: number?, medal: MedalKey?): Item
-	return {
-		id = id,
-		name = name,
-		tab = "Decals",
-		group = group,
-		colour = colour,
-		price = price,
-		medal = medal,
-		owned = group == "Free",
-	}
-end
-
-StuntFixtures.Decals = table.freeze({
-	decal("none", "No Decal", "Free", rgb(120, 130, 156)),
-	decal("stripe", "Racing Stripe", "Free", rgb(246, 246, 240)),
-	decal("checker", "Checker Band", "Free", rgb(30, 36, 56)),
-	decal("dot", "Star Dot", "Free", rgb(247, 200, 58)),
-	decal("bolt", "Bolt Dash", "Cash", rgb(120, 220, 255), 250),
-	decal("laurel", "Laurel", "Medal", rgb(255, 200, 40), nil, "gold"),
-} :: { Item })
-
-local function wheel(
-	id: string,
-	name: string,
-	group: Group,
-	colour: Color3,
-	price: number?,
-	unavailable: boolean?
-): Item
-	return {
-		id = id,
-		name = name,
-		tab = "Wheels",
-		group = group,
-		colour = colour,
-		price = price,
-		medal = nil,
-		owned = group == "Free",
-		unavailable = unavailable,
-	}
-end
-
--- Three wheel styles.
-StuntFixtures.Wheels = table.freeze({
-	wheel("street", "Street", "Free", rgb(56, 60, 76)),
-	wheel("sport", "Sport", "Free", rgb(200, 206, 222)),
-	wheel("classic", "Classic", "Cash", rgb(250, 240, 214), 300),
-} :: { Item })
-
--- Who owns what and who has earned which medal, as a FIXTURE the screen reads and never writes.
-export type Ownership = {
-	owned: { [string]: boolean }, -- item id -> owned (Cash-group items the player already has)
-	medals: { [string]: boolean }, -- medal key -> earned
-	unavailable: { [string]: boolean }, -- item id -> not offered right now
-}
+-- The catalog (33 paints, 15 decals, 10 wheels, their tiers, PREVIEW prices and medal conditions) lives in
+-- ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog since Round 2 (N12-03b); these are the thin fixture entry points the screen and
+-- the harness already used. Ownership, medals and what is worn are FIXTURES the screen reads and copies, and never writes.
+export type TabId = Catalog.TabId
+export type Item = Catalog.Item
+export type Ownership = Catalog.Ownership
+export type Equipped = Catalog.Equipped
+export type ItemState = Catalog.ItemState
 
 function StuntFixtures.ownership(): Ownership
-	return {
-		owned = { mint = true },
-		medals = { bronze = true, silver = false, gold = false },
-		unavailable = { frost = true },
-	}
+	return Catalog.defaultOwnership()
 end
 
-export type Equipped = { Paint: string, Decals: string, Wheels: string }
-
 function StuntFixtures.equipped(): Equipped
-	return { Paint = "sky", Decals = "none", Wheels = "street" }
+	return Catalog.defaultEquipped()
 end
 
 function StuntFixtures.itemsFor(tab: TabId): { Item }
-	if tab == "Paint" then
-		return StuntFixtures.Paints
-	elseif tab == "Decals" then
-		return StuntFixtures.Decals
-	end
-	return StuntFixtures.Wheels
+	return Catalog.itemsFor(tab)
 end
 
-export type ItemState = "equipped" | "owned" | "locked" | "priced" | "unavailable"
-
--- The base state of an item: the five states of M17-05a minus "selected" and "previewing", which are the player's pick and
--- depend on what is equipped. A medal paint is locked until its medal is earned; a Cash paint is priced until owned; an item
--- with no art is unavailable (a different thing from locked, with its own look and words).
-function StuntFixtures.stateOf(item: Item, ownership: Ownership, equippedId: string): ItemState
-	if item.unavailable or ownership.unavailable[item.id] then
-		return "unavailable"
-	end
-	if item.id == equippedId then
-		return "equipped"
-	end
-	if item.group == "Free" or ownership.owned[item.id] then
-		return "owned"
-	end
-	if item.group == "Medal" then
-		local medal = item.medal
-		if medal and ownership.medals[medal] then
-			return "owned"
-		end
-		return "locked"
-	end
-	return "priced"
-end
+StuntFixtures.stateOf = Catalog.stateOf
 
 -- SELF TEST ----------------------------------------------------------------------------------------------------------------
 
@@ -606,6 +525,17 @@ function StuntFixtures.selfTest(): { string }
 	expect("incomplete time", incomplete.timeText, "--:--.--")
 	expect("incomplete medal", incomplete.medal, nil)
 	expect("incomplete ribbon", incomplete.newBest, false)
+	-- the ghost line and the medal rows (N12-02a)
+	expect("ghost faster", (StuntFixtures.ghostLine(StuntFixtures.Results.Gold)), "-0.84 vs your ghost")
+	expect("ghost first lap", (StuntFixtures.ghostLine(StuntFixtures.Results.Bronze)), "No ghost comparison")
+	expect("ghost slower", (StuntFixtures.ghostLine(StuntFixtures.Results.NoMedal)), "+2.20 vs your ghost")
+	expect("ghost unfinished", (StuntFixtures.ghostLine(StuntFixtures.Results.Incomplete)), "No ghost comparison")
+	local rows = StuntFixtures.medalRows(StuntFixtures.Results.Silver)
+	expect("rows count", #rows, 3)
+	expect("rows bronze reached", rows[1].reached, true)
+	expect("rows silver reached", rows[2].reached, true)
+	expect("rows gold reached", rows[3].reached, false)
+	expect("unfinished reaches none", StuntFixtures.medalRows(StuntFixtures.Results.Incomplete)[1].reached, false)
 	-- the board: ties share a rank, the next rank skips, and the player's row sits where the time falls
 	local tied = StuntFixtures.board("Tied")
 	expect("tied rows", #tied.entries, 10)
@@ -618,32 +548,30 @@ function StuntFixtures.selfTest(): { string }
 	expect("outside not in top", outside.youInTop, false)
 	expect("no time you", StuntFixtures.board("NoTime").you, nil)
 	expect("empty rows", #StuntFixtures.board("Empty").entries, 0)
-	-- the customization content the brief asks for
-	local free, cash, medal = 0, 0, 0
-	for _, p in StuntFixtures.Paints do
-		if p.group == "Free" then
-			free += 1
-		elseif p.group == "Cash" then
-			cash += 1
-			expect("cash paint has a price", p.price ~= nil, true)
-		else
-			medal += 1
-			expect("medal paint has a medal", p.medal ~= nil, true)
+	-- the customization content the brief asks for (N12-03b): 33 paints, 15 decals, 10 wheels
+	local counts = Catalog.counts()
+	expect("paint count", counts.Paint, 33)
+	expect("decal count", counts.Decals, 15)
+	expect("wheel count", counts.Wheels, 10)
+	local freePaints = 0
+	for _, p in Catalog.Items.Paint do
+		if p.price == 0 then
+			freePaints += 1
 		end
 	end
-	expect("free paints", free, 8)
-	expect("cash paints", cash, 8)
-	expect("medal paints", medal, 3)
-	expect("wheel styles", #StuntFixtures.Wheels, 3)
+	expect("free paints", freePaints, 8)
 	local o = StuntFixtures.ownership()
 	local e = StuntFixtures.equipped()
-	expect("equipped paint state", StuntFixtures.stateOf(StuntFixtures.Paints[3], o, e.Paint), "equipped")
-	expect("free paint state", StuntFixtures.stateOf(StuntFixtures.Paints[1], o, e.Paint), "owned")
-	expect("cash paint state", StuntFixtures.stateOf(StuntFixtures.Paints[15], o, e.Paint), "priced")
-	expect("owned cash paint state", StuntFixtures.stateOf(StuntFixtures.Paints[10], o, e.Paint), "owned")
-	expect("unavailable paint state", StuntFixtures.stateOf(StuntFixtures.Paints[16], o, e.Paint), "unavailable")
-	expect("earned medal paint state", StuntFixtures.stateOf(StuntFixtures.Paints[17], o, e.Paint), "owned")
-	expect("locked medal paint state", StuntFixtures.stateOf(StuntFixtures.Paints[19], o, e.Paint), "locked")
+	local function paintState(id: string): string
+		local item = Catalog.byId("Paint", id)
+		return if item then Catalog.stateOf(item, o, e.Paint) else "missing"
+	end
+	expect("equipped paint state", paintState("downtown_blue"), "equipped")
+	expect("free paint state", paintState("pit_white"), "owned")
+	expect("bought paint state", paintState("tangerine_pop"), "owned")
+	expect("priced paint state", paintState("plum_punch"), "priced")
+	expect("medal paint earned medal", paintState("bronze_dash"), "priced")
+	expect("medal paint locked", paintState("gold_horizon"), "locked")
 	return failures
 end
 

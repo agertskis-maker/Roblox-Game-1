@@ -5,7 +5,11 @@
 -- Fields
 --   index      0 to 11 (the outline's numbers; funnel step = index + 1)
 --   key        stable id, also the funnel step name
---   icons      icon names to try in order (the banner icon; a kid who cannot read follows the picture)
+--   icons      icon names to try in order (the banner icon; a kid who cannot read follows the picture). Round 2 (N8-01a):
+--              the names are GameIcons painter names (Prototype/GameIcons.Painter), so the image family is drawn where it
+--              has art and the older painters are only the fallback
+--   accent     a colour glow behind the icon (step 1: the Downtown portal in Downtown blue)
+--   iconLabel  a short caption on the icon (step 6: "HOME")
 --   where      "Island" (walking), "Run" (needs a run in progress), "Results" (needs the results screen)
 --   needs      capabilities the step cannot do without. When the adapters cannot supply one, the step is SKIPPED with the
 --              reason recorded; it is never completed by a made-up signal (BRIEF B-06a)
@@ -26,6 +30,8 @@ export type Step = {
 	index: number,
 	key: string,
 	icons: { string },
+	accent: Color3?,
+	iconLabel: string?,
 	where: Where,
 	needs: { string },
 	ground: string?,
@@ -40,6 +46,7 @@ export type Step = {
 
 Steps.HINT_SECONDS = 8 -- tunable (BRIEF M11-05)
 Steps.DONE_SECONDS = 0.7 -- completion feedback before the next step (0.5 to 0.8, BRIEF M11-02a)
+Steps.DOWNTOWN_COLOUR = Color3.fromRGB(52, 168, 255) -- the Downtown world colour (the playground's WorldRoutes)
 Steps.START_SECONDS = 2 -- step 0
 Steps.READY_SECONDS = 3 -- step 11
 
@@ -47,7 +54,7 @@ local LIST: { Step } = {
 	{
 		index = 0,
 		key = "Start",
-		icons = { "Car", "CarCount" },
+		icons = { "Garage", "Car" },
 		where = "Island",
 		needs = { "portal" },
 		ground = "DowntownPortal",
@@ -58,6 +65,7 @@ local LIST: { Step } = {
 		index = 1,
 		key = "Portal",
 		icons = { "Portal", "Flag" },
+		accent = Steps.DOWNTOWN_COLOUR,
 		where = "Island",
 		needs = { "portal" },
 		ground = "DowntownPortal",
@@ -76,7 +84,7 @@ local LIST: { Step } = {
 	{
 		index = 3,
 		key = "Hop",
-		icons = { "Hop", "HopCar" },
+		icons = { "Hop", "StuntCircuit", "HopCar" },
 		where = "Run",
 		needs = { "hopLand" },
 		controls = "Hop",
@@ -86,7 +94,7 @@ local LIST: { Step } = {
 	{
 		index = 4,
 		key = "Keys",
-		icons = { "HoldKey", "Key", "Keys" },
+		icons = { "Keys", "Key", "KeyLock" },
 		where = "Run",
 		needs = { "claim" },
 		big = true,
@@ -95,7 +103,7 @@ local LIST: { Step } = {
 	{
 		index = 5,
 		key = "Heat",
-		icons = { "TooHot", "Flame" },
+		icons = { "Flame", "Warning" },
 		where = "Run",
 		needs = { "heat" },
 		controls = "Hop",
@@ -104,7 +112,8 @@ local LIST: { Step } = {
 	{
 		index = 6,
 		key = "Home",
-		icons = { "Home", "Back" },
+		icons = { "Home", "Garage" },
+		iconLabel = "HOME",
 		where = "Results",
 		needs = { "home" },
 		ui = "ResultsHome",
@@ -113,7 +122,7 @@ local LIST: { Step } = {
 	{
 		index = 7,
 		key = "Park",
-		icons = { "Park", "Parking" },
+		icons = { "Parking", "Park" },
 		where = "Island",
 		needs = { "lineup" },
 		ground = "Paddock",
@@ -124,7 +133,7 @@ local LIST: { Step } = {
 	{
 		index = 8,
 		key = "Earn",
-		icons = { "Earn", "Cash" },
+		icons = { "Cash", "CashStack" },
 		where = "Island",
 		needs = { "lapCue" },
 		ground = "Raceway",
@@ -133,7 +142,7 @@ local LIST: { Step } = {
 	{
 		index = 9,
 		key = "Upgrade",
-		icons = { "Upgrade", "Raceway" },
+		icons = { "Raceway", "Upgrade" },
 		where = "Island",
 		needs = { "upgrade" },
 		ground = "Shopkeeper",
@@ -154,7 +163,7 @@ local LIST: { Step } = {
 	{
 		index = 11,
 		key = "Ready",
-		icons = { "Ready", "Trophy" },
+		icons = { "Medal", "Trophy" },
 		where = "Island",
 		needs = {},
 		timer = Steps.READY_SECONDS,

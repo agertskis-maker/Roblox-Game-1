@@ -96,7 +96,7 @@ export type IconOptions = { tint: Color3?, tilt: number? }
 -- the existing family art, so no icon is ever a hole. The Double Lap Pay art must come from the `doubleLapPay` key:
 -- no "2x" is ever typed here. `size` is passed as a UDim2 filling the holder; if GameIcons wants pixels, change that
 -- one argument.
-local USE_GAME_ICONS = false
+local USE_GAME_ICONS = true
 
 -- Icons2 family name -> GameIcons key.
 local GAME_ICON_KEYS: { [string]: string } = {
@@ -375,7 +375,7 @@ function ShopKit.ribbon(parent: GuiObject, spec: RibbonSpec): Ribbon
 	local band: Frame = make("Frame", {
 		Name = "Band",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(side * (if right then 0.675 else 0.325), side * 0.325),
+		Position = UDim2.fromOffset(side * (if right then 0.6 else 0.4), side * 0.4), -- far enough in that the words fit the corner
 		Size = UDim2.fromOffset(side * 1.5, side * 0.27),
 		Rotation = if right then 45 else -45,
 		BackgroundColor3 = WHITE,

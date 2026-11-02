@@ -10,43 +10,43 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 
 | ID | Requirement (short) | Status | Evidence | Choice made / note |
 |---|---|---|---|---|
-| N1-01 | Find the root cause first and write it in the ledger. The same overlaps survived Round 1, ... | todo | | |
-| N1-02 | One road network per plot and level. Build the track, the pit lane, the side road and the ... | todo | | |
-| N1-03 | Pit lane and side road: they split from and rejoin the track at a shallow angle, at the sa... | todo | | |
-| N1-04 | Paddock, parking and walkways: the concrete paddock and the parking area are flush with an... | todo | | |
-| N1-05 | Double lines: where a wall and an edge line run side by side (`r2-04`), there is exactly o... | todo | | |
-| N1-06 | Line checker: add checks (extend `SpeedwayChecks` or the M1 overlap scanner) that fail whe... | todo | | |
-| N1-07 | Done when: the checks are zero everywhere, and before and after pairs from Adam's views (`... | todo | | |
-| N1-01a | Network construction and diagnosis | todo | | |
-| N1-02a | Use plot-local 2D coordinates for ground roads. Each edge records its centerline, width, e... | todo | | |
-| N1-02b | Generate boundary paint after surfaces, from the final external boundary and tagged mouth ... | todo | | |
-| N1-03a | Proposed starting geometry: 15 to 25 degrees for a pit fork; widen turns enough for the cu... | todo | | |
-| N1-06a | Classify comparisons. A paint line necessarily overlaps its own supporting asphalt in plan... | todo | | |
-| N1-06b | Keep a single surface-height convention and place paint relative to the local road normal.... | todo | | |
-| N1-07a | Done when: reproduce known-bad crossing, duplicate-paint and grass-gap fixtures and prove ... | todo | | |
-| N2-01 | Research how real stunt loops on tracks are built (for example toy-car loops, stunt-show l... | todo | | |
-| N2-02 | Geometry: where the loop stands, widen the straight to at least two full track widths with... | todo | | |
-| N2-03 | Cars through the loop: the decorative lap cars follow the loop centerline with the correct... | todo | | |
-| N2-04 | Fits the levels: the loop appears at the levels where Round 1 put it (keep the level ladde... | todo | | |
-| N2-05 | Done when: a Studio Play recording (with game audio) shows at least three cars going throu... | todo | | |
-| N2-01a | Research, actual scale and a buildable method | todo | | |
-| N2-02a | Verified local baseline: Track.luau uses Path.HalfWidth = 8, so the ordinary ribbon is 16 ... | todo | | |
-| N2-02b | Proposed starting envelope for the stated 9 to 12 stud car length: loop road width 16 stud... | todo | | |
-| N2-02c | Construct a smooth closed-turn vertical centerline in a local forward/up plane. One defens... | todo | | |
-| N2-02d | Add lateral offset D*f(t), with t in [0,1] and f(t) = 6*t^5 - 15*t^4 + 10*t^3. Its first a... | todo | | |
-| N2-03a | At every sample derive tangent T from the curve derivative. Derive a reference inward norm... | todo | | |
-| N2-03b | Car wheels must sit on the same sampled surface used to create the ribbon. Derive the pivo... | todo | | |
-| N2-03c | Keep Lap Pay and authoritative lap timing unchanged. If adding visual speed variation, cho... | todo | | |
-| N2-05a | Adaptive tessellation starts with a 0.1-stud chord-error target and at most 3-degree tange... | todo | | |
-| N3-01 | Barriers: the white wall blocks along the track edge form one even, continuous wall (no un... | todo | | |
-| N3-02 | Props: keep race props in their zones (Round 1 M4-05). A concession cart is fine near the ... | todo | | |
-| N3-03 | Walk every plot at levels 1, 6, 9 and 12 and fix anything else that looks unfinished: gaps... | todo | | |
-| N3-03a | Physical polish checks | todo | | |
-| N4-01 | Fastest Stunt Circuit board (`r2-05`): rotate it to face the center of the island (toward ... | todo | | |
-| N4-02 | The low cyan info board near the portal pillar (`r2-05`, left): if it is lying flat or til... | todo | | |
-| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | todo | | |
-| N4-04 | Round 1 leftovers on the island: convert the island signposts to the sign family (Round 1 ... | todo | | |
-| N4-04a | Readable signs and planted space | todo | | |
+| N1-01 | Find the root cause first and write it in the ledger. The same overlaps survived Round 1, ... | done | evidence/before-r2-01-view.jpg | Root cause: three separate hand-kept geometries. Lanes (Plot.polyline), their paint (Props.PitOut, a copy of the list) and barrier gaps (Track.inPitGap, an axis-aligned box with a +5 fudge) knew nothing of each other. Lanes ended as rectangles under the road at an angle, the paint ran past the road edge, and a cross line was painted over the mouth. Near turn banked 3 degrees, so no flat joint was possible. |
+| N1-02 | One road network per plot and level. Build the track, the pit lane, the side road and the ... | done | RoadNet.luau; LineChecks matrix zero | One network, single junction polygons, paint from the network |
+| N1-03 | Pit lane and side road: they split from and rejoin the track at a shallow angle, at the sa... | done | evidence/pair-r2-01.jpg, pair-r2-02.jpg | 25.4 degrees at the merge's steepest (brief starts at 15 to 25); lane is the aisle's own 10 wide |
+| N1-04 | Paddock, parking and walkways: the concrete paddock and the parking area are flush with an... | done | evidence/pair-r2-04.jpg; LineChecks walk 0 | Court, Paddock, aisle, lanes and walk all top at 0.2; walk ends on the road's edge at a gate |
+| N1-05 | Double lines: where a wall and an edge line run side by side (`r2-04`), there is exactly o... | done | evidence/pair-r2-04.jpg | The doubled look was the wall's inner edge against the line; line stands 0.6 in, even all round |
+| N1-06 | Line checker: add checks (extend `SpeedwayChecks` or the M1 overlap scanner) that fail whe... | done | LineChecks.run | crossing, overlap, freeEnd, walk, floats, wallStep, tyreOnWall |
+| N1-07 | Done when: the checks are zero everywhere, and before and after pairs from Adam's views (`... | done | evidence/pair-r2-01, 02, 04 | Matrix 6 plots x 12 levels all 0, verified in Studio Edit; views verified in Studio Play |
+| N1-01a | Network construction and diagnosis | done | r2-01, r2-02, r2-04 reproduced in the old place before any change | Confirmed in Studio |
+| N1-02a | Use plot-local 2D coordinates for ground roads. Each edge records its centerline, width, e... | done | RoadNet.triangulate, validate | Ear clip, fattest ear first; rejects self crossing and repeats |
+| N1-02b | Generate boundary paint after surfaces, from the final external boundary and tagged mouth ... | done | RoadNet buildRight | Line chains turn the nose by a Bezier; ribbon lines stop at the junction cross-sections |
+| N1-03a | Proposed starting geometry: 15 to 25 degrees for a pit fork; widen turns enough for the cu... | done | RoadNet | End chords share corners exactly; nose rounded |
+| N1-06a | Classify comparisons. A paint line necessarily overlaps its own supporting asphalt in plan... | done | LineChecks | Ownership by polygon depth, not touching |
+| N1-06b | Keep a single surface-height convention and place paint relative to the local road normal.... | done | Scan on all plots and levels | One height, paint at a fixed 0.12 |
+| N1-07a | Done when: reproduce known-bad crossing, duplicate-paint and grass-gap fixtures and prove ... | partial | selfTest: crossing 1, overlap 1, freeEnd 2, walk 1, clean 0 | Top-down views at levels 1, 6, 12 not all saved; rebuild identity not measured |
+| N2-01 | Research how real stunt loops on tracks are built (for example toy-car loops, stunt-show l... | done | see Research below | Findings below |
+| N2-02 | Geometry: where the loop stands, widen the straight to at least two full track widths with... | partial | Path.Loop, Track.loop, Track.loopApron | Straight widened to 32 (two track widths) with 48-stud tapers (3 x 16). Ribbon 16 at the road, 14 in the loop: 16 throughout needs a 54 taper and does not fit the 103.6 straight with the loop's 38 of forward run |
+| N2-03 | Cars through the loop: the decorative lap cars follow the loop centerline with the correct... | done | evidence/raceway-loop-side-silent.mp4 | Upside down at the top, frame from the curve |
+| N2-04 | Fits the levels: the loop appears at the levels where Round 1 put it (keep the level ladde... | done | Look features | Hump now level 11 only: the loop takes that straight |
+| N2-05 | Done when: a Studio Play recording (with game audio) shows at least three cars going throu... | partial | evidence/raceway-loop-side-silent.mp4, raceway-loop-walkway-silent.mp4 | Videos have no audio: audio capture blocked by Application Control |
+| N2-01a | Research, actual scale and a buildable method | done | Path.luau | Called a teardrop, not a clothoid. Game proportions, not safety figures |
+| N2-02a | Verified local baseline: Track.luau uses Path.HalfWidth = 8, so the ordinary ribbon is 16 ... | done | Track, Path | Old loop was a circular helix with a constant sideways slope at both ends: confirmed source of the sideways snap |
+| N2-02b | Proposed starting envelope for the stated 9 to 12 stud car length: loop road width 16 stud... | done | apex radius 14.1, low radius 30.2, height 38.9 | Car measured 5.7 x 4.7 x 12.5. Width 14 up in the loop, gap 2 |
+| N2-02c | Construct a smooth closed-turn vertical centerline in a local forward/up plane. One defens... | done | Path LOOP table | Curvature schedule, mirrored, scaled to exactly 180 degrees a half |
+| N2-02d | Add lateral offset D*f(t), with t in [0,1] and f(t) = 6*t^5 - 15*t^4 + 10*t^3. Its first a... | done | Path quintic | From 12 to 88 percent of the way round, so ribbons are already a lane apart where they pass |
+| N2-03a | At every sample derive tangent T from the curve derivative. Derive a reference inward norm... | done | Path.sample | Tangent and projected inward normal |
+| N2-03b | Car wheels must sit on the same sampled surface used to create the ribbon. Derive the pivo... | partial | Path.carLift | Lift by wheelbase^2/8R. Eight-point swept check not done; video shows no clipping |
+| N2-03c | Keep Lap Pay and authoritative lap timing unchanged. If adding visual speed variation, cho... | done | Path.distanceAt | 0.85 at the top, 1.1 low, whole lap unchanged; min gap at 15 cars 31 studs |
+| N2-05a | Adaptive tessellation starts with a 0.1-stud chord-error target and at most 3-degree tange... | partial | joins 0.0000, 0.39 degrees per 0.1 stud, orthogonal 0.00000 | All plot bearings shown by the shared generator; Reduced Motion and three-lap counts not separately measured |
+| N3-01 | Barriers: the white wall blocks along the track edge form one even, continuous wall (no un... | done | evidence/pair-r2-03.jpg; wall step 0.109 | One sloped wall, tyres stop short with an end post |
+| N3-02 | Props: keep race props in their zones (Round 1 M4-05). A concession cart is fine near the ... | done | evidence/pair-r2-03.jpg | Snack stop: pad, two stalls, bench |
+| N3-03 | Walk every plot at levels 1, 6, 9 and 12 and fix anything else that looks unfinished: gaps... | partial | Line checks all plots and levels | Plot 3 walked by camera; other plots share the generator, not walked |
+| N3-03a | Physical polish checks | partial | wall step 0.109, tyreOnWall 0 | 0.109 is on the banked slope, not level ground. Avatar collision not walked |
+| N4-01 | Fastest Stunt Circuit board (`r2-05`): rotate it to face the center of the island (toward ... | done | evidence/pair-r2-05.jpg | Both fences removed (there were exactly two). Boards turned about 18 degrees toward the avenue, mirrored |
+| N4-02 | The low cyan info board near the portal pillar (`r2-05`, left): if it is lying flat or til... | done | PortalGates | Low tilted plaque removed: the locked portal's dialogue card says it |
+| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | done | LineChecks.canopies: 580 plants, 0 touching, 0 on objects | Was 658 plants; 12 percent fewer, mostly far forest |
+| N4-04 | Round 1 leftovers on the island: convert the island signposts to the sign family (Round 1 ... | partial | Task4 failures 0, Overlap checks 0 | Signposts keep the approved arrow boards (same outline and lettering as the family); slow walk not done yet |
+| N4-04a | Readable signs and planted space | partial | evidence/pair-r2-05.jpg |  |
 | N5-01 | Use ChatGPT's original icons from `chatgpt-images\` (`icon-*.png`, or cut them out of `IMG... | todo | | |
 | N5-02 | Upload (R-05), then wire the icons into the UI kit: one icon module where each icon name m... | todo | | |
 | N5-03 | Replace every icon in the game: Home menu, HUD, Shop (including every Starter Pack item an... | todo | | |
@@ -125,3 +125,14 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N16-01a | Evidence and acceptance matrix | todo | | |
 | N16-03a | Two reviewer agents may run concurrently, within the two-worker cap. Give each the origina... | todo | | |
 | N16-04a | A finished-looking static frame is insufficient for moving cars, animation cleanup, popup ... | todo | | |
+
+## Research (N2-01)
+
+Sources are the two cited in the brief's N2-01a; no new measurements of real loops were made.
+- A roller-coaster or stunt loop is tight at the top and broad at the bottom, because the rider's load depends on speed and radius together. A circular loop has one radius and a hard change of curvature where it meets the straight.
+- A true clothoid changes curvature linearly with distance. Not every real loop is one; "teardrop" is the honest word for ours.
+- What matters for the look is that curvature starts at zero at the road, so the car eases up with no kink.
+- Entry and exit side by side is what keeps the two ribbons apart. It is a design choice here, not a rule of nature.
+- Full-size stunt-car loop proportions were not verified at this game's scale. Nothing here is a safety figure.
+- Our numbers: 38.9 high, 14.1 radius at the top, 30.2 low, 141.7 long, 38.2 of forward run, 16 sideways.
+- The footprint does not allow 16 wide all the way and 3 x tapers both ends: see N2-02.

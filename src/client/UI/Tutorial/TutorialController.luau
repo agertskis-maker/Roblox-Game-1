@@ -14,8 +14,8 @@
 --   * A step whose adapter capability is missing is SKIPPED with the reason recorded, never completed by a made-up signal.
 --   * A run objective that was not met (the run ended, the player missed) is kept: the tutorial guides back to the portal
 --     ("Walk into a portal to try again.") and the step resumes in the next run. Facts of a run reset when the next run starts.
---   * Timed hint: after 8 seconds (tunable) without the step done, ONE hint per step: the arrow grows and pulses, the banner
---     wiggles, then a calm static cue stays.
+--   * Timed hint: after 8 seconds (tunable) without the step done, ONE hint per step: the written hint (N8-01a) appears under
+--     the banner, the arrow grows and pulses, the banner wiggles once, then a calm static cue stays.
 --   * The tutorial finishes after step 11's 3 second hold. Skip asks first (the confirm card); replay starts again.
 --
 -- FACTS (reset when a run starts, except the island ones, which count only while their step is active)
@@ -67,6 +67,10 @@ export type Options = {
 	runAdapter: any?,
 	islandAdapter: any?,
 	funnel: any?,
+	-- Round 2 (N8-01a): the run integration may say how each control is worded, so the green line always matches the
+	-- controls the run really has: (kind "Steer" | "Hop", device "Keyboard" | "Touch" | "Gamepad") -> "Press A and D".
+	-- nil, or a nil result, uses the defaults in TutorialStrings.
+	controlText: ((kind: string, device: string) -> string?)?,
 	session: string?, -- "first" (default) or "replay"
 	startStep: number?,
 	timings: { hint: number?, done: number?, start: number?, ready: number? }?,
@@ -546,8 +550,13 @@ function Controller._present(self: any)
 		return
 	end
 	local f = self._facts
-	local text = Strings.step(step.index)
+	local text = Strings.step(step.index, {
+		device = self._device,
+		done = (if f.steerLeft then 1 else 0) + (if f.steerRight then 1 else 0),
+		controlText = self._options.controlText,
+	})
 	local title, line = text.title, text.line
+	local hintLine = text.hint -- the ONE delayed hint: shown only once the step has gone 8 seconds without progress
 	local controls: { [string]: any }? = nil
 	local state = "Active"
 	local placement = if step.where == "Island" then "Home" else "Run"
@@ -584,12 +593,20 @@ function Controller._present(self: any)
 	else
 		if needsRun then
 			line = Strings.get("rerun")
+			hintLine = Strings.get("rerun.hint")
 		elseif step.key == "Portal" and self._retryLine then
 			line = Strings.get("portal.retry")
+			hintLine = Strings.get("portal.retry.hint")
 		elseif step.key == "Hop" and f.missed and not f.landed then
 			line = Strings.get("hop.miss")
+			hintLine = Strings.get("hop.miss.hint")
 		elseif step.key == "Home" then
-			line = if self._run.homeLabel == "Retry" then Strings.get("home.retry") else Strings.get("home.fixture")
+			if self._run.homeLabel == "Retry" then
+				line = Strings.get("home.retry")
+				hintLine = Strings.get("home.retry.hint")
+			else
+				line = Strings.get("home.fixture")
+			end
 		end
 		if step.controls == "Steer" and not needsRun then
 			controls = { kind = "Steer", device = self._device, left = f.steerLeft, right = f.steerRight }
@@ -601,9 +618,10 @@ function Controller._present(self: any)
 		placement = "Home" -- the player is back on the island, walking to the portal
 	end
 
+	-- the delayed hint (N8-01a): never while Done or Waiting, and only after the 8 second wait of an active step
 	local hintNote: string? = nil
-	if step.key == "Ready" then
-		hintNote = Strings.get("ready.preview")
+	if self._hinted and self._phase == "Active" and step.key ~= "Ready" then
+		hintNote = hintLine
 	end
 	local view = {
 		step = step.index + 1,
@@ -615,6 +633,8 @@ function Controller._present(self: any)
 		hint = hintNote,
 		state = if step.key == "Ready" then "Done" else state,
 		icons = step.icons,
+		accent = step.accent,
+		iconLabel = step.iconLabel,
 		controls = controls,
 		big = step.big == true or step.key == "Ready",
 	}
@@ -744,11 +764,13 @@ function Controller._update(self: any)
 		self._retryLine = true
 		self:_present()
 	end
-	-- the one timed hint
+	-- the one timed hint: the written hint appears under the banner, the arrow grows and pulses, and the banner gives ONE
+	-- wiggle (calm after that; reduced motion is static)
 	if not self._hinted and now - self._enteredAt >= self._timings.hint then
 		self._hinted = true
 		self._hintCount += 1
 		self._guide:pulse()
+		self:_present()
 		self._banner:wiggle()
 		Sounds.play("Tap")
 	end
