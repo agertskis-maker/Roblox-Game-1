@@ -1,7 +1,7 @@
 --!strict
 -- WORLD LIFE for Dusty Highway and Summit Pass (Lane 3, Round 2, R2-DH1 / R2-SP1). Bounded, off-road, reduced-motion
 -- aware ambient accents on the same pattern as StreetLife (which stays the Downtown set), driven by the plan:
---   Dusty Highway   tumbleweeds  4 balls rolling along the sidewalk strip beside the road (never on the carriageway)
+--   Dusty Highway   tumbleweeds  2 balls rolling along the sidewalk strip beside the road (never on the carriageway)
 --                   hawks        3 circling high over the midground ahead
 --                   dust devil   1 thin, slow column of sand far off the road, drifting sideways (never near the route)
 --   Summit Pass     snowfall     one light emitter following the camera: small slow flakes, no flashing, no full-screen

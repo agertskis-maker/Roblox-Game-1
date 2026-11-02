@@ -195,8 +195,11 @@ function OverlapChecks.run(): Result
 				if pathEdgeDistance(p) > 3.5 then
 					fail("benchesOffPath", short(d))
 				end
-				if inBed(p, 3.5) then
-					fail("benchesInBeds", short(d))
+				for _, corner in cornersOf(d) do
+					if inBed(corner, 1) then
+						fail("benchesInBeds", short(d))
+						break
+					end
 				end
 				upright(d)
 			end

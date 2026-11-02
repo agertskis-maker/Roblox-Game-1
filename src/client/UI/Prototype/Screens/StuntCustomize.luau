@@ -803,7 +803,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 
 	local function captionFor(item: StuntFixtures.Item, state: StuntFixtures.ItemState): string
 		if state == "equipped" then
-			return "ON"
+			return "EQUIPPED"
 		elseif state == "locked" then
 			local medal = item.medal
 			if medal then

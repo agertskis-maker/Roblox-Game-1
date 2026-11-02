@@ -79,6 +79,7 @@ ShopMock.FixtureNames = {
 export type Options = {
 	onClose: (() -> ())?,
 	adapter: ShopPurchaseAdapter.Adapter?,
+	onFreeReward: (() -> ())?, -- the Free card opens the group reward card
 	autoAdvance: boolean?, -- default true (pauses on hover, press, focus and for 14 s after any manual move)
 	blur: boolean?, -- default true
 	cash: boolean?, -- the Cash section; default false (hidden until Brian L and Adam approve Developer Products)
@@ -305,6 +306,10 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		if offer.kind == "Style" then
 			stylePreview(offerId)
+			return
+		end
+		if offerId == "free-legion" and opts.onFreeReward then
+			opts.onFreeReward() -- the group reward has its own card (M16), never a purchase path
 			return
 		end
 		local state = stateOf(offerId)
@@ -844,7 +849,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Position = UDim2.fromOffset(L.pageX - 10, 0),
 			Size = UDim2.new(0, L.pageW + 20, 1, 0),
 			BackgroundColor3 = Color3.fromRGB(16, 22, 44),
-			BackgroundTransparency = 0.3,
+			BackgroundTransparency = 0.08,
 			BorderSizePixel = 0,
 			ZIndex = 2,
 			Parent = shell,
@@ -1212,6 +1217,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				local inView = heroInView()
 				if
 					opts.autoAdvance ~= false
+					and UserInputService:GetLastInputType() ~= Enum.UserInputType.Touch -- never swap under a still thumb
 					and inView
 					and h.count() > 1
 					and now >= pausedUntil

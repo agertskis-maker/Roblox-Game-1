@@ -348,8 +348,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 	caption.TextColor3 = Style.TextSoft
 	caption.LayoutOrder = 4
 	caption.Size = UDim2.new(1, -8, 0, 40)
-	caption:SetAttribute("PreviewCaption", true) -- a harness caption: player-facing captures omit it
-	caption.Visible = false
+	caption:SetAttribute("PersistentPreview", true) -- fixture numbers must never read as real ones
 	local peekBox: Frame = make("Frame", {
 		Name = "Peek",
 		BackgroundTransparency = 1,

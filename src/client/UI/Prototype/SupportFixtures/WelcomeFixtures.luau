@@ -61,7 +61,7 @@ local function data(status: Status, earned: number?, away: number?, capped: numb
 		awaySeconds = away,
 		cappedSeconds = capped,
 		vip = vip,
-		capSeconds = 6 * HOUR,
+		capSeconds = 8 * HOUR, -- the outline's default, tunable
 		vipCapSeconds = 12 * HOUR,
 		lineup = lineup,
 	}
