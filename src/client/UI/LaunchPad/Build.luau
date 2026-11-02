@@ -165,7 +165,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	ramp.CanCollide = true
 	ramp.CanTouch = false
 	ramp.Size = Vector3.new(18, rise, rampLen)
-	ramp.CFrame = origin * CFrame.new(0, rise / 2, -31 - rampLen / 2) * CFrame.Angles(0, 0, 0)
+	ramp.CFrame = origin * CFrame.new(0, rise / 2, -31 - rampLen / 2) * CFrame.Angles(0, math.pi, 0)
 	ramp.Color = rgb(48, 50, 60)
 	ramp.Material = Enum.Material.SmoothPlastic
 	ramp.Parent = folder
@@ -218,7 +218,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	box("HomeHead", Vector3.new(14, 2.4, 2.4), homeAt * CFrame.new(0, 13.2, 0), theme.frame)
 	local field = neon("HomeField", Vector3.new(9.6, 10.6, 0.3), homeAt * CFrame.new(0, 6.4, 0), theme.neonB)
 	field.Transparency = 0.25
-	SignKit.sign(folder, origin * homeAt * CFrame.new(0, 13.2, -1.4) * CFrame.Angles(0, math.pi, 0), {
+	SignKit.sign(folder, origin * homeAt * CFrame.new(0, 13.2, -1.4), {
 		style = "Race",
 		text = "HOME",
 		width = 11,
@@ -239,13 +239,18 @@ function Build.build(world: string, origin: CFrame): Pad
 		end
 		local counter = box("Counter", Vector3.new(8, 3, 2.2), at * CFrame.new(5.6, 1.5, -3.2), theme.frame)
 		box("CounterTop", Vector3.new(8.4, 0.3, 2.6), at * CFrame.new(5.6, 3.15, -3.2), accent)
-		SignKit.sign(folder, origin * at * CFrame.new(0, 13.4, -6.9) * CFrame.Angles(0, math.pi, 0), {
+		SignKit.sign(folder, origin * at * CFrame.new(0, 13.6, -6.9), {
 			style = theme.sign,
 			text = label,
 			width = 15,
 			height = 3.6,
 			accent = accent,
 		})
+		local light = Instance.new("PointLight")
+		light.Color = accent
+		light.Range = 26
+		light.Brightness = 1.6
+		light.Parent = box("Lamp", Vector3.new(1, 0.4, 1), at * CFrame.new(0, 10.6, 0), accent, Enum.Material.Neon)
 		stalls[key] = counter
 		return at
 	end
@@ -258,23 +263,15 @@ function Build.build(world: string, origin: CFrame): Pad
 	if Supercar.available() then
 		local rig = Supercar.new()
 		rig.model:PivotTo(origin * carAt * CFrame.new(-3.4, 0.45, 0.4) * CFrame.Angles(0, math.rad(62), 0))
-		for _, d in rig.model:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.Size = Vector3.new(1, 1, 1)
-			end
-		end
+		-- a display car: the meshes scale, so the pieces move in to match
 		local mini = 0.62
+		local pivot = rig.model:GetPivot()
 		for _, d in rig.model:GetDescendants() do
 			if d:IsA("SpecialMesh") then
 				d.Scale = Vector3.new(mini, mini, mini)
-			end
-		end
-		-- the pieces are placed for full size: bring them in to match the small display car
-		local pivot = rig.model:GetPivot()
-		for _, d in rig.model:GetDescendants() do
-			if d:IsA("BasePart") then
+			elseif d:IsA("BasePart") then
 				local rel = pivot:ToObjectSpace(d.CFrame)
-				d.CFrame = pivot * (rel - rel.Position) + (pivot * (rel.Position * mini))
+				d.CFrame = CFrame.new(pivot * (rel.Position * mini)) * pivot.Rotation * rel.Rotation
 			end
 		end
 		rig.model.Parent = folder
@@ -324,12 +321,18 @@ function Build.build(world: string, origin: CFrame): Pad
 			local x = -240 + i * 22
 			local h = 60 + (i * 37 % 120)
 			if math.abs(x) > 16 then
-				box(
-					"Tower",
-					Vector3.new(18, h, 18),
-					CFrame.new(x, h / 2 + 3, -210 - (i * 53 % 120)),
-					colours[i % 4 + 1]
-				)
+				local z = -210 - (i * 53 % 120)
+				local c = colours[i % 4 + 1]
+				box("Tower", Vector3.new(18, h, 18), CFrame.new(x, h / 2 + 3, z), c)
+				box("TowerTop", Vector3.new(10, 5, 10), CFrame.new(x, h + 5.5, z), c:Lerp(Color3.new(1, 1, 1), 0.2))
+				for row = 1, math.floor(h / 14) do
+					box(
+						"Windows",
+						Vector3.new(15, 5, 0.4),
+						CFrame.new(x, row * 14, z + 9.2),
+						c:Lerp(Color3.fromRGB(190, 225, 255), 0.55)
+					)
+				end
 			end
 		end
 		for _, s in { 1, -1 } do

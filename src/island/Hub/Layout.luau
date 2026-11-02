@@ -516,6 +516,10 @@ local function endRun(path: typeof(Data.park.paths[1]), atStart: boolean): (numb
 		end
 		return worst
 	end
+	-- most ends already lie inside the paving they arrive at
+	if standOut(tuck) <= RUN_TOLERANCE then
+		return tuck, host, "tucked"
+	end
 	local runs: { number } = {}
 	local outs: { number } = {}
 	local best = math.huge
@@ -580,13 +584,14 @@ end
 -- (PathEndRuns), or by 15 % of the width without them; an end at a bridge cut stops exactly at the deck.
 function Layout.stripsAlong(points: { Vector2 }, width: number, cuts: { Cut }?, ends: EndRuns?): { PlanStrip }
 	local out: { PlanStrip } = {}
+	local cutList: { Cut } = cuts or {}
 	for i = 1, #points - 1 do
 		local a, b = points[i], points[i + 1]
 		local length = (b - a).Magnitude
 		local dir = (b - a) / length
 		-- pieces of [0, length] that stay after the cuts
 		local pieces = { { 0, length } }
-		for _, cut in cuts or {} do
+		for _, cut in cutList do
 			local s = (cut.at - a):Dot(dir)
 			local off = math.abs((cut.at - a):Dot(Vector2.new(-dir.Y, dir.X)))
 			if off < 3 then
@@ -607,7 +612,10 @@ function Layout.stripsAlong(points: { Vector2 }, width: number, cuts: { Cut }?, 
 				pieces = kept
 			end
 		end
-		local before = if i > 1 then mitre(width, (a - points[i - 1]).Unit, dir) elseif ends then ends.start else width * 0.15
+		local before = if i > 1
+			then mitre(width, (a - points[i - 1]).Unit, dir)
+			elseif ends then ends.start
+			else width * 0.15
 		local after = if i < #points - 1
 			then mitre(width, dir, (points[i + 2] - b).Unit)
 			elseif ends then ends.finish

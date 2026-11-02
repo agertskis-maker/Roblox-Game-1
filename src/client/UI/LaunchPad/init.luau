@@ -16,6 +16,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
@@ -91,6 +92,11 @@ local function moveTo(cf: CFrame)
 	if r then
 		r.AssemblyLinearVelocity = Vector3.zero;
 		(r.Parent :: Model):PivotTo(cf)
+		-- the camera turns with the player, so the first look is at what is ahead
+		local cam = Workspace.CurrentCamera
+		if cam then
+			cam.CFrame = CFrame.lookAt((cf * CFrame.new(0, 7, 15)).Position, (cf * CFrame.new(0, 1, -20)).Position)
+		end
 	end
 end
 
