@@ -28,6 +28,15 @@ local WHEEL_R = 1.02
 local AXLE_Z = { -6.5 + 13 * 0.2, -6.5 + 13 * 0.785 }
 local TRACK = 2.62
 
+-- The 3D importer re-centres each uploaded mesh on itself, while the local .mesh files keep the car's shared origin. These
+-- are the centres of art\obj, put back with SpecialMesh.Offset so an uploaded car lines up the same as a local one.
+local UPLOAD_CENTRE: { [string]: Vector3 } = {
+	car_body = Vector3.new(0, 1.744, 0),
+	car_shell = Vector3.new(0, 1.747, 0),
+	car_trim = Vector3.new(0, 1.71, 0.1),
+	car_rim_five = Vector3.new(0.04, 0, 0),
+}
+
 local function meshUri(key: string): string?
 	local id = GameIconIds[key]
 	if id then
@@ -61,6 +70,9 @@ local function piece(parent: Instance, name: string, mesh: string, colour: Color
 	m.MeshType = Enum.MeshType.FileMesh
 	m.MeshId = meshUri(mesh) or ""
 	m.Scale = Vector3.new(1, 1, 1)
+	if GameIconIds[mesh] then
+		m.Offset = UPLOAD_CENTRE[mesh] or Vector3.zero
+	end
 	m.Parent = p
 	p.Parent = parent
 	return p, m

@@ -148,16 +148,21 @@ end
 function GameIcons.preload(keys: { string }, onStep: ((done: number, total: number) -> ())?): (number, number)
 	local byUri: { [string]: string } = {}
 	local uris: { string } = {}
+	-- Labels, not bare strings: a bare rbxassetid string has no asset type, so an uploaded Image fails where a local file doesn't.
+	local labels: { ImageLabel } = {}
 	for _, key in keys do
 		local uri = GameIcons.uri(key)
 		if uri and not byUri[uri] then
 			byUri[uri] = resolve(key)
 			table.insert(uris, uri)
+			local label = Instance.new("ImageLabel")
+			label.Image = uri
+			table.insert(labels, label)
 		end
 	end
 	local done, failed = 0, 0
 	local ok = pcall(function()
-		ContentProvider:PreloadAsync(uris, function(uri: string, status: Enum.AssetFetchStatus)
+		ContentProvider:PreloadAsync(labels, function(uri: string, status: Enum.AssetFetchStatus)
 			done += 1
 			if status ~= Enum.AssetFetchStatus.Success then
 				failed += 1
@@ -171,6 +176,9 @@ function GameIcons.preload(keys: { string }, onStep: ((done: number, total: numb
 			end
 		end)
 	end)
+	for _, label in labels do
+		label:Destroy()
+	end
 	if not ok then
 		warn("[GameIcons] preload failed")
 	end
