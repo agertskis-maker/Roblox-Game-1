@@ -23,7 +23,8 @@ local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForCh
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
-local RunScenery = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
+local RunScenery =
+	require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
 local Tutorial = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Tutorial"))
 
 local player = Players.LocalPlayer
@@ -94,6 +95,10 @@ local function start(world: string, field: BasePart)
 		scenery = RunScenery.attach(world, run)
 	end
 	print(string.format("[CarHopBeta] %s run started (seed %d)", world, run.seed))
+end
+
+if RunScenery.enabled() then
+	RunScenery.prepareAll() -- the three Worlds load in the background, so a run starts in its World
 end
 
 player.CharacterAdded:Connect(function()
