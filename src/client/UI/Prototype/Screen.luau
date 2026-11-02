@@ -238,8 +238,15 @@ function Screen.profile(self: ScreenObject): Profile
 	return self._profile
 end
 
+-- Live, off a phone, the UI follows the window's height from a calmer base: the phone rule grows to 1.5 on any window taller
+-- than about 585 px, and on a laptop that filled the screen (Adam, 2026-11-02: "I can hardly see my screen").
+local LIVE_BASE = 800
 function Screen.uiScale(self: ScreenObject): number
-	return Tokens.uiScaleFor(self._profile.size)
+	local p = self._profile
+	if (self :: any)._live and p.kind ~= "Phone" then
+		return math.clamp(math.min(p.size.X, p.size.Y) / LIVE_BASE, if p.touch then 0.9 else 0.7, 1.15)
+	end
+	return Tokens.uiScaleFor(p.size)
 end
 
 function Screen.fitScale(self: ScreenObject): number

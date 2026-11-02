@@ -111,14 +111,11 @@ local function prepare(world: string)
 	preparing[world] = false
 end
 
--- Prepares every World, one after another, in the background.
+-- Prepares every World in the background, each on its own, so a slow one holds no other up.
 function RunScenery.prepareAll()
-	task.spawn(function()
-		for _, world in WORLDS do
-			prepare(world)
-			task.wait()
-		end
-	end)
+	for _, world in WORLDS do
+		task.spawn(prepare, world)
+	end
 end
 
 function RunScenery.ready(world: string): boolean

@@ -7,8 +7,7 @@
 --   local shell = HomeShell.start({ joinMode = "new", isRunning = function() ... end, onLog = print })
 --   shell:runStarted()   shell:runEnded()   shell:destroy()
 --
--- Join flow (N13-01a). Nothing tells a new player from a returning one yet: there is no saved flag and this round adds none,
--- so `joinMode` is an explicit choice of the caller, never a guess. New: the tutorial first, everything else waits; after it,
+-- Join flow (N13-01a). `joinMode` is the caller's: it knows whether this player has seen the tutorial. New: the tutorial first, everything else waits; after it,
 -- the Update Log. Returning: the Update Log, then Welcome back. No offer opens by itself: the group reward is not real yet.
 
 local Players = game:GetService("Players")
@@ -34,7 +33,7 @@ export type Options = {
 	updateVersion: string?,
 	world: Instance?, -- the Folder the world pieces live in
 	cashPreview: boolean?, -- true: the Cash shown is a fixture and says PREVIEW
-	onCustomize: (() -> ())?,
+	onTutorialDone: (() -> ())?, -- the tutorial was finished or skipped: the caller remembers it
 }
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
@@ -318,6 +317,9 @@ function HomeShell._join(self: any, o: Options)
 		end
 		stopped = true
 		self.log("tutorial " .. how)
+		if how ~= "Stopped" and o.onTutorialDone then
+			o.onTutorialDone()
+		end
 		self.queue:unblock("tutorial")
 		self:_updateLog(o)
 	end))
