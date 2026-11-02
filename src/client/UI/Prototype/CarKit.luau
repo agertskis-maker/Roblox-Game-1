@@ -219,6 +219,7 @@ CarKit.Rarity = table.freeze({
 CarKit.ButtonTone = table.freeze({
 	Green = { CarKit.Green, CarKit.GreenDeep, CarKit.GreenLip },
 	Orange = { rgb(255, 170, 44), rgb(238, 92, 12), rgb(128, 40, 4) },
+	Gold = { rgb(255, 226, 90), rgb(240, 164, 20), rgb(130, 80, 6) },
 	Blue = { rgb(64, 168, 255), rgb(20, 92, 232), rgb(8, 44, 130) },
 	Navy = { rgb(38, 56, 104), rgb(20, 32, 68), rgb(6, 10, 26) },
 	Red = { rgb(255, 84, 84), rgb(214, 24, 40), rgb(112, 8, 22) },

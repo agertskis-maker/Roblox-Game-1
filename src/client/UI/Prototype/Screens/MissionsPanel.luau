@@ -304,7 +304,7 @@ function MissionsPanel.geometry(ds: Vector2): Geo
 		barH = if phone then 22 else math.round(28 * k),
 		titlePx = if phone then 20 else math.round(27 * k),
 		subPx = if phone then 16 else math.max(16, math.round(18 * k)),
-		amountPx = if stacked then math.round(ih * 0.3) else 22,
+		amountPx = if stacked then math.round(ih * 0.3) else 19,
 		goalH = if phone then 48 else math.round(58 * k),
 		headH = tabsH,
 		tabY = 0,

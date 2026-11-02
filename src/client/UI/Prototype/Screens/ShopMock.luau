@@ -98,6 +98,8 @@ local function edgeTint(name: string): Color3
 	return if f then f.edge else CarKit.White
 end
 
+local FOOT = 18 -- the PREVIEW line at the foot of the panel, on every tab
+
 type Plan = {
 	tier: string,
 	k: number,
@@ -116,7 +118,7 @@ local function plan(D: Vector2): Plan
 	local pad = if tier == "Phone" then 8 else 12
 	local headerH = if tier == "Phone" then 50 else 68
 	local inner = panel.X - pad * 2
-	local pageH = panel.Y - headerH - pad * 2
+	local pageH = panel.Y - headerH - pad * 2 - FOOT
 	local k = math.clamp(math.min(inner / 1180, pageH / 620), 0.5, 1.3)
 	return {
 		tier = tier,
@@ -556,10 +558,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local dots = make("Frame", {
 			Name = "Dots",
 			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = if phone
-				then UDim2.new(0, artW * 0.5 + inset, 1, 0)
-				else UDim2.new(0.5, 0, 1, -math.round(8 * k)),
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -4, 0, 2),
 			Size = UDim2.fromOffset(#SLIDES * 34, 26),
 			ZIndex = 12,
 		}, card)
@@ -611,9 +611,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		local px = fontPx(p, 62, 24)
 		local inset = math.round(7 * k)
+		local buyW = math.round(math.max(158 * k, 112))
 		if id == "vip" then
-			boxArt(card, art, w * 0.09, inset, w * 0.56, h - inset * 2, 6)
+			local top = px * 0.5
+			boxArt(card, art, inset, top, w - buyW - inset * 3, h - top - inset, 6)
 		else
+			px = fontPx(p, 54, 24)
 			local top = px * 0.9
 			boxArt(card, art, inset * 2, top, h - top - inset, h - top - inset, 6)
 		end
@@ -625,11 +628,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			stroke = math.max(3, px / 13),
 			z = 8,
 		})
-		if line and h - px * 1.02 - math.max(58 * k, 46) - 10 >= fontPx(p, 32, 18) then
-			CarKit.title(card, line, fontPx(p, 30, 15), {
+		local linePx = fontPx(p, 30, 15)
+		if line and h - px * 1.04 - math.max(58 * k, 46) - 10 >= linePx * 1.2 then
+			CarKit.title(card, line, linePx, {
 				align = Enum.TextXAlignment.Right,
-				size = UDim2.fromOffset(w * 0.62, fontPx(p, 32, 18)),
-				position = UDim2.new(1, -math.round(12 * k), 0, px * 1.02),
+				size = UDim2.fromOffset(w * 0.62, linePx * 1.2),
+				position = UDim2.new(1, -math.round(12 * k), 0, px * 1.04),
 				anchor = Vector2.new(1, 0),
 				alignY = Enum.TextYAlignment.Top,
 				color = CarKit.Yellow,
@@ -681,7 +685,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		local stampPx = math.round(h * 0.98)
 		local dealBuy = math.round(math.max(170 * k, 118)) + math.round(12 * k)
-		local stampX = p.inner - dealBuy - 96 - stampPx / 2
+		local stampX = p.inner - dealBuy - 116 - stampPx / 2
 		boxArt(card, "art_bundle", stampX - stampPx / 2 - h * 1.1, 5, h * 1.08, h - 10, 6)
 		if offer and offer.price then
 			priceButton(card, offer.id, "The bundle", "art_bundle", offer.price, {
@@ -724,7 +728,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				Name = "Was",
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(1, 1),
-				Position = UDim2.new(1, -buyW - 4, 1, -math.round(16 * k)),
+				Position = UDim2.new(1, -buyW - 12, 1, -math.round(10 * k)),
 				Size = UDim2.fromOffset(math.round(70 * k) + 14, math.round(36 * k) + 6),
 				ZIndex = 13,
 			}, card)
@@ -746,8 +750,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				ZIndex = 16,
 			}, strike)
 			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 11), {
-				size = UDim2.fromOffset(92, 16),
-				position = UDim2.new(1, -buyW - 4, 0, math.round(10 * k)),
+				size = UDim2.fromOffset(100, 16),
+				position = UDim2.new(1, -buyW - 12, 0, math.round(8 * k)),
 				anchor = Vector2.new(1, 0),
 				align = Enum.TextXAlignment.Right,
 				color = CarKit.Soft,
@@ -801,6 +805,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		local avail = p.inner - p.gap * (#rows - 1)
 		local tallest = math.round(math.clamp(avail / total * 1.36 * 1.34, 150, 340))
+		tallest = math.min(tallest, p.pageH - fontPx(p, 58, 36) - p.gap - 6)
 		local x = 0
 		for i, row in rows do
 			local w = math.floor(avail * weights[i] / total)
@@ -997,7 +1002,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 		local y = 4
 		sectionY.featured = 0
-		local peek = math.round(math.max(96 * p.k, 60))
+		local peek = math.round(math.max(170 * p.k, 60))
 		local bannerH = math.round(math.max(112 * p.k, 76))
 		local phone = p.tier == "Phone"
 		local rowH = if phone
@@ -1091,6 +1096,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local StyleStudio = require(script.Parent.StyleStudio) :: any
 		studio = StyleStudio.new(ctx, host, {
 			tab = tab,
+			tabs = if tab == "Trails" then { "Trails" } else { "Paint", "Decals", "Wheels" },
 			size = size,
 			trove = buildTrove,
 			onGetCash = function()
@@ -1135,6 +1141,15 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			name = "Panel",
 		})
 		panel = shell
+
+		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", 13, {
+			size = UDim2.new(1, -24, 0, FOOT),
+			position = UDim2.new(0, 12, 1, -FOOT - 3),
+			align = Enum.TextXAlignment.Center,
+			color = CarKit.Soft,
+			z = 6,
+			name = "PreviewFoot",
+		})
 
 		-- header: title, tabs, Cash, close
 		local header = make("Frame", {
@@ -1267,7 +1282,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Name = "Stage",
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(p.pad, p.headerH + 6),
-			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8),
+			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8 - FOOT),
 			ZIndex = 3,
 		}, shell) :: Frame
 		if view == "store" then
@@ -1284,11 +1299,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	showTab = function(id: string, animate: boolean?)
 		local wantStudio = id == "style" or id == "trails"
 		activeTab = id
-		if wantStudio ~= (view == "studio") then
+		if wantStudio or view == "studio" then
 			view = if wantStudio then "studio" else "store"
 			build()
-		elseif wantStudio and studio then
-			studio:setTab(if id == "trails" then "Trails" else "Paint")
 		end
 		for tab, refs in tabButtons do
 			refs.paint(tab == id)

@@ -271,7 +271,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		y += bestPx * 1.2
 
 		-- the cars, or the friendly empty slot
-		local bandH = math.round(150 * k)
+		local bandH = math.round((if good then 214 else 168) * k)
 		local band = CarKit.board(card, {
 			size = UDim2.new(1, -math.round(28 * k), 0, bandH),
 			position = UDim2.fromOffset(math.round(14 * k), y),
@@ -325,8 +325,15 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				slot,
 				"?",
 				math.round(70 * k),
-				{ align = Enum.TextXAlignment.Center, z = 8, color = CarKit.Soft }
+				{ align = Enum.TextXAlignment.Center, z = 8, color = CarKit.White }
 			)
+			CarKit.text(slot, "Your next car goes here", math.max(math.round(17 * k), 14), {
+				align = Enum.TextXAlignment.Center,
+				alignY = Enum.TextYAlignment.Bottom,
+				size = UDim2.new(1, 0, 1, -4),
+				color = CarKit.Soft,
+				z = 8,
+			})
 		end
 		y += bandH + math.round(8 * k)
 
@@ -419,7 +426,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		if data.revives > 0 and options.onRevive then
 			CarKit.button(card, {
 				text = ("RESPAWN FREE (%d)"):format(data.revives),
-				tone = "Green",
+				tone = "Gold",
 				px = math.max(math.round(30 * k), 20),
 				size = respawnSize,
 				position = respawnAt,

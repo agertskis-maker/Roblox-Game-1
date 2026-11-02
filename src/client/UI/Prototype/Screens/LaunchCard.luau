@@ -54,14 +54,15 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local titlePx = math.max(math.round(76 * k), 36)
 		CarKit.title(card, title, titlePx, {
 			align = Enum.TextXAlignment.Center,
-			position = UDim2.fromOffset(8, 6),
+			position = UDim2.fromOffset(8, 14),
 			size = UDim2.new(1, -16, 0, titlePx * 1.06),
 			top = CarKit.Yellow,
 			bottom = CarKit.Orange,
 			z = 6,
 			name = "World",
 		})
-		local stageY = titlePx * 1.1 + 6
+		CarKit.pattern(card, "speed", { color = Color3.fromRGB(170, 210, 255), transparency = 0.86, z = 3 })
+		local stageY = titlePx * 1.1 + 14
 		local boltPx = math.max(math.round(30 * k), 24)
 		CarKit.slot(card, "stamina", boltPx, {
 			position = UDim2.new(0.5, -math.round(58 * k), 0, stageY + boltPx * 0.4),
@@ -94,7 +95,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			LightDirection = Vector3.new(-0.6, -1, -0.5),
 			ZIndex = 5,
 		}, card) :: ViewportFrame
-		local camera = make("Camera", { FieldOfView = 22 }, view) :: Camera
+		local camera = make("Camera", { FieldOfView = 17.5 }, view) :: Camera
 		view.CurrentCamera = camera
 		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.2, 30), Vector3.new(0, 1.3, 0))
 		local world = make("WorldModel", {}, view) :: WorldModel

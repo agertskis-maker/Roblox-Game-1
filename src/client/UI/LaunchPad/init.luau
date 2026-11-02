@@ -430,7 +430,7 @@ local function watchRun(run: any)
 					table.insert(cars, { name = title, rarity = rarityOf(title), isNew = true })
 				end
 				local metres = m.metres
-				local isBest = metres > bestMetres and bestMetres > 0
+				local isBest = metres > bestMetres
 				bestMetres = math.max(bestMetres, metres)
 				-- PREVIEW: the real payout is Lane 2's
 				local cash = math.floor((metres * 1.5 + m.hops * 10 + #cars * 250) / 10) * 10
