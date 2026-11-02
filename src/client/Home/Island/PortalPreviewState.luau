@@ -21,8 +21,10 @@ local PREFIX = "Lane3PortalLocked_"
 
 function PortalPreviewState.isLocked(world: string): boolean
 	-- Car Hop Beta 1 (decision 0030): every World portal is open so testers can try each run
-	if game:GetService("ReplicatedStorage"):FindFirstChild("CarHopBeta") then
-		return false
+	-- (the attribute TestLockedPortals on CarHopBeta, true, locks the two far Worlds to show their locked cards in Studio)
+	local beta = game:GetService("ReplicatedStorage"):FindFirstChild("CarHopBeta")
+	if beta then
+		return beta:GetAttribute("TestLockedPortals") == true and world ~= "Downtown"
 	end
 	if RunService:IsStudio() then
 		local v = Players.LocalPlayer:GetAttribute(PREFIX .. world)

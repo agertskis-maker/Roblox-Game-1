@@ -131,21 +131,25 @@ RunService.Heartbeat:Connect(function()
 	if not (r and fields) then
 		return
 	end
+	local atLocked = false
 	for _, carrier in fields:GetChildren() do
 		-- the middle carrier of each field is named "<World>Field"
 		if carrier:IsA("BasePart") and string.sub(carrier.Name, -5) == "Field" then
 			local world = string.sub(carrier.Name, 1, -6)
 			local p = carrier.CFrame:PointToObjectSpace(r.Position)
 			local half = carrier.Size / 2
-			if
-				math.abs(p.X) < half.X
-				and math.abs(p.Y) < half.Y + 3
-				and math.abs(p.Z) < ENTER
-				and not PortalPreviewState.isLocked(world)
-			then
-				LaunchPad.enter(world, backTo(carrier, r))
-				return
+			if math.abs(p.X) < half.X and math.abs(p.Y) < half.Y + 3 and math.abs(p.Z) < ENTER + 2 then
+				if PortalPreviewState.isLocked(world) then
+					atLocked = true
+					LaunchPad.lockedPortal(world)
+				elseif math.abs(p.Z) < ENTER then
+					LaunchPad.enter(world, backTo(carrier, r))
+					return
+				end
 			end
 		end
+	end
+	if not atLocked then
+		LaunchPad.lockedAway()
 	end
 end)
