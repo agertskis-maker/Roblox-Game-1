@@ -133,7 +133,8 @@ export type Corner = { id: string, s: number, centre: Vector3, pad: number, turn
 -- LAP ----------------------------------------------------------------------------------------
 
 StuntData.Name = "Stunt Circuit"
-StuntData.Status = "PROPOSAL for Brian R: a visual pacing model and scenery plan, not an approved or measured gameplay value"
+StuntData.Status =
+	"PROPOSAL for Brian R: a visual pacing model and scenery plan, not an approved or measured gameplay value"
 StuntData.Units = "studs"
 StuntData.Origin = "middle of the start/finish line, on the road surface"
 StuntData.Axes = { forward = "-Z at s = 0", right = "+X", up = "+Y" }
@@ -189,7 +190,14 @@ StuntData.Pieces = table.freeze({
 	{ kind = "Pad", s0 = 1462, s1 = 1538, y0 = 0, y1 = 0, note = "corner T2" },
 	{ kind = "Flat", s0 = 1538, s1 = 3207, y0 = 0, y1 = 0, note = "tunnel, arms, checkpoints 2 and 3" },
 	{ kind = "Pad", s0 = 3207, s1 = 3283, y0 = 0, y1 = 0, note = "corner T3" },
-	{ kind = "Flat", s0 = 3283, s1 = 3620, y0 = 0, y1 = 0, note = "bridge approach (full width until the funnel ends)" },
+	{
+		kind = "Flat",
+		s0 = 3283,
+		s1 = 3620,
+		y0 = 0,
+		y1 = 0,
+		note = "bridge approach (full width until the funnel ends)",
+	},
 	{ kind = "Deck", s0 = 3620, s1 = 3920, y0 = 0, y1 = 0, note = "narrow bridge deck, 34 studs between the rails" },
 	{ kind = "Flat", s0 = 3920, s1 = 4087, y0 = 0, y1 = 0, note = "bridge exit, recovery" },
 	{ kind = "Pad", s0 = 4087, s1 = 4163, y0 = 0, y1 = 0, note = "corner T4" },
@@ -285,7 +293,13 @@ StuntData.Sections = table.freeze({
 -- WIDTH: the drivable width by lap distance. The funnel narrows from 68 to 34 over 80 studs and widens again over 40. -----
 
 StuntData.WidthSpans = table.freeze({
-	{ s0 = 3540, s1 = 3620, from = 68, to = 34, note = "funnel in (angled barriers; the road under them stays 76 wide)" },
+	{
+		s0 = 3540,
+		s1 = 3620,
+		from = 68,
+		to = 34,
+		note = "funnel in (angled barriers; the road under them stays 76 wide)",
+	},
 	{ s0 = 3620, s1 = 3920, from = 34, to = 34, note = "narrow bridge deck" },
 	{ s0 = 3920, s1 = 3960, from = 34, to = 68, note = "funnel out" },
 })
@@ -377,7 +391,14 @@ do
 		s = spec.s,
 		lateral = lat,
 		lanes = if spec.side < 0 then { 1, 2, 3 } else { 2, 3, 4 },
-		artBounds = bounds(spec.s - ARM_LENGTH, spec.s + ARM_LENGTH, -ARM_POST_LATERAL - 1.5, ARM_POST_LATERAL + 1.5, 1.5, 5),
+		artBounds = bounds(
+			spec.s - ARM_LENGTH,
+			spec.s + ARM_LENGTH,
+			-ARM_POST_LATERAL - 1.5,
+			ARM_POST_LATERAL + 1.5,
+			1.5,
+			5
+		),
 		hitbox = nil,
 		hitboxNote = "PROPOSAL: a 52 x 3.5 x 2.4 stud box that follows the arm's angle; timing and hit rules are Brian R's. The idle swing is not logic",
 		visualOnly = true,
@@ -659,26 +680,27 @@ end
 StuntData.Centreline = table.freeze(buildCentreline())
 
 -- Safe restart zones: flat, straight, clear of every obstacle, after each checkpoint and at the start grid.
-StuntData.RestartZones = table.freeze((function(): { { id: string, s0: number, s1: number, lateralHalf: number, note: string } }
-	local out = {}
-	table.insert(out, {
-		id = "RS0",
-		s0 = StuntData.StartGrid.s - 12,
-		s1 = StuntData.Length - 4,
-		lateralHalf = 30,
-		note = "start grid, behind the line",
-	})
-	for _, cp in StuntData.Checkpoints do
+StuntData.RestartZones =
+	table.freeze((function(): { { id: string, s0: number, s1: number, lateralHalf: number, note: string } }
+		local out = {}
 		table.insert(out, {
-			id = "RS" .. cp.index,
-			s0 = cp.restart.s0,
-			s1 = cp.restart.s1,
+			id = "RS0",
+			s0 = StuntData.StartGrid.s - 12,
+			s1 = StuntData.Length - 4,
 			lateralHalf = 30,
-			note = "flat straight after " .. cp.id,
+			note = "start grid, behind the line",
 		})
-	end
-	return out
-end)())
+		for _, cp in StuntData.Checkpoints do
+			table.insert(out, {
+				id = "RS" .. cp.index,
+				s0 = cp.restart.s0,
+				s1 = cp.restart.s1,
+				lateralHalf = 30,
+				note = "flat straight after " .. cp.id,
+			})
+		end
+		return out
+	end)())
 
 -- REPORT AND CHECKS ---------------------------------------------------------------------------------------------------
 
@@ -727,7 +749,10 @@ function StuntData.report(): string
 			)
 		)
 	end
-	table.insert(lines, "WARNINGS (sign position, studs to the first obstacle, seconds of clear view at 0.8x / 1x / 1.2x):")
+	table.insert(
+		lines,
+		"WARNINGS (sign position, studs to the first obstacle, seconds of clear view at 0.8x / 1x / 1.2x):"
+	)
 	for _, w in StuntData.Warnings do
 		table.insert(
 			lines,
@@ -743,7 +768,10 @@ function StuntData.report(): string
 			)
 		)
 	end
-	table.insert(lines, "OBSTACLES: " .. #StuntData.Obstacles .. " (all visual-only and non-colliding; arms have an idle swing only)")
+	table.insert(
+		lines,
+		"OBSTACLES: " .. #StuntData.Obstacles .. " (all visual-only and non-colliding; arms have an idle swing only)"
+	)
 	return table.concat(lines, "\n")
 end
 
@@ -792,7 +820,11 @@ function StuntData.check(): { string }
 				fail("leg " .. leg.id .. " ends away from the next leg's origin")
 			end
 		elseif (endPoint - StuntData.Legs[1].origin).Magnitude > 1e-3 then
-			fail("the loop does not close: the last leg ends " .. (endPoint - StuntData.Legs[1].origin).Magnitude .. " studs away")
+			fail(
+				"the loop does not close: the last leg ends "
+					.. (endPoint - StuntData.Legs[1].origin).Magnitude
+					.. " studs away"
+			)
 		end
 	end
 	-- ramps are continuous with their neighbours (no step at a join except across a gap)
@@ -809,7 +841,11 @@ function StuntData.check(): { string }
 	for _, c in StuntData.Corners do
 		local found = false
 		for _, p in StuntData.Pieces do
-			if p.kind == "Pad" and math.abs((p.s0 + p.s1) / 2 - c.s) < 1e-6 and math.abs(p.s1 - p.s0 - c.pad) < 1e-6 then
+			if
+				p.kind == "Pad"
+				and math.abs((p.s0 + p.s1) / 2 - c.s) < 1e-6
+				and math.abs(p.s1 - p.s0 - c.pad) < 1e-6
+			then
 				found = true
 			end
 		end

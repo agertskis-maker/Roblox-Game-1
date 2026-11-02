@@ -40,7 +40,19 @@ local function buildSlalom(root: Folder)
 			local width = b.lat1 - b.lat0
 			for i = 0, 5 do
 				local centre = b.lat0 + (i + 0.5) * width / 6
-				Parts.along(model, "Stripe", l.origin, l.heading, u0 - PAINT, u0, centre - 1.7, centre + 1.7, 0, 4.4, P.White)
+				Parts.along(
+					model,
+					"Stripe",
+					l.origin,
+					l.heading,
+					u0 - PAINT,
+					u0,
+					centre - 1.7,
+					centre + 1.7,
+					0,
+					4.4,
+					P.White
+				)
 			end
 		end
 	end
@@ -105,19 +117,7 @@ local function buildTunnel(root: Folder)
 			local lat1 = if side > 0 then HALF + wall + wall else -HALF - wall
 			Parts.along(folder, "PortalPost" .. i, l.origin, l.heading, u0, u1, lat0, lat1, GROUND, 27, P.Navy)
 		end
-		Parts.along(
-			folder,
-			"PortalLintel" .. i,
-			l.origin,
-			l.heading,
-			u0,
-			u1,
-			-HALF - wall,
-			HALF + wall,
-			20,
-			27,
-			P.Navy
-		)
+		Parts.along(folder, "PortalLintel" .. i, l.origin, l.heading, u0, u1, -HALF - wall, HALF + wall, 20, 27, P.Navy)
 		-- a gold band on the face the driver sees (the entrance faces the road behind; the exit faces away)
 		local faceU0 = if i == 1 then u0 - PAINT else u1
 		Parts.along(
@@ -163,14 +163,7 @@ local function buildArms(root: Folder)
 				{ attributes = { VisualOnly = true } }
 			)
 			local pivot = CFrame.lookAt(hub.Position, hub.Position + across) -- LookVector points along the arm at rest
-			Parts.cylinder(
-				model,
-				"Hub",
-				5,
-				5,
-				CFrame.new(hub.Position) * CFrame.Angles(0, 0, math.pi / 2),
-				P.Orange
-			)
+			Parts.cylinder(model, "Hub", 5, 5, CFrame.new(hub.Position) * CFrame.Angles(0, 0, math.pi / 2), P.Orange)
 			local reach = idle.lengthStuds - 2.5
 			local segment = reach / 6
 			for i = 0, 5 do
@@ -247,7 +240,19 @@ local function buildBridge(root: Folder)
 		for k = 1, 3 do
 			local u = a0 + k * (a1 - a0) / 4
 			local lat = side * 18
-			Parts.along(folder, "LampPost", l.origin, l.heading, u - 0.4, u + 0.4, lat - 0.4, lat + 0.4, 3.4, 10, P.Steel)
+			Parts.along(
+				folder,
+				"LampPost",
+				l.origin,
+				l.heading,
+				u - 0.4,
+				u + 0.4,
+				lat - 0.4,
+				lat + 0.4,
+				3.4,
+				10,
+				P.Steel
+			)
 			Parts.along(
 				folder,
 				"LampHead",
@@ -278,7 +283,10 @@ function Obstacles.build(root: Model)
 	local folder = Parts.folder(root, "Obstacles")
 	folder:SetAttribute("VisualOnly", true)
 	folder:SetAttribute("NonColliding", true)
-	folder:SetAttribute("Note", "looks and idle motion only; no collision, no gameplay (Brian R owns obstacle behaviour)")
+	folder:SetAttribute(
+		"Note",
+		"looks and idle motion only; no collision, no gameplay (Brian R owns obstacle behaviour)"
+	)
 	buildSlalom(folder)
 	buildPotholes(folder)
 	buildTunnel(folder)

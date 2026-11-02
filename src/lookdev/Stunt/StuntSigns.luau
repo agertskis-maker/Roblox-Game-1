@@ -135,7 +135,7 @@ local function gantry(folder: Folder)
 	end
 	Parts.along(model, "Beam", l.origin, l.heading, -depth / 2, depth / 2, -44, 44, 17, 25, P.Navy)
 	-- front (toward the finishing car and the start grid): START / FINISH. Back: the name of the course.
-	local front = Vector3.new(0, 21, 0) + (-l.heading) * (depth / 2 + 0.5)
+	local front = Vector3.new(0, 21, 0) + -l.heading * (depth / 2 + 0.5)
 	SignKit.sign(
 		model,
 		CFrame.lookAt(front, front - l.heading),
