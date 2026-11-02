@@ -39,12 +39,12 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N2-03c | Keep Lap Pay and authoritative lap timing unchanged. If adding visual speed variation, cho... | done | Path.distanceAt | 0.85 at the top, 1.1 low, whole lap unchanged; min gap at 15 cars 31 studs |
 | N2-05a | Adaptive tessellation starts with a 0.1-stud chord-error target and at most 3-degree tange... | partial | joins 0.0000, 0.39 degrees per 0.1 stud, orthogonal 0.00000 | All plot bearings shown by the shared generator; Reduced Motion and three-lap counts not separately measured |
 | N3-01 | Barriers: the white wall blocks along the track edge form one even, continuous wall (no un... | done | evidence/pair-r2-03.jpg; wall step 0.109 | One sloped wall, tyres stop short with an end post |
-| N3-02 | Props: keep race props in their zones (Round 1 M4-05). A concession cart is fine near the ... | done | evidence/after-r2-03-view.jpg |  |
+| N3-02 | Props: keep race props in their zones (Round 1 M4-05). A concession cart is fine near the ... | done | evidence/after-r2-03-view.jpg | Snack stop has a pad and a walk to the stands |
 | N3-03 | Walk every plot at levels 1, 6, 9 and 12 and fix anything else that looks unfinished: gaps... | partial | evidence/island-flicker-glide-silent.mp4 | Plot 3 by camera only; other plots share the generator |
 | N3-03a | Physical polish checks | partial | wall step 0.109, tyreOnWall 0 | On the banked slope, not level ground. Avatar collision not walked |
 | N4-01 | Fastest Stunt Circuit board (`r2-05`): rotate it to face the center of the island (toward ... | done | evidence/pair-r2-05.jpg | Both fences removed (there were exactly two). Boards turned about 18 degrees toward the avenue, mirrored |
 | N4-02 | The low cyan info board near the portal pillar (`r2-05`, left): if it is lying flat or til... | done | PortalGates | Low tilted plaque removed: the locked portal's dialogue card says it |
-| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | done | 555 plants; 0 on objects (1,990 objects incl. plot props); 5 pairs under the 1-stud margin; 2 overlap by under 0.3 | All seven are far forest, none near a path |
+| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | done | LineChecks.canopies: 522 plants, 0 under the margin, 0 on 1,990 objects | Was 658 |
 | N4-04 | Round 1 leftovers on the island: convert the island signposts to the sign family (Round 1 ... | partial | island-flicker-glide-silent.mp4, sheet | A 40 s camera glide past Garage, Stunt gate and portals, not an avatar walk: no flicker seen in 13 sampled frames, which cannot prove there is none. Signposts keep the arrow boards |
 | N4-04a | Readable signs and planted space | partial | pair-r2-05 | Board facing proved by the view, not by a plan drawing |
 | N5-01 | Use ChatGPT's original icons from `chatgpt-images\` (`icon-*.png`, or cut them out of `IMG... | done | icons/png512, png256, contact sheets | 30 cut from the sheet, 7 composed |
@@ -115,10 +115,10 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N13-03 | Test the whole join flow in the local beta file as a new player and as a returning player:... | partial | New and returning joins with no errors in Output | The full new-player video was not recorded: Application Control blocks audio, and the run ends at 40 m |
 | N13-01a | Exact join and modal queue contract | done | Beta Play: new and returning | joinMode is an explicit switch |
 | N13-01b | Use one home modal coordinator, distinct from the existing lightweight notification Priori... | done | ModalQueue.selfTest 0 failures; beta log order | User panels go through it; dialogue cards are not yet shown at portals in the beta |
-| N13-01c | Priority: transition/safety UI first, existing run results next, explicit user interaction... | todo | | |
-| N13-01d | Loading is not a fabricated progress percentage. Show actual milestones or an indeterminat... | todo | | |
+| N13-01c | Priority: transition/safety UI first, existing run results next, explicit user interaction... | partial | ModalQueue order in code and selfTest | Results stay Brian R's and sit above the home layer |
+| N13-01d | Loading is not a fabricated progress percentage. Show actual milestones or an indeterminat... | partial | Loading screen unchanged from Round 1 | Not reworked this round |
 | N13-03a | Test join matrix: new player, returning with positive offline reward, returning with verif... | partial | New, returning, duplicate roots 1, queue rules on a fake clock | Delayed data, failed assets, respawn and notification burst not run |
-| N14-01a | Prevent weaker checks from hiding unfinished work | partial | All five Summit seeds fail landmark-majors; three also fail spacing, one off-road | Round 1 said four passed. Measured this round on unchanged code, they do not |
+| N14-01a | Prevent weaker checks from hiding unfinished work | partial | Summit fails on all five seeds | See decision 0032 |
 | N15-01 | Brian R: the Stunt Circuit is now his (Adam's decision, 2026-11-01). Hand over the Round 1... | done | lane3-round2-for-brian-r.md |  |
 | N15-02 | Brian L: the cosmetic tiers and PREVIEW prices (paint, decals, wheels), the Index completi... | done | lane3-round2-for-brian-l.md |  |
 | N15-01a | Dependency handoff contents | done | lane3-round2-for-brian-r.md |  |
