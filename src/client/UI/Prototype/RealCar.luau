@@ -170,7 +170,7 @@ local function buildBody(entry: Entry, length: number, height: number): any
 		end
 	end
 	local size = squareUp(model, wheels)
-	model:ScaleTo(math.min(length / size.Z, height / size.Y))
+	model:ScaleTo(model:GetScale() * math.min(length / size.Z, height / size.Y))
 	local self = setmetatable({ model = model, _wheels = wheels, _rims = {}, _rimMeshes = {} } :: any, Body)
 	self._body = assert(body, "a showroom car has no body_geom")
 	local wash = self._body:Clone() :: MeshPart
