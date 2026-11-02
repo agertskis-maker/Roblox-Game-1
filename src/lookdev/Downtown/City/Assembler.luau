@@ -850,6 +850,15 @@ local function pivotTo(inst: Instance, cf: CFrame)
 	end
 end
 
+-- A pooled SignKit sign is reused for other names: the lettering is the TextLabel "Text" on its SignFace.
+local function setSignText(root: Instance, text: string)
+	for _, d in root:GetDescendants() do
+		if d:IsA("TextLabel") and d.Name == "Text" then
+			d.Text = text
+		end
+	end
+end
+
 -- Specs ----------------------------------------------------------------------------------------
 
 local function meshOrProxy(
@@ -1273,22 +1282,41 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 					* fit(t :: Template, lot.width)
 					* CFrame.new(tonumber(s.x or s[1]) or 0, tonumber(s.y or s[2]) or 0, tonumber(s.z or s[3]) or 0)
 			end
-			local width = math.clamp(lot.width - 6, 8, 18)
+			-- The shop signs are the sign family (big round N14): SignKit "Downtown" plates, one pooled model per shape and
+			-- width with the name set on placement. A band lies flat on the facade. A blade juts out over the street, so its
+			-- one face turns to the traffic coming along the route (lot +X runs with the route on the right of the road and
+			-- against it on the left); the back of a blade is the plain plate.
+			local blade = style == "blade"
+			local signW = if blade then 9 else math.clamp(lot.width - 6, 8, 18)
+			local signH = if blade then 5 else 2.2
+			local turn = if blade then CFrame.Angles(0, lot.side * math.pi / 2, 0) else CFrame.identity
 			table.insert(specs, {
-				key = "sign:" .. style,
+				key = string.format("sign:Downtown:%s:%d", style, math.floor(signW + 0.5)),
 				kind = "Signs",
 				tris = 0,
 				mesh = false,
 				make = function()
-					return Proxies.sign(style)
+					local holder = Instance.new("Model")
+					holder.Name = "ShopSign"
+					SignKit.sign(
+						holder,
+						CFrame.identity,
+						{ style = "Downtown", text = text, width = signW, height = signH }
+					)
+					if blade then
+						-- 24 letters on a 9 stud plate: let long names take two lines
+						for _, d in holder:GetDescendants() do
+							if d:IsA("TextLabel") then
+								d.TextWrapped = true
+							end
+						end
+					end
+					holder.WorldPivot = CFrame.identity
+					return holder
 				end,
 				place = function(inst: Instance)
-					local board = inst:FindFirstChild("Board")
-					if style ~= "blade" and board and board:IsA("BasePart") then
-						board.Size = Vector3.new(width, 2.2, 0.3)
-					end
-					Proxies.setText(inst, text)
-					pivotTo(inst, signCF)
+					setSignText(inst, text)
+					pivotTo(inst, signCF * turn)
 				end,
 			})
 		end
@@ -1380,7 +1408,8 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 			tris = 0,
 			mesh = false,
 			make = function()
-				return Proxies.span(sp.kind, sp.text, sp.width, sp.clearance)
+				-- Downtown's welcome banner is the sign family; a World's keeps its own board
+				return Proxies.span(sp.kind, sp.text, sp.width, sp.clearance, if self.world then nil else "Downtown")
 			end,
 			place = function(inst: Instance)
 				pivotTo(inst, sp.cframe)

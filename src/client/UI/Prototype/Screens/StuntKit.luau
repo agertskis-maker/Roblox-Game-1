@@ -176,7 +176,16 @@ function StuntKit.pips(parent: Instance, value: number?, size: number, z: number
 end
 
 -- A label, five pips and the number (or "--" when the value is not set yet). The row is 30 tall unless `height` says otherwise.
-function StuntKit.statRow(parent: Instance, label: string, value: number?, z: number, height: number?): Frame
+-- `big` (a roomy screen) puts the row on a faint plate with larger pips, so a tall table reads as a table and not as a few words
+-- floating on navy.
+function StuntKit.statRow(
+	parent: Instance,
+	label: string,
+	value: number?,
+	z: number,
+	height: number?,
+	big: boolean?
+): Frame
 	local row: Frame = make("Frame", {
 		Name = "Stat_" .. label,
 		BackgroundTransparency = 1,
@@ -184,21 +193,37 @@ function StuntKit.statRow(parent: Instance, label: string, value: number?, z: nu
 		ZIndex = z,
 		Parent = parent,
 	})
+	local lead = 0
+	local pipSize = 20
+	if big then
+		lead = 12
+		pipSize = 26
+		local plate: Frame = make("Frame", {
+			Name = "Plate",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.9,
+			BorderSizePixel = 0,
+			ZIndex = z,
+			Parent = row,
+		})
+		Arcade.corner(plate, 8)
+	end
 	local name = Style.text(row, label, "Label", { name = "Name", z = z + 1 })
 	name.AnchorPoint = Vector2.new(0, 0.5)
-	name.Position = UDim2.fromScale(0, 0.5)
-	name.Size = UDim2.fromOffset(70, math.min(26, (height or 30) - 2))
-	local pips = StuntKit.pips(row, value, 20, z + 1)
+	name.Position = UDim2.new(0, lead, 0.5, 0)
+	name.Size = UDim2.fromOffset(if big then 84 else 70, math.min(26, (height or 30) - 2))
+	local pips = StuntKit.pips(row, value, pipSize, z + 1)
 	pips.AnchorPoint = Vector2.new(0, 0.5)
-	pips.Position = UDim2.new(0, 76, 0.5, 0)
+	pips.Position = UDim2.new(0, lead + (if big then 92 else 76), 0.5, 0)
 	local number = Style.text(row, if value == nil then "--" else tostring(math.floor(value)) .. "/5", "Small", {
 		name = "Number",
 		xAlign = Enum.TextXAlignment.Right,
 		z = z + 1,
 	})
 	number.AnchorPoint = Vector2.new(1, 0.5)
-	number.Position = UDim2.fromScale(1, 0.5)
-	number.Size = UDim2.fromOffset(40, 24)
+	number.Position = UDim2.new(1, -(lead * 0.5), 0.5, 0)
+	number.Size = UDim2.fromOffset(if big then 52 else 40, 24)
 	return row
 end
 

@@ -20,9 +20,10 @@
 -- above the grid, the reward states and the header's "Unlocked 5 / 10" are counted from the same cars. A car counts once
 -- (its base id; a Gold / Chrome / Rainbow finish is not another car) and counts as owned when any listed entry of it is
 -- owned. A car is in the World its supplied info names (info.world); a car with no World named is listed under Downtown.
--- A World with no cars is EMPTY (Dusty Highway in this mock, "No cars yet"); Summit Pass is the LOADING case and stays loading
--- in this mock (no cars of it are supplied). While any World is loading, the total reads "10+" (never an invented total), a
--- loading World shows "Loading..." and no reward, and nothing is ever marked COMPLETE from a World with unknown data.
+-- A World with no cars is EMPTY (Dusty Highway in this mock, "No cars yet"); Summit Pass has NO DATA (no cars of it are supplied)
+-- and reads "Not available yet", never a permanent "Loading...". While any World is loading or unavailable, the total reads
+-- "10+" (never an invented total), such a World shows no reward, and nothing is ever marked COMPLETE from a World with unknown
+-- data: the green tick on a World button means a COMPLETE World and nothing else (the open World wears a white arrow instead).
 --
 -- REWARDS ARE PREVIEW PROPOSALS (Brian L decides the real ones). States per World: Incomplete (collect N more), Ready
 -- (complete, CLAIM works), Claimed (this session only, shown as CLAIMED) and Unavailable (loading or empty). CLAIM and
@@ -64,6 +65,7 @@ local PanelKit = require(script.Parent.PanelKit)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Sounds = require(Prototype.Sounds)
 local Style = require(script.Parent.Style)
+local SupportKit = require(script.Parent.SupportKit)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local TradingCard = require(Prototype.Cards.TradingCard)
 
@@ -126,7 +128,7 @@ export type WorldState = {
 	id: string,
 	owned: number,
 	total: number,
-	state: string, -- "Ready" | "Empty" | "Loading"
+	state: string, -- "Ready" | "Empty" | "Loading" | "Unavailable"
 	reward: string, -- "Incomplete" | "Ready" | "Claimed" | "Unavailable"
 	selected: boolean,
 	count: string, -- the text on the World button
@@ -196,12 +198,16 @@ export type Garage = {
 type WorldDef = { id: Tab, key: string, long: string, short: string, emptyAs: string }
 
 -- The Worlds, in the order the rail lists them. `key` is the World name the supplied card info uses (TradingCard.Worlds).
--- Dusty Highway is the EMPTY case and Summit Pass the LOADING case of this mock.
+-- Dusty Highway is the EMPTY case of this mock; Summit Pass is the case with NO DATA at all, which reads "Not available yet"
+-- (review fix: a World whose cars are never supplied must not sit on "Loading..." for good).
 local WORLDS: { WorldDef } = {
 	{ id = "Downtown", key = "Downtown", long = "Downtown", short = "Downtown", emptyAs = "Empty" },
 	{ id = "Dusty", key = "DustyHighway", long = "Dusty Highway", short = "Dusty Hwy", emptyAs = "Empty" },
-	{ id = "Summit", key = "SummitPass", long = "Summit Pass", short = "Summit", emptyAs = "Loading" },
+	{ id = "Summit", key = "SummitPass", long = "Summit Pass", short = "Summit", emptyAs = "Unavailable" },
 }
+
+-- What a World with no data says, longest first: the first that fits its box wins (never "Loading..." for good).
+local UNAVAILABLE_WORDS = { "Not available yet", "Not available", "Not yet" }
 
 -- PREVIEW completion rewards, in dollars: made-up numbers for the reward box, not an economy rule (Brian L decides).
 GarageMock.PreviewRewards = table.freeze({
@@ -265,7 +271,8 @@ type WorldButton = {
 	barTrack: Frame,
 	barFill: Frame,
 	barGradient: UIGradient,
-	check: Frame,
+	check: Frame, -- the green tick: a COMPLETE World, never merely the open one
+	chevron: Frame, -- the open World's white arrow (the same corner slot as the tick)
 }
 
 function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
@@ -412,7 +419,9 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		})
 		Arcade.corner(barFill, 5)
 		local barGradient: UIGradient = make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = barFill })
-		-- the selected mark: a check at the corner (and the thick white boundary), so the state is not colour alone
+		-- the corner slot has two marks, and the green tick is NOT the selected mark (it said a 6 / 10 World was done): the
+		-- tick means a COMPLETE World; the open World wears a white arrow (and the thick white boundary), so the state is not
+		-- colour alone
 		local check: Frame = make("Frame", {
 			Name = "Check",
 			Size = UDim2.fromOffset(24, 24),
@@ -422,6 +431,17 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			Parent = root,
 		})
 		Arcade.icon(check, "Check")
+		local chevron: Frame = make("Frame", {
+			Name = "OpenMark",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundTransparency = 1,
+			Rotation = 180, -- the family has one arrow (Back); turned round it points on into the World
+			Visible = false,
+			ZIndex = 10,
+			Parent = root,
+		})
+		IconArt.draw(chevron, { "Back" })
 		PanelKit.interact(root, trove, 10, Color3.new(1, 1, 1))
 		trove:Connect(root.Activated, function()
 			Sounds.play("Tap")
@@ -438,6 +458,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			barFill = barFill,
 			barGradient = barGradient,
 			check = check,
+			chevron = chevron,
 		})
 	end
 
@@ -544,7 +565,8 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		grid:destroy()
 	end)
 
-	local rewardBox = Style.well(panel, "RewardBox", 5)
+	-- above the sort tab (z 6) on a phone, where the box sits right under it, so its PREVIEW tag over the top edge is never hidden
+	local rewardBox = Style.well(panel, "RewardBox", 7)
 	local rewardStroke = rewardBox:FindFirstChildOfClass("UIStroke") :: UIStroke
 	local rewardIcon: Frame = make("Frame", {
 		Name = "Icon",
@@ -583,16 +605,29 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	})
 	trove:Add(claimButton.trove)
 	claimButton.root.ZIndex = 9
-	-- the PREVIEW label is a harness caption (not child-facing); it tucks over the box's top edge
+	-- the PREVIEW labels are harness captions (not child-facing words): one over the reward box's top edge (the reward amount is a
+	-- made-up proposal), one over the detail's top edge (Lap Pay is a fixture) and one over the World rail (the counts are a
+	-- fixture). They show with the harness captions on, never hidden under a neighbour (see their z and places in layoutNow).
 	local previewStamp = Style.stamp(rewardBox, "PREVIEW", "Gold", 9)
 	previewStamp.frame.Position = UDim2.fromOffset(8, -12)
 	previewStamp.frame:SetAttribute("PreviewCaption", true)
+	-- a child of the first World button, so it goes with the rail (or the phone's strip) whenever that is hidden
+	local countStamp = Style.stamp(worldButtons[1].root, "PREVIEW", "Gold", 16)
+	countStamp.frame.Name = "CountsPreview"
+	countStamp.frame.Position = UDim2.fromOffset(8, -12)
+	countStamp.frame:SetAttribute("PreviewCaption", true)
 
 	---------------------------------------------------------------------------------------------
 	-- the detail (a light card) and its action bar
 	---------------------------------------------------------------------------------------------
 
 	local detail = PanelKit.row(panel, "Detail", 6, "Alt")
+	-- Lap Pay (and the other numbers in the facts) are fixtures here: a harness caption over the detail's top edge
+	local lapStamp = Style.stamp(detail, "PREVIEW", "Gold", 12)
+	lapStamp.frame.Name = "LapPayPreview"
+	lapStamp.frame.AnchorPoint = Vector2.new(1, 0)
+	lapStamp.frame.Position = UDim2.new(1, -8, 0, -12)
+	lapStamp.frame:SetAttribute("PreviewCaption", true)
 	local detailEmpty =
 		Overlay.text(detail, "Pick a car to see it here", 18, PanelKit.InkSoft, Enum.TextXAlignment.Center, 7)
 	PanelKit.ink(detailEmpty, true)
@@ -775,8 +810,8 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			local st = statsOf(def.id)
 			owned += st.owned
 			total += st.total
-			if st.state == "Loading" then
-				known = false
+			if st.state == "Loading" or st.state == "Unavailable" then
+				known = false -- a World with unknown data: the total is "10+", never an invented number
 			end
 		end
 		return owned, total, known
@@ -848,16 +883,31 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			return string.format("Find %d more %s to claim", missing, if missing == 1 then "car" else "cars")
 		elseif st.state == "Loading" then
 			return "Loading..."
+		elseif st.state == "Unavailable" then
+			return if narrowReward then "Not available" else "Not available yet"
 		end
 		return if narrowReward then "No cars yet" else "No cars here yet"
 	end
 
-	local function countTextOf(id: string): string
+	-- the count on a World button: "6 / 10", or (no data) the longest "not available" wording that fits the label's width
+	local function countTextOf(id: string, room: number): string
 		local st = statsOf(id)
 		if st.state == "Loading" then
 			return "Loading..."
+		elseif st.state == "Unavailable" then
+			for _, words in UNAVAILABLE_WORDS do
+				if SupportKit.measure(words, Tokens.TextSize.Minimum).X * 1.12 + 6 <= room then
+					return words
+				end
+			end
+			return UNAVAILABLE_WORDS[#UNAVAILABLE_WORDS]
 		end
 		return string.format("%d / %d", st.owned, st.total)
+	end
+
+	-- a COMPLETE World: its cars are known, there is at least one, and the player has every one
+	local function isComplete(st: WorldStats): boolean
+		return st.state == "Ready" and st.total > 0 and st.owned >= st.total
 	end
 
 	local function refreshRewards()
@@ -889,8 +939,11 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			local on = wb.id == tab
 			wb.stroke.Color = if on then Color3.new(1, 1, 1) else A.Ink
 			wb.stroke.Thickness = if on then 5 else A.OutlineButton
-			wb.check.Visible = on
-			wb.count.Text = countTextOf(wb.id)
+			-- one corner slot: the green tick for a COMPLETE World, else the white arrow on the open one
+			local complete = isComplete(st)
+			wb.check.Visible = complete
+			wb.chevron.Visible = on and not complete
+			wb.count.Text = countTextOf(wb.id, wb.count.Size.X.Offset)
 			local fraction = if st.state == "Ready" and st.total > 0 then st.owned / st.total else 0
 			wb.barFill.Size = UDim2.fromScale(fraction, 1)
 			wb.barFill.Visible = fraction > 0
@@ -901,6 +954,9 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		local st = statsOf(tab)
 		if st.state == "Loading" then
 			setCompletion(0, def.long .. ": Loading...")
+			completionGradient.Color = A.Fill.Green
+		elseif st.state == "Unavailable" then
+			setCompletion(0, def.long .. ": Not available yet")
 			completionGradient.Color = A.Fill.Green
 		elseif st.total == 0 then
 			setCompletion(0, def.long .. ": No cars yet")
@@ -1042,8 +1098,9 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			selected = nil
 		elseif #st.cars == 0 then
 			grid:setEmptyText(
-				if tab == "Downtown"
-					then "No cars here yet. Find some on the road!"
+				if st.state == "Unavailable"
+					then defOf(tab).long .. " is not available yet."
+					elseif tab == "Downtown" then "No cars here yet. Find some on the road!"
 					else "No "
 						.. defOf(tab).long
 						.. " cars yet. Open the "
@@ -1123,6 +1180,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			wb.barTrack.Position = UDim2.fromOffset(44, h - 6)
 			wb.barTrack.Size = UDim2.fromOffset(w - 44 - 10, 4)
 			wb.check.Position = UDim2.fromOffset(w - 30, 12)
+			wb.chevron.Position = UDim2.fromOffset(w - 30 + 12, 12 + 12)
 		else
 			local e = if h >= 140 then 52 else 40
 			wb.emblem.Size = UDim2.fromOffset(e, e)
@@ -1134,6 +1192,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			wb.barTrack.Position = UDim2.fromOffset(8, h - 18)
 			wb.barTrack.Size = UDim2.fromOffset(w - 16, 10)
 			wb.check.Position = UDim2.fromOffset(w - 32, 8)
+			wb.chevron.Position = UDim2.fromOffset(w - 32 + 12, 8 + 12)
 		end
 	end
 
@@ -1142,7 +1201,16 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	local function cellFor(holderW: number, holderH: number, short: boolean): Vector2
 		local inner = holderW - GRID_INSET
 		local cols = math.clamp(math.floor((inner + 18) / (CarCard.MinSize.X + 18)), 1, 3)
-		local w = math.clamp(math.floor((inner - 18 * (cols - 1)) / cols), CarCard.MinSize.X, CarCard.CompactBelow - 6)
+		-- a phone shows at least TWO tighter columns (never one wide card): each card is a little narrower than the room, so
+		-- the second always fits whole beside the first with its selection ring and the scroll bar
+		local slack = 0
+		local widest = CarCard.CompactBelow - 6
+		if short then
+			cols = math.max(cols, 2)
+			slack = 8
+			widest = 176
+		end
+		local w = math.clamp(math.floor((inner - slack - 18 * (cols - 1)) / cols), CarCard.MinSize.X, widest)
 		local h = if short
 			then math.clamp(holderH - 28, CarCard.MinSize.Y, math.floor(w * 1.35))
 			else math.clamp(math.floor(w * 1.42), CarCard.MinSize.Y, 280)
@@ -1212,7 +1280,12 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		closeX.root.Position = UDim2.new(1, -8, 0, headH / 2)
 		claimAllButton.root.AnchorPoint = Vector2.new(1, 0.5)
 		claimAllButton.root.Position = UDim2.new(1, -(8 + Tokens.Touch.Minimum + 8), 0, headH / 2)
-		local chipW = if wide then CHIP_W_WIDE + 44 else CHIP_W_SHORT + 40 -- room for the whole "Unlocked 6 / 10+"
+		-- room for the whole "Unlocked 24 / 24+" (the count and the tick of unknown totals), measured, never a guessed width
+		local chipText = if wide then "Unlocked 88 / 88+" else "88 / 88+"
+		local chipW = math.max(
+			math.ceil(SupportKit.measure(chipText, 20).X * 1.14) + 54,
+			if wide then CHIP_W_WIDE + 44 else CHIP_W_SHORT + 40
+		)
 		countChip.AnchorPoint = Vector2.new(1, 0.5)
 		countChip.Size = UDim2.fromOffset(chipW, 40)
 		countChip.Position = UDim2.new(1, -(8 + Tokens.Touch.Minimum + 8 + CLAIM_ALL_W + 8), 0, headH / 2)

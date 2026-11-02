@@ -374,7 +374,9 @@ local function asphalt(folder: Folder, ctx: Ctx, path: LapPath, ranges: { { numb
 				end
 				for _, tip in { { sa, -1 }, { sb, 1 } } do
 					local at, dir = tip[1], tip[2]
-					if not onArc(path, at + dir * 0.5) and math.abs(Path.bank(path, at)) < 1e-3 then
+					-- on level 12 the apron's own edge takes over where the turn ends
+					local toApron = apronPath ~= nil and dir > 0
+					if not toApron and not onArc(path, at + dir * 0.5) and math.abs(Path.bank(path, at)) < 1e-3 then
 						local inA = RoadNet.trackPoint(at, -HALF_W)
 						local inB = RoadNet.trackPoint(at, -HALF_W - 1)
 						local point = RoadNet.trackPoint(at + dir * 5, -HALF_W)

@@ -61,6 +61,7 @@ export type Layout = {
 	pageY: number,
 	pageW: number, -- includes room for the scrollbar
 	pageH: number,
+	cueH: number, -- the footer row for the scroll cue under the page (0 on a phone: no cue there)
 	-- Featured
 	heroW: number,
 	heroH: number,
@@ -130,7 +131,9 @@ function ShopLayout.compute(i: Inputs): Layout
 	local closeSize = ShopLayout.closeSizeFor(tier)
 	local titleSize = ShopLayout.titleSizeFor(tier)
 	local phone = tier == "Phone"
-	local rowH = closeSize + (if phone then 4 else 8)
+	-- a phone is short: the title row hugs its 48 px X, so the hero keeps room for its copy (the tab bar still overlaps the
+	-- page by tabH + 10 - tabGap = 6 px, the page's own first 6 px, as before)
+	local rowH = closeSize + (if phone then 0 else 8)
 	local topPad = if phone then 2 else 8
 	local tabGap = if phone then 4 else 6
 	local tabH = math.max(L.TabHeight, Tokens.Touch.Minimum) -- a tab is a touch target: 48 on every tier
@@ -140,7 +143,10 @@ function ShopLayout.compute(i: Inputs): Layout
 	local tabsInline = not phone and inlineNeed <= contentW
 	local headerH = topPad + rowH + (if tabsInline then 6 else (tabGap + tabH + tabGap))
 
-	local pageH = H - headerH - 4
+	-- The "Scroll for more" cue has its OWN footer row under the page (Tablet and Desktop), so it never covers the BEST DEAL
+	-- banner's price chips. A phone has no row to spare: the deal fills the page foot, the scrollbar says the rest, no cue.
+	local cueH = if phone then 0 else 28
+	local pageH = H - headerH - 4 - cueH
 	local pageW = math.min(contentW + 14, W - margin)
 
 	-- Featured -------------------------------------------------------------------------------------------------
@@ -154,7 +160,9 @@ function ShopLayout.compute(i: Inputs): Layout
 	local dealW = contentW
 	local heroW, heroH, sideW, sideH
 	local sideStacked = false
-	local room = pageH - dealH - gap - 8 -- what the hero may take so hero + banner fit with no scroll
+	-- what the hero may take so hero + banner fit with no scroll (the page starts its first section 6 px down; a phone keeps no
+	-- further slack, a bigger screen 2 px)
+	local room = pageH - dealH - gap - (if phone then 6 else 8)
 	if tier ~= "Phone" then
 		local share = (L.HeroShare :: any)[tier] :: number
 		local stackedW = math.floor((contentW - gap) * share)
@@ -234,6 +242,7 @@ function ShopLayout.compute(i: Inputs): Layout
 		pageY = headerH,
 		pageW = pageW,
 		pageH = pageH,
+		cueH = cueH,
 		heroW = heroW,
 		heroH = heroH,
 		sideW = sideW,

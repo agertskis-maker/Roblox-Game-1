@@ -214,7 +214,7 @@ local function crownRadius(variant: string, scale: number): number
 end
 
 -- No plant's crown touches another's (Adam, Round 2 N4-03): crowns stand CANOPY_GAP apart at least.
-local CANOPY_GAP = 1
+local CANOPY_GAP = 1.8 -- 1 between the measured crowns, whichever way each has turned
 local function crowded(pl: Planter, q: Vector2, r: number): boolean
 	for _, other in pl.placed do
 		if (other.p - q).Magnitude < other.r + r + CANOPY_GAP then

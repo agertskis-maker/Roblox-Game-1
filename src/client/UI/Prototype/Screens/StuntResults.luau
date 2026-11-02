@@ -199,6 +199,7 @@ function StuntResults.new(ctx: Overlay.Ctx, options: Options?): Results
 	local builtKey = ""
 	local ghostTone = "none"
 	local rewardLine, unlockLine = "", ""
+	local rewardTagWanted = false -- a finished run: the reward carries its PREVIEW tag when the plate has room for it
 	local ticks: { boolean } = {}
 	local results: Results
 
@@ -477,6 +478,7 @@ function StuntResults.new(ctx: Overlay.Ctx, options: Options?): Results
 		rewardText.Text = rewardLine
 		unlockText.Text = unlockLine
 		rewardCoin.Visible = v.finished
+		rewardTagWanted = v.finished
 		rewardTag.frame.Visible = v.finished
 		unlockPlate.Visible = unlockLine ~= ""
 		renderMedal(v)
@@ -554,10 +556,13 @@ function StuntResults.new(ctx: Overlay.Ctx, options: Options?): Results
 		local l = geo.left
 		medalGroup.Position = UDim2.fromOffset(l.x, l.y)
 		medalGroup.Size = UDim2.fromOffset(l.w, l.h)
-		local carW = math.min(l.w * 0.8, 150)
-		local carH = carW * 0.56
-		local blockH = geo.badge + 4 + 26 + 20 + 6 + carH
-		local top = math.max((l.h - blockH) / 2, 0)
+		-- the car takes what the medal and its two lines leave (never more than 150 wide), so its wheels and its shadow stay
+		-- inside the block (the block is a CanvasGroup: whatever hangs past its foot is cut)
+		local fixedH = geo.badge + 4 + 26 + 20 + 6
+		local carH = math.min(math.min(l.w * 0.8, 150) * 0.56, math.max(l.h - fixedH - 10, 30))
+		local carW = carH / 0.56
+		local blockH = fixedH + carH
+		local top = math.max((l.h - blockH - 6) / 2, 0)
 		rays.root.Position = UDim2.fromOffset(l.w / 2, top + geo.badge / 2)
 		rays:setRadius(geo.badge * 0.95)
 		badgeHolder.Position = UDim2.fromOffset(l.w / 2, top)
@@ -594,16 +599,34 @@ function StuntResults.new(ctx: Overlay.Ctx, options: Options?): Results
 		rewardHolder.Position = UDim2.fromOffset(r.x, y)
 		rewardHolder.Size = UDim2.fromOffset(r.w, geo.rewardH)
 		local unlockShown = unlockPlate.Visible
-		local cashW = if unlockShown then math.floor(r.w * 0.42) else r.w
+		-- The Cash plate is as wide as its amount needs (coin, "+$1,500", and the PREVIEW tag when the unlock line keeps room
+		-- enough to read beside it): a fixed share of the row left the amount 38 px wide, so it wrapped. The card's own PREVIEW
+		-- chip stays on the stage whether or not the small tag fits here.
+		local amountW = math.ceil(SupportKit.measure(rewardLine, 22).X * 1.12) + 10
+		local tagW = math.ceil(SupportKit.measure("PREVIEW", 16).X * 1.12) + 34
+		local plain = 36 + amountW + 8
+		local tagFits = rewardTagWanted
+		local cashW = r.w
+		if unlockShown then
+			-- never more than a little over half the row, so the unlock line keeps two readable rows
+			local limit = math.floor(r.w * 0.56)
+			tagFits = rewardTagWanted and plain + tagW + 6 <= limit and r.w - (plain + tagW + 6) - 4 >= 170
+			cashW = math.min(if tagFits then plain + tagW + 6 else plain, limit)
+		end
+		rewardTag.frame.Visible = tagFits
 		cashPlate.Size = UDim2.fromOffset(cashW, geo.rewardH)
 		rewardText.Position = UDim2.fromOffset(36, 0)
-		rewardText.Size = UDim2.new(1, -36 - 86, 1, 0)
+		rewardText.Size = UDim2.new(1, -36 - (if tagFits then tagW + 6 else 4), 1, 0)
 		rewardTag.frame.Position = UDim2.new(1, -5, 0.5, 0)
+		local unlockW = r.w - cashW - 4
 		unlockPlate.Position = UDim2.fromOffset(cashW + 4, 0)
-		unlockPlate.Size = UDim2.fromOffset(r.w - cashW - 4, geo.rewardH)
-		unlockText.Position = UDim2.fromOffset(36, 0)
-		unlockText.Size = UDim2.new(1, -42, 1, 0)
-		SupportKit.fitLabel(unlockText, unlockText.Text, unlockPlate.Size.X.Offset - 42, geo.rewardH - 4, 18)
+		unlockPlate.Size = UDim2.fromOffset(unlockW, geo.rewardH)
+		-- a narrow unlock plate gives up its icon, so the line keeps two readable rows
+		local iconRoom = if unlockW >= 200 then 36 else 8
+		unlockIcon.Visible = unlockW >= 200
+		unlockText.Position = UDim2.fromOffset(iconRoom, 0)
+		unlockText.Size = UDim2.new(1, -iconRoom - 6, 1, 0)
+		SupportKit.fitLabel(unlockText, unlockText.Text, unlockW - iconRoom - 6, geo.rewardH - 4, 18)
 		unlockText.TextColor3 = CardKit.Navy
 		y += geo.rewardH + 6
 		buildButtons()

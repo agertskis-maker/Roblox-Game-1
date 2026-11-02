@@ -24,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
+local CardKit = require(script.Parent.CardKit)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Style = require(script.Parent.Style)
@@ -266,6 +267,20 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		Parent = targetRow,
 	})
 	local targetTimes: { [string]: TextLabel } = {}
+	-- Each target is built in BOTH forms and the screen shows one: a small chip (disc + time) on a cramped phone, a medal CARD
+	-- (the real medal badge, its word, the time) when there is room, so the lower half of a roomy card is filled with the three
+	-- targets and not left as empty navy.
+	type TargetChip = {
+		key: string,
+		chip: Frame,
+		bg: Frame,
+		disc: Frame,
+		badge: Frame?,
+		badgeSize: number,
+		word: TextLabel,
+		time: TextLabel,
+	}
+	local targetChips: { TargetChip } = {}
 	for i, key in StuntFixtures.MedalOrder do
 		local info = StuntFixtures.Medals[key]
 		local chip: Frame = make("Frame", {
@@ -276,6 +291,17 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			ZIndex = 6,
 			Parent = targetRow,
 		})
+		local bg: Frame = make("Frame", {
+			Name = "CardBg",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.9,
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 6,
+			Parent = chip,
+		})
+		Arcade.corner(bg, 10)
 		local disc: Frame = make("Frame", {
 			Name = "Disc",
 			AnchorPoint = Vector2.new(0, 0.5),
@@ -294,11 +320,28 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		if stroke then
 			stroke.Enabled = false
 		end
+		local word = Style.text(chip, info.word, "Small", {
+			name = "Word",
+			colour = Style.TextSoft,
+			xAlign = Enum.TextXAlignment.Center,
+			z = 7,
+		})
+		word.Visible = false
 		local time = Style.text(chip, "", "Small", { name = "Time", italic = true, z = 7 })
 		time.AnchorPoint = Vector2.new(0, 0.5)
 		time.Position = UDim2.new(0, 30, 0.5, 0)
 		time.Size = UDim2.new(1, -30, 0, 24)
 		targetTimes[key] = time
+		table.insert(targetChips, {
+			key = key,
+			chip = chip,
+			bg = bg,
+			disc = disc,
+			badge = nil,
+			badgeSize = 0,
+			word = word,
+			time = time,
+		})
 	end
 	local targetsCaption = SupportKit.label(targetsBox, "Caption", 16, 7)
 	targetsCaption.TextColor3 = Style.TextSoft
@@ -315,15 +358,19 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		return cars[selected]
 	end
 
-	-- the stat rows are 26 tall on a cramped phone and 30 elsewhere (the pips stay 20)
+	local sideCar: Frame? = nil -- the side-on car drawn for the selected car (nil: none, or a flat no-art glyph)
+
+	-- the stat rows are 26 tall on a cramped phone (pips 20), 38 on a tablet and 46 on a desktop (plate, pips 26): a roomy card
+	-- fills its right column with the table instead of leaving it empty
 	local function statRowHeight(): number
-		return if geo.fit == "Compact" then 26 else 30
+		return if geo.fit == "Compact" then 26 elseif geo.fit == "Regular" then 38 else 46
 	end
 
 	local function renderCar()
 		for _, child in carArt:GetChildren() do
 			child:Destroy()
 		end
+		sideCar = nil
 		statsHolder:ClearAllChildren()
 		make("UIListLayout", {
 			FillDirection = Enum.FillDirection.Vertical,
@@ -343,7 +390,7 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			message.Text = "Get a car in the Garage first."
 			statsNote.Text = ""
 			for _, label in { "Speed", "Jump", "Grip" } do
-				local row = StuntKit.statRow(statsHolder, label, nil, 7, statRowHeight())
+				local row = StuntKit.statRow(statsHolder, label, nil, 7, statRowHeight(), geo.fit ~= "Compact")
 				row.LayoutOrder = #statsHolder:GetChildren()
 			end
 			return
@@ -359,16 +406,29 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 			ZIndex = 7,
 			Parent = carArt,
 		})
-		SupportKit.carIcon(holder, { family = car.family, paint = car.paint })
 		if car.missingArt then
+			-- no art: the plain Car glyph as one flat shape, and a note
+			SupportKit.carIcon(holder, { family = car.family, paint = car.paint })
 			SupportKit.silhouette(holder)
+			sideCar = nil
+		else
+			-- a SIDE-ON car (wheels, cabin, window, lamps, a ground shadow), tinted with the paint: the family icon is a front
+			-- view that read as a blue blob, not a car. layoutNow sizes it to the art box.
+			local art = CardKit.uiCar(holder, {
+				colour = car.paint or Color3.fromRGB(40, 120, 232),
+				family = car.family,
+				name = car.id,
+			}, 8)
+			art.root.AnchorPoint = Vector2.new(0.5, 0.5)
+			art.root.Position = UDim2.fromScale(0.5, 0.5)
+			sideCar = art.root
 		end
 		artNote.Text = if car.missingArt then "No art yet" else ""
 		local stats = car.stats
 		local order = 0
 		for _, spec in { { "Speed", "speed" }, { "Jump", "jump" }, { "Grip", "grip" } } do
 			local value: number? = if stats then (stats :: any)[spec[2]] else nil
-			local row = StuntKit.statRow(statsHolder, spec[1], value, 7, statRowHeight())
+			local row = StuntKit.statRow(statsHolder, spec[1], value, 7, statRowHeight(), geo.fit ~= "Compact")
 			order += 1
 			row.LayoutOrder = order
 		end
@@ -471,6 +531,77 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		end
 	end
 
+	-- the three medal targets in the targets box (`box` = its size): medal CARDS (badge, word, time, the caption under them) when
+	-- there is room, small chips (disc and time on one line) on a cramped phone
+	local function layoutTargets(box: Vector2, cards: boolean, badgeSize: number)
+		if cards then
+			local gap = 8
+			local cardH = box.Y - 8 - 30
+			local cardW = math.floor((box.X - 20 - 2 * gap) / 3)
+			targetRow.Position = UDim2.fromOffset(0, 8)
+			targetRow.Size = UDim2.new(1, 0, 0, cardH)
+			targetsCaption.Position = UDim2.fromOffset(6, box.Y - 26)
+			targetsCaption.Size = UDim2.new(1, -12, 0, 20)
+			targetsCaption.TextXAlignment = Enum.TextXAlignment.Center
+			for _, t in targetChips do
+				t.chip.Size = UDim2.fromOffset(cardW, cardH)
+				t.bg.Visible = true
+				t.disc.Visible = false
+				if t.badgeSize ~= badgeSize then
+					local old = t.badge
+					if old then
+						old:Destroy()
+					end
+					local badge = StuntKit.medalBadge(t.chip, t.key, badgeSize, 7)
+					badge.AnchorPoint = Vector2.new(0.5, 0)
+					badge.Position = UDim2.new(0.5, 0, 0, 8)
+					t.badge = badge
+					t.badgeSize = badgeSize
+				end
+				local badge = t.badge
+				if badge then
+					badge.Visible = true
+				end
+				t.word.Visible = true
+				t.word.AnchorPoint = Vector2.new(0.5, 0)
+				t.word.Position = UDim2.new(0.5, 0, 0, 8 + badgeSize + 2)
+				t.word.Size = UDim2.new(1, -8, 0, 20)
+				t.time.AnchorPoint = Vector2.new(0.5, 0)
+				t.time.Position = UDim2.new(0.5, 0, 0, 8 + badgeSize + 24)
+				t.time.Size = UDim2.new(1, -8, 0, 26)
+				t.time.TextXAlignment = Enum.TextXAlignment.Center
+				local limit = t.time:FindFirstChildOfClass("UITextSizeConstraint")
+				if limit then
+					limit.MaxTextSize = 24
+				end
+			end
+		else
+			targetRow.Position = UDim2.fromOffset(0, 4)
+			targetRow.Size = UDim2.new(1, 0, 0, 34)
+			targetsCaption.Position = UDim2.fromOffset(6, 40)
+			targetsCaption.Size = UDim2.new(1, -12, 0, 20)
+			targetsCaption.TextXAlignment = Enum.TextXAlignment.Left
+			for _, t in targetChips do
+				t.chip.Size = UDim2.fromOffset(100, 34)
+				t.bg.Visible = false
+				t.disc.Visible = true
+				local badge = t.badge
+				if badge then
+					badge.Visible = false
+				end
+				t.word.Visible = false
+				t.time.AnchorPoint = Vector2.new(0, 0.5)
+				t.time.Position = UDim2.new(0, 30, 0.5, 0)
+				t.time.Size = UDim2.new(1, -30, 0, 24)
+				t.time.TextXAlignment = Enum.TextXAlignment.Left
+				local limit = t.time:FindFirstChildOfClass("UITextSizeConstraint")
+				if limit then
+					limit.MaxTextSize = 16
+				end
+			end
+		end
+	end
+
 	local function layoutNow()
 		overlay:applyScale()
 		geo = StuntPreRace.geometry(overlay:designSize())
@@ -489,38 +620,52 @@ function StuntPreRace.new(ctx: Overlay.Ctx, options: Options?): PreRace
 		local l = geo.left
 		carBox.Position = UDim2.fromOffset(l.x, l.y)
 		carBox.Size = UDim2.fromOffset(l.w, l.h)
+		local roomy = geo.fit ~= "Compact"
 		local artH = math.max(l.h - 92, 60)
+		-- roomy: the car takes the whole width of the box (the arrows stand beside its name below it); a cramped phone keeps the
+		-- arrows at the car's sides
+		local artW = if roomy then l.w - 16 else math.min(l.w - 112, artH * 1.7)
 		carArt.Position = UDim2.new(0.5, 0, 0, 6)
-		carArt.Size = UDim2.fromOffset(math.min(l.w - 112, artH * 1.7), artH)
-		carName.Position = UDim2.fromOffset(4, 6 + artH + 2)
-		carName.Size = UDim2.new(1, -8, 0, 28)
-		carCounter.Position = UDim2.fromOffset(4, 6 + artH + 30)
-		carCounter.Size = UDim2.new(1, -8, 0, 22)
+		carArt.Size = UDim2.fromOffset(artW, artH)
+		local sc = sideCar
+		if sc then
+			local cw = math.floor(math.min(artW, artH / 0.56 * 0.9)) -- the side car is a 100 : 56 box
+			sc.Size = UDim2.fromOffset(cw, math.floor(cw * 0.56))
+		end
+		local nameX = if roomy then 56 else 4
+		carName.Position = UDim2.fromOffset(nameX, 6 + artH + 2)
+		carName.Size = UDim2.new(1, -2 * nameX, 0, 28)
+		carCounter.Position = UDim2.fromOffset(nameX, 6 + artH + 30)
+		carCounter.Size = UDim2.new(1, -2 * nameX, 0, 22)
 		artNote.AnchorPoint = Vector2.new(0.5, 0)
 		artNote.Position = UDim2.new(0.5, 0, 0, 6 + artH - 22)
 		artNote.Size = UDim2.fromOffset(140, 22)
 		ghostLabel.AnchorPoint = Vector2.new(0, 1)
 		ghostLabel.Position = UDim2.new(0, 4, 1, -3)
 		ghostLabel.Size = UDim2.new(1, -8, 0, 24)
-		prevButton.root.Position = UDim2.fromOffset(6, 6 + artH / 2 - 24)
-		nextButton.root.Position = UDim2.new(1, -54, 0, 6 + artH / 2 - 24)
-		SupportKit.fitLabel(carName, carName.Text, l.w - 8, 28, 22)
-		-- stats (three rows and a one-line note) over the medal targets (three chips and a one-line caption)
+		if roomy then
+			prevButton.root.Position = UDim2.fromOffset(6, 6 + artH + 4)
+			nextButton.root.Position = UDim2.new(1, -54, 0, 6 + artH + 4)
+		else
+			prevButton.root.Position = UDim2.fromOffset(6, 6 + artH / 2 - 24)
+			nextButton.root.Position = UDim2.new(1, -54, 0, 6 + artH / 2 - 24)
+		end
+		SupportKit.fitLabel(carName, carName.Text, l.w - 2 * nameX, 28, 22)
+		-- stats (three rows and a one-line note) over the medal targets (three medal cards, or chips, and a one-line caption)
 		local r = geo.right
 		local rowH = statRowHeight()
-		local statsH = 4 + rowH * 3 + 4 + 20 + 4
+		local listPad = if roomy then 4 else 0 -- the rows' own 2 px gaps
+		local statsH = 4 + rowH * 3 + listPad + 4 + 20 + 4
 		statsBox.Position = UDim2.fromOffset(r.x, r.y)
 		statsBox.Size = UDim2.fromOffset(r.w, statsH)
 		statsHolder.Position = UDim2.fromOffset(10, 4)
-		statsHolder.Size = UDim2.new(1, -20, 0, rowH * 3)
-		statsNote.Position = UDim2.fromOffset(10, 4 + rowH * 3 + 4)
+		statsHolder.Size = UDim2.new(1, -20, 0, rowH * 3 + listPad)
+		statsNote.Position = UDim2.fromOffset(10, 4 + rowH * 3 + listPad + 4)
 		statsNote.Size = UDim2.new(1, -20, 0, 20)
+		local targetsH = math.max(r.h - statsH - 6, 62)
 		targetsBox.Position = UDim2.fromOffset(r.x, r.y + statsH + 6)
-		targetsBox.Size = UDim2.fromOffset(r.w, math.max(r.h - statsH - 6, 62))
-		targetRow.Position = UDim2.fromOffset(0, 4)
-		targetRow.Size = UDim2.new(1, 0, 0, 34)
-		targetsCaption.Position = UDim2.fromOffset(6, 40)
-		targetsCaption.Size = UDim2.new(1, -12, 0, 20)
+		targetsBox.Size = UDim2.fromOffset(r.w, targetsH)
+		layoutTargets(Vector2.new(r.w, targetsH), roomy, if geo.fit == "Roomy" then 72 else 46)
 		message.AnchorPoint = Vector2.new(0.5, 0.5)
 		message.Position = UDim2.fromOffset(l.x + l.w / 2, l.y + l.h - 40)
 		message.Size = UDim2.fromOffset(l.w, 30)

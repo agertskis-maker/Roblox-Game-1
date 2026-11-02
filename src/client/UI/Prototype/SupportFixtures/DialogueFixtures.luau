@@ -3,7 +3,11 @@
 -- unlock rules belong to the game (Brian L); the card only shows what it is given, and Lane 3 never changes an unlock rule.
 --
 -- THE SEAM FOR THE REAL DATA: a locked portal needs { worldName, requirementName, current, target } in the same unit, e.g.
--- "Downtown cars" 3 of 5. The card computes remaining = max(0, target - current) itself; nothing is sent back.
+-- "Downtown cars" 1 of 3. The card computes remaining = max(0, target - current) itself; nothing is sent back.
+-- ONE FIXTURE SOURCE: the locked cards read PortalFixtures.Locks (the portal card's own numbers), so the dialogue, the portal
+-- card and the Home HUD demo's goal pill all say the same thing about a locked Dusty Highway.
+
+local PortalFixtures = require(script.Parent.PortalFixtures)
 
 local DialogueFixtures = {}
 
@@ -42,10 +46,12 @@ DialogueFixtures.PresetNames = table.freeze({ "DustyLocked", "SummitLocked", "Sh
 
 local presets: { [string]: () -> Preset } = {
 	DustyLocked = function(): Preset
-		return locked("Dusty Highway", "Downtown", 3, 5)
+		local lock = PortalFixtures.Locks.DustyHighway
+		return locked("Dusty Highway", lock.previous, lock.cars, lock.carsNeed)
 	end,
 	SummitLocked = function(): Preset
-		return locked("Summit Pass", "Dusty Highway", 1, 4)
+		local lock = PortalFixtures.Locks.SummitPass
+		return locked("Summit Pass", lock.previous, lock.cars, lock.carsNeed)
 	end,
 	-- the Raceway shopkeeper points to the EXISTING upgrade panel; nothing is bought from here
 	Shopkeeper = function(): Preset

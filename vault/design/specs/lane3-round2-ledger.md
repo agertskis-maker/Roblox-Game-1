@@ -16,19 +16,19 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N1-04 | Paddock, parking and walkways: the concrete paddock and the parking area are flush with an... | done | evidence/pair-r2-04.jpg; LineChecks walk 0 | Court, Paddock, aisle, lanes and walk all top at 0.2; walk ends on the road's edge at a gate |
 | N1-05 | Double lines: where a wall and an edge line run side by side (`r2-04`), there is exactly o... | done | evidence/pair-r2-04.jpg | The doubled look was the wall's inner edge against the line; line stands 0.6 in, even all round |
 | N1-06 | Line checker: add checks (extend `SpeedwayChecks` or the M1 overlap scanner) that fail whe... | done | LineChecks.run | crossing, overlap, freeEnd, walk, floats, wallStep, tyreOnWall |
-| N1-07 | Done when: the checks are zero everywhere, and before and after pairs from Adam's views (`... | done | evidence/pair-r2-01, 02, 04 | Matrix 6 plots x 12 levels all 0, verified in Studio Edit; views verified in Studio Play |
+| N1-07 | Done when: the checks are zero everywhere, and before and after pairs from Adam's views (`... | done | evidence/pair-r2-01, 02, 03, 04; topdown-junctions-level1, 6, 12; topdown-paddock-level12 | Matrix 6 plots x 12 levels all 0 in Studio Edit; views in Studio Play. r2-01 to 03 re-shot closer to Adam's views after review |
 | N1-01a | Network construction and diagnosis | done | r2-01, r2-02, r2-04 reproduced in the old place before any change | Confirmed in Studio |
 | N1-02a | Use plot-local 2D coordinates for ground roads. Each edge records its centerline, width, e... | done | RoadNet.triangulate, validate | Ear clip, fattest ear first; rejects self crossing and repeats |
 | N1-02b | Generate boundary paint after surfaces, from the final external boundary and tagged mouth ... | done | RoadNet buildRight | Line chains turn the nose by a Bezier; ribbon lines stop at the junction cross-sections |
 | N1-03a | Proposed starting geometry: 15 to 25 degrees for a pit fork; widen turns enough for the cu... | done | RoadNet | End chords share corners exactly; nose rounded |
-| N1-06a | Classify comparisons. A paint line necessarily overlaps its own supporting asphalt in plan... | done | LineChecks | Ownership by polygon depth, not touching |
+| N1-06a | Classify comparisons. A paint line necessarily overlaps its own supporting asphalt in plan... | done | LineChecks | Samples 9 points a line; sees the widened road. Loop and raised paint are not line-checked: those are covered by the overlap scan and by eye |
 | N1-06b | Keep a single surface-height convention and place paint relative to the local road normal.... | done | Scan on all plots and levels | One height, paint at a fixed 0.12 |
-| N1-07a | Done when: reproduce known-bad crossing, duplicate-paint and grass-gap fixtures and prove ... | partial | selfTest: crossing 1, overlap 1, freeEnd 2, walk 1, clean 0 | Top-down views at levels 1, 6, 12 not all saved; rebuild identity not measured |
+| N1-07a | Done when: reproduce known-bad crossing, duplicate-paint and grass-gap fixtures and prove ... | partial | selfTest catches crossing, double line, free end, widened-road line, walk gap | The top-down views are Plot 3. Rebuild identity not measured |
 | N2-01 | Research how real stunt loops on tracks are built (for example toy-car loops, stunt-show l... | done | see Research below | Findings below |
 | N2-02 | Geometry: where the loop stands, widen the straight to at least two full track widths with... | partial | Path.Loop, Track.loop, Track.loopApron | Straight widened to 32 (two track widths) with 48-stud tapers (3 x 16). Ribbon 16 at the road, 14 in the loop: 16 throughout needs a 54 taper and does not fit the 103.6 straight with the loop's 38 of forward run |
 | N2-03 | Cars through the loop: the decorative lap cars follow the loop centerline with the correct... | done | evidence/raceway-loop-side-silent.mp4 | Upside down at the top, frame from the curve |
 | N2-04 | Fits the levels: the loop appears at the levels where Round 1 put it (keep the level ladde... | done | Look features | Hump now level 11 only: the loop takes that straight |
-| N2-05 | Done when: a Studio Play recording (with game audio) shows at least three cars going throu... | partial | evidence/raceway-loop-side-silent.mp4, raceway-loop-walkway-silent.mp4 | Videos have no audio: audio capture blocked by Application Control |
+| N2-05 | Done when: a Studio Play recording (with game audio) shows at least three cars going throu... | partial | raceway-loop-side-silent.mp4, raceway-loop-walkway-silent.mp4; scan 0 on Plot 3 level 12 | No audio. Scan on the loop 0 flicker or near |
 | N2-01a | Research, actual scale and a buildable method | done | Path.luau | Called a teardrop, not a clothoid. Game proportions, not safety figures |
 | N2-02a | Verified local baseline: Track.luau uses Path.HalfWidth = 8, so the ordinary ribbon is 16 ... | done | Track, Path | Old loop was a circular helix with a constant sideways slope at both ends: confirmed source of the sideways snap |
 | N2-02b | Proposed starting envelope for the stated 9 to 12 stud car length: loop road width 16 stud... | done | apex radius 14.1, low radius 30.2, height 38.9 | Car measured 5.7 x 4.7 x 12.5. Width 14 up in the loop, gap 2 |
@@ -40,12 +40,12 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N2-05a | Adaptive tessellation starts with a 0.1-stud chord-error target and at most 3-degree tange... | partial | joins 0.0000, 0.39 degrees per 0.1 stud, orthogonal 0.00000 | All plot bearings shown by the shared generator; Reduced Motion and three-lap counts not separately measured |
 | N3-01 | Barriers: the white wall blocks along the track edge form one even, continuous wall (no un... | done | evidence/pair-r2-03.jpg; wall step 0.109 | One sloped wall, tyres stop short with an end post |
 | N3-02 | Props: keep race props in their zones (Round 1 M4-05). A concession cart is fine near the ... | done | evidence/pair-r2-03.jpg | Snack stop: pad, two stalls, bench |
-| N3-03 | Walk every plot at levels 1, 6, 9 and 12 and fix anything else that looks unfinished: gaps... | partial | Line checks all plots and levels | Plot 3 walked by camera; other plots share the generator, not walked |
+| N3-03 | Walk every plot at levels 1, 6, 9 and 12 and fix anything else that looks unfinished: gaps... | partial | evidence/island-flicker-glide-silent.mp4 | Plot 3 by camera only; other plots share the generator |
 | N3-03a | Physical polish checks | partial | wall step 0.109, tyreOnWall 0 | 0.109 is on the banked slope, not level ground. Avatar collision not walked |
 | N4-01 | Fastest Stunt Circuit board (`r2-05`): rotate it to face the center of the island (toward ... | done | evidence/pair-r2-05.jpg | Both fences removed (there were exactly two). Boards turned about 18 degrees toward the avenue, mirrored |
 | N4-02 | The low cyan info board near the portal pillar (`r2-05`, left): if it is lying flat or til... | done | PortalGates | Low tilted plaque removed: the locked portal's dialogue card says it |
-| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | done | LineChecks.canopies: 580 plants, 0 touching, 0 on objects | Was 658 plants; 12 percent fewer, mostly far forest |
-| N4-04 | Round 1 leftovers on the island: convert the island signposts to the sign family (Round 1 ... | partial | Task4 failures 0, Overlap checks 0 | Signposts keep the approved arrow boards (same outline and lettering as the family); slow walk not done yet |
+| N4-03 | Trees (`r2-06`): no tree or bush may intersect another tree, bush, sign, gate, lamp or bui... | done | 555 plants; 0 on objects (1,990 objects incl. plot props); 5 pairs under the 1-stud margin; 2 overlap by under 0.3 | All seven are far forest, none near a path |
+| N4-04 | Round 1 leftovers on the island: convert the island signposts to the sign family (Round 1 ... | partial | island-flicker-glide-silent.mp4, sheet | A 40 s camera glide past Garage, Stunt gate and portals, not an avatar walk: no flicker seen in 13 sampled frames, which cannot prove there is none. Signposts keep the arrow boards |
 | N4-04a | Readable signs and planted space | partial | evidence/pair-r2-05.jpg |  |
 | N5-01 | Use ChatGPT's original icons from `chatgpt-images\` (`icon-*.png`, or cut them out of `IMG... | todo | | |
 | N5-02 | Upload (R-05), then wire the icons into the UI kit: one icon module where each icon name m... | todo | | |
@@ -73,7 +73,7 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N7-02 | One look across all panels: restyle Settings, Missions, Garage, the portal card and the ot... | todo | | |
 | N7-03 | Phone landscape first: check every element at the phone landscape frame for thumb reach, s... | todo | | |
 | N7-04 | Motion and sound: pills slide in and out, buttons pop on press, numbers count up, badges p... | todo | | |
-| N7-05 | Done when: frames of the home HUD at the three sizes, plus one Play recording with audio, ... | todo | | |
+| N7-05 | Done when: frames of the home HUD at the three sizes, plus one Play recording with audio, ... | partial | ui/, ui-tour-silent.mp4 | No audio. Real Cash does not exist in the beta: PREVIEW |
 | N7-01a | Reference inventory already completed | todo | | |
 | N7-03a | Car Hop layout derived from the references | todo | | |
 | N7-03b | Present Cash as a server-backed balance; format compactly while allowing full value in det... | todo | | |
@@ -82,13 +82,13 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N8-01 | Icons that make sense: every step's icon clearly shows its action. "Go to Downtown!" uses ... | todo | | |
 | N8-02 | Banner layout: the green instruction bar sits exactly centered under the headline inside t... | todo | | |
 | N8-03 | Character guidance (optional, your call): use the dialogue card (N11) with a friendly mech... | todo | | |
-| N8-04 | Run it for real in the beta (N13): a full playthrough from join to "You're ready!" in the ... | todo | | |
-| N8-05 | After the tutorial: on later joins, a short chevron trail and goal pill point to the most ... | todo | | |
+| N8-04 | Run it for real in the beta (N13): a full playthrough from join to "You're ready!" in the ... | partial | Beta Play: tutorial starts, steps 0 to 2 by real run; Home returns and guides back | Later steps not played: the test run crashes at about 40 m before a hop. Needs Brian R's events and a playthrough by hand |
+| N8-05 | After the tutorial: on later joins, a short chevron trail and goal pill point to the most ... | partial | ReturnGuide built | Not started in HomeShell: no data for what is affordable or ready |
 | N8-01a | Exact tutorial copy and icon mapping | todo | | |
 | N8-02a | The green bar is centered within the banner body below the title, with identical left/righ... | todo | | |
 | N8-04a | Steps 2 through 5 complete only through existing run adapter evidence, 7 through 9 through... | todo | | |
 | N9-02 | The scene is alive: a looping animated scene of the player's own cars (or the placeholder ... | todo | | |
-| N9-03 | CLAIM flies coins into the Cash counter (visual only; the amount comes from the server lat... | todo | | |
+| N9-03 | CLAIM flies coins into the Cash counter (visual only; the amount comes from the server lat... | done | WelcomeBackMock; HomeShell cashTarget | Studio: card shown in the beta queue. Coin flight not filmed |
 | N9-02a | Proposed scene storyboard and claim behavior | todo | | |
 | N9-03a | Current WelcomeBackMock treats the supplied reward as already credited and the button as a... | todo | | |
 | N9-04a | States: checking uses "Checking your Raceway..." and disabled claim; unavailable uses "Ear... | todo | | |
@@ -111,16 +111,16 @@ Brief: [[lane3-round2]]. Allowed evidence statuses from N16-01a are used in the 
 | N12-03e | Brian L's calibration task: compare price / verified net Cash per minute at early, middle ... | todo | | |
 | N12-02a | Results: fit medal and key time into the top half, then ghost difference and three target ... | todo | | |
 | N12-04a | Pre-race presents chosen car, supplied stats, selected course and existing start action, w... | todo | | |
-| N13-02 | Real data where it exists (beta Raceway level and parking spots from the beta save, plot o... | todo | | |
-| N13-03 | Test the whole join flow in the local beta file as a new player and as a returning player:... | todo | | |
-| N13-01a | Exact join and modal queue contract | todo | | |
-| N13-01b | Use one home modal coordinator, distinct from the existing lightweight notification Priori... | todo | | |
+| N13-02 | Real data where it exists (beta Raceway level and parking spots from the beta save, plot o... | partial | Raceway level and spots are real from the beta save | Cash, cars and missions are labelled PREVIEW |
+| N13-03 | Test the whole join flow in the local beta file as a new player and as a returning player:... | partial | New and returning joins with no errors in Output | The full new-player video was not recorded: Application Control blocks audio, and the run ends at 40 m |
+| N13-01a | Exact join and modal queue contract | done | Beta Play: new and returning | joinMode is an explicit switch |
+| N13-01b | Use one home modal coordinator, distinct from the existing lightweight notification Priori... | done | ModalQueue.selfTest 0 failures; beta log order | User panels go through it; dialogue cards are not yet shown at portals in the beta |
 | N13-01c | Priority: transition/safety UI first, existing run results next, explicit user interaction... | todo | | |
 | N13-01d | Loading is not a fabricated progress percentage. Show actual milestones or an indeterminat... | todo | | |
-| N13-03a | Test join matrix: new player, returning with positive offline reward, returning with verif... | todo | | |
-| N14-01a | Prevent weaker checks from hiding unfinished work | todo | | |
-| N15-01 | Brian R: the Stunt Circuit is now his (Adam's decision, 2026-11-01). Hand over the Round 1... | todo | | |
-| N15-02 | Brian L: the cosmetic tiers and PREVIEW prices (paint, decals, wheels), the Index completi... | todo | | |
+| N13-03a | Test join matrix: new player, returning with positive offline reward, returning with verif... | partial | New, returning, duplicate roots 1, queue rules on a fake clock | Delayed data, failed assets, respawn and notification burst not run |
+| N14-01a | Prevent weaker checks from hiding unfinished work | partial | Summit seed 314 still fails | See decision 0032: its rule has no fit on every seed. Spacing is unchanged, not lowered |
+| N15-01 | Brian R: the Stunt Circuit is now his (Adam's decision, 2026-11-01). Hand over the Round 1... | done | lane3-round2-for-brian-r.md |  |
+| N15-02 | Brian L: the cosmetic tiers and PREVIEW prices (paint, decals, wheels), the Index completi... | done | lane3-round2-for-brian-l.md |  |
 | N15-01a | Dependency handoff contents | todo | | |
 | N16-01a | Evidence and acceptance matrix | todo | | |
 | N16-03a | Two reviewer agents may run concurrently, within the two-worker cap. Give each the origina... | todo | | |

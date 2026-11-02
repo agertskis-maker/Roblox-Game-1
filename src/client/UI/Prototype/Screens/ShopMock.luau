@@ -987,13 +987,15 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		scrollMax = math.max(y - L.pageH, 0)
 		buildTrove:Connect(pageFrame:GetPropertyChangedSignal("CanvasPosition"), onScroll)
 
-		-- the scroll cue: a calm chip while there is more below (never cutting a primary button in half)
-		local scrollCue =
-			ShopKit.chip(shell, { text = "Scroll for more", fill = "Steel", size = 16, z = 12, name = "ScrollCue" })
-		-- on a phone the deal banner fills the page's foot, so the cue sits on the shell's edge below it
-		scrollCue.AnchorPoint = Vector2.new(0.5, if L.dealW and L.pageH < 300 then 0.5 else 1)
-		scrollCue.Position = UDim2.new(0.5, 0, 0, L.pageY + L.pageH + (if L.dealW and L.pageH < 300 then 4 else -6))
-		cue = scrollCue
+		-- the scroll cue: a calm chip in its OWN footer row under the page (ShopLayout reserves it), so it never covers the
+		-- BEST DEAL banner's price chips. A phone has no row to spare, so it has no cue (the scrollbar says there is more).
+		if L.cueH > 0 then
+			local scrollCue =
+				ShopKit.chip(shell, { text = "Scroll for more", fill = "Steel", size = 16, z = 12, name = "ScrollCue" })
+			scrollCue.AnchorPoint = Vector2.new(0.5, 0.5)
+			scrollCue.Position = UDim2.new(0.5, 0, 0, L.pageY + L.pageH + L.cueH / 2)
+			cue = scrollCue
+		end
 
 		-- HEADER -------------------------------------------------------------------------------------------------
 		local z = 20

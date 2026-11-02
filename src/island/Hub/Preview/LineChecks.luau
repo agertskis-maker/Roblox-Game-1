@@ -94,7 +94,16 @@ local function paintRects(look: Instance, bearing: number, names: { [string]: bo
 end
 
 local function samplesOf(r: Rect): { Vector2 }
-	return { r.a:Lerp(r.b, 0.1), r.a:Lerp(r.b, 0.5), r.a:Lerp(r.b, 0.9) }
+	local out = {}
+	for k = 1, 9 do
+		table.insert(out, r.a:Lerp(r.b, (k - 0.5) / 9))
+	end
+	return out
+end
+
+-- Level 12's widened straight: everything between its two edge lines is open road. Paint there is a fault.
+local function inApron(p: Vector2): boolean
+	return p.Y > uS + 50 and p.Y < 445 and p.X > R - HALF - 16 + MARGIN + 0.6 and p.X < R + HALF - MARGIN - 0.6
 end
 
 -- Two rects overlap along their middles, other than one chain's end-to-end joint.
@@ -126,7 +135,13 @@ local function layered(x: Rect, y: Rect): boolean
 	return endNear > 0.6
 end
 
-local function checkLook(look: Instance, plot: Instance, bearing: number, RoadNet: any): { [string]: { string } }
+local function checkLook(
+	look: Instance,
+	plot: Instance,
+	bearing: number,
+	RoadNet: any,
+	level: number
+): { [string]: { string } }
 	local found: { [string]: { string } } = {
 		crossing = {},
 		overlap = {},
@@ -172,6 +187,10 @@ local function checkLook(look: Instance, plot: Instance, bearing: number, RoadNe
 				end
 				if not where and fromTrack(p) < HALF - MARGIN - 0.6 then
 					add("crossing", string.format("%s inside the track at (%.1f, %.1f)", r.name, p.X, p.Y))
+					break
+				end
+				if level == 12 and inApron(p) then
+					add("crossing", string.format("%s inside the widened road at (%.1f, %.1f)", r.name, p.X, p.Y))
 					break
 				end
 			end
@@ -323,7 +342,7 @@ function LineChecks.run(options: { plots: { number }?, levels: { number }? }?): 
 			Look.clear(plot)
 			Look.apply(plot, level, { index = index, bearing = bearing, owner = "" })
 			local look = plot:FindFirstChild("SpeedwayLook") :: Folder
-			local found = checkLook(look, plot, bearing, RoadNet)
+			local found = checkLook(look, plot, bearing, RoadNet, level)
 			local sum = 0
 			for kind, list in found do
 				totals[kind] = (totals[kind] or 0) + #list
@@ -410,6 +429,29 @@ function LineChecks.canopies(): { [string]: any }
 	table.sort(plants, function(a, b)
 		return a.p.X < b.p.X
 	end)
+	-- the plots' own tall props, at their top level: light towers, flags, stands, the screen
+	local plots = (workspace:FindFirstChild("Lane3_IslandPreview") :: any).Island.Plots
+	local S = shared()
+	local Look = (require :: any)(S.Island.Speedway.Look)
+	for index = 1, 6 do
+		local plot = plots:FindFirstChild(string.format("Plot%02d", index)) :: Model
+		local bearing = Layout.plotBearing(index)
+		for _, level in { 3, 9, 12 } do
+			Look.clear(plot)
+			Look.apply(plot, level, { index = index, bearing = bearing, owner = "" })
+			for _, d in (plot :: any).SpeedwayLook:GetDescendants() do
+				if d:IsA("BasePart") and d.Transparency < 1 and d.Size.Y > 3 then
+					table.insert(objects, {
+						name = "Plot/" .. d.Name,
+						p = Vector2.new(d.Position.X, d.Position.Z),
+						r = math.min(math.max(d.Size.X, d.Size.Z) / 2, 12),
+					})
+				end
+			end
+			Look.clear(plot)
+		end
+		task.wait()
+	end
 	local between, withObjects = 0, 0
 	local worst = {}
 	for i, a in plants do
@@ -419,7 +461,7 @@ function LineChecks.canopies(): { [string]: any }
 				break
 			end
 			local gap = (a.p - b.p).Magnitude - a.r - b.r
-			if gap < 0 and a.hi > b.lo and b.hi > a.lo then
+			if gap < 1 and a.hi > b.lo and b.hi > a.lo then
 				between += 1
 				if #worst < 8 then
 					table.insert(
@@ -430,7 +472,7 @@ function LineChecks.canopies(): { [string]: any }
 			end
 		end
 		for _, o in objects do
-			if (a.p - o.p).Magnitude - a.r - o.r < 0 then
+			if (a.p - o.p).Magnitude - a.r - o.r < 2 then
 				withObjects += 1
 				if #worst < 12 then
 					table.insert(worst, string.format("%s / %s at (%.0f, %.0f)", a.model.Name, o.name, a.p.X, a.p.Y))
@@ -473,11 +515,11 @@ function LineChecks.selfTest(): { [string]: number }
 		return p
 	end
 	local out: { [string]: number } = {}
-	local base = checkLook(look, plot, bearing, RoadNet)
+	local base = checkLook(look, plot, bearing, RoadNet, 6)
 	out.clean = #base.crossing + #base.overlap + #base.freeEnd + #base.walk
 	-- 1: a line across a junction's mouth, the old fault
 	local bad = line(at(38, 385), at(30, 395))
-	out.crossingCaught = #checkLook(look, plot, bearing, RoadNet).crossing
+	out.crossingCaught = #checkLook(look, plot, bearing, RoadNet, 6).crossing
 	bad:Destroy()
 	-- 2: paint laid twice along the same edge
 	local copy: BasePart? = nil
@@ -490,13 +532,20 @@ function LineChecks.selfTest(): { [string]: number }
 	local double = (copy :: BasePart):Clone()
 	double.CFrame = (copy :: BasePart).CFrame * CFrame.new(0.1, 0, 0)
 	double.Parent = look
-	out.overlapCaught = #checkLook(look, plot, bearing, RoadNet).overlap
+	out.overlapCaught = #checkLook(look, plot, bearing, RoadNet, 6).overlap
 	double:Destroy()
 	-- 3: a line that stops in the middle of the track
 	local stop = line(at(35, 440), at(35, 446))
-	out.freeEndCaught = #checkLook(look, plot, bearing, RoadNet).freeEnd
+	out.freeEndCaught = #checkLook(look, plot, bearing, RoadNet, 6).freeEnd
 	stop:Destroy()
-	-- 4: the walk pulled back from the road, the old gap
+	-- 4: a line left across level 12's widened road
+	Look.clear(plot)
+	Look.apply(plot, 12, { index = index, bearing = bearing, owner = "" })
+	look = plot:FindFirstChild("SpeedwayLook") :: Folder
+	local apronLine = line(at(25, 445 - 8), at(25, 445 - 2))
+	out.apronCaught = #checkLook(look, plot, bearing, RoadNet, 12).crossing
+	apronLine:Destroy()
+	-- 5: the walk pulled back from the road, the old gap
 	local walks = {}
 	for _, d in (plot :: any).Visual:GetDescendants() do
 		if d:IsA("BasePart") and d.Name == "Walkway" then
@@ -504,7 +553,7 @@ function LineChecks.selfTest(): { [string]: number }
 			d.CFrame -= Layout.plotToWorld(bearing, Vector2.new(0, 3), 0) - Layout.plotToWorld(bearing, Vector2.zero, 0)
 		end
 	end
-	out.walkCaught = #checkLook(look, plot, bearing, RoadNet).walk
+	out.walkCaught = #checkLook(look, plot, bearing, RoadNet, 6).walk
 	for _, w in walks do
 		w[1].CFrame = w[2]
 	end

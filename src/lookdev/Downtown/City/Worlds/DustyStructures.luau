@@ -4,6 +4,10 @@
 -- as real settlements without new mesh uploads. Each recipe returns a Model centred on its footprint
 -- with its front (local -Z) toward the road, at ground y = 0. Anchored, no collision, no query.
 --
+-- Every Part here counts against the scenery ceiling (Edit 400, Play 340), so the recipes are budgeted: a run of
+-- identical boxes is one part (a window strip, one long bale row), back posts that the front posts hide from the road
+-- are left out, and small details that do not change the silhouette are not built. Count a recipe before adding to it.
+--
 --   Structures.build(id)  -> Model
 --   Structures.Sites      -> where each one stands, as district, fraction along it, side and lateral
 
@@ -89,12 +93,24 @@ local function gable(m: Model, w: number, d: number, y: number, rise: number, co
 	end
 end
 
--- A row of dark windows standing just proud of the front wall at z = -d/2.
+-- Dark windows standing just proud of the front wall at z = -d/2. One window is a box; two or more are one strip from the
+-- first window's left edge to the last one's right edge, standing 0.08 behind a door's face so a door in front of it
+-- never fights it for the same depth.
 local function windows(m: Model, w: number, y: number, frontZ: number, count: number, colour: Color3, tall: number?)
 	local h = tall or 2.2
-	for k = 1, count do
-		box(m, "Window", Vector3.new(2, h, 0.14), Vector3.new(-w / 2 + k * w / (count + 1), y, frontZ - 0.08), colour)
+	local first = -w / 2 + w / (count + 1)
+	if count <= 1 then
+		box(m, "Window", Vector3.new(2, h, 0.14), Vector3.new(first, y, frontZ - 0.08), colour)
+		return
 	end
+	local last = -w / 2 + count * w / (count + 1)
+	box(
+		m,
+		"WindowStrip",
+		Vector3.new(last - first + 2, h, 0.1),
+		Vector3.new((first + last) / 2, y, frontZ - 0.02),
+		colour
+	)
 end
 
 local function door(m: Model, x: number, frontZ: number, colour: Color3)
@@ -106,16 +122,32 @@ local function shell(m: Model, w: number, d: number, h: number, colour: Color3):
 	return -d / 2
 end
 
--- A post-and-roof shade: four posts under a slab.
-local function ramada(m: Model, w: number, d: number, h: number, posts: Color3, roof: Color3)
+-- Four corner posts, or only the two at the ends of the centre line (a small shelter reads the same from the road).
+local function posts(m: Model, w: number, d: number, h: number, colour: Color3, centreLine: boolean?)
 	for _, sx in { 1, -1 } do
-		for _, sz in { 1, -1 } do
-			box(m, "Post", Vector3.new(0.6, h, 0.6), Vector3.new(sx * (w / 2 - 0.6), h / 2, sz * (d / 2 - 0.6)), posts)
+		if centreLine then
+			box(m, "Post", Vector3.new(0.6, h, 0.6), Vector3.new(sx * (w / 2 - 0.6), h / 2, 0), colour)
+		else
+			for _, sz in { 1, -1 } do
+				box(
+					m,
+					"Post",
+					Vector3.new(0.6, h, 0.6),
+					Vector3.new(sx * (w / 2 - 0.6), h / 2, sz * (d / 2 - 0.6)),
+					colour
+				)
+			end
 		end
 	end
+end
+
+-- A post-and-roof shade: posts under a slab.
+local function ramada(m: Model, w: number, d: number, h: number, postColour: Color3, roof: Color3, centreLine: boolean?)
+	posts(m, w, d, h, postColour, centreLine)
 	box(m, "Shade", Vector3.new(w + 1, 0.5, d + 1), Vector3.new(0, h + 0.25, 0), roof)
 end
 
+-- Four legs and two levels of cross braces on the road side; the back braces sat exactly behind the front ones.
 local function tower(m: Model, spread: number, h: number, colour: Color3)
 	for _, sx in { 1, -1 } do
 		for _, sz in { 1, -1 } do
@@ -124,12 +156,13 @@ local function tower(m: Model, spread: number, h: number, colour: Color3)
 	end
 	for _, y in { h * 0.35, h * 0.7 } do
 		box(m, "Brace", Vector3.new(spread * 2 + 0.7, 0.4, 0.4), Vector3.new(0, y, -spread), colour)
-		box(m, "Brace", Vector3.new(spread * 2 + 0.7, 0.4, 0.4), Vector3.new(0, y, spread), colour)
 	end
 end
 
+-- SignKit takes the CFrame of the face with its LookVector out of the sign, and a structure's front is local -Z, so a
+-- sign on the road side looks along -Z. (This used to turn the sign half a turn, which faced the words into the wall.)
 local function faceRoad(at: Vector3): CFrame
-	return CFrame.new(at) * CFrame.Angles(0, math.pi, 0)
+	return CFrame.new(at)
 end
 
 local RECIPES: { [string]: (Model) -> () } = {}
@@ -140,7 +173,6 @@ function RECIPES.BigBarn(m)
 	gable(m, 34, 24, 15, 8, CHARCOAL)
 	box(m, "BarnDoor", Vector3.new(11, 11, 0.2), Vector3.new(0, 5.6, f - 0.1), CREAM)
 	box(m, "BarnDoorInset", Vector3.new(9.6, 9.6, 0.1), Vector3.new(0, 5.6, f - 0.26), BARN)
-	box(m, "HayDoor", Vector3.new(5, 4, 0.14), Vector3.new(0, 15.5, f - 0.08), CREAM)
 	box(m, "Lean", Vector3.new(14, 10, 18), Vector3.new(24, 5, 2), BARN:Lerp(CHARCOAL, 0.15))
 	box(m, "LeanRoof", Vector3.new(15, 0.6, 19), Vector3.new(24, 10.3, 2), CHARCOAL)
 end
@@ -148,14 +180,11 @@ end
 function RECIPES.TradingPost(m)
 	local f = shell(m, 26, 16, 10, WOOD)
 	box(m, "FalseFront", Vector3.new(26, 5, 0.8), Vector3.new(0, 12.5, f + 0.2), WOOD_DARK)
-	ramada(m, 26, 6, 8.5, WOOD_DARK, WOOD)
-	m:FindFirstChild("Shade"):PivotTo(CFrame.new(0, 8.75, f - 3.2))
-	for _, c in m:GetChildren() do
-		if c.Name == "Post" then
-			(c :: BasePart).Position =
-				Vector3.new((c :: BasePart).Position.X, 4.25, f - 3.2 + math.sign((c :: BasePart).Position.Z) * 2.4)
-		end
+	-- a lean-to veranda: two front posts, and the wall carries the back edge of the roof
+	for _, sx in { 1, -1 } do
+		box(m, "Post", Vector3.new(0.6, 8.5, 0.6), Vector3.new(sx * 12.4, 4.25, f - 5.6), WOOD_DARK)
 	end
+	box(m, "Shade", Vector3.new(27, 0.5, 7), Vector3.new(0, 8.75, f - 3.2), WOOD)
 	door(m, 0, f, WOOD_DARK)
 	windows(m, 26, 3.6, f, 2, GLASS)
 	SignKit.sign(
@@ -167,9 +196,8 @@ end
 
 function RECIPES.HayShelter(m)
 	ramada(m, 20, 12, 8, WOOD_DARK, TIN)
-	for x = -6, 6, 4 do
-		box(m, "Hay", Vector3.new(3.6, 2.6, 8), Vector3.new(x, 1.3, 0), rgb(226, 190, 96))
-	end
+	-- the ground row of four bales is one long box (the gaps between them were 0.4 wide)
+	box(m, "Hay", Vector3.new(15.6, 2.6, 8), Vector3.new(0, 1.3, 0), rgb(226, 190, 96))
 	box(m, "Hay", Vector3.new(3.6, 2.6, 8), Vector3.new(-2, 3.9, 0), rgb(232, 200, 110))
 end
 
@@ -183,13 +211,10 @@ function RECIPES.CorralGate(m)
 			box(m, "Rail", Vector3.new(14, 0.5, 0.4), Vector3.new(s * 19, y, 0), WOOD)
 		end
 	end
-	for _, s in { 1, -1 } do
-		box(m, "Post", Vector3.new(0.7, 4, 0.7), Vector3.new(s * 26, 2, 0), WOOD_DARK)
-	end
 end
 
 function RECIPES.TroughShelter(m)
-	ramada(m, 14, 8, 6, WOOD, TIN)
+	ramada(m, 14, 8, 6, WOOD, TIN, true)
 	box(m, "Trough", Vector3.new(10, 1.4, 2.6), Vector3.new(0, 0.7, 0), rgb(120, 124, 130))
 	box(m, "TroughWater", Vector3.new(9, 0.2, 1.8), Vector3.new(0, 1.42, 0), rgb(84, 170, 190))
 end
@@ -198,14 +223,12 @@ function RECIPES.TankStand(m)
 	tower(m, 3.6, 16, WOOD_DARK)
 	cylinder(m, "Tank", 5.4, 7, Vector3.new(0, 19.5, 0), WOOD)
 	box(m, "TankBand", Vector3.new(11.2, 0.4, 11.2), Vector3.new(0, 17.2, 0), CHARCOAL)
-	box(m, "TankCap", Vector3.new(8, 0.8, 8), Vector3.new(0, 23.4, 0), CHARCOAL)
 end
 
 function RECIPES.RanchShedA(m)
 	local f = shell(m, 16, 12, 8, PALE)
 	gable(m, 16, 12, 8, 4, WOOD_DARK)
 	door(m, -3, f, WOOD_DARK)
-	windows(m, 16, 4, f, 1, GLASS)
 end
 
 function RECIPES.RanchShedB(m)
@@ -217,7 +240,7 @@ end
 
 function RECIPES.ProduceKiosk(m)
 	box(m, "Stall", Vector3.new(12, 3, 6), Vector3.new(0, 1.5, 0), WOOD)
-	ramada(m, 12, 6, 7, WOOD_DARK, CORAL)
+	ramada(m, 12, 6, 7, WOOD_DARK, CORAL, true)
 	box(m, "Crate", Vector3.new(4.6, 1, 2.2), Vector3.new(-2.4, 3.5, 0), rgb(226, 120, 60))
 	box(m, "Crate", Vector3.new(4.6, 1, 2.2), Vector3.new(2.4, 3.5, 0), LIME)
 end
@@ -229,8 +252,9 @@ function RECIPES.MotelWing(m)
 	box(m, "Balcony", Vector3.new(46, 0.5, 3), Vector3.new(0, 8.2, f - 1.5), CORAL)
 	box(m, "BalconyRail", Vector3.new(46, 1.4, 0.3), Vector3.new(0, 9.4, f - 2.8), TURQ)
 	box(m, "RoofSlab", Vector3.new(48, 0.7, 16), Vector3.new(0, 15.3, 0), CHARCOAL)
-	for k = 0, 5 do
-		local x = -19 + k * 7.6
+	-- four rooms a floor, spaced evenly (six doors a floor was the biggest single count in the set)
+	for k = 0, 3 do
+		local x = -19 + k * 38 / 3
 		door(m, x, f, TURQ)
 		box(m, "Door", Vector3.new(2.4, 4.2, 0.14), Vector3.new(x, 10.6, f - 0.08), CORAL)
 	end
@@ -239,8 +263,8 @@ end
 function RECIPES.MotelOffice(m)
 	local f = shell(m, 16, 12, 8, CREAM)
 	box(m, "Canopy", Vector3.new(18, 0.6, 16), Vector3.new(0, 8.4, -2), CORAL)
-	door(m, 0, f, GLASS)
-	windows(m, 16, 4, f, 2, GLASS)
+	-- the glass door and its two windows were one colour: one glass front
+	box(m, "GlassFront", Vector3.new(12, 4.6, 0.14), Vector3.new(0, 2.4, f - 0.08), GLASS)
 	box(m, "SignPole", Vector3.new(1, 24, 1), Vector3.new(-12, 12, f - 2), CHARCOAL)
 	SignKit.sign(
 		m,
@@ -252,20 +276,22 @@ end
 function RECIPES.PoolEnclosure(m)
 	box(m, "PoolDeck", Vector3.new(26, 0.4, 16), Vector3.new(0, 0.2, 0), PALE)
 	box(m, "Pool", Vector3.new(20, 0.2, 10), Vector3.new(0, 0.5, 0), rgb(70, 196, 214))
+	-- the road-side fence and both ends; the far fence is behind the pool from the road
+	local fence = TURQ:Lerp(CREAM, 0.3)
+	box(m, "Fence", Vector3.new(26, 3, 0.3), Vector3.new(0, 1.9, -8), fence)
 	for _, s in { 1, -1 } do
-		box(m, "Fence", Vector3.new(26, 3, 0.3), Vector3.new(0, 1.9, s * 8), TURQ:Lerp(CREAM, 0.3))
-		box(m, "Fence", Vector3.new(0.3, 3, 16), Vector3.new(s * 13, 1.9, 0), TURQ:Lerp(CREAM, 0.3))
+		box(m, "Fence", Vector3.new(0.3, 3, 16), Vector3.new(s * 13, 1.9, 0), fence)
 	end
 	box(m, "Umbrella", Vector3.new(0.4, 6, 0.4), Vector3.new(-9, 3.4, 0), CREAM)
 	cylinder(m, "UmbrellaTop", 3.4, 0.4, Vector3.new(-9, 6.6, 0), CORAL)
 end
 
 function RECIPES.FuelCanopy(m)
-	ramada(m, 30, 14, 10, CREAM, CREAM)
-	box(m, "CanopyBand", Vector3.new(31.6, 1.4, 15.6), Vector3.new(0, 10.9, 0), TURQ)
+	-- the cream slab was wholly inside the turquoise band: the band is the roof
+	posts(m, 30, 14, 10, CREAM)
+	box(m, "CanopyBand", Vector3.new(31.6, 1.6, 15.6), Vector3.new(0, 10.8, 0), TURQ)
 	for _, x in { -7, 7 } do
-		box(m, "PumpIsland", Vector3.new(6, 0.5, 3), Vector3.new(x, 0.25, 0), PALE)
-		box(m, "Pump", Vector3.new(1.6, 3.6, 1.2), Vector3.new(x, 2.3, 0), CORAL)
+		box(m, "Pump", Vector3.new(1.6, 3.6, 1.2), Vector3.new(x, 1.8, 0), CORAL)
 	end
 	SignKit.sign(m, faceRoad(Vector3.new(0, 10.9, -8.1)), { style = "Fuel", icon = "drop", width = 5, height = 1.5 })
 end
@@ -282,7 +308,7 @@ function RECIPES.RepairShed(m)
 	local f = shell(m, 20, 14, 10, TIN)
 	gable(m, 20, 14, 10, 3, CHARCOAL)
 	box(m, "RollDoor", Vector3.new(12, 8, 0.16), Vector3.new(-2, 4, f - 0.09), rgb(96, 100, 110))
-	for y = 1.5, 7.5, 2 do
+	for _, y in { 3, 6 } do
 		box(m, "DoorRib", Vector3.new(12, 0.14, 0.1), Vector3.new(-2, y, f - 0.2), CHARCOAL)
 	end
 	cylinder(m, "Tyre", 1.5, 1, Vector3.new(9, 1.5, f - 2), CHARCOAL)
@@ -291,14 +317,12 @@ end
 function RECIPES.WaterTower(m)
 	tower(m, 5.6, 34, TURQ:Lerp(CHARCOAL, 0.35))
 	cylinder(m, "Tank", 9, 10, Vector3.new(0, 39, 0), TURQ)
-	box(m, "TankCap", Vector3.new(12, 1.4, 12), Vector3.new(0, 44.7, 0), CREAM)
 	box(m, "TankBand", Vector3.new(18.4, 0.7, 18.4), Vector3.new(0, 34.3, 0), CORAL)
 end
 
 function RECIPES.DriveInBooth(m)
-	local f = shell(m, 8, 8, 7, CREAM)
+	shell(m, 8, 8, 7, CREAM)
 	box(m, "BoothRoof", Vector3.new(11, 0.6, 11), Vector3.new(0, 7.3, 0), CORAL)
-	windows(m, 8, 4, f, 1, GLASS)
 	for _, s in { -1, 1 } do
 		box(m, "ScreenLeg", Vector3.new(2, 26, 2), Vector3.new(s * 20, 13, 26), CHARCOAL)
 	end
@@ -315,11 +339,7 @@ function RECIPES.MineEntrance(m)
 		box(m, "MinePost", Vector3.new(1.4, 11, 1.4), Vector3.new(s * 6, 5.5, -4.6), WOOD_DARK)
 	end
 	box(m, "MineLintel", Vector3.new(14.6, 1.6, 1.6), Vector3.new(0, 11.6, -4.6), WOOD_DARK)
-	for _, s in { 1, -1 } do
-		box(m, "Rail", Vector3.new(0.4, 0.3, 14), Vector3.new(s * 1.8, 0.2, -11), CHARCOAL)
-	end
-	box(m, "CartBody", Vector3.new(5, 2.6, 4), Vector3.new(0, 2.2, -12), CHARCOAL)
-	box(m, "CartLoad", Vector3.new(4, 1, 3), Vector3.new(0, 3.9, -12), rgb(120, 110, 104))
+	box(m, "CartBody", Vector3.new(5, 2.6, 4), Vector3.new(0, 1.5, -12), CHARCOAL)
 	SignKit.sign(
 		m,
 		faceRoad(Vector3.new(0, 13.8, -5.4)),
@@ -331,14 +351,12 @@ function RECIPES.OreShed(m)
 	local f = shell(m, 18, 12, 9, WOOD)
 	gable(m, 18, 12, 9, 3.6, TIN)
 	box(m, "Chute", Vector3.new(3, 1, 8), Vector3.new(6, 6, f - 3.6), WOOD_DARK).Orientation = Vector3.new(24, 0, 0)
-	door(m, -4, f, WOOD_DARK)
 end
 
 function RECIPES.CartPlatform(m)
 	ramada(m, 22, 10, 6, WOOD_DARK, WOOD)
 	box(m, "Deck", Vector3.new(22, 0.6, 10), Vector3.new(0, 3, 0), WOOD)
 	box(m, "CartBody", Vector3.new(5, 2.6, 3.4), Vector3.new(-5, 4.6, 0), CHARCOAL)
-	box(m, "CartLoad", Vector3.new(4, 1, 2.6), Vector3.new(-5, 6.2, 0), rgb(120, 110, 104))
 end
 
 function RECIPES.ElevatedTank(m)
@@ -347,25 +365,22 @@ function RECIPES.ElevatedTank(m)
 	gable(m, 9, 9, 27, 2.4, TIN)
 end
 
+-- Five bents every 15 studs. The deck rails (0.3 high, 19 up) were never seen from the road, so they are not built.
 function RECIPES.TrestleRun(m)
-	for k = 0, 5 do
-		local x = -30 + k * 12
+	for k = 0, 4 do
+		local x = -30 + k * 15
 		for _, s in { 1, -1 } do
 			box(m, "Bent", Vector3.new(0.8, 18, 0.8), Vector3.new(x, 9, s * 2.4), WOOD_DARK)
 		end
 		box(m, "Cap", Vector3.new(0.9, 0.7, 6.4), Vector3.new(x, 18, 0), WOOD_DARK)
 	end
 	box(m, "Deck", Vector3.new(72, 0.7, 6), Vector3.new(0, 18.6, 0), WOOD)
-	for _, s in { 1, -1 } do
-		box(m, "Rail", Vector3.new(72, 0.3, 0.4), Vector3.new(0, 19.1, s * 1.6), CHARCOAL)
-	end
 end
 
 function RECIPES.SurveyCabin(m)
 	local f = shell(m, 14, 10, 7, WOOD)
 	gable(m, 14, 10, 7, 3.4, WOOD_DARK)
 	door(m, -3, f, WOOD_DARK)
-	windows(m, 14, 4, f, 1, GLASS)
 end
 
 function RECIPES.StoneWorkshop(m)
@@ -376,21 +391,18 @@ function RECIPES.StoneWorkshop(m)
 	windows(m, 20, 4, f, 2, GLASS)
 end
 
+-- The four legs run up through the deck to carry the roof (the legs used to stop at the deck, and the roof's own posts
+-- stood on the ground, so the roof hung five studs clear of everything).
 function RECIPES.LookoutShelter(m)
-	tower(m, 3.4, 10, WOOD_DARK)
+	tower(m, 3.4, 15.5, WOOD_DARK)
 	box(m, "Deck", Vector3.new(10, 0.5, 10), Vector3.new(0, 10.2, 0), WOOD)
-	ramada(m, 9, 9, 5, WOOD_DARK, TIN)
-	for _, c in m:GetChildren() do
-		if c.Name == "Shade" then
-			(c :: BasePart).Position = Vector3.new(0, 15.7, 0)
-		end
-	end
+	box(m, "Shade", Vector3.new(10, 0.5, 10), Vector3.new(0, 15.7, 0), TIN)
 end
 
 -- Canyon Bridge: everything stands on the safe banks, away from the bridge view
 function RECIPES.OverlookA(m)
 	box(m, "Deck", Vector3.new(18, 0.6, 12), Vector3.new(0, 0.3, 0), PALE)
-	ramada(m, 12, 8, 7, WOOD_DARK, ROCK)
+	ramada(m, 12, 8, 7, WOOD_DARK, ROCK, true)
 	box(m, "Rail", Vector3.new(17, 2.4, 0.5), Vector3.new(0, 1.7, 5.5), rgb(170, 140, 116))
 end
 
@@ -423,7 +435,10 @@ end
 function RECIPES.StairSilhouette(m)
 	for k = 0, 7 do
 		box(m, "Step", Vector3.new(6, 0.8, 3), Vector3.new(0, 1 + k * 2, k * 2.6), WOOD_DARK)
-		box(m, "StairPost", Vector3.new(0.5, 3, 0.5), Vector3.new(3, 2 + k * 2, k * 2.6), WOOD_DARK)
+		-- a rail post on every other step
+		if k % 2 == 0 then
+			box(m, "StairPost", Vector3.new(0.5, 3, 0.5), Vector3.new(3, 2 + k * 2, k * 2.6), WOOD_DARK)
+		end
 	end
 end
 
@@ -460,9 +475,9 @@ end
 
 function RECIPES.ShadePavilion(m)
 	ramada(m, 22, 14, 8, WOOD, SAND)
+	-- a table is one block (a top on a leg was two parts for a thing 2.6 studs tall)
 	for _, x in { -5, 5 } do
-		box(m, "Table", Vector3.new(5, 0.4, 2.6), Vector3.new(x, 2.4, 0), WOOD_DARK)
-		box(m, "TableLeg", Vector3.new(0.5, 2.2, 0.5), Vector3.new(x, 1.1, 0), WOOD_DARK)
+		box(m, "Table", Vector3.new(4.4, 2.4, 2.4), Vector3.new(x, 1.2, 0), WOOD_DARK)
 	end
 end
 
@@ -473,7 +488,6 @@ function RECIPES.RadioDish(m)
 	local dish = cylinder(m, "Dish", 8, 1.2, Vector3.new(0, 22, 0), CREAM)
 	dish.CFrame = CFrame.new(0, 22, 0) * CFrame.Angles(math.rad(-60), 0, math.pi / 2)
 	dish:SetAttribute("SpinAxis", "Y")
-	box(m, "Feed", Vector3.new(0.5, 6, 0.5), Vector3.new(0, 24, -1), CHARCOAL)
 end
 
 function RECIPES.ObservatoryDome(m)
@@ -483,17 +497,17 @@ function RECIPES.ObservatoryDome(m)
 	box(m, "Slit", Vector3.new(4, 12, 0.5), Vector3.new(0, 21, -11.6), BLUE).Orientation = Vector3.new(-28, 0, 0)
 end
 
+-- Two long panels with a gap between, each on its own leg (three short ones were six parts for the same 40 studs).
 function RECIPES.SolarCanopy(m)
-	for k = 0, 2 do
-		local x = -14 + k * 14
+	for _, x in { -10, 10 } do
 		box(m, "Leg", Vector3.new(0.5, 4, 0.5), Vector3.new(x, 2, 0), TIN)
-		box(m, "Panel", Vector3.new(12, 0.4, 7), Vector3.new(x, 4.6, 0), rgb(40, 64, 110)).Orientation =
+		box(m, "Panel", Vector3.new(19, 0.4, 7), Vector3.new(x, 4.6, 0), rgb(40, 64, 110)).Orientation =
 			Vector3.new(-18, 0, 0)
 	end
 end
 
 function RECIPES.RestShelter(m)
-	ramada(m, 12, 8, 6.5, CREAM, BLUE)
+	ramada(m, 12, 8, 6.5, CREAM, BLUE, true)
 	box(m, "Bench", Vector3.new(8, 0.5, 1.4), Vector3.new(0, 1.6, 2), WOOD)
 end
 
@@ -576,6 +590,13 @@ Structures.Sites = {
 	site("TurbineHut", "MirageDunes", 0.68, -1, 82, 30, 56),
 	site("ResearchShed", "MirageDunes", 0.78, 1, 74, 14, 8),
 	site("ObservatoryDome", "MirageDunes", 0.9, -1, 110, 26, 28),
+	-- the end of Mirage Dunes and of the route (big round N14): three silhouettes after the dome rather than open sand. A water
+	-- tank on legs on the right, a far viaduct ruin behind it (the long way off, so the sand stays open between), and a last
+	-- round-roofed shelter on the left. Same lateral rules as the rest; the structure feature pushes any of them back to 112
+	-- if a landmark's frontage is there.
+	site("TankStand", "MirageDunes", 0.86, 1, 90, 11, 24),
+	site("ViaductRemnant", "MirageDunes", 0.95, 1, 170, 58, 30),
+	site("OverlookB", "MirageDunes", 0.97, -1, 72, 16, 8),
 } :: { Site }
 
 return Structures

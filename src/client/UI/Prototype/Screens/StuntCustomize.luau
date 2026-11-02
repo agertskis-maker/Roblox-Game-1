@@ -95,6 +95,7 @@ export type Geo = {
 	headH: number,
 	left: Rect,
 	view: Rect, -- the turntable
+	overlayText: boolean, -- Compact: the name and the line about it sit INSIDE the turntable's foot (more room for the car)
 	nameY: number,
 	infoY: number,
 	noteY: number,
@@ -185,8 +186,9 @@ function StuntCustomize.geometry(ds: Vector2): Geo
 	local fit = SupportKit.fitFor(ds)
 	local pw, ph, headH, leftW, tile, action
 	if fit == "Compact" then
-		pw, ph, headH, leftW = math.min(ds.X - 12, 700), ds.Y - 8, 46, 240
-		tile, action = 58, Vector2.new(240, 56)
+		-- a wider left column and no rows of words under the turntable but the PREVIEW note: the car is the star on a phone
+		pw, ph, headH, leftW = math.min(ds.X - 12, 700), ds.Y - 8, 46, 268
+		tile, action = 58, Vector2.new(268, 56)
 	elseif fit == "Regular" then
 		pw, ph, headH, leftW = math.min(ds.X - 24, 780), math.min(ds.Y - 16, 440), 54, 290
 		tile, action = 64, Vector2.new(290, 58)
@@ -201,11 +203,21 @@ function StuntCustomize.geometry(ds: Vector2): Geo
 	local rightW = pw - pad - rightX
 	local nameH, infoH, noteH = 24, 20, 20
 	local actionBox = action.Y + 4
-	local viewH = math.max(bodyH - nameH - infoH - noteH - actionBox - 16, 84)
+	local overlayText = fit == "Compact"
+	local viewH, nameY, infoY, noteY
 	local viewY = top
-	local nameY = viewY + viewH + 4
-	local infoY = nameY + nameH
-	local noteY = infoY + infoH
+	if overlayText then
+		-- the turntable takes everything above the PREVIEW note and the action; the name and its line ride the turntable's foot
+		viewH = math.max(bodyH - noteH - 2 - actionBox - 2, 110)
+		infoY = viewY + viewH - infoH - 4
+		nameY = infoY - nameH
+		noteY = viewY + viewH + 2
+	else
+		viewH = math.max(bodyH - nameH - infoH - noteH - actionBox - 16, 84)
+		nameY = viewY + viewH + 4
+		infoY = nameY + nameH
+		noteY = infoY + infoH
+	end
 	local tabsH = Tokens.Touch.Minimum
 	return {
 		fit = fit,
@@ -214,6 +226,7 @@ function StuntCustomize.geometry(ds: Vector2): Geo
 		headH = headH,
 		left = { x = pad, y = top, w = leftW, h = bodyH },
 		view = { x = pad, y = viewY, w = leftW, h = viewH },
+		overlayText = overlayText,
 		nameY = nameY,
 		infoY = infoY,
 		noteY = noteY,
@@ -230,6 +243,13 @@ end
 -- HELPERS ------------------------------------------------------------------------------------------------------------------
 
 local WHITE = Color3.new(1, 1, 1)
+
+-- The width a word needs at `size`, with room to spare (a few percent over TextService's count, because the family renders a
+-- touch wider on the real screen than it measures) plus the label's own 3 + 3 px of padding. Every word on this screen sits in a
+-- box this wide, so EQUIPPED, METALLIC and a price range are never cut short.
+local function fitW(text: string, size: number): number
+	return math.ceil(SupportKit.measure(text, size).X * 1.14) + 10
+end
 
 local function checksum(o: Catalog.Ownership): string
 	local parts: { string } = {}
@@ -435,6 +455,27 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 	local swatchChip = Style.chip(viewBox, "CardOnlyChip", 9)
 	local swatchChipText = Overlay.text(swatchChip, "CARD PREVIEW ONLY", 16, nil, Enum.TextXAlignment.Center, 10)
 	swatchChip.Visible = false
+	-- Compact: the name and its line ride the turntable's foot, over a soft dark scrim (nothing else of the car is hidden)
+	local scrim: Frame = make("Frame", {
+		Name = "TextScrim",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 56),
+		BackgroundColor3 = Color3.fromRGB(10, 10, 36),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 11,
+		Parent = viewBox,
+	})
+	make("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.45, 0.4),
+			NumberSequenceKeypoint.new(1, 0.15),
+		}),
+		Rotation = 90,
+		Parent = scrim,
+	})
 	-- drag to turn: a transparent catcher under the arrows
 	local dragArea: TextButton = make("TextButton", {
 		Name = "DragArea",
@@ -479,6 +520,18 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 		rig.stage:PivotTo(CFrame.Angles(0, math.rad(yaw), 0))
 	end
 
+	-- Frame the car by the width it needs: a 12.5 stud car turning on the stage wants about 14.5 studs across. A short, wide
+	-- turntable (a phone) therefore brings the camera in and the car fills it, instead of floating small in the middle.
+	-- `liftPx` raises the car in the frame (the words that ride the turntable's foot take that much of it).
+	local function frameCamera(usableW: number, height: number, liftPx: number)
+		local pxPerStud = math.max(usableW, 80) / 14.5
+		local visibleH = height / pxPerStud
+		local dist = math.clamp(visibleH / (2 * math.tan(math.rad(15))), 16, 36)
+		local target = Vector3.new(0, 1.8 - liftPx / pxPerStud, 0)
+		local direction = Vector3.new(15, 6.2, 25).Unit
+		camera.CFrame = CFrame.lookAt(target + direction * dist, target)
+	end
+
 	-- what is selected, in words -----------------------------------------------------------------------------------------------
 	local nameLabel = SupportKit.label(panel, "ItemName", 22, 6)
 	local infoLabel = SupportKit.label(panel, "ItemInfo", 16, 6)
@@ -503,6 +556,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 
 	-- tabs --------------------------------------------------------------------------------------------------------------------------
 	local tabs: { [string]: Style.Tab } = {}
+	local tabIcons: { [string]: Frame } = {}
 	for _, id in Catalog.Tabs do
 		local t = Style.tab(panel, {
 			name = "Tab_" .. id,
@@ -512,13 +566,16 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 			end,
 		})
 		trove:Add(t.trove)
-		-- the tab's own icon on the left; the word moves right of it
+		-- the tab's own icon and its word are one group, centred by layoutNow; the word always has its full width (the icon
+		-- gives way on a narrow tab), so the same word (DECALS, WHEELS) shows on a phone and on a desktop
 		local icon = CardKit.icon(t.root, TAB_FALLBACKS[id], 30, 9)
 		icon.AnchorPoint = Vector2.new(0, 0.5)
 		icon.Position = UDim2.new(0, 8, 0.5, 0)
-		t.label.Position = UDim2.new(0.5, 16, 0.5, 0)
-		t.label.Size = UDim2.new(1, -60, 0, A.Text.Label + 6)
+		t.label.AnchorPoint = Vector2.new(0, 0.5)
+		t.label.Position = UDim2.new(0, 42, 0.5, 0)
+		t.label.Size = UDim2.fromOffset(fitW((Catalog.TabLabels :: any)[id], 18), A.Text.Label + 6)
 		tabs[id] = t
+		tabIcons[id] = icon
 	end
 	local gridBox = Style.well(panel, "GridBox", 5)
 
@@ -583,7 +640,8 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 
 	local function captionFor(item: Item, state: ItemState): string
 		if state == "equipped" then
-			return "EQUIPPED"
+			-- the button and the line under the turntable say EQUIPPED; a small card's own word is the short one
+			return if geo.fit == "Compact" then "ON CAR" else "EQUIPPED"
 		elseif state == "locked" then
 			return medalWord(item) or "LOCKED"
 		elseif state == "unavailable" then
@@ -743,7 +801,9 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 		Arcade.corner(pupil, 5)
 		local caption = Overlay.text(button, "", 16, nil, Enum.TextXAlignment.Center, 9)
 		caption.Name = "Caption"
-		caption.Position = UDim2.fromOffset(-5, side + 1)
+		-- centred under the card; refreshTiles widens it to the word (EQUIPPED is wider than a small card)
+		caption.AnchorPoint = Vector2.new(0.5, 0)
+		caption.Position = UDim2.fromOffset(side / 2, side + 1)
 		caption.Size = UDim2.fromOffset(side + 10, 19)
 		-- mouse hover lifts the card a little; a press squeezes it; touch has no hover
 		viewsTrove:Connect(button.MouseEnter, function()
@@ -782,6 +842,9 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 		scroll.Position = UDim2.fromOffset(6, 6)
 		scroll.Size = UDim2.new(1, -12, 1, -12)
 		scroll.Visible = false
+		-- a roomy grid has a little air on the left, so the first column's wider words (EQUIPPED) are never cut by the edge
+		local padLeft = if geo.fit == "Compact" then 0 else 12
+		make("UIPadding", { PaddingLeft = UDim.new(0, padLeft), Parent = scroll })
 		make("UIListLayout", {
 			FillDirection = Enum.FillDirection.Vertical,
 			Padding = UDim.new(0, 6),
@@ -820,9 +883,10 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 					ZIndex = 8,
 					Parent = section,
 				})
+				local pillW = fitW(t.name, 16) + 8
 				local pill: Frame = make("Frame", {
 					Name = "Pill",
-					Size = UDim2.fromOffset(math.ceil(SupportKit.measure(t.name, 16).X) + 22, 24),
+					Size = UDim2.fromOffset(pillW, 24),
 					BackgroundColor3 = rarity.deep,
 					BorderSizePixel = 0,
 					ZIndex = 8,
@@ -845,10 +909,17 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 					then "FREE"
 					elseif low == high then Format.cash(low)
 					else Format.cash(low) .. " - " .. Format.cash(high)
+				-- the range gets the width its words need; on a narrow grid it falls back to "$750+", then to nothing
+				local headW = geo.grid.w - 12 - 14 - 8 - padLeft
+				local roomForRange = headW - (pillW + 8 + (9 * 5 + 8) + 8)
+				if fitW(range, 16) > roomForRange and low ~= high and high > 0 then
+					range = Format.cash(low) .. "+"
+				end
 				local rangeLabel = Overlay.text(head, range, 16, Style.TextSoft, Enum.TextXAlignment.Right, 9)
 				rangeLabel.AnchorPoint = Vector2.new(1, 0.5)
 				rangeLabel.Position = UDim2.new(1, -2, 0.5, 0)
-				rangeLabel.Size = UDim2.fromOffset(130, 22)
+				rangeLabel.Size = UDim2.fromOffset(fitW(range, 16), 22)
+				rangeLabel.Visible = fitW(range, 16) <= roomForRange
 				local grid: Frame = make("Frame", {
 					Name = "Grid",
 					LayoutOrder = 2,
@@ -904,7 +975,9 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 			t.cover.BackgroundTransparency = if state == "unavailable" then 0.2 else 0.38
 			t.lock.Visible = state == "locked"
 			t.slash.Visible = state == "unavailable"
-			t.caption.Text = captionFor(t.item, state)
+			local word = captionFor(t.item, state)
+			t.caption.Text = word
+			t.caption.Size = UDim2.fromOffset(math.max(geo.tile + 10, fitW(word, 16)), 19)
 			t.button:SetAttribute("State", state)
 			t.button:SetAttribute("Selected", isSelected)
 			t.button:SetAttribute("Previewing", isSelected and state ~= "equipped" and state ~= "unavailable")
@@ -1067,18 +1140,34 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 		carChip.Position = UDim2.new(0.5, 0, 0, 12)
 		carChip.Size = UDim2.fromOffset(math.min(v.w - 120, 150), 24)
 		carChipText.Size = UDim2.fromScale(1, 1)
+		local overlayText = geo.overlayText
+		scrim.Visible = overlayText
 		swatchChip.AnchorPoint = Vector2.new(0.5, 1)
-		swatchChip.Position = UDim2.new(0.5, 0, 1, -6)
+		swatchChip.Position = UDim2.new(0.5, 0, 1, if overlayText then -60 else -6)
 		swatchChip.Size = UDim2.fromOffset(math.min(v.w - 120, 190), 24)
 		swatchChipText.Size = UDim2.fromScale(1, 1)
-		turnLeft.root.AnchorPoint = Vector2.new(0, 1)
-		turnLeft.root.Position = UDim2.new(0, 4, 1, -2)
-		turnRight.root.AnchorPoint = Vector2.new(1, 1)
-		turnRight.root.Position = UDim2.new(1, -4, 1, -2)
+		if overlayText then
+			-- the arrows stand at the sides of the car (above the words), so the car keeps the whole middle of the turntable
+			turnLeft.root.AnchorPoint = Vector2.new(0, 0.5)
+			turnLeft.root.Position = UDim2.new(0, 4, 0.5, -22)
+			turnRight.root.AnchorPoint = Vector2.new(1, 0.5)
+			turnRight.root.Position = UDim2.new(1, -4, 0.5, -22)
+		else
+			turnLeft.root.AnchorPoint = Vector2.new(0, 1)
+			turnLeft.root.Position = UDim2.new(0, 4, 1, -2)
+			turnRight.root.AnchorPoint = Vector2.new(1, 1)
+			turnRight.root.Position = UDim2.new(1, -4, 1, -2)
+		end
 		nameLabel.Position = UDim2.fromOffset(v.x, geo.nameY)
 		nameLabel.Size = UDim2.fromOffset(v.w, 24)
 		infoLabel.Position = UDim2.fromOffset(v.x, geo.infoY)
 		infoLabel.Size = UDim2.fromOffset(v.w, 20)
+		local align = if overlayText then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
+		nameLabel.TextXAlignment = align
+		infoLabel.TextXAlignment = align
+		nameLabel.ZIndex = if overlayText then 14 else 6
+		infoLabel.ZIndex = if overlayText then 14 else 6
+		frameCamera(v.w - (if overlayText then 70 else 0), v.h, if overlayText then 22 else 0)
 		noteLabel.Position = UDim2.fromOffset(v.x, geo.noteY)
 		noteLabel.Size = UDim2.fromOffset(v.w, 20)
 		SupportKit.fitLabel(noteLabel, StuntCustomize.NoteText, v.w, 20, 16)
@@ -1107,6 +1196,19 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 			local tb = tabs[id]
 			tb.root.Position = UDim2.fromOffset(t.x + (i - 1) * (tabW + 6), t.y)
 			tb.root.Size = UDim2.fromOffset(tabW, t.h)
+			-- the icon and the word are one group centred in the tab; the word always has its full width, and the icon gives
+			-- way when the tab is too narrow for both (so PAINT, DECALS and WHEELS read the same on every screen)
+			local wordW = fitW((Catalog.TabLabels :: any)[id], 18)
+			local iconPx = 26
+			local icon = tabIcons[id]
+			local showIcon = tabW >= wordW + iconPx + 6 + 4
+			icon.Visible = showIcon
+			icon.Size = UDim2.fromOffset(iconPx, iconPx)
+			local lead = if showIcon then iconPx + 6 else 0
+			local x0 = math.floor((tabW - (wordW + lead)) / 2)
+			icon.Position = UDim2.new(0, x0, 0.5, 0)
+			tb.label.Position = UDim2.new(0, x0 + lead, 0.5, 0)
+			tb.label.Size = UDim2.fromOffset(wordW, A.Text.Label + 6)
 		end
 		local g = geo.grid
 		gridBox.Position = UDim2.fromOffset(g.x, g.y)

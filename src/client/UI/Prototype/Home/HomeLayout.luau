@@ -173,8 +173,11 @@ function HomeLayout.plan(m: HomeView.Metrics, input: Input): Plan
 	}
 
 	-- 4. The top-centre column between the left tiles and the right column.
-	local left = nav.x + chosen.w + 8
-	local rightEdge = shortcuts.left - 8
+	-- A tablet or desktop column keeps a 16 px clear lane before the round buttons (their labels hang under them), a phone 8:
+	-- a pill, the goal pill or the tutorial banner never touches Settings or the shortcut column.
+	local lane = if phone then 8 else 16
+	local left = nav.x + chosen.w + lane
+	local rightEdge = shortcuts.left - lane
 	local maxW = if phone then 320 elseif m.kind == "Tablet" then 440 else 460
 	local span = rightEdge - left
 	local width = math.clamp(span, 200, maxW)
