@@ -166,7 +166,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	ramp.CanTouch = false
 	ramp.Size = Vector3.new(18, rise, rampLen)
 	ramp.CFrame = origin * CFrame.new(0, rise / 2, -31 - rampLen / 2) * CFrame.Angles(0, math.pi, 0)
-	ramp.Color = rgb(48, 50, 60)
+	ramp.Color = theme.neonA:Lerp(rgb(30, 30, 40), 0.55)
 	ramp.Material = Enum.Material.SmoothPlastic
 	ramp.Parent = folder
 	box(
@@ -188,19 +188,30 @@ function Build.build(world: string, origin: CFrame): Pad
 	local slope = math.atan2(rise, rampLen)
 	local along = CFrame.new(0, rise / 2 + 0.12, -31 - rampLen / 2) * CFrame.Angles(slope, 0, 0)
 	for _, s in { 1, -1 } do
-		neon("RampEdge", Vector3.new(0.8, 0.5, rampLen + 2), along * CFrame.new(s * 8.4, 0.1, 0), theme.neonA)
+		neon("RampEdge", Vector3.new(1.4, 0.8, rampLen + 2), along * CFrame.new(s * 8.2, 0.2, 0), theme.neonA)
 	end
 	for i = 1, 3 do
 		local c = along * CFrame.new(0, 0.1, rampLen / 2 - i * 5.2)
 		for _, s in { 1, -1 } do
 			neon(
 				"Chevron",
-				Vector3.new(5.6, 0.14, 1.1),
-				c * CFrame.new(s * 2.2, 0, 0) * CFrame.Angles(0, s * math.rad(-32), 0),
-				theme.neonA
+				Vector3.new(7.6, 0.16, 1.9),
+				c * CFrame.new(s * 3, 0, 0) * CFrame.Angles(0, s * math.rad(-32), 0),
+				rgb(255, 240, 170)
 			)
 		end
 	end
+	for _, s in { 1, -1 } do
+		box("ArchPost", Vector3.new(1.4, 12, 1.4), CFrame.new(s * 10.4, 6, -27), theme.frame)
+		neon("ArchStrip", Vector3.new(0.4, 11, 0.4), CFrame.new(s * 9.5, 6, -26.6), theme.neonA)
+	end
+	box("ArchHead", Vector3.new(22, 2.6, 1.4), CFrame.new(0, 13, -27), theme.frame)
+	SignKit.sign(folder, origin * CFrame.new(0, 13, -26.2) * CFrame.Angles(0, math.pi, 0), {
+		style = "Race",
+		text = "START",
+		width = 15,
+		height = 2.4,
+	})
 	-- a soft pool of light on the ramp, so it reads from anywhere on the pad
 	local lamp = Instance.new("PointLight")
 	lamp.Color = theme.neonA

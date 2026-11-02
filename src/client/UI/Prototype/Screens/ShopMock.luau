@@ -465,7 +465,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local tileW = math.floor((right - 20 * k - buyW) / 3)
 			local plateH = if phone
 				then h - titlePx * 1.04 - inset * 2
-				else h - titlePx * 1.2 - math.max(84 * k, 52) - math.round(24 * k)
+				else h - titlePx * 1.2 - math.max(84 * k, 52) - math.round(30 * k)
 			local plate = CarKit.board(card, {
 				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
 				position = if phone
@@ -611,7 +611,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		local px = fontPx(p, 62, 24)
 		local inset = math.round(7 * k)
-		local buyW = math.round(math.max(158 * k, 112))
+		local buyW = math.round(math.max(132 * k, 108))
 		if id == "vip" then
 			local top = px * 0.5
 			boxArt(card, art, inset, top, w - buyW - inset * 3, h - top - inset, 6)
@@ -643,8 +643,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		if offer and offer.price then
 			priceButton(card, id, offer.name, art, offer.price, {
-				px = fontPx(p, 36, 22),
-				size = UDim2.fromOffset(math.round(math.max(158 * k, 112)), math.round(math.max(58 * k, 46))),
+				px = fontPx(p, 32, 22),
+				size = UDim2.fromOffset(buyW, math.round(math.max(50 * k, 46))),
 				position = UDim2.new(1, -math.round(10 * k), 1, -math.round(10 * k)),
 				anchor = Vector2.new(1, 1),
 				z = 12,
@@ -1002,7 +1002,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 		local y = 4
 		sectionY.featured = 0
-		local peek = math.round(math.max(110 * p.k, 60))
+		local peek = math.round(math.max((if p.tier == "Desktop" then 190 else 110) * p.k, 60))
 		local bannerH = math.round(math.max(112 * p.k, 76))
 		local phone = p.tier == "Phone"
 		local rowH = if phone
