@@ -109,8 +109,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		placeholder = false,
 	})
 	local trailView = TrailPreview.new(stage, {
-		position = UDim2.fromScale(0.34, 0.41),
-		size = UDim2.fromScale(0.42, 0.22),
+		position = UDim2.fromScale(0.5, 0.42),
+		size = UDim2.fromScale(0.5, 0.26),
 		z = 5,
 	})
 	trove:Add(function()
@@ -131,6 +131,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local world = make("WorldModel", {}, view) :: WorldModel
 	local rig = if Supercar.available() then Supercar.new() else nil
 	local pivot = CFrame.new(0, 0.5, 0)
+	local TRAIL_POSE = CFrame.new(4.5, 0.5, 0) -- the car slides right on the Trails tab, so its trail has room
 	if rig then
 		rig.model.Parent = world
 		trove:Add(function()
@@ -482,9 +483,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		gridHost.CanvasPosition = Vector2.zero
 		spinRestUntil = 0
 		-- the ribbon needs the car's tail to the left
-		if tab == "Trails" then
-			setYaw(math.rad(215))
-		end
+		pivot = if tab == "Trails" then TRAIL_POSE else CFrame.new(0, 0.5, 0)
+		setYaw(if tab == "Trails" then math.rad(215) else yaw)
 	end
 
 	for i, name in tabNames do

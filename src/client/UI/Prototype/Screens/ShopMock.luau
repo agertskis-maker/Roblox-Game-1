@@ -595,7 +595,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local px = fontPx(p, 62, 24)
 		local inset = math.round(7 * k)
 		if id == "vip" then
-			boxArt(card, art, w * 0.1, inset, w * 0.6, h - inset * 2, 6)
+			boxArt(card, art, w * 0.09, inset, w * 0.56, h - inset * 2, 6)
 		else
 			local top = px * 0.9
 			boxArt(card, art, inset * 2, top, h - top - inset, h - top - inset, 6)
@@ -674,7 +674,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			})
 		end
 		if sums and sums.isBetter then
-			CarKit.stamp(card, "BEST", "DEAL", math.round(h * 1.2), {
+			CarKit.stamp(card, "BEST", "DEAL", math.round(h * 0.98), {
 				position = UDim2.new(0.69, 0, 0.5, 0),
 				anchor = Vector2.new(0.5, 0.5),
 				z = 14,
