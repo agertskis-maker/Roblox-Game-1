@@ -70,7 +70,7 @@ function RunStamina.attach(run: any): { [string]: any }
 	local out = CarKit.title(gui, "OUT OF BOLTS!", if phone then 26 else 34, {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromOffset(420, 44),
-		position = UDim2.fromScale(0.5, 0.3),
+		position = UDim2.fromScale(0.5, 0.38),
 		anchor = Vector2.new(0.5, 0.5),
 		top = CarKit.Yellow,
 		bottom = CarKit.Orange,
