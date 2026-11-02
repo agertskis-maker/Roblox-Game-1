@@ -54,3 +54,11 @@ Brief [[lane3-round2]], ledger [[lane3-round2-ledger]]. Builds on [[0031-lane3-b
 ## Left alone on purpose
 - **Summit's majors rule still fails.** Its rule has one narrow solution, and fixed stations collide with each seed's road layout, which made the look worse. It needs a design choice: see the ledger.
 - **No audio in videos.** Windows Application Control blocks the capture tool. I did not rebuild it to get round the block.
+
+## Adam's changes during the round (2026-11-02)
+- **The Worlds replace Brian R's test scenery in the beta** ("override his rule ... keep his gameplay and game mechanics"). His files are not edited. Lane 3 removes every part of a road segment that is wider than the road or stands above it, once the World is standing, and leaves his road, kerbs, markings, cars, rules and camera. `ReplaceRoadside` on `CarHopBeta` is the switch. The three Worlds are built in the background after join.
+- **The tutorial is for first-time players only.** This needs one saved flag, so `TutorialDone` was added to the **beta-only** save template (`BetaConfig.Template`) and one no-argument remote. Adam asked for it directly. It does not touch the real game's save, and Brian L's real layout still needs its own field.
+- **The real screen has its own UI scale.** The phone rule grew the UI to 1.5 on any window taller than 585 px. Off phones it is now the window height over 800, from 0.7 to 1.15.
+- **No keys are named in the tutorial,** and the run's own keyboard hint is hidden in the beta, because phones play too.
+- **Players spawn on the plaza, in front of the fountain.** There was no SpawnLocation, so Roblox used the world's centre.
+- **A thin paved collar runs just outside the plaza's edge.** It closes the grass slivers at the path joins.
