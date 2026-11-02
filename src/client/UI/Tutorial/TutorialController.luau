@@ -41,7 +41,6 @@ local Steps = require(script.Parent.TutorialSteps)
 local Strings = require(script.Parent.TutorialStrings)
 local Targets = require(script.Parent.TutorialTargets)
 local Trove = require(ReplicatedStorage.Packages.Trove)
-local Waypoints = require(script.Parent.TutorialWaypoints)
 
 local Controller = {}
 Controller.__index = Controller
@@ -49,7 +48,6 @@ Controller.__index = Controller
 local UPDATE_EVERY = 0.1 -- seconds between state checks
 local REROUTE_EVERY = 0.35
 local REROUTE_MOVED = 3 -- studs the player must move before the trail is rebuilt (or a second has passed)
-local TRAIL_SKIP = 3 -- studs of trail dropped at the player's feet
 local ARRIVED = 6 -- studs from the target: the trail ends
 local PORTAL_RETRY_SECONDS = 3
 local FAST_DONE_SECONDS = 0.5 -- a step that was already satisfied when it started
@@ -312,6 +310,18 @@ function Controller._onEvent(self: any, source: string, name: string, data: { [s
 		if not self._real and (data.world == nil or data.world == "Downtown") then
 			f.portalEntered = true
 		end
+	elseif name == "PadEntered" then
+		-- on the Launch Pad the Portal step's sub-hint takes over: the arrows lead to the ramp, then "Press START!"
+		f.padTarget = data.ramp
+		f.onCard = false
+		self._lastRouteAt = -math.huge
+		self._guide:setGround(nil, nil)
+		self._groundKey = "PadRamp"
+	elseif name == "PadCard" then
+		f.onCard = data.open == true
+		if f.onCard then
+			self._route:setRoute(nil)
+		end
 	elseif name == "ArrivedHome" then
 		f.arrivedHome = true
 		f.runActive = false
@@ -346,29 +356,14 @@ function Controller._satisfied(self: any): string?
 	local key = step.key
 	if key == "Portal" then
 		return if f.portalEntered then "portal" else nil
-	elseif key == "Steer" then
-		return if f.steerLeft and f.steerRight then "steered" else nil
 	elseif key == "Hop" then
 		return if f.landed then "landed" else nil
 	elseif key == "Keys" then
 		return if f.claim ~= nil then "claim" else nil
-	elseif key == "Heat" then
-		if f.landedAfterHeat then
-			return "hop"
-		elseif f.heatSeen and f.runEnded then
-			return "runEnded"
-		end
-		return nil
 	elseif key == "Home" then
 		return if f.arrivedHome then "home" else nil
 	elseif key == "Park" then
 		return if f.parked then "parked" else nil
-	elseif key == "Earn" then
-		return if f.lap then "lap" else nil
-	elseif key == "Upgrade" then
-		return if f.upgraded then "upgraded" else nil
-	elseif key == "Shop" then
-		return if f.shopOpened then "shop" else nil
 	end
 	return nil
 end
@@ -382,24 +377,10 @@ function Controller._react(self: any, name: string)
 	local f = self._facts
 	if self._phase == "Done" then
 		-- an urgent Heat warning does not wait for the celebration of the claim to finish
-		if name == "HeatWarning" and step.key == "Keys" then
-			self:_advance()
-		end
 		return
 	end
 	local key = step.key
-	if key == "Heat" then
-		if self._phase == "Waiting" then
-			if f.heatSeen then
-				self._phase = "Active"
-				self._enteredAt = os.clock() -- the 8 seconds count from when the instruction appears
-				self:_beginActive()
-			elseif f.runEnded or not f.runActive then
-				self:_skipStep("Heat was not observed before the run ended")
-				return
-			end
-		end
-	elseif key == "Home" then
+	if key == "Home" then
 		if self._phase == "Waiting" and f.resultsShown then
 			self._phase = "Active"
 			self._enteredAt = os.clock()
@@ -470,17 +451,8 @@ function Controller._enter(self: any, index: number)
 	f.parked, f.lap, f.upgraded, f.shopOpened = false, false, false, false
 	self._phase = "Active"
 	self._funnel:started(i, step.key)
-	if step.key == "Steer" then
-		self._run:resetSteer()
-	end
-	-- steps that wait for something real before they show their instruction
-	if step.key == "Heat" and not f.heatSeen then
-		if f.runEnded then
-			self:_skipStep("Heat was not observed before the run ended")
-			return
-		end
-		self._phase = "Waiting"
-	elseif step.key == "Home" then
+	-- a step that waits for something real before it shows its instruction
+	if step.key == "Home" then
 		if not f.runActive then
 			-- already back on the island (or no run): there is nothing to go home from
 			self:_present()
@@ -494,9 +466,6 @@ function Controller._enter(self: any, index: number)
 		self:_beginActive()
 	end
 	self:_present()
-	if step.key == "Start" then
-		self._banner:celebrate()
-	end
 	local why = self:_satisfied()
 	if why and self._phase == "Active" then
 		self:_complete(why, true)
@@ -584,16 +553,17 @@ function Controller._present(self: any)
 			line = text.line
 		end
 	elseif self._phase == "Waiting" then
-		if step.key == "Heat" then
-			title, line = Strings.get("heat.wait.title"), Strings.get("heat.wait.line")
-			controls = { kind = "Hop", device = self._device, done = false }
-		else
-			title, line = Strings.get("home.wait.title"), Strings.get("home.wait.line")
-		end
+		title, line = Strings.get("home.wait.title"), Strings.get("home.wait.line")
 	else
 		if needsRun then
 			line = Strings.get("rerun")
 			hintLine = Strings.get("rerun.hint")
+		elseif step.key == "Portal" and f.onCard then
+			line = Strings.get("portal.card.line")
+			hintLine = ""
+		elseif step.key == "Portal" and f.padTarget then
+			line = Strings.get("portal.pad.line")
+			hintLine = Strings.get("portal.pad.hint")
 		elseif step.key == "Portal" and self._retryLine then
 			line = Strings.get("portal.retry")
 			hintLine = Strings.get("portal.retry.hint")
@@ -601,16 +571,9 @@ function Controller._present(self: any)
 			line = Strings.get("hop.miss")
 			hintLine = Strings.get("hop.miss.hint")
 		elseif step.key == "Home" then
-			if self._run.homeLabel == "Retry" then
-				line = Strings.get("home.retry")
-				hintLine = Strings.get("home.retry.hint")
-			else
-				line = Strings.get("home.fixture")
-			end
+			line = Strings.get("home.fixture")
 		end
-		if step.controls == "Steer" and not needsRun then
-			controls = { kind = "Steer", device = self._device, left = f.steerLeft, right = f.steerRight }
-		elseif step.controls == "Hop" and not needsRun then
+		if step.controls == "Hop" and not needsRun then
 			controls = { kind = "Hop", device = self._device, done = f.landed }
 		end
 	end
@@ -625,7 +588,6 @@ function Controller._present(self: any)
 	end
 	local view = {
 		step = step.index + 1,
-		steps = Steps.Count,
 		objective = title,
 		instruction = line,
 		count = 0,
@@ -741,10 +703,7 @@ function Controller._update(self: any)
 		return
 	end
 	-- timers: step 0 (2 s) and step 11 (3 s)
-	if step.key == "Start" and now - self._enteredAt >= self._timings.start then
-		self:_complete("timer", false)
-		return
-	elseif step.key == "Ready" then
+	if step.key == "Ready" then
 		if now - self._enteredAt >= self._timings.ready then
 			self._completed[step.index] = "timer"
 			self._funnel:completed(step.index, step.key, { reason = "timer", real = self._real })
@@ -783,7 +742,10 @@ end
 function Controller._reroute(self: any, now: number)
 	local key: string = self._groundKey
 	local from = self._island:playerPosition()
-	local to = self._island:getTarget(key)
+	local to = if key == "PadRamp" then self._facts.padTarget else self._island:getTarget(key)
+	if self._facts.onCard then
+		return
+	end
 	if not from or not to then
 		self._route:setRoute(nil)
 		return
@@ -805,9 +767,9 @@ function Controller._reroute(self: any, now: number)
 		return
 	end
 	self._arrived = false
-	local points = self._island:route(from, key)
+	-- a straight line to the target (Adam, 2026-11-02): TutorialRoute lays it on the ground itself
 	self._routeCount += 1
-	self._route:setRoute(Waypoints.trimStart(points, TRAIL_SKIP))
+	self._route:setRoute({ from, to })
 end
 
 -- SKIP, FINISH, STOP ---------------------------------------------------------------------------------------------------

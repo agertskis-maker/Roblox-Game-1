@@ -1,21 +1,17 @@
 --!strict
--- Home HUD: the ground arrows that lead the player (Lane 3, BRIEF M11-03; rebuilt in Round 2 at Adam's request: "they need
--- to move with the character with every step"). Original glowing chevrons on the ground, each built from two thin anchored
--- Parts forming a flat ">" with a darker backing a hair larger underneath, so a chevron still reads on pale paving. They
--- follow a polyline of Vector3 points supplied by the tutorial (Tutorial/TutorialWaypoints builds it along the real paths;
--- this module does no pathfinding and no raycasts, and it never touches movement).
+-- Home HUD: the ground arrows that lead the player (Lane 3; rebuilt again in Round 3 at Adam's request: "they follow a certain path.
+-- I just want them to lead directly into the portal"). Original glowing chevrons, each built from two thin anchored Parts forming
+-- a flat ">" with a darker backing a hair larger underneath, so a chevron still reads on pale paving.
 --
--- EVERY FRAME, not on a timer: the trail starts just ahead of the character, joins the route a little ahead of where the
--- character stands, and runs on from there, so it stays attached with every step. The chevrons themselves flow forward
--- along it toward the target, fading in at the feet and out at the far end, each one turned along the route's own curve.
--- The corners of the route are rounded once, when it arrives. Under reduced motion the trail still follows the character,
--- but the chevrons stand still.
+-- A STRAIGHT LINE from the character to the target, rebuilt EVERY FRAME, so it stays attached with every step. Each chevron sits on
+-- whatever is under it (one ray down per chevron, water included), flows toward the target, and hides when the ground under it is
+-- well above the character's feet: it would be inside a wall, a roof or a tree. Under reduced motion the chevrons stand still.
 --
--- POOLED: chevron models are reused (only their CFrames change, in one BulkMoveTo). One RenderStepped connection, only while
--- the trail is visible. Parts never collide, cast shadows, or take touches or queries.
+-- POOLED: chevron models are reused (only their CFrames change, in one BulkMoveTo). One RenderStepped connection, only while the
+-- trail is visible. Parts never collide, cast shadows, or take touches or queries.
 --
 -- API: TutorialRoute.new(ctx, { spacing: number?, maxChevrons: number? }?) -> TutorialRoute
---   :setRoute(points: { Vector3 }?)   -- nil or fewer than 2 points clears it
+--   :setRoute(points: { Vector3 }?)   -- the LAST point is the target; nil or fewer than 2 points clears it
 --   :layout()  (no-op: world space)  :setVisible(on)  :destroy()  :getDebugState()
 
 local Players = game:GetService("Players")
@@ -34,15 +30,14 @@ local ARM_ANGLE = math.rad(38)
 local BACK_GROW = 0.45 -- the dark backing is this much longer and wider than the arm, so an arrow reads on pale paving
 local LIFT = 0.1
 local MAX_CHEVRONS = 22
-local REACH = 100 -- studs of trail ahead of the character
+local REACH = 110 -- studs of trail ahead of the character
 local START = 3 -- where the trail starts, ahead of the character
-local FLOW = 16 -- studs per second the chevrons run along the route
-local JOIN_AHEAD = 7 -- the trail meets the route this far past the nearest point, so it leads on instead of cutting square
-local FAR_OFF = 60 -- further than this from the route, the trail just shows the route itself
+local FLOW = 16 -- studs per second the chevrons run toward the target
+local DROP_FROM = 12 -- each ray starts this far above the feet
+local TOO_HIGH = 5 -- ground this far above the feet is a solid thing, not ground
 local REST = 0.05 -- transparency at the brightest
 local BACK_TRANSPARENCY = 0.15
 local GLOW = Color3.fromRGB(255, 214, 40) -- the arrows are warm yellow neon: they must read on pale paving and on grass
-local TURN_SAMPLE = 2 -- studs either side a chevron looks along the route to find its direction
 local INK = Color3.fromRGB(14, 20, 38)
 
 export type Options = { spacing: number?, maxChevrons: number? }
@@ -110,32 +105,17 @@ local function place(pos: Vector3, dir: Vector3, out: { CFrame }, n: number): nu
 	return n
 end
 
--- Rounds a polyline's corners (two passes of corner cutting), keeping both ends.
-local function rounded(points: { Vector3 }): { Vector3 }
-	local list = points
-	for _ = 1, 2 do
-		local out = { list[1] }
-		for i = 1, #list - 1 do
-			local a, b = list[i], list[i + 1]
-			if (b - a).Magnitude > 1 then
-				table.insert(out, a:Lerp(b, 0.25))
-				table.insert(out, a:Lerp(b, 0.75))
-			end
-		end
-		table.insert(out, list[#list])
-		list = out
-	end
-	return list
-end
-
 function TutorialRoute.new(ctx: Types.Ctx, opts: Options?): TutorialRoute
 	local self = setmetatable({}, TutorialRoute) :: any
 	self._trove = Trove.new()
 	self._ctx = ctx
 	self._spacing = (opts and opts.spacing) or 5
 	self._max = (opts and opts.maxChevrons) or MAX_CHEVRONS
-	self._path = {} :: { Vector3 }
-	self._lengths = {} :: { number }
+	self._target = nil :: Vector3?
+	self._rayParams = RaycastParams.new()
+	self._rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	self._rayParams.IgnoreWater = false
+	self._rayParams.RespectCanCollide = false
 	self._pool = {} :: { Chevron }
 	self._used = 0
 	self._points = 0
@@ -159,84 +139,31 @@ function TutorialRoute.new(ctx: Types.Ctx, opts: Options?): TutorialRoute
 	return self :: TutorialRoute
 end
 
-local function sameRoute(a: { Vector3 }, b: { Vector3 }): boolean
-	if #a ~= #b then
-		return false
-	end
-	for i = 1, #a do
-		if (a[i] - b[i]).Magnitude > 0.05 then
-			return false
-		end
-	end
-	return true
-end
-
 function TutorialRoute.setRoute(self: any, points: { Vector3 }?)
 	local list = points or {}
 	self._points = #list
-	if sameRoute(list, self._raw or {}) then
-		return
+	local target = if #list >= 2 then list[#list] else nil
+	if target ~= self._target then
+		self._target = target
+		self._moves += 1
+		self:_updateLoop()
 	end
-	self._raw = list
-	local path = if #list >= 2 then rounded(list) else {}
-	local lengths = table.create(#path, 0)
-	for i = 2, #path do
-		lengths[i] = lengths[i - 1] + (path[i] - path[i - 1]).Magnitude
-	end
-	self._path, self._lengths = path, lengths
-	self._moves += 1
-	self:_updateLoop()
 end
 
--- The point `s` studs along the route.
-local function along(path: { Vector3 }, lengths: { number }, s: number): Vector3
-	if s <= 0 then
-		return path[1]
-	end
-	local lo, hi = 1, #path
-	if s >= lengths[hi] then
-		return path[hi]
-	end
-	while hi - lo > 1 do
-		local mid = (lo + hi) // 2
-		if lengths[mid] <= s then
-			lo = mid
-		else
-			hi = mid
-		end
-	end
-	local span = lengths[hi] - lengths[lo]
-	return if span > 1e-6 then path[lo]:Lerp(path[hi], (s - lengths[lo]) / span) else path[lo]
-end
-
--- The distance along the route of the point nearest p (plan view), and how far off p is.
-local function nearest(path: { Vector3 }, lengths: { number }, p: Vector3): (number, number)
-	local bestS, bestD = 0, math.huge
-	for i = 1, #path - 1 do
-		local a, b = path[i], path[i + 1]
-		local ab = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
-		local len2 = ab:Dot(ab)
-		local t = if len2 > 1e-6 then math.clamp(Vector3.new(p.X - a.X, 0, p.Z - a.Z):Dot(ab) / len2, 0, 1) else 0
-		local q = a:Lerp(b, t)
-		local d = Vector3.new(p.X - q.X, 0, p.Z - q.Z).Magnitude
-		if d < bestD then
-			bestD = d
-			bestS = lengths[i] + (lengths[i + 1] - lengths[i]) * t
-		end
-	end
-	return bestS, bestD
-end
-
-local function characterAt(): Vector3?
+local function characterAt(): (Vector3?, Instance?)
 	local player = Players.LocalPlayer
 	local character = player and player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	return if root and root:IsA("BasePart") then root.Position else nil
+	if root and root:IsA("BasePart") then
+		return root.Position, character
+	end
+	return nil, nil
 end
 
 function TutorialRoute._step(self: any, dt: number)
-	local path: { Vector3 }, lengths: { number } = self._path, self._lengths
-	if #path < 2 then
+	local target: Vector3? = self._target
+	local at, character = characterAt()
+	if not (target and at) then
 		return
 	end
 	local reduced = Motion.reduced()
@@ -245,30 +172,12 @@ function TutorialRoute._step(self: any, dt: number)
 	end
 	local spacing: number = self._spacing
 	local flow = if reduced then 0 else (self._clock * FLOW) % spacing
-	local total = lengths[#lengths]
-
-	-- the live trail: from the character onto the route just ahead, then along the route
-	local origin: Vector3? = nil
-	local legLength, joinS = 0, 0
-	local join = path[1]
-	local at = characterAt()
-	if at then
-		local s, off = nearest(path, lengths, at)
-		if off < FAR_OFF then
-			joinS = math.min(s + math.min(JOIN_AHEAD, 2 + off), total)
-			join = along(path, lengths, joinS)
-			origin = Vector3.new(at.X, join.Y, at.Z)
-			legLength = (join - (origin :: Vector3)).Magnitude
-		end
-	end
-	local function live(d: number): Vector3
-		if origin and d < legLength then
-			return (origin :: Vector3):Lerp(join, d / math.max(legLength, 1e-3))
-		end
-		return along(path, lengths, joinS + d - legLength)
-	end
-	local length = legLength + total - joinS
-	local reach = math.min(length, REACH)
+	local flat = Vector3.new(target.X - at.X, 0, target.Z - at.Z)
+	local reach = math.min(flat.Magnitude - 2, REACH)
+	local dir = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
+	local feet = at.Y - 3
+	local params = self._rayParams
+	params.FilterDescendantsInstances = { self._folder, character }
 
 	local pool: { Chevron } = self._pool
 	local parts: { BasePart } = table.create(self._max * 4)
@@ -276,33 +185,40 @@ function TutorialRoute._step(self: any, dt: number)
 	local n, count = 0, 0
 	local d = START + flow
 	while d <= reach and count < self._max do
-		count += 1
-		local c = pool[count]
-		if not c then
-			c = makeChevron()
-			c.model.Name = "Chevron" .. count
-			pool[count] = c
-			self._builds += 1
-		end
-		if c.model.Parent ~= self._folder then
-			c.model.Parent = self._folder
-		end
-		local pos = live(d)
-		local ahead = live(math.min(d + TURN_SAMPLE, reach)) - live(math.max(d - TURN_SAMPLE, 0))
-		local flat = Vector3.new(ahead.X, 0, ahead.Z)
-		local dir = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
-		n = place(pos + Vector3.yAxis * LIFT, dir, frames, n)
-		parts[n - 3], parts[n - 2], parts[n - 1], parts[n] = c.arms[1], c.backs[1], c.arms[2], c.backs[2]
-		-- fades in at the feet and out at the far end, so a chevron never pops
-		local fade = math.min(math.clamp((d - START) / spacing, 0, 1), math.clamp((reach - d) / (2 * spacing), 0, 1))
-		if reduced then
-			fade = math.min(1, math.clamp((reach - d) / (2 * spacing), 0.3, 1))
-		end
-		local t = 1 - (1 - REST) * fade
-		local back = 1 - (1 - BACK_TRANSPARENCY) * fade
-		for i = 1, 2 do
-			c.arms[i].Transparency = t
-			c.backs[i].Transparency = back
+		local spot = at + dir * d
+		local hit = Workspace:Raycast(
+			Vector3.new(spot.X, feet + DROP_FROM, spot.Z),
+			Vector3.new(0, -DROP_FROM * 2.5, 0),
+			params
+		)
+		local y = if hit then hit.Position.Y else nil
+		-- too far above the feet is the top of a wall, roof or tree: the arrow would be inside it
+		if y and y <= feet + TOO_HIGH then
+			count += 1
+			local c = pool[count]
+			if not c then
+				c = makeChevron()
+				c.model.Name = "Chevron" .. count
+				pool[count] = c
+				self._builds += 1
+			end
+			if c.model.Parent ~= self._folder then
+				c.model.Parent = self._folder
+			end
+			n = place(Vector3.new(spot.X, y + LIFT, spot.Z), dir, frames, n)
+			parts[n - 3], parts[n - 2], parts[n - 1], parts[n] = c.arms[1], c.backs[1], c.arms[2], c.backs[2]
+			-- fades in at the feet and out at the far end, so a chevron never pops
+			local fade =
+				math.min(math.clamp((d - START) / spacing, 0, 1), math.clamp((reach - d) / (2 * spacing), 0, 1))
+			if reduced then
+				fade = math.clamp((reach - d) / (2 * spacing), 0.3, 1)
+			end
+			local t = 1 - (1 - REST) * fade
+			local back = 1 - (1 - BACK_TRANSPARENCY) * fade
+			for i = 1, 2 do
+				c.arms[i].Transparency = t
+				c.backs[i].Transparency = back
+			end
 		end
 		d += spacing
 	end
@@ -321,7 +237,7 @@ function TutorialRoute._stopLoop(self: any)
 end
 
 function TutorialRoute._updateLoop(self: any)
-	local want = self._visible and #self._path >= 2
+	local want = self._visible and self._target ~= nil
 	if not want then
 		self:_stopLoop()
 		for i = 1, self._used do

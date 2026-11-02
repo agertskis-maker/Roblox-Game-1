@@ -1,15 +1,15 @@
 --!strict
--- TutorialSteps: the data of the twelve tutorial steps (BRIEF M11-01, approved outline). Data only; the words live in
+-- TutorialSteps: the data of the six tutorial steps (Round 3, Adam's decision 5: go, hop, hold on, go home, park, done). Data only; the words live in
 -- TutorialStrings and the rules that move between steps live in TutorialController. One step is active at a time.
 --
 -- Fields
---   index      0 to 11 (the outline's numbers; funnel step = index + 1)
+--   index      0 to 5 (funnel step = index + 1)
 --   key        stable id, also the funnel step name
 --   icons      icon names to try in order (the banner icon; a kid who cannot read follows the picture). Round 2 (N8-01a):
 --              the names are GameIcons painter names (Prototype/GameIcons.Painter), so the image family is drawn where it
 --              has art and the older painters are only the fallback
---   accent     a colour glow behind the icon (step 1: the Downtown portal in Downtown blue)
---   iconLabel  a short caption on the icon (step 6: "HOME")
+--   accent     a colour glow behind the icon (the Downtown portal in Downtown blue)
+--   iconLabel  a short caption on the icon ("HOME")
 --   where      "Island" (walking), "Run" (needs a run in progress), "Results" (needs the results screen)
 --   needs      capabilities the step cannot do without. When the adapters cannot supply one, the step is SKIPPED with the
 --              reason recorded; it is never completed by a made-up signal (BRIEF B-06a)
@@ -18,7 +18,7 @@
 --   mask       true: a light dim with a cutout round the UI target (only for steps that happen on the island)
 --   controls   "Steer" or "Hop": the device-aware key / drag / tap legend shown inside the banner
 --   counter    goal of the small banner counter ("1/2")
---   timer      seconds after which the step completes by itself (steps 0 and 11 only)
+--   timer      seconds after which the step completes by itself (the last step only)
 --   big        confetti on completion
 --   hint       seconds without progress before the one timed hint (arrow grows and pulses, banner wiggles)
 
@@ -47,22 +47,12 @@ export type Step = {
 Steps.HINT_SECONDS = 8 -- tunable (BRIEF M11-05)
 Steps.DONE_SECONDS = 0.7 -- completion feedback before the next step (0.5 to 0.8, BRIEF M11-02a)
 Steps.DOWNTOWN_COLOUR = Color3.fromRGB(52, 168, 255) -- the Downtown world colour (the playground's WorldRoutes)
-Steps.START_SECONDS = 2 -- step 0
-Steps.READY_SECONDS = 3 -- step 11
+Steps.START_SECONDS = 2 -- kept for the controller's timing table
+Steps.READY_SECONDS = 3 -- the last step
 
 local LIST: { Step } = {
 	{
 		index = 0,
-		key = "Start",
-		icons = { "Garage", "Car" },
-		where = "Island",
-		needs = { "portal" },
-		ground = "DowntownPortal",
-		timer = Steps.START_SECONDS,
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 1,
 		key = "Portal",
 		icons = { "Portal", "Flag" },
 		accent = Steps.DOWNTOWN_COLOUR,
@@ -72,17 +62,7 @@ local LIST: { Step } = {
 		hint = Steps.HINT_SECONDS,
 	},
 	{
-		index = 2,
-		key = "Steer",
-		icons = { "Steer", "Gamepad" },
-		where = "Run",
-		needs = { "steer" },
-		controls = "Steer",
-		counter = 2,
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 3,
+		index = 1,
 		key = "Hop",
 		icons = { "Hop", "StuntCircuit", "HopCar" },
 		where = "Run",
@@ -92,7 +72,7 @@ local LIST: { Step } = {
 		hint = Steps.HINT_SECONDS,
 	},
 	{
-		index = 4,
+		index = 2,
 		key = "Keys",
 		icons = { "Keys", "Key", "KeyLock" },
 		where = "Run",
@@ -101,16 +81,7 @@ local LIST: { Step } = {
 		hint = Steps.HINT_SECONDS,
 	},
 	{
-		index = 5,
-		key = "Heat",
-		icons = { "Flame", "Warning" },
-		where = "Run",
-		needs = { "heat" },
-		controls = "Hop",
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 6,
+		index = 3,
 		key = "Home",
 		icons = { "Home", "Garage" },
 		iconLabel = "HOME",
@@ -120,7 +91,7 @@ local LIST: { Step } = {
 		hint = Steps.HINT_SECONDS,
 	},
 	{
-		index = 7,
+		index = 4,
 		key = "Park",
 		icons = { "Parking", "Park" },
 		where = "Island",
@@ -131,37 +102,7 @@ local LIST: { Step } = {
 		hint = Steps.HINT_SECONDS,
 	},
 	{
-		index = 8,
-		key = "Earn",
-		icons = { "Cash", "CashStack" },
-		where = "Island",
-		needs = { "lapCue" },
-		ground = "Raceway",
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 9,
-		key = "Upgrade",
-		icons = { "Raceway", "Upgrade" },
-		where = "Island",
-		needs = { "upgrade" },
-		ground = "Shopkeeper",
-		ui = "UpgradeBuy",
-		mask = true,
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 10,
-		key = "Shop",
-		icons = { "Shop", "Cart" },
-		where = "Island",
-		needs = { "shop" },
-		ui = "ShopButton",
-		mask = true,
-		hint = Steps.HINT_SECONDS,
-	},
-	{
-		index = 11,
+		index = 5,
 		key = "Ready",
 		icons = { "Medal", "Trophy" },
 		where = "Island",
