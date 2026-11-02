@@ -44,7 +44,11 @@
 -- API: SettingsPanel.new(ctx, { onClosed: (() -> ())? }?) -> SettingsPanel
 --   :open(opener: GuiObject?)  :close()  :isOpen() -> boolean
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()
---   :getControls() -> { music, sfx, musicMute, sfxMute, motionRoblox, motionOn, motionOff, haptics, close }  (test hook)
+--   :getControls() -> { music, sfx, musicMute, sfxMute, motionRoblox, motionOn, motionOff, haptics, close, replay? }  (test hook)
+--
+-- Replay tutorial (BRIEF M11-07): when options.onReplayTutorial is given, a "Replay tutorial" button sits in the title row,
+-- left of Close (a 48 px hit box). It closes the card and calls the option. It is a button in the title row and not a fifth
+-- row because the card has no spare height on the tablet and phone frames (the rows already fill 495 and 258 design px).
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -63,6 +67,7 @@ local Motion = require(script.Parent.Parent.Motion)
 local MusicSetting = require(script.Parent.MusicSetting)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Sounds = require(script.Parent.Parent.Sounds)
+local TutorialStrings = require(script.Parent.Parent.Parent.Tutorial.TutorialStrings)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
@@ -150,7 +155,7 @@ local COMPACT: Metrics = {
 	noteInTitle = true,
 }
 
-export type Options = { onClosed: (() -> ())? }
+export type Options = { onClosed: (() -> ())?, onReplayTutorial: (() -> ())? }
 
 export type SettingsPanel = {
 	root: Frame,
@@ -842,6 +847,32 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	self._content:Add(close.trove)
 	close.root.ZIndex = 44
 	self._closeButton = close.body
+	self._replayButton = nil :: GuiObject?
+	local onReplay = self._opts.onReplayTutorial
+	if onReplay then
+		-- the title is about 150 design px wide ("Settings" at the Display size): the button starts after it
+		local replayW = 196
+		local replay = Arcade.button(card, {
+			name = "ReplayTutorial",
+			label = TutorialStrings.get("replay.button"),
+			fill = "Garage",
+			size = "Custom",
+			width = replayW,
+			height = 40,
+			icon = "Hand",
+			sound = "Tap",
+			position = UDim2.fromOffset(PAD + 150 + 14, m.closeY),
+			onActivate = function()
+				self:close()
+				onReplay()
+			end,
+		})
+		self._content:Add(replay.trove)
+		replay.root.ZIndex = 44
+		self._replayButton = replay.body
+		replay.body.NextSelectionRight = close.body
+		close.body.NextSelectionLeft = replay.body
+	end
 
 	local list = make("Frame", {
 		Name = "Rows",
@@ -1148,6 +1179,10 @@ function SettingsPanel.getControls(self: any): { [string]: GuiObject }
 	end
 	for _, seg in self._segments do
 		controls["motion" .. seg.choice] = seg.button
+	end
+	local replay: GuiObject? = self._replayButton
+	if replay then
+		controls.replay = replay
 	end
 	return controls
 end

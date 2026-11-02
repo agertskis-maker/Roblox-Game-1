@@ -455,6 +455,10 @@ mount("toasts", { "Home", "ToastStack" }, "Feedback")
 mount("route", { "Home", "TutorialRoute" }, "Hud")
 mount("settings", { "Home", "SettingsPanel" }, "Modal", {
 	onClosed = function() end,
+	onReplayTutorial = function()
+		local Tutorial = (require :: any)((Prototype.Parent :: any).Tutorial)
+		Tutorial.replay()
+	end,
 })
 -- Screens and cards
 mount("garage", { "Screens", "GarageMock" }, "Overlay", {
@@ -473,6 +477,10 @@ mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
 mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
 mount("missionTracker", { "Screens", "MissionTracker" }, "Hud", {})
 mount("iconsSheet", { "IconsSheet" }, "Overlay", {})
+mount("stuntPreRace", { "Screens", "StuntPreRace" }, "Overlay", {})
+mount("stuntResults", { "Screens", "StuntResults" }, "Modal", {})
+mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+mount("stuntCustomize", { "Screens", "StuntCustomize" }, "Overlay", {})
 mount("results", { "Screens", "ResultsCard" }, "Modal", {
 	onRetry = function()
 		goRun()
@@ -995,6 +1003,7 @@ function api.setProfile(name: string)
 	applyMode(store:get().mode)
 end
 function api.reset()
+	(require :: any)((Prototype.Parent :: any).Tutorial).stop()
 	scenarios:cancel()
 	priority:clear()
 	local specimen = components.specimen

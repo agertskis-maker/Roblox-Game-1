@@ -5,7 +5,7 @@
 -- 16 minimum), touch targets of 48 px (56 px for primary buttons), the
 -- short-side scaling rule below, and following Roblox's Reduce Motion
 -- setting. Colours, spacing, radii, strokes and motion timings are part of
--- the HUD sample that is still pending Adam's review
+-- the HUD sample Adam approved on 2026-10-20
 -- (vault/design/visual-direction.md).
 --
 -- Units: every size here is a design pixel at scale 1.0. Widgets are scaled

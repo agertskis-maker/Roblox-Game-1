@@ -718,7 +718,7 @@ function Proxies.hazard(kind: string, length: number, laneWidth: number, label: 
 	if kind == "construction" then
 		local orange = Color3.fromRGB(255, 122, 26)
 		anchor = box(m, "Barrier", Vector3.new(laneWidth - 2, 2.4, 0.5), CFrame.new(0, 1.6, length / 2), orange)
-		box(m, "BarrierStripe", Vector3.new(laneWidth - 2, 0.6, 0.55), CFrame.new(0, 1.8, length / 2), CREAM)
+		box(m, "BarrierStripe", Vector3.new(laneWidth - 1.8, 0.6, 0.7), CFrame.new(0, 1.8, length / 2), CREAM)
 		for i = 0, 5 do
 			local z = length / 2 - 3 - i * (length - 4) / 5
 			for _, x in { -laneWidth / 2 + 1.5, laneWidth / 2 - 1.5 } do

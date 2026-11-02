@@ -1663,8 +1663,8 @@ local function gorgeParts(
 				table.insert(parts, {
 					name = if side < 0 then "GorgeLipL" else "GorgeLipR",
 					-- on the rim, its inner edge flush with the wall face, its top `rise` over the ground
-					cframe = centre * CFrame.new(side * (hw + lip.width / 2), -0.3 + lip.rise / 2 - 0.5, 0),
-					size = Vector3.new(lip.width, 1 + lip.rise, 2 * hl),
+					cframe = centre * CFrame.new(side * (hw + lip.width / 2 - 0.1), -0.3 + lip.rise / 2 - 0.5, 0),
+					size = Vector3.new(lip.width + 0.2, 1 + lip.rise, 2 * hl - 0.2), -- proud of the rim: no shared faces
 					colour = lip.colour,
 				})
 			end
