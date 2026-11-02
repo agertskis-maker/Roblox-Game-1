@@ -527,8 +527,8 @@ function Track.bankWalls(major: Folder, minor: Folder, ctx: Ctx, turn: string)
 			local tip = if which == ends[1] then which.a + along * 0.6 else which.b - along * 0.6
 			Kit.slab(
 				major,
-				tip - along * 0.7 + Vector3.yAxis * 0.1,
-				tip + along * 0.7 + Vector3.yAxis * 0.1,
+				tip - along * 0.7 + Vector3.yAxis * 0.2,
+				tip + along * 0.7 + Vector3.yAxis * 0.2,
 				Vector3.yAxis,
 				1.16,
 				which.height + 0.1,
