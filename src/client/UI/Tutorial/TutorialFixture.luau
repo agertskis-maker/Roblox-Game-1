@@ -120,7 +120,8 @@ function Fixture.start(api: any, options: { [string]: any }?): any
 		mode = "Fixture",
 		banner = o.banner or comp(api, "tutorial"),
 		route = o.route or comp(api, "route"),
-		menu = o.menu or comp(api, "menu"),
+		-- Round 2: the new Home HUD (Home/HomeHud, same getButton) owns the Shop button while it is on
+		menu = o.menu or (if api.homeHudOn then comp(api, "homeHud") else nil) or comp(api, "menu"),
 		targets = o.targets or targets,
 		isShopOpen = o.isShopOpen or function(): boolean
 			local shop = comp(api, "shop")

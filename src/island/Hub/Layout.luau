@@ -417,31 +417,27 @@ for i, bay in bays do
 end
 Layout.Bays = bays
 
--- Pit lanes (plot frame, ordered in the direction cars drive). Out leaves the aisle's right end
--- for the right straight; In leaves the left straight for the aisle's left end. They meet the
--- track at a shallow angle (M4-03) and end on its edge, under the road surface.
-local uF = plot.frontEnd
+-- Pit lanes (plot frame, ordered in the direction cars drive): the way-points of the road network's
+-- lanes (Shared/Island/Speedway/RoadNet draws them, per client, with the track). Out leaves the aisle's
+-- right end for the right straight; In leaves the left straight for the aisle's left end.
 local laneV = plot.outerClearance + 5.5
 Layout.PitOut = {
 	Vector2.new(33, Layout.AisleMidU),
-	Vector2.new(31, r0 + 58),
-	Vector2.new(laneV, uF + 3),
-	Vector2.new(laneV, uS - 25),
-	Vector2.new(46, uS + 3),
-	Vector2.new(41.5, uS + 17),
+	Vector2.new(36, Layout.AisleMidU),
+	Vector2.new(43.07, Layout.AisleMidU + 2.93),
+	Vector2.new(46, Layout.AisleMidU + 10),
+	Vector2.new(46, 300),
+	Vector2.new(laneV - 2.75, 317.5),
+	Vector2.new(laneV, 335),
+	Vector2.new(laneV, 345),
+	Vector2.new(44.75, 375),
+	Vector2.new(38, 405),
 }
-Layout.PitIn = {
-	Vector2.new(-41.5, uS + 17),
-	Vector2.new(-46, uS + 3),
-	Vector2.new(-laneV, uS - 25),
-	Vector2.new(-laneV, uF + 3),
-	Vector2.new(-31, r0 + 58),
-	Vector2.new(-33, Layout.AisleMidU),
-}
-Layout.PitLaneWidth = 9
--- The barrier opens where the pit lanes join the straights.
-function Layout.inPitGap(p: Vector2): boolean
-	return math.abs(p.X) > R + 5 and p.Y > uS - 2 and p.Y < uS + 17
+Layout.PitIn = table.create(#Layout.PitOut)
+for i = #Layout.PitOut, 1, -1 do
+	local p = Layout.PitOut[i]
+	table.insert(Layout.PitIn, Vector2.new(-p.X, p.Y))
 end
+Layout.PitLaneWidth = 10
 
 return Layout

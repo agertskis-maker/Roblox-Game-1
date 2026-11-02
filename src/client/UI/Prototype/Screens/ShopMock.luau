@@ -5,9 +5,12 @@
 -- the counters (adapter:stats()) that prove zero Marketplace calls and zero grants.
 --
 --   local shop = ShopMock.new(ctx, { onClose = fn?, adapter = A?, autoAdvance = true?, blur = true?, cash = false?,
---                                    previewValue = false? })
+--                                    previewValue = true? })
 --   shop:open(returnTo?)                     -- starts at Featured
 --   shop:openAt(sectionId?, offerId?, returnTo?)   -- parking-full entry: openAt("passes", "expanded-paddock", button)
+--   shop:openSection(name, returnTo?)        -- a named section, any case: "Featured", "Passes", "Style", "Cash", "Free"
+--   shop:openExpandedPaddock(returnTo?)      -- "Get more spots": Passes, ringed on Expanded Paddock
+--   shop:openDoubleLapPay(returnTo?)         -- "Earn faster": Passes, ringed on Double Lap Pay
 --   shop:close()  shop:isOpen()  shop:layout()  shop:setVisible(on)  shop:destroy()
 --   shop:scrollTo(sectionId, animate?)       -- "featured" | "passes" | "cash" | "style" | "free"
 --   shop:getDebugState()
@@ -17,7 +20,7 @@
 --   shop:setFixture("owned" | "unavailable" | "error" | "pending", id | { ids } | "*", on?)   -- the same, many ids
 --   shop:setFixture("hold", true)            -- requests never answer: stays "Checking..." until the shop closes
 --   shop:setFixture("cash", true)            -- show the hidden Cash section and its tab
---   shop:setFixture("previewValue", true)    -- BEST DEAL / SAVE x% / struck-through sum, marked PREVIEW VALUE
+--   shop:setFixture("previewValue", false)   -- hide BEST DEAL / SAVE x% / the struck-through sum (on by default, N6-03)
 --   shop:setFixture("longText", true)        -- every name and line 30 percent longer
 --   shop:setFixture("missingArt", true)      -- every icon replaced by the solid fallback glyph
 --   shop:setFixture("cashAmountsPending", true)   -- the Cash packs show "Amount pending"
@@ -29,9 +32,11 @@
 -- container; the header stays; tabs scroll to their section and highlight as you scroll, without fighting a programmed
 -- scroll. The game keeps running behind (the dim is a darkening and a slight blur, never black).
 --
--- Loops (carousel, shine, sparkles, price-button bounce, the pending spinner, the blur) belong to ONE scheduler thread
--- and a few finite tweens that exist only while the shop is open and visible; closing or hiding cleans them all up. A
--- close during "Checking..." cancels the request, restores focus and never reopens the shop later.
+-- MOTION (Round 2 N6-02): every continuous effect (the moving gradients on the page, hero, deal, side cards, pass cards
+-- and the Coming soon pop-up; the diagonal shine; the breathing primary price button; the pooled sparkles; the carousel
+-- tick) belongs to ONE ShopMotion animator whose single driver connection exists only while the shop is open and visible;
+-- closing or hiding disconnects it and rests every effect. The pending spinner and the blur are the only other loops
+-- (finite tweens). A close during "Checking..." cancels the request, restores focus and never reopens the shop later.
 
 local Debris = game:GetService("Debris")
 local GuiService = game:GetService("GuiService")
@@ -43,12 +48,14 @@ local Arcade = require(Prototype.Arcade)
 local Motion = require(Prototype.Motion)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local ShopKit = require(Prototype.ShopKit)
+local ShopMotion = require(Prototype.ShopMotion)
 local ShopPurchaseAdapter = require(Prototype.ShopPurchaseAdapter)
 local Sounds = require(Prototype.Sounds)
 local Overlay = require(script.Parent.Overlay)
 local ShopArt = require(script.Parent.Shop.ShopArt)
 local ShopCards = require(script.Parent.Shop.ShopCards)
 local ShopLayout = require(script.Parent.Shop.ShopLayout)
+local ShopPalette = require(script.Parent.Shop.ShopPalette)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
@@ -56,6 +63,7 @@ local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local A = PreviewTokens.Arcade
 local S = PreviewTokens.Shop
 local M = S.Motion
+local T = ShopMotion.Timing
 local make = Arcade.make
 local WHITE = Color3.new(1, 1, 1)
 
@@ -83,7 +91,7 @@ export type Options = {
 	autoAdvance: boolean?, -- default true (pauses on hover, press, focus and for 14 s after any manual move)
 	blur: boolean?, -- default true
 	cash: boolean?, -- the Cash section; default false (hidden until Brian L and Adam approve Developer Products)
-	previewValue: boolean?, -- the PREVIEW VALUE deal-claim fixture; default false
+	previewValue: boolean?, -- BEST DEAL / SAVE x% / the struck-through sum, from the PREVIEW catalog; default true (N6-03)
 }
 
 export type DebugState = { [string]: any }
@@ -94,6 +102,9 @@ export type Shop = {
 	setVisible: (self: Shop, on: boolean) -> (),
 	open: (self: Shop, returnTo: GuiObject?) -> (),
 	openAt: (self: Shop, sectionId: string?, offerId: string?, returnTo: GuiObject?) -> (),
+	openSection: (self: Shop, name: string, returnTo: GuiObject?) -> (),
+	openExpandedPaddock: (self: Shop, returnTo: GuiObject?) -> (),
+	openDoubleLapPay: (self: Shop, returnTo: GuiObject?) -> (),
 	close: (self: Shop) -> (),
 	isOpen: (self: Shop) -> boolean,
 	destroy: (self: Shop) -> (),
@@ -153,7 +164,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	local fixtures: FixtureState = {
 		cash = opts.cash == true,
-		previewValue = opts.previewValue == true,
+		previewValue = opts.previewValue ~= false,
 		longText = false,
 		missingArt = false,
 		cashAmountsPending = false,
@@ -189,11 +200,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local cashCount: ShopKit.CountUp? = nil
 	local soon: SoonRefs? = nil
 	local blur: BlurEffect? = nil
-	local schedulerThread: thread? = nil
+	local veil: Frame? = nil -- the open / close fade over the page (never intercepts input)
 	local relayoutQueued = false
 	local stylePick: { [string]: number } = {}
-	local counters = { ticks = 0, shines = 0, bursts = 0, advances = 0, builds = 0, bounces = 0 }
+	local counters = { ticks = 0, advances = 0, builds = 0 }
 	local footerText = ""
+	local carouselPausedUntil = 0
+	local carouselNextAt = 0
+
+	-- THE ONE ANIMATOR (N6-02a): every continuous effect on the page registers here; its single driver connects only
+	-- while the shop is open and visible (startLoops / stopLoops) and is gone when the shop is destroyed.
+	local motion = ShopMotion.new()
+	trove:Add(function()
+		motion.destroy()
+	end)
 
 	local refreshViews: () -> ()
 	local buildAll: (preserveScroll: boolean) -> ()
@@ -340,6 +360,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		trove = buildTrove,
 		tier = "Desktop",
 		fixtures = fixtures,
+		motion = motion,
 		stateOf = stateOf,
 		press = press,
 		register = function(offerId: string, view: ShopCards.View)
@@ -465,7 +486,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if section.subtitle then
 			local subtitle = ShopKit.label(parent, section.subtitle, 17, {
 				name = "Subtitle",
-				colour = S.Color.Grey,
+				colour = ShopPalette.Color.Grey,
 				z = 9,
 			})
 			subtitle.Position = UDim2.fromOffset(x, 2 + titleSize + 8)
@@ -514,10 +535,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		return y - L.gap
 	end
 
+	-- FEATURED (N6-04): the hero carousel, the two side offers and the BEST DEAL banner, all visible with no scroll on a
+	-- desktop; on a phone the hero and the deal show first and the side offers follow below them.
 	local function buildFeatured(frame: Frame, L: ShopLayout.Layout): number
 		local heroCard = ShopCards.hero(env, frame, Vector2.new(L.heroW, L.heroH), 9)
 		heroCard.root.Position = UDim2.fromOffset(0, 0)
 		hero = heroCard
+		local belowDealY = L.heroH + L.gap + L.dealH + L.gap
 		local sideIds = { "vip", "double-lap-pay" }
 		for i, id in sideIds do
 			local offer = Catalog.get(id)
@@ -527,23 +551,36 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 					showTag = false,
 					artSide = L.sideH - 30,
 					stamp = true,
+					nameSize = if L.tier == "Desktop" then 28 else 24,
 					name = "Side_" .. id,
+					animate = true,
+					priority = 4,
 				})
 				local view = ShopCards.offer(env, frame, offer, plan)
 				if L.sideStacked then
 					view.root.Position = UDim2.fromOffset(L.heroW + L.gap, (i - 1) * (L.sideH + L.gap))
 				else
-					view.root.Position = UDim2.fromOffset((i - 1) * (L.sideW + L.gap), L.heroH + L.gap)
+					view.root.Position = UDim2.fromOffset((i - 1) * (L.sideW + L.gap), belowDealY)
 				end
 			end
 		end
-		if L.sideStacked then
-			return L.heroH
+		local dealView = ShopCards.deal(env, frame, Vector2.new(L.dealW, L.dealH), 9)
+		if dealView then
+			dealView.root.Position = UDim2.fromOffset(0, L.heroH + L.gap)
 		end
-		return L.heroH + L.gap + L.sideH
+		if L.sideStacked then
+			return L.heroH + L.gap + L.dealH
+		end
+		return belowDealY + L.sideH
 	end
 
 	local function buildPasses(frame: Frame, section: Catalog.Section, L: ShopLayout.Layout): number
+		-- every card on the Passes panel glows: the animator keeps the budget and rests the ones that are offscreen
+		local function passPlan(w: number, orientation: "Tall" | "Wide", extra: { [string]: any }): ShopCards.Plan
+			extra.animate = true
+			extra.priority = 5
+			return newPlan(w, orientation, extra)
+		end
 		local rightW = if L.tier == "Phone" then 250 else 330
 		sectionHeader(frame, section, L, rightW + 10)
 		-- the collection bar: "Collection  0 / 3 owned"
@@ -572,19 +609,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local placements: { { offer: Catalog.Offer, plan: ShopCards.Plan, x: number, y: number } } = {}
 		if bundle then
 			if L.passMode == "Row" then
-				local rowH = ShopCards.measure(env, bundle, newPlan(L.bundleW, "Wide", { big = true }))
+				local rowH = ShopCards.measure(env, bundle, passPlan(L.bundleW, "Wide", { big = true }))
 				for _, id in passIds do
 					local offer = Catalog.get(id)
 					if offer then
 						rowH = math.max(
 							rowH,
-							ShopCards.measure(env, offer, newPlan(L.passW, "Tall", { showDetail = true }))
+							ShopCards.measure(env, offer, passPlan(L.passW, "Tall", { showDetail = true }))
 						)
 					end
 				end
 				table.insert(placements, {
 					offer = bundle,
-					plan = newPlan(L.bundleW, "Wide", { big = true, h = rowH }),
+					plan = passPlan(L.bundleW, "Wide", { big = true, h = rowH }),
 					x = pad,
 					y = pad,
 				})
@@ -593,7 +630,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 					if offer then
 						table.insert(placements, {
 							offer = offer,
-							plan = newPlan(L.passW, "Tall", { showDetail = true, h = rowH, stamp = false }),
+							plan = passPlan(L.passW, "Tall", { showDetail = true, h = rowH, stamp = false }),
 							x = pad + L.bundleW + L.passGap + (i - 1) * (L.passW + L.passGap),
 							y = pad,
 						})
@@ -601,10 +638,10 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				end
 				panelH = rowH + 2 * pad
 			elseif L.passMode == "Grid" then
-				local bundleH = ShopCards.measure(env, bundle, newPlan(L.bundleW, "Wide", { big = true }))
+				local bundleH = ShopCards.measure(env, bundle, passPlan(L.bundleW, "Wide", { big = true }))
 				table.insert(placements, {
 					offer = bundle,
-					plan = newPlan(L.bundleW, "Wide", { big = true, h = bundleH }),
+					plan = passPlan(L.bundleW, "Wide", { big = true, h = bundleH }),
 					x = pad,
 					y = pad,
 				})
@@ -614,7 +651,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 					if offer then
 						rowH = math.max(
 							rowH,
-							ShopCards.measure(env, offer, newPlan(L.passW, "Tall", { showDetail = true }))
+							ShopCards.measure(env, offer, passPlan(L.passW, "Tall", { showDetail = true }))
 						)
 					end
 				end
@@ -623,7 +660,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 					if offer then
 						table.insert(placements, {
 							offer = offer,
-							plan = newPlan(L.passW, "Tall", { showDetail = true, h = rowH }),
+							plan = passPlan(L.passW, "Tall", { showDetail = true, h = rowH }),
 							x = pad + (i - 1) * (L.passW + L.passGap),
 							y = pad + bundleH + L.passGap,
 						})
@@ -638,11 +675,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 					if offer then
 						local isBundle = id == "all-passes-bundle"
 						local planExtra: { [string]: any } = { showDetail = true, big = isBundle }
-						local height = ShopCards.measure(env, offer, newPlan(L.bundleW, "Wide", planExtra))
+						local height = ShopCards.measure(env, offer, passPlan(L.bundleW, "Wide", planExtra))
 						planExtra.h = height
 						table.insert(placements, {
 							offer = offer,
-							plan = newPlan(L.bundleW, "Wide", planExtra),
+							plan = passPlan(L.bundleW, "Wide", planExtra),
 							x = pad,
 							y = y,
 						})
@@ -711,12 +748,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end)
 		local phone = L.tier == "Phone"
 		local w = math.min(L.size.X - 40, if phone then 520 else 460)
-		local artPx = if phone then 84 else 120
+		local artPx = if phone then 72 else 110
 		local h = if phone then math.min(L.size.Y - 16, 280) else 360
+		-- every Shop pop-up gets the same moving gradient background as the page cards (N6-02); Reduced Motion keeps it still
 		local card = ShopKit.card(root, {
 			name = "SoonCard",
 			size = Vector2.new(w, h),
-			fill = "Violet",
+			fill = "Popup",
+			rotation = ShopPalette.Angle.Popup,
 			z = 61,
 			trove = buildTrove,
 			pattern = true,
@@ -724,6 +763,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		card.root.AnchorPoint = Vector2.new(0.5, 0.5)
 		card.root.Position = UDim2.fromScale(0.5, 0.5)
+		motion.gradient({ gradient = card.gradient, recipe = "Popup", host = card.root, priority = 1 })
+		local headH = if phone then 44 else 54
+		ShopKit.plate(card.content, {
+			name = "SoonPlate",
+			position = UDim2.fromOffset(10, 10 + headH + 2),
+			size = UDim2.new(1, -20, 1, -(10 + headH + 2 + 12)),
+			z = 65,
+		})
 		local pop: UIScale = make("UIScale", { Name = "SoonPop", Parent = card.root })
 		local column: Frame = make("Frame", {
 			Name = "Column",
@@ -765,6 +812,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			xAlign = Enum.TextXAlignment.Center,
 		})
 		message.LayoutOrder = 4
+		message.Visible = not phone -- a short phone card keeps the headline, the art, the name and the button
 		local button = ShopKit.priceButton(column, {
 			name = "Back",
 			label = "Back to Shop",
@@ -787,6 +835,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		}
 	end
 
+	local function heroInView(): boolean
+		local h, p = hero, page
+		if not h or not p then
+			return false
+		end
+		local top = h.root.AbsolutePosition.Y
+		local bottom = top + h.root.AbsoluteSize.Y
+		return bottom > p.AbsolutePosition.Y + 8 and top < p.AbsolutePosition.Y + p.AbsoluteSize.Y - 8
+	end
+
 	buildAll = function(preserveScroll: boolean)
 		-- remember where the player is: the section that was active and how far below its top they had scrolled
 		local anchorId = activeSection
@@ -796,6 +854,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			anchorDelta = oldPage.CanvasPosition.Y - (sectionY[anchorId] or 0)
 		end
 		buildTrove:Clean()
+		motion.clear() -- the old page's effect records go with its instances
 		table.clear(views)
 		table.clear(tabs)
 		table.clear(sectionY)
@@ -803,6 +862,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		table.clear(sectionOrder)
 		hero = nil
 		page = nil
+		veil = nil
 		cue = nil
 		tip = nil
 		tabScroll = nil
@@ -843,18 +903,27 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		}))
 		popScale = make("UIScale", { Name = "ShopPop", Parent = shell })
 
-		-- a soft dark sheet behind the page, so the game and its HUD never read through the words
+		-- the page sheet: a vivid electric purple to cyan gradient that sways slowly (N6-01, N6-02: Page recipe), nearly
+		-- opaque so the game and its HUD never read through the words, with a faint wheel and bolt pattern
 		local sheet: Frame = make("Frame", {
 			Name = "PageSheet",
 			Position = UDim2.fromOffset(L.pageX - 10, 0),
 			Size = UDim2.new(0, L.pageW + 20, 1, 0),
-			BackgroundColor3 = Color3.fromRGB(16, 22, 44),
-			BackgroundTransparency = 0.08,
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = 0.02,
 			BorderSizePixel = 0,
 			ZIndex = 2,
 			Parent = shell,
 		})
 		Arcade.corner(sheet, 18)
+		Arcade.outline(sheet, "Button")
+		local sheetGradient: UIGradient = make("UIGradient", {
+			Color = ShopKit.fill("Page"),
+			Rotation = ShopPalette.Angle.Page,
+			Parent = sheet,
+		})
+		ShopKit.pattern(sheet, Vector2.new(L.pageW + 20, ds.Y), 3, 0.9)
+		motion.gradient({ gradient = sheetGradient, recipe = "Page", host = sheet, priority = 1 })
 
 		-- PAGE ---------------------------------------------------------------------------------------------------
 		local pageFrame: ScrollingFrame = make("ScrollingFrame", {
@@ -876,6 +945,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Parent = shell,
 		})
 		page = pageFrame
+		motion.setViewport(pageFrame) -- a card scrolled out of the page is offscreen and rests
 		local y = 6
 		for _, section in sections do
 			table.insert(sectionOrder, section.id)
@@ -905,7 +975,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		footerText = "Preview shop: every price is a proposal and nothing can be bought in this build."
 		local footer = ShopKit.paragraph(pageFrame, footerText, 16, {
 			name = "PreviewNote",
-			colour = S.Color.Grey,
+			colour = ShopPalette.Color.Grey,
 			xAlign = Enum.TextXAlignment.Center,
 			z = 8,
 		})
@@ -971,7 +1041,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		Arcade.corner(cashBox, L.closeSize)
 		Arcade.outline(cashBox, "Button")
-		make("UIGradient", { Color = S.Fill.Well, Rotation = 90, Parent = cashBox })
+		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = cashBox })
 		local cashIcon: Frame = make("Frame", {
 			Name = "Icon",
 			AnchorPoint = Vector2.new(0, 0.5),
@@ -999,7 +1069,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local plus = ShopKit.squareButton(cashBox, {
 			name = "Plus",
 			size = plusSize,
-			fill = "Green",
+			fill = "Lime",
 			icon = "Plus",
 			z = z + 2,
 			trove = buildTrove,
@@ -1040,7 +1110,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		Arcade.corner(bubble, 10)
 		Arcade.outline(bubble, "Button")
-		make("UIGradient", { Color = S.Fill.Well, Rotation = 90, Parent = bubble })
+		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = bubble })
 		make("UIPadding", {
 			PaddingLeft = UDim.new(0, 8),
 			PaddingRight = UDim.new(0, 8),
@@ -1080,7 +1150,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		Arcade.corner(bar, L.tabH + 10)
 		Arcade.outline(bar, "Button")
-		make("UIGradient", { Color = S.Fill.Well, Rotation = 90, Parent = bar })
+		make("UIGradient", { Color = ShopKit.fill("Well"), Rotation = 90, Parent = bar })
 		local scroller: ScrollingFrame = make("ScrollingFrame", {
 			Name = "Tabs",
 			Position = UDim2.fromOffset(6, 0),
@@ -1121,6 +1191,46 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 
 		buildSoon(shell, L)
+		-- the open / close fade (a veil that never takes input)
+		local fade: Frame = make("Frame", {
+			Name = "OpenVeil",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = A.Ink,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 90,
+			Parent = shell,
+		})
+		veil = fade
+		-- the carousel tick lives in the animator (so it runs only while the shop is open, visible and not in Reduced
+		-- Motion): the hero moves on by itself only while nothing hovers, presses or focuses it (M10-03a)
+		motion.every({
+			seconds = 0.25,
+			fn = function()
+				counters.ticks += 1
+				local h = hero
+				if not h or soonOpen or not shopOpen or not visible then
+					return
+				end
+				local now = os.clock()
+				if h.isEngaged() or pendingId ~= nil then
+					carouselPausedUntil = now + M.CarouselPause
+				end
+				if
+					opts.autoAdvance ~= false
+					and UserInputService:GetLastInputType() ~= Enum.UserInputType.Touch -- never swap under a still thumb
+					and h.count() > 1
+					and now >= carouselPausedUntil
+					and now >= carouselNextAt
+					and heroInView()
+				then
+					h.advance()
+					counters.advances += 1
+					carouselNextAt = now + M.CarouselSeconds
+				end
+			end,
+		})
 		refreshViews()
 		setViewLoops(shopOpen and visible)
 		if preserveScroll then
@@ -1178,16 +1288,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 	end)
 
-	local function heroInView(): boolean
-		local h, p = hero, page
-		if not h or not p then
-			return false
-		end
-		local top = h.root.AbsolutePosition.Y
-		local bottom = top + h.root.AbsoluteSize.Y
-		return bottom > p.AbsolutePosition.Y + 8 and top < p.AbsolutePosition.Y + p.AbsoluteSize.Y - 8
-	end
-
 	startLoops = function()
 		openTrove:Clean()
 		if destroyed or not shopOpen or not visible then
@@ -1195,58 +1295,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 		addBlur()
 		setViewLoops(true)
-		-- the ONE scheduler: carousel, shine, sparkles and the idle bounce, each finite, all paused when nothing is on screen
-		local rng = Random.new(os.clock() * 1000)
-		schedulerThread = task.spawn(function()
-			local now0 = os.clock()
-			local nextShine = now0 + 3
-			local nextBounce = now0 + 2
-			local nextAdvance = now0 + M.CarouselSeconds
-			local pausedUntil = now0
-			while true do
-				task.wait(0.25)
-				counters.ticks += 1
-				local h = hero
-				if not shopOpen or not visible or soonOpen or not h or Motion.reduced() then
-					continue
-				end
-				local now = os.clock()
-				if h.isEngaged() or pendingId ~= nil then
-					pausedUntil = now + M.CarouselPause
-				end
-				local inView = heroInView()
-				if
-					opts.autoAdvance ~= false
-					and UserInputService:GetLastInputType() ~= Enum.UserInputType.Touch -- never swap under a still thumb
-					and inView
-					and h.count() > 1
-					and now >= pausedUntil
-					and now >= nextAdvance
-				then
-					h.advance()
-					counters.advances += 1
-					nextAdvance = now + M.CarouselSeconds
-				end
-				if inView and now >= nextShine then
-					nextShine = now + rng:NextNumber(M.ShineEveryMin, M.ShineEveryMax)
-					if h.shine.play() then
-						counters.shines += 1
-						if h.sparkles.burst() then
-							counters.bursts += 1
-						end
-					end
-				end
-				if inView and now >= nextBounce then
-					nextBounce = now + M.BounceEvery
-					local button = h.button()
-					if button then
-						button.bounce()
-						counters.bounces += 1
-					end
-				end
-			end
+		carouselPausedUntil = os.clock()
+		carouselNextAt = os.clock() + M.CarouselSeconds
+		-- THE driver: one Heartbeat connection for every effect, connected only while the shop is open and visible
+		motion.start()
+		openTrove:Add(function()
+			motion.stop()
 		end)
-		openTrove:Add(schedulerThread :: thread)
 		openTrove:Add(Motion.onReducedChanged(function()
 			if shopOpen then
 				refreshViews()
@@ -1287,7 +1342,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	stopLoops = function()
 		openTrove:Clean()
-		schedulerThread = nil
+		motion.stop() -- idempotent: the connection is gone and every effect rests
 		setViewLoops(false)
 		removeBlur()
 	end
@@ -1307,6 +1362,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		s.name.Text = offer.name
 		s.root.Visible = true
 		soonOpen = true
+		motion.rescan() -- the pop-up's own gradient starts moving at once
 		ShopKit.noteSoundDependency("ShopComingSoon")
 		Sounds.play("Toast")
 		Motion.cancelAll(s.pop)
@@ -1334,6 +1390,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		soonOpen = false
 		Motion.cancelAll(s.pop)
 		s.root.Visible = false
+		motion.rescan()
 		local source = lastSource
 		if source and source:IsDescendantOf(game) and lastInputIsGamepad() then
 			GuiService.SelectedObject = source
@@ -1344,6 +1401,23 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	-- OPEN, CLOSE -----------------------------------------------------------------------------------------------------
 
+	-- Open (N6-02b): 0.18 s opacity plus a 0.97 to 1 scale, Quad Out. Reduced Motion: 0.1 s opacity only, no scale.
+	local function fadeVeil(from: number, to: number, seconds: number, hideAtEnd: boolean)
+		local fade = veil
+		if not fade then
+			return
+		end
+		Motion.cancelAll(fade)
+		fade.Visible = true
+		fade.BackgroundTransparency = from
+		local tween = Motion.tween(fade, "fade", Motion.info(seconds), { BackgroundTransparency = to })
+		tween.Completed:Once(function(playback)
+			if hideAtEnd and playback == Enum.PlaybackState.Completed then
+				fade.Visible = false
+			end
+		end)
+	end
+
 	local function popIn()
 		local scale = popScale
 		if not scale then
@@ -1352,14 +1426,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		Motion.cancelAll(scale)
 		if Motion.reduced() then
 			scale.Scale = 1
+			fadeVeil(0.1, 1, T.ReducedFade, true)
 		else
-			scale.Scale = M.OpenFrom
+			scale.Scale = T.OpenFrom
 			Motion.tween(
 				scale,
 				"pop",
-				Motion.info(M.OpenSeconds, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+				Motion.info(T.OpenSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 				{ Scale = 1 }
 			)
+			fadeVeil(0.1, 1, T.OpenSeconds, true)
 		end
 	end
 
@@ -1383,7 +1459,17 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	end
 
 	local function openShop(returnTo: GuiObject?, sectionId: string?, offerId: string?)
-		if destroyed or overlay:isOpen() then
+		if destroyed then
+			return
+		end
+		if overlay:isOpen() then
+			-- already open (a second entry point fired): take the player to that section and offer instead
+			if sectionId and sectionY[sectionId] ~= nil then
+				scrollTo(sectionId, true)
+			end
+			if offerId then
+				focusOffer(offerId)
+			end
 			return
 		end
 		shopOpen = true
@@ -1425,15 +1511,17 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local scale = popScale
 		if scale then
 			Motion.cancelAll(scale)
-			if not Motion.reduced() then
+			if Motion.reduced() then
+				fadeVeil(1, 0.55, T.ReducedFade, false)
+			else
+				-- close (N6-02b): 0.12 s, a small shrink and a fade
 				Motion.tween(
 					scale,
 					"pop",
-					Motion.info(M.CloseSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-					{
-						Scale = 0.96,
-					}
+					Motion.info(T.CloseSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Scale = T.CloseTo }
 				)
+				fadeVeil(1, 0.55, T.CloseSeconds, false)
 			end
 		end
 		stopLoops()
@@ -1525,6 +1613,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		openAt = function(_self: Shop, sectionId: string?, offerId: string?, returnTo: GuiObject?)
 			openShop(returnTo, sectionId, offerId)
 		end,
+		-- a named section, any case: "Featured", "Passes", "Style", "Cash", "Free". An unknown name (or Cash while its
+		-- section is off) simply opens at Featured.
+		openSection = function(_self: Shop, name: string, returnTo: GuiObject?)
+			openShop(returnTo, Catalog.sectionId(name), nil)
+		end,
+		-- "Get more spots" (the Raceway parking panel): Passes, with a ring on Expanded Paddock
+		openExpandedPaddock = function(_self: Shop, returnTo: GuiObject?)
+			openShop(returnTo, "passes", "expanded-paddock")
+		end,
+		-- "Earn faster" (the Results card): Passes, with a ring on Double Lap Pay
+		openDoubleLapPay = function(_self: Shop, returnTo: GuiObject?)
+			openShop(returnTo, "passes", "double-lap-pay")
+		end,
 		close = function(_self: Shop)
 			closeShop()
 		end,
@@ -1596,7 +1697,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			adapter:clearFixtures()
 			table.clear(fixtures.forcedPending)
 			fixtures.cash = opts.cash == true
-			fixtures.previewValue = opts.previewValue == true
+			fixtures.previewValue = opts.previewValue ~= false
 			fixtures.longText = false
 			fixtures.missingArt = false
 			fixtures.cashAmountsPending = false
@@ -1700,6 +1801,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local p = page
 			local h = hero
 			local adapterStats = adapter:stats()
+			local motionStats = motion.stats()
 			local info = layoutInfo
 			return {
 				open = overlay:isOpen(),
@@ -1733,12 +1835,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				hits = hits,
 				minHit = if minHit == math.huge then 0 else minHit,
 				loops = {
-					scheduler = schedulerThread ~= nil and coroutine.status(schedulerThread) ~= "dead",
+					scheduler = motionStats.running, -- the ONE driver connection (true only while open and visible)
+					driver = motionStats.connections, -- 0 or 1, never more
+					effects = motionStats.effects, -- registered effect records
+					gradients = motionStats.gradients, -- ACTIVE now (budget 6)
+					breathing = motionStats.breathing, -- ACTIVE now (budget 1)
+					sparkleMarks = motionStats.sparkleMarks, -- ACTIVE now (budget 4)
+					shines = motionStats.shines,
+					steps = motionStats.steps,
 					ticks = counters.ticks,
-					shines = counters.shines,
-					sparkleBursts = counters.bursts,
 					advances = counters.advances,
-					bounces = counters.bounces,
 					spinners = spinners,
 					blur = blur ~= nil,
 				},

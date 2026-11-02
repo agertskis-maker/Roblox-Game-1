@@ -32,6 +32,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local GameIcons = require(script.Parent.GameIcons)
 local PreviewTokens = require(script.Parent.PreviewTokens)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 
@@ -1669,6 +1670,10 @@ end
 -- Fills `holder` (a square Frame) with the named icon. Returns false (and draws nothing) for an
 -- unknown name or a painter error, so the caller can fall back.
 function Icons2.draw(holder: Frame, name: string, opts: Options?): boolean
+	-- the image family wins wherever it has art; the painters below are the fallback
+	if GameIcons.drawInto(holder, name) then
+		return true
+	end
 	local painter = painters[name]
 	if not painter then
 		return false

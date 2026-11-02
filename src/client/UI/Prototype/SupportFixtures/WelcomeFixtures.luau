@@ -22,6 +22,7 @@ export type LineupCar = {
 	name: string,
 	family: string,
 	paint: Color3,
+	image: string?, -- the owned car's art (an rbxassetid) when it is supplied; nil draws a clearly identified UI fixture car
 }
 
 export type Data = {
@@ -40,11 +41,12 @@ local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
+-- FIXTURE cars drawn from UI shapes (no art): a red sports car, a blue compact and a yellow pickup, like the concept board
 local CARS: { LineupCar } = {
+	{ id = "hurrikan", name = "Hurrikan", family = "Sports", paint = rgb(226, 60, 64) },
 	{ id = "puglet", name = "Puglet", family = "Compact", paint = rgb(40, 120, 232) },
-	{ id = "waffle", name = "Citrine Waffle Van", family = "Van", paint = rgb(194, 24, 91) },
 	{ id = "rangy", name = "Rangy", family = "Pickup", paint = rgb(232, 179, 58) },
-	{ id = "rev6", name = "Revolution 6", family = "Sedan", paint = rgb(30, 86, 200) },
+	{ id = "waffle", name = "Citrine Waffle Van", family = "Van", paint = rgb(194, 24, 91) },
 }
 
 local HOUR = 3600
@@ -68,8 +70,9 @@ local function data(status: Status, earned: number?, away: number?, capped: numb
 end
 
 local presets: { [string]: () -> Data } = {
+	-- the concept board's figures: 4h 42m of credited time and a six-figure amount (PREVIEW, made up)
 	Typical = function(): Data
-		return data("Ready", 1240, 2 * HOUR, nil, false, 3)
+		return data("Ready", 446070, 4 * HOUR + 42 * 60, nil, false, 3)
 	end,
 	Small = function(): Data
 		return data("Ready", 12, 20 * 60, nil, false, 3)
@@ -161,6 +164,34 @@ function WelcomeFixtures.timeLine(d: Data): string?
 		return string.format("Away %s · Earned for %s", WelcomeFixtures.span(away), WelcomeFixtures.span(paid))
 	end
 	return string.format("Away %s", WelcomeFixtures.span(away))
+end
+
+-- The credited time: the part of the time away that was paid (a cap can make it shorter), or nil when it is unknown.
+function WelcomeFixtures.creditedSeconds(d: Data): number?
+	local away = d.awaySeconds
+	if away == nil or away ~= away or away < 0 then
+		return nil
+	end
+	local paid = d.cappedSeconds
+	if paid ~= nil and paid == paid and paid >= 0 and paid < away then
+		return paid
+	end
+	return away
+end
+
+-- "Your cars kept racing for 4h 42m!" using the CREDITED time, never the unbounded time away. Without a known time the
+-- line says it without a number (a time is never invented).
+function WelcomeFixtures.racingLine(d: Data): string
+	local credited = WelcomeFixtures.creditedSeconds(d)
+	if credited == nil then
+		return "Your cars kept racing while you were away!"
+	end
+	return string.format("Your cars kept racing for %s!", WelcomeFixtures.span(credited))
+end
+
+-- True when the data is a made-up fixture (its source says PREVIEW), so the card shows its PREVIEW stamp.
+function WelcomeFixtures.isPreview(d: Data): boolean
+	return string.find(d.source, "PREVIEW", 1, true) ~= nil
 end
 
 -- The small honest cap note: it states the current caps and never promises earnings for time already gone.

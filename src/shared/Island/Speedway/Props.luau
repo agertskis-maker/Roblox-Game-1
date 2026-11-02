@@ -37,7 +37,7 @@ Props.Anchors = {
 	StartBoard = Vector2.new(-48.4, START_U),
 	PennantU = 455,
 	Bleachers = Vector2.new(-52.6, 438),
-	SnackCart = Vector2.new(-57, 474),
+	SnackCart = Vector2.new(-59, 476.5),
 	LapBoard = Vector2.new(-48.2, 423.5),
 	Podium = Vector2.new(-19.8, START_U), -- clear of the gantry leg (outer edge x -22.8)
 	StartLights = Vector2.new(-46.8, 407),
@@ -411,7 +411,30 @@ function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 end
 
 function Props.snackCart(folder: Folder, ctx: Ctx)
-	Ctx.place(ctx, folder, "SwSnackCart", A.SnackCart.X, A.SnackCart.Y, EAST)
+	-- a snack stop, not a cart alone on the grass: a small paved pad at the end of the stands with the
+	-- cart, a second stall and a bench. Its edge is 6 clear of the track's tyres, so people can pass.
+	local at = A.SnackCart
+	local pad = Ctx.at(ctx, at.X + 1.5, at.Y, 0.1)
+	Kit.part(folder, Vector3.new(14, 0.2, 10), CFrame.lookAt(pad, pad + Ctx.dir(ctx, EAST)), {
+		name = "SnackPad",
+		color = Color3.fromRGB(214, 208, 196),
+		material = Enum.Material.Concrete,
+		collide = true,
+		castShadow = false,
+	})
+	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y - 2, EAST, 0.2)
+	Ctx.place(ctx, folder, "SwSnackCart", at.X - 1.5, at.Y + 2.5, EAST, 0.2)
+	local seat = Ctx.at(ctx, at.X + 3.5, at.Y + 3, 0.2)
+	local along = Ctx.dir(ctx, Vector2.new(0, 1))
+	local bench = CFrame.lookAt(seat + Vector3.yAxis * 1.1, seat + Vector3.yAxis * 1.1 + along)
+	Kit.part(folder, Vector3.new(1.2, 0.25, 5), bench, { name = "SnackBench", color = Color3.fromRGB(176, 118, 74) })
+	for _, z in { -2, 2 } do
+		Kit.part(folder, Vector3.new(1, 1, 0.4), bench * CFrame.new(0, -0.6, z), {
+			name = "SnackBenchLeg",
+			color = NAVY,
+			castShadow = false,
+		})
+	end
 end
 
 function Props.lapBoard(folder: Folder, ctx: Ctx)
@@ -686,69 +709,6 @@ function Props.pitProps(folder: Folder, ctx: Ctx)
 			name = "FuelRigCap",
 			color = Color3.fromRGB(247, 200, 58),
 		})
-	end
-end
-
--- Pit lanes painted in the track's language: white edge lines both sides, and a pit entry and exit
--- line across the lane where it meets the track (Hub/Layout PitOut / PitIn).
-Props.PitOut = {
-	Vector2.new(33, 284.187),
-	Vector2.new(31, 305.187),
-	Vector2.new(51.5, 340.187),
-	Vector2.new(51.5, 364.187),
-	Vector2.new(46, 392.187),
-	Vector2.new(41.5, 406.187),
-}
-local PIT_LINE_TOP = 0.29 -- over the road's own paint where a lane meets the track
-function Props.pitPaint(folder: Folder, ctx: Ctx)
-	for _, sign in { 1, -1 } do
-		local pts = {}
-		for _, p in Props.PitOut do
-			table.insert(pts, Vector2.new(p.X * sign, p.Y))
-		end
-		for i = 1, #pts - 1 do
-			local a, b = pts[i], pts[i + 1]
-			local d = (b - a).Unit
-			local n = Vector2.new(-d.Y, d.X)
-			for _, off in { -4.1, 4.1 } do
-				local pa, pb = a + n * off, b + n * off
-				local before = if i > 1
-					then math.tan(math.acos(math.clamp((a - pts[i - 1]).Unit:Dot(d), -1, 1)) / 2) * 4.1
-					else 0
-				local after = if i < #pts - 1
-					then math.tan(math.acos(math.clamp(d:Dot((pts[i + 2] - b).Unit), -1, 1)) / 2) * 4.1
-					else 0
-				Kit.slab(
-					folder,
-					Ctx.at(ctx, (pa - d * before).X, (pa - d * before).Y, PIT_LINE_TOP),
-					Ctx.at(ctx, (pb + d * after).X, (pb + d * after).Y, PIT_LINE_TOP),
-					Vector3.yAxis,
-					0.3,
-					0.2,
-					{
-						name = "PitLine",
-						color = Color3.new(1, 1, 1),
-						castShadow = false,
-					},
-					0
-				)
-			end
-		end
-		-- the pit entry or exit line: where the lane leaves the track's outer line
-		local a, b = pts[#pts - 1], pts[#pts]
-		local d = (b - a).Unit
-		local mid = b - d * 3
-		local n = Vector2.new(-d.Y, d.X)
-		Kit.slab(
-			folder,
-			Ctx.at(ctx, (mid - n * 4.1).X, (mid - n * 4.1).Y, PIT_LINE_TOP),
-			Ctx.at(ctx, (mid + n * 4.1).X, (mid + n * 4.1).Y, PIT_LINE_TOP),
-			Vector3.yAxis,
-			0.5,
-			0.2,
-			{ name = "PitLine", color = Color3.new(1, 1, 1), castShadow = false },
-			0
-		)
 	end
 end
 

@@ -70,6 +70,7 @@ type Lane = {
 
 local FOLDER_NAME = "Lane3_LappingPreview"
 local CAR_SIZE = Vector3.new(5.7, 4.7, 12.5)
+local WHEELBASE = 8.5 -- SwPreviewCar, axle to axle (for the lift on the loop's tight bends)
 
 LappingPreview.Crossed = Signal.new() :: Signal.Signal<Model, number, string, number>
 
@@ -241,8 +242,9 @@ function LappingPreview.start(options: Options?)
 				lane.lastF[k] = f
 				lane.dust[k].Enabled = active and dusty
 				if active then
-					local pos, look, up = Path.sample(path, f * path.length)
-					local wp = lane.frame * pos
+					local s = Path.distanceAt(path, f)
+					local pos, look, up = Path.sample(path, s)
+					local wp = lane.frame * (pos + up * Path.carLift(path, s, WHEELBASE))
 					local base =
 						CFrame.lookAt(wp, wp - lane.frame:VectorToWorldSpace(look), lane.frame:VectorToWorldSpace(up))
 					table.insert(parts, part)

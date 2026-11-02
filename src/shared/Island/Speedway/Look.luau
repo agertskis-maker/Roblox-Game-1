@@ -73,6 +73,24 @@ Look.Features = {
 	f("AsphaltLoopWide", 12, 12, function(p, c)
 		Track.asphaltGround(p.major, c, true)
 	end),
+	f("LoopApron", 12, 12, function(p, c)
+		Track.loopApron(p.major, c)
+	end),
+	f("PitRoadsDirt", 1, 1, function(p, c)
+		Track.pitRoadsDirt(p.major, c)
+	end),
+	f("PitRoadsRaked", 2, 3, function(p, c)
+		Track.pitRoadsRaked(p.major, c)
+	end),
+	f("PitRoads", 4, 11, function(p, c)
+		Track.pitRoadsAsphalt(p.major, c)
+	end),
+	f("PitRoadsApron", 12, 12, function(p, c)
+		Track.pitRoadsAsphalt(p.major, c, true)
+	end),
+	f("WalkGate", 1, 12, function(p, c)
+		Track.walkGate(p.major, c)
+	end),
 	f("Infield", 4, 12, function(p, c)
 		Track.infield(p.major, c)
 	end),
@@ -100,7 +118,7 @@ Look.Features = {
 	f("Loop", 12, 12, function(p, c)
 		Track.loop(p.major, p.minor, c)
 	end),
-	f("Hump", 11, 12, function(p, c)
+	f("Hump", 11, 11, function(p, c)
 		Track.hump(p.major, p.minor, c)
 	end),
 	-- props
@@ -142,9 +160,6 @@ Look.Features = {
 	end),
 	f("PitProps", 6, 12, function(p, c)
 		Props.pitProps(p.minor, c)
-	end),
-	f("PitPaint", 6, 12, function(p, c)
-		Props.pitPaint(p.major, c)
 	end),
 	f("Mechanic", 6, 12, function(p, c)
 		Props.mechanic(p.life, c)

@@ -1,31 +1,41 @@
 --!strict
--- Home HUD: the tutorial banner (Lane 3, BRIEF M11-02, restyled 2026-11-01 from the placeholder objective banner).
+-- Home HUD: the tutorial banner (Lane 3, BRIEF M11-02; redesigned Round 2 N8-02 / N8-02a from IMG-07, 2026-11-02).
 --
--- Look (reference: references/hud-tutorial-reference.png, in the Arcade kit): a dark rounded pill with the thick dark
--- boundary and a shallow lip. Left: the step's icon (a kid who cannot read follows the picture). Centre: a big yellow
--- headline of 2 to 4 words with the heavy dark outline, and under it ONE green instruction stripe with white outlined
--- text. Right: an optional small counter ("1/2") or the device's control legend (key caps / drag / tap), so the legend never
--- sits anywhere near the run's Heat bar, Keys ring or Hop button. A thin strip along the bottom shows the WHOLE tutorial's
--- progress. A 48 px Skip button sits beside the pill (inside the footprint Home/Layout reserves for the banner, so the
--- Mission tracker's room maths still holds). A new step slides in; a finished step shows a green check, plays the chime
--- (Sounds "TutorialDone") and, for big moments, a bounded confetti burst (16 pieces, none in reduced motion).
+-- Look (references: IMG-07-tutorial-banner.png and hud-tutorial-reference.png, in the Arcade kit): ONE dark rounded pill with
+-- the thick dark boundary and a shallow lip, on a clear grid:
+--
+--     | pad | ICON COLUMN | gap | TEXT COLUMN ......................................... | pad |
+--                                  HEADLINE   big yellow, 2 to 4 words, centred in the text column
+--                                  GREEN BAR  one instruction, centred under the headline: same column, so its left and
+--                                             right insets are equal; two lines are allowed on phones
+--                                  [ progress strip with "2 / 12" ........ ] [ Skip ]
+--
+-- The icon sits in its OWN leading column, vertically centred in the pill (a kid who cannot read follows the picture). The
+-- whole-tutorial progress strip and the Skip button share the bottom row of the text column, so neither can crowd the green
+-- bar. The Skip hit box is 48 design px tall (the approved touch minimum) while its visible face is a calm grey pill; the
+-- box hangs below the pill, never over the bar. ONE delayed hint (a small outlined note under the pill) is revealed by the
+-- controller after 8 seconds without progress. A finished step shows a green check, plays the chime (Sounds "TutorialDone")
+-- and, for big moments, a bounded confetti burst (16 pieces, none in reduced motion).
 --
 -- Contract: the banner draws store.tutorial and nothing else; it grants nothing and never writes the store. The fields it
 -- reads (older fixtures without the optional ones still work):
---   step (1 based), steps, objective (the headline), count / goal (the small counter when `counterText` is nil and goal > 1),
---   hint (a small floating note under the banner), state "Active" | "Hint" | "Done" (Done: green check, chime, the pill keeps
---   the headline and stripe it is given),
---   icons: { string }? (icon names to try), instruction: string? (the green stripe), counterText: string?,
---   controls: { kind: "Steer" | "Hop", device: "Keyboard" | "Touch" | "Gamepad", left: boolean?, right: boolean? }?,
---   big: boolean? (confetti when done)
+--   step (1 based), steps (the progress strip and its "2 / 12"), objective (the headline), instruction (the green bar),
+--   hint (the delayed note under the pill), state "Active" | "Hint" | "Done" (Done: green check, chime, the pill keeps
+--   the headline and bar it is given), icons: { string }? (icon names to try, painter names), accent: Color3? (a glow
+--   behind the icon, e.g. Downtown blue), iconLabel: string? (a caption on the icon, e.g. "HOME"), big: boolean? (confetti
+--   when done). count / goal / counterText / controls are accepted and ignored (the Round 1 legend and per-step counter
+--   were replaced by device-aware wording in the green bar and the hint, N8-01a).
 --
--- Placement: "Home" (top centre from Home/Layout) or "Run" (compact: just under the run's distance pill, clear of the
--- protected road view). Run placement is checked against the run's Heat, Hop and Keys rectangles (getDebugState().runOverlap).
+-- Placement: "Home" (top centre: from Home/HomeHud's frame when one is attached, else Home/Layout) or "Run" (compact: just
+-- under the run's distance pill, clear of the protected road view). Run placement is checked against the run's Heat, Hop and
+-- Keys rectangles (getDebugState().runOverlap).
 --
 -- API: TutorialBanner.new(ctx, { onDoneShown: ((step: number) -> ())?, onSkip: (() -> ())? }?) -> TutorialBanner
 --   :layout()  :setVisible(on)  :setPlacement("Home" | "Run")  :wiggle()  :getSkipButton() -> GuiObject
 --   :setSkipHandler(fn?)  (shows or hides the Skip button; the tutorial controller sets it)  :celebrate()  (a confetti burst)
 --   :setPinned(on)  (while pinned, setVisible(false) is ignored: the banner shows in Home, Run and Results)
+--   :setHomeFrame(frame?)  (frame = { cx, y, width, compact? } in safe design px: HomeHud tells the banner where the top
+--   centre is, between its side columns; nil goes back to Home/Layout)
 --   :getRect() -> (pos, size) in device px  :destroy()  :getDebugState()
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -51,66 +61,75 @@ local DONE_SECONDS = 1.6 -- only for the optional onDoneShown callback (the tuto
 local CONFETTI = 16
 local CONFETTI_SECONDS = 0.9
 local MIN_TEXT = Tokens.TextSize.Minimum
-local GAP = 8
-local PILL = Color3.fromRGB(24, 28, 42)
-local CAP_FILL = Color3.fromRGB(246, 248, 255)
-local CAP_DONE = Color3.fromRGB(110, 224, 130)
+local PILL = Color3.fromRGB(20, 26, 48)
+local PILL_EDGE = Color3.fromRGB(70, 96, 170) -- the thin lighter ring inside the dark boundary
 local CONFETTI_COLOURS = {
 	Color3.fromRGB(255, 120, 170),
 	Color3.fromRGB(90, 190, 255),
 	Color3.fromRGB(110, 220, 120),
-	Color3.fromRGB(255, 255, 255),
+	Color3.new(1, 1, 1),
 	Color3.fromRGB(255, 170, 70),
 	Color3.fromRGB(170, 130, 255),
 }
 
 type Variant = {
-	pad: number,
-	icon: number,
-	head: number,
+	pad: number, -- the even outer padding of the pill
+	icon: number, -- the icon column's square
+	colGap: number, -- between the icon column and the text column
+	head: number, -- the headline box height at its largest size
 	headMax: number,
 	headMin: number,
-	stripe: number,
-	stripeText: number,
-	progress: number,
+	gap: number, -- between the headline, the bar and the bottom row
+	bar: number, -- the green bar's height for one line
+	barText: number,
+	row: number, -- the bottom row (progress strip and Skip)
+	strip: number, -- the progress strip's height (its "2 / 12" is 16 px, so 22 at least)
 	skipW: number,
-	skipH: number,
-	cap: number,
+	skipH: number, -- the visible Skip pill; its hit box is Tokens.Touch.Minimum tall
+	corner: number,
 }
 local FULL: Variant = {
 	pad = 10,
-	icon = 56,
-	head = 40,
-	headMax = 32,
-	headMin = 22,
-	stripe = 26,
-	stripeText = 18,
-	progress = 6,
-	skipW = 64,
-	skipH = 48,
-	cap = 34,
+	icon = 60,
+	colGap = 10,
+	head = 34,
+	headMax = 30,
+	headMin = 20,
+	gap = 3,
+	bar = 28,
+	barText = 18,
+	row = 28,
+	strip = 22,
+	skipW = 68,
+	skipH = 28,
+	corner = 22,
 }
 local COMPACT: Variant = {
-	pad = 4,
-	icon = 38,
-	head = 24,
+	pad = 6,
+	icon = 44,
+	colGap = 6,
+	head = 26,
 	headMax = 22,
 	headMin = 18,
-	stripe = 20,
-	stripeText = 16,
-	progress = 3,
-	skipW = 48,
-	skipH = 44,
-	cap = 26,
+	gap = 2,
+	bar = 22,
+	barText = 16,
+	row = 26,
+	strip = 22,
+	skipW = 60,
+	skipH = 26,
+	corner = 16,
 }
 
 export type Options = { onDoneShown: ((step: number) -> ())?, onSkip: (() -> ())? }
+export type HomeFrame = { cx: number, y: number, width: number, compact: boolean? }
 
 export type TutorialBanner = {
 	root: Frame,
 	layout: (self: TutorialBanner) -> (),
 	setVisible: (self: TutorialBanner, on: boolean) -> (),
 	setPlacement: (self: TutorialBanner, placement: string) -> (),
+	setHomeFrame: (self: TutorialBanner, frame: HomeFrame?) -> (),
 	wiggle: (self: TutorialBanner) -> (),
 	getSkipButton: (self: TutorialBanner) -> GuiObject,
 	celebrate: (self: TutorialBanner) -> (),
@@ -132,20 +151,14 @@ local function view(t: Store.Tutorial?): { [string]: any }?
 	return t :: any
 end
 
-local function counterOf(v: { [string]: any }): string
-	local text = v.counterText
-	if type(text) == "string" and text ~= "" then
-		return text
+-- "2 / 12": the whole tutorial's progress, nothing per step.
+local function progressText(v: { [string]: any }): string
+	local steps = if type(v.steps) == "number" and v.steps > 0 then math.floor(v.steps) else 0
+	if steps == 0 then
+		return ""
 	end
-	local goal = if type(v.goal) == "number" then v.goal else 0
-	local count = if type(v.count) == "number" then v.count else 0
-	if goal > 1 then
-		if v.state == "Done" then
-			count = goal
-		end
-		return string.format("%d/%d", math.clamp(count, 0, goal), goal)
-	end
-	return ""
+	local step = if type(v.step) == "number" then math.floor(v.step) else 1
+	return string.format("%d / %d", math.clamp(step, 1, steps), steps)
 end
 
 function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
@@ -157,9 +170,10 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	self._destroyed = false
 	self._placement = "Home"
 	self._variant = FULL
+	self._homeFrame = nil :: HomeFrame?
 	self._pillW = 300
 	self._bodyH = 92
-	self._groupW = 400
+	self._groupW = 300
 	self._view = nil :: { [string]: any }?
 	self._doneToken = 0
 	self._wanted = true
@@ -167,6 +181,7 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	self._progress = 0
 	self._wiggles = 0
 	self._headSize = FULL.headMax
+	self._barLines = 1
 	self._runOverlap = {} :: { string }
 	local make = Arcade.make
 
@@ -174,7 +189,7 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		Name = "TutorialBanner",
 		AnchorPoint = Vector2.new(0, 0),
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(400, 120),
+		Size = UDim2.fromOffset(300, 120),
 		Visible = false,
 		ZIndex = 5,
 		Parent = ctx.layer,
@@ -200,20 +215,38 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		ZIndex = 5,
 		Parent = all,
 	})
-	Arcade.corner(lip, 24)
+	local lipCorner = Arcade.corner(lip, 22)
 	self._lip = lip
 	local body = make("Frame", {
 		Name = "Body",
 		Size = UDim2.fromOffset(300, 92),
 		BackgroundColor3 = PILL,
-		BackgroundTransparency = 0.06,
+		BackgroundTransparency = 0.04,
 		ZIndex = 6,
 		Parent = all,
 	})
-	Arcade.corner(body, 24)
+	local bodyCorner = Arcade.corner(body, 22)
 	Arcade.outline(body, "Button")
+	-- a thin lighter ring just inside the boundary: the glow edge of IMG-07
+	local ring = make("Frame", {
+		Name = "Ring",
+		Position = UDim2.fromOffset(3, 3),
+		Size = UDim2.new(1, -6, 1, -6),
+		BackgroundTransparency = 1,
+		ZIndex = 7,
+		Parent = body,
+	})
+	local ringCorner = Arcade.corner(ring, 19)
+	make("UIStroke", {
+		Thickness = 1.5,
+		Color = PILL_EDGE,
+		Transparency = 0.35,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = ring,
+	})
 	Arcade.gloss(body)
 	self._body = body
+	self._corners = { lipCorner, bodyCorner, ringCorner }
 
 	-- content that crossfades on a new step
 	local content = make("Frame", {
@@ -224,6 +257,27 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		Parent = body,
 	})
 	self._content = content
+
+	-- the icon column: an optional accent glow, the icon, an optional caption
+	local glow = make("Frame", {
+		Name = "Glow",
+		AnchorPoint = Vector2.new(0, 0.5),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.6,
+		Visible = false,
+		ZIndex = 8,
+		Parent = content,
+	})
+	Arcade.corner(glow, 100)
+	local glowStroke = make("UIStroke", {
+		Thickness = 2,
+		Color = Color3.new(1, 1, 1),
+		Transparency = 0.2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = glow,
+	})
+	self._glow = glow
+	self._glowStroke = glowStroke
 	local iconHolder = make("Frame", {
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -233,6 +287,20 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		Parent = content,
 	})
 	self._iconHolder = iconHolder
+	local iconLabel = make("Frame", {
+		Name = "IconLabel",
+		AnchorPoint = Vector2.new(0.5, 1),
+		BackgroundColor3 = A.Ink,
+		BackgroundTransparency = 0.1,
+		Visible = false,
+		ZIndex = 11,
+		Parent = content,
+	})
+	Arcade.corner(iconLabel, 6)
+	local iconLabelText = Arcade.text(iconLabel, { text = "", role = "Small", name = "Text", z = 12 })
+	iconLabelText.Size = UDim2.fromScale(1, 1)
+	self._iconLabel = iconLabel
+	self._iconLabelText = iconLabelText
 	-- the done check: a green disc that replaces the icon
 	local check = make("Frame", {
 		Name = "Check",
@@ -257,13 +325,14 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	IconArt.draw(checkArt, { "Check" })
 	self._check = check
 
+	-- the text column: headline over the green bar, both centred in the same column
 	local headline = Arcade.text(content, {
 		text = "",
 		role = "Display",
 		name = "Headline",
 		face = "Keys",
 		outline = "Major",
-		xAlign = Enum.TextXAlignment.Left,
+		xAlign = Enum.TextXAlignment.Center,
 		z = 9,
 	})
 	headline.TextWrapped = true
@@ -282,42 +351,24 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		text = "",
 		role = "Label",
 		name = "Text",
-		size = FULL.stripeText,
+		size = FULL.barText,
+		xAlign = Enum.TextXAlignment.Center,
 		z = 10,
 	})
 	stripeText.Size = UDim2.fromScale(1, 1)
 	stripeText.TextWrapped = true
 	self._stripeText = stripeText
-	local counter = Arcade.text(content, {
-		text = "",
-		role = "Label",
-		name = "Counter",
-		italic = true,
-		xAlign = Enum.TextXAlignment.Right,
-		z = 9,
-	})
-	self._counter = counter
-	local legend = make("Frame", {
-		Name = "Legend",
-		AnchorPoint = Vector2.new(1, 0.5),
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(80, 36),
-		Visible = false,
-		ZIndex = 9,
-		Parent = content,
-	})
-	self._legend = legend
-	self._caps = {} :: { [string]: Frame }
 
-	-- the whole-tutorial progress strip
+	-- the whole-tutorial progress strip, with "2 / 12" centred on it
 	local track = make("Frame", {
 		Name = "Strip",
 		BackgroundColor3 = A.Ink,
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.25,
 		ZIndex = 9,
-		Parent = body,
+		Parent = content,
 	})
-	Arcade.corner(track, 4)
+	Arcade.corner(track, 11)
+	Arcade.outline(track, "Minor")
 	local fill = make("Frame", {
 		Name = "Fill",
 		BackgroundColor3 = Color3.new(1, 1, 1),
@@ -325,50 +376,55 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		ZIndex = 10,
 		Parent = track,
 	})
-	Arcade.corner(fill, 4)
-	make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Parent = fill })
+	Arcade.corner(fill, 11)
+	make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = fill })
+	local counter = Arcade.text(track, {
+		text = "",
+		role = "Small",
+		name = "Counter",
+		z = 11,
+	})
+	counter.Size = UDim2.fromScale(1, 1)
+	self._counter = counter
 	self._track = track
 	self._fill = fill
 
-	-- the Skip button: a dark-ringed blue pill 44 px or taller, beside the banner
+	-- the Skip button: a 48 px tall hit box, a calm grey pill on its top part (the box hangs below the pill)
 	local skipHolder = make("Frame", {
 		Name = "SkipHolder",
-		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(FULL.skipW, FULL.skipH),
-		ZIndex = 7,
-		Parent = all,
+		Size = UDim2.fromOffset(FULL.skipW, Tokens.Touch.Minimum),
+		ZIndex = 9,
+		Parent = content,
 	})
-	local skipLip = make("Frame", {
-		Name = "Lip",
-		Position = UDim2.fromOffset(0, B.DepthOffset),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		ZIndex = 7,
+	local skipFace = make("Frame", {
+		Name = "Face",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Size = UDim2.new(1, 0, 0, FULL.skipH),
+		Position = UDim2.fromOffset(0, 3),
+		ZIndex = 9,
 		Parent = skipHolder,
 	})
-	Arcade.corner(skipLip, 12)
+	self._skipCorner = Arcade.corner(skipFace, 10)
+	Arcade.outline(skipFace, "Minor")
+	make("UIGradient", { Color = PreviewTokens.Shop.Fill.Steel, Rotation = 90, Parent = skipFace })
+	local skipLabel = Arcade.text(skipFace, { text = "Skip", role = "Label", name = "Text", z = 10 })
+	skipLabel.Size = UDim2.fromScale(1, 1)
 	local skip: TextButton = make("TextButton", {
 		Name = "Skip",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = "",
-		ZIndex = 8,
+		Selectable = true,
+		ZIndex = 11,
 		Parent = skipHolder,
 	})
-	Arcade.corner(skip, 12)
-	-- a button defaults to a text outline: this one outlines the body
-	Arcade.outline(skip, "Button").ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	make("UIGradient", { Color = A.Fill.Garage, Rotation = 90, Parent = skip })
-	local skipLabel = Arcade.text(skip, { text = "Skip", role = "Label", name = "Text", z = 9 })
-	skipLabel.Size = UDim2.fromScale(1, 1)
 	self._skipHolder = skipHolder
+	self._skipFace = skipFace
 	self._skip = skip
 	self._skipLabel = skipLabel
-	skip.Visible = self._opts.onSkip ~= nil
-	skipLip.Visible = skip.Visible
-	self._skipLip = skipLip
+	skipHolder.Visible = self._opts.onSkip ~= nil
 	trove:Connect(skip.Activated, function()
 		local cb = self._opts.onSkip
 		if cb then
@@ -381,14 +437,14 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 			input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch
 		then
-			Motion.press(skip, true)
+			Motion.press(skipFace, true)
 		end
 	end)
 	trove:Connect(skip.InputEnded, function()
-		Motion.press(skip, false)
+		Motion.press(skipFace, false)
 	end)
 
-	-- micro-hint: floating outlined text under the banner (kept for older fixtures and for short notes)
+	-- the delayed hint: floating outlined text under the pill (revealed by the controller after 8 seconds)
 	local hint = make("Frame", {
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -419,7 +475,7 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 		Motion.cancelAll(fill)
 		Motion.cancelAll(all)
 		Motion.cancelAll(stripe)
-		Motion.cancelAll(skip)
+		Motion.cancelAll(skipFace)
 	end)
 
 	self._confetti = {} :: { Frame }
@@ -463,91 +519,6 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	return self :: TutorialBanner
 end
 
--- LEGEND (key caps, drag, tap) ------------------------------------------------------------------------------------
-
-local function cap(parent: Frame, name: string, text: string, w: number, h: number, x: number): Frame
-	local f = Arcade.make("Frame", {
-		Name = name,
-		Position = UDim2.fromOffset(x, 0),
-		Size = UDim2.fromOffset(w, h),
-		BackgroundColor3 = CAP_FILL,
-		ZIndex = 10,
-		Parent = parent,
-	})
-	Arcade.corner(f, 7)
-	Arcade.outline(f, "Button")
-	local t = Arcade.text(f, { text = text, role = "Label", name = "Text", colour = A.Ink, outline = 1, z = 11 })
-	t.Size = UDim2.fromScale(1, 1)
-	t.TextSize = math.max(MIN_TEXT, math.min(h - 10, 18))
-	-- a ghost check in the corner when this direction is done (colour is never the only signal)
-	local tick = Arcade.make("Frame", {
-		Name = "Tick",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 4, 0, -4),
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 1,
-		Visible = false,
-		ZIndex = 12,
-		Parent = f,
-	})
-	IconArt.draw(tick, { "Check" })
-	return f
-end
-
-function TutorialBanner._buildLegend(self: any, spec: { [string]: any }?)
-	local legend: Frame = self._legend
-	for _, child in legend:GetChildren() do
-		if child:IsA("GuiObject") then
-			child:Destroy()
-		end
-	end
-	table.clear(self._caps)
-	if not spec then
-		legend.Visible = false
-		self._legendW = 0
-		return
-	end
-	local v: Variant = self._variant
-	local h = v.cap
-	local device = spec.device
-	local width = 0
-	if spec.kind == "Steer" then
-		local left = if device == "Keyboard" then "A" else "<"
-		local right = if device == "Keyboard" then "D" else ">"
-		self._caps.left = cap(legend, "Left", left, h, h, 0)
-		self._caps.right = cap(legend, "Right", right, h, h, h + 6)
-		width = 2 * h + 6
-	else
-		local text = if device == "Keyboard" then "Space" elseif device == "Touch" then "Tap" else "A"
-		local w = if device == "Keyboard" then h * 2 else h + 8
-		self._caps.hop = cap(legend, "Hop", text, w, h, 0)
-		width = w
-	end
-	legend.Size = UDim2.fromOffset(width, h)
-	legend.Visible = true
-	self._legendW = width
-	self:_refreshLegend(spec)
-end
-
-function TutorialBanner._refreshLegend(self: any, spec: { [string]: any }?)
-	if not spec then
-		return
-	end
-	local function mark(name: string, done: boolean?)
-		local c: Frame? = self._caps[name]
-		if c then
-			c.BackgroundColor3 = if done then CAP_DONE else CAP_FILL
-			local tick = c:FindFirstChild("Tick") :: Frame?
-			if tick then
-				tick.Visible = done == true
-			end
-		end
-	end
-	mark("left", spec.left)
-	mark("right", spec.right)
-	mark("hop", spec.done)
-end
-
 -- LAYOUT ----------------------------------------------------------------------------------------------------------
 
 -- Fits the headline into its width: the largest size that stays on one line, else the smallest size on two lines.
@@ -568,67 +539,82 @@ function TutorialBanner._arrange(self: any)
 	local viewNow = self._view
 	local headText = if viewNow and type(viewNow.objective) == "string" then viewNow.objective else ""
 	local lineText = if viewNow and type(viewNow.instruction) == "string" then viewNow.instruction else ""
-	local counterText = if viewNow then counterOf(viewNow) else ""
-	local textX = v.pad + v.icon + GAP
-	local rightW = 0
-	if self._legendW and self._legendW > 0 then
-		rightW = self._legendW + GAP
-	elseif counterText ~= "" then
-		rightW = math.ceil(measure(counterText, A.Text.Label).X) + 16
-	end
-	local textW = pillW - textX - v.pad - rightW
+	local progress = if viewNow then progressText(viewNow) else ""
+
+	-- the grid: icon column, gap, text column. The headline and the green bar share the text column exactly.
+	local textX = v.pad + v.icon + v.colGap
+	local textW = math.max(120, pillW - textX - v.pad)
 	local size, lines = fitHeadline(headText, v, textW)
 	self._headSize = size
 	local headH = if lines == 2 then size * 2 + 6 else math.max(v.head, size + 4)
-	local stripeVisible = lineText ~= ""
-	local stripeW = pillW - textX - v.pad
-	local stripeLines = 1
-	local stripeH = v.stripe
-	if stripeVisible then
-		local wrapped = measure(lineText, v.stripeText, stripeW - 16)
-		stripeLines = math.max(1, math.round(wrapped.Y / (v.stripeText * 1.2)))
-		stripeH = math.max(v.stripe, stripeLines * (v.stripeText + 2) + 8)
+	local barVisible = lineText ~= ""
+	local barH = v.bar
+	local barLines = 1
+	if barVisible then
+		local wrapped = measure(lineText, v.barText, textW - 16)
+		barLines = math.max(1, math.round(wrapped.Y / (v.barText * 1.2)))
+		barH = math.max(v.bar, barLines * (v.barText + 2) + 8)
 	end
+	self._barLines = barLines
 	local top = v.pad
-	local bodyH = top + headH + (if stripeVisible then 2 + stripeH else 0) + 4 + v.progress + (v.pad - 1)
-	bodyH = math.max(bodyH, v.icon + 2 * v.pad)
+	local barTop = top + headH + v.gap
+	local rowTop = barTop + (if barVisible then barH + v.gap + 1 else 0)
+	local bodyH = math.max(rowTop + v.row + v.pad, v.icon + 2 * v.pad)
 	self._bodyH = bodyH
 
 	local headline: TextLabel = self._headline
 	headline.TextSize = size
 	headline.Position = UDim2.fromOffset(textX, top)
 	headline.Size = UDim2.fromOffset(textW, headH)
+	headline.TextXAlignment = Enum.TextXAlignment.Center
 	headline.TextYAlignment = Enum.TextYAlignment.Center
 	local stripe: Frame = self._stripe
-	stripe.Visible = stripeVisible
-	stripe.Position = UDim2.fromOffset(textX, top + headH + 2)
-	stripe.Size = UDim2.fromOffset(stripeW, stripeH)
+	stripe.Visible = barVisible
+	stripe.Position = UDim2.fromOffset(textX, barTop)
+	stripe.Size = UDim2.fromOffset(textW, barH)
 	local stripeLabel: TextLabel = self._stripeText
-	stripeLabel.TextSize = v.stripeText
+	stripeLabel.TextSize = v.barText
 	stripeLabel.Text = lineText
-	local iconY = (bodyH - v.progress - 4) / 2
-	self._iconHolder.Position = UDim2.fromOffset(v.pad, iconY)
-	self._iconHolder.Size = UDim2.fromOffset(v.icon, v.icon)
-	self._check.Position = UDim2.fromOffset(v.pad, iconY)
-	self._check.Size = UDim2.fromOffset(v.icon, v.icon)
 
+	-- the icon column (centred on the whole pill)
+	local iconY = bodyH / 2
+	local iconHolder: Frame = self._iconHolder
+	iconHolder.Position = UDim2.fromOffset(v.pad, iconY)
+	iconHolder.Size = UDim2.fromOffset(v.icon, v.icon)
+	local check: Frame = self._check
+	check.Position = UDim2.fromOffset(v.pad, iconY)
+	check.Size = UDim2.fromOffset(v.icon, v.icon)
+	local glow: Frame = self._glow
+	local glowSize = v.icon + 8
+	glow.Position = UDim2.fromOffset(v.pad - 4, iconY)
+	glow.Size = UDim2.fromOffset(glowSize, glowSize)
+	local label: Frame = self._iconLabel
+	local labelW = math.min(v.icon + 8, math.ceil(measure(self._iconLabelText.Text, MIN_TEXT).X) + 14)
+	label.Size = UDim2.fromOffset(math.max(labelW, 30), 20)
+	label.Position = UDim2.fromOffset(v.pad + v.icon / 2, iconY + v.icon / 2 + 4)
+
+	-- the bottom row: the progress strip, then Skip at the right end of the same column
+	local skipOn = self._skipHolder.Visible
+	local skipW = if skipOn then v.skipW else 0
+	local stripW = math.max(60, textW - (if skipOn then skipW + 8 else 0))
+	local track: Frame = self._track
+	track.Position = UDim2.fromOffset(textX, rowTop + (v.row - v.strip) / 2)
+	track.Size = UDim2.fromOffset(stripW, v.strip)
 	local counter: TextLabel = self._counter
-	counter.Visible = counterText ~= "" and not (self._legendW and self._legendW > 0)
-	counter.TextSize = A.Text.Label
-	counter.Position = UDim2.fromOffset(pillW - v.pad - rightW, top)
-	counter.Size = UDim2.fromOffset(rightW, headH)
-	local legend: Frame = self._legend
-	legend.Position = UDim2.fromOffset(pillW - v.pad, top + headH / 2)
+	counter.Text = progress
+	counter.Visible = progress ~= ""
+	local skipHolder: Frame = self._skipHolder
+	skipHolder.Size = UDim2.fromOffset(v.skipW, Tokens.Touch.Minimum)
+	skipHolder.Position = UDim2.fromOffset(textX + textW - v.skipW, rowTop - 3)
+	self._skipFace.Size = UDim2.new(1, 0, 0, v.skipH)
+	self._skipLabel.TextSize = math.max(MIN_TEXT, if v == FULL then 18 else 16)
+	for _, c in self._corners do
+		c.CornerRadius = UDim.new(0, v.corner)
+	end
+	self._corners[3].CornerRadius = UDim.new(0, math.max(v.corner - 3, 4))
 
 	self._body.Size = UDim2.fromOffset(pillW, bodyH)
 	self._lip.Size = UDim2.fromOffset(pillW, bodyH)
-	self._track.Position = UDim2.fromOffset(textX, bodyH - v.progress - 6)
-	self._track.Size = UDim2.fromOffset(pillW - textX - v.pad, v.progress)
-
-	-- Skip: beside the pill, top aligned
-	self._skipHolder.Size = UDim2.fromOffset(v.skipW, v.skipH)
-	self._skipHolder.Position = UDim2.fromOffset(pillW + GAP + v.skipW, 0)
-	self._skipLabel.TextSize = math.max(MIN_TEXT, if v == FULL then 18 else 16)
 
 	local hintTextValue = self._hintText.Text
 	local hintW = math.min(self._groupW, math.ceil(measure(hintTextValue, A.Text.Small).X) + 24)
@@ -642,10 +628,8 @@ function TutorialBanner.layout(self: any)
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
 	local home = Layout.forProfile(ctx.screen:profile(), scale)
-	local b = home.banner
 	if self._placement == "Run" then
 		self._variant = COMPACT
-		local v = COMPACT
 		local d = RunLayout.design(ctx)
 		local tray = RunLayout.trayRect(ctx)
 		local gear = RunLayout.gearRect(ctx)
@@ -655,19 +639,30 @@ function TutorialBanner.layout(self: any)
 		local group = math.max(220, math.min(widest, right - left))
 		local cx = math.clamp(d.X / 2, left + group / 2, math.max(left + group / 2, right - group / 2))
 		self._groupW = group
-		self._pillW = group - GAP - v.skipW
+		self._pillW = group
 		local y = RunLayout.upperY(ctx) - 4 -- six px under the distance pill: the road view below it is protected
 		self.root.Position = UDim2.fromOffset((cx - group / 2) * scale, y * scale)
 	else
-		self._variant = FULL
-		local v = FULL
-		self._groupW = b.width
-		self._pillW = b.width - GAP - v.skipW
-		self.root.Position = UDim2.fromOffset((b.cx - b.width / 2) * scale, b.y * scale)
+		local frame: HomeFrame? = self._homeFrame
+		local cx, y, width, compact = home.banner.cx, home.banner.y, home.banner.width, home.phone
+		if frame then
+			cx, y, width = frame.cx, frame.y, frame.width
+			compact = if frame.compact == nil then width < 400 else frame.compact
+		end
+		self._variant = if compact then COMPACT else FULL
+		self._groupW = width
+		self._pillW = width
+		self.root.Position = UDim2.fromOffset((cx - width / 2) * scale, y * scale)
 	end
-	self:_buildLegend(if self._view then self._view.controls else nil)
 	self:_arrange()
 	self:_checkRunOverlap()
+end
+
+function TutorialBanner.setHomeFrame(self: any, frame: HomeFrame?)
+	self._homeFrame = frame
+	if not self._destroyed then
+		self:layout()
+	end
 end
 
 function TutorialBanner._checkRunOverlap(self: any)
@@ -725,7 +720,6 @@ end
 function TutorialBanner._applyContent(self: any, v: { [string]: any })
 	local done = v.state == "Done"
 	self._headline.Text = if type(v.objective) == "string" then v.objective else ""
-	self._counter.Text = counterOf(v)
 	local names: { string } = {}
 	if type(v.icons) == "table" then
 		names = table.clone(v.icons :: any)
@@ -739,11 +733,21 @@ function TutorialBanner._applyContent(self: any, v: { [string]: any })
 	end
 	self._iconHolder.Visible = not done
 	self._check.Visible = done
+	-- the accent glow (step 1: the Downtown portal in Downtown blue) and the icon caption (step 6: HOME)
+	local accent = v.accent
+	local glow: Frame = self._glow
+	glow.Visible = typeof(accent) == "Color3" and not done
+	if typeof(accent) == "Color3" then
+		glow.BackgroundColor3 = accent
+		self._glowStroke.Color = accent
+	end
+	local caption = if type(v.iconLabel) == "string" then v.iconLabel else ""
+	self._iconLabelText.Text = caption
+	self._iconLabel.Visible = caption ~= "" and not done
 	local hintOn = type(v.hint) == "string" and v.hint ~= ""
 	if hintOn then
 		self._hintText.Text = v.hint :: string
 	end
-	self:_buildLegend(v.controls)
 	self:_arrange()
 	local steps = if type(v.steps) == "number" and v.steps > 0 then v.steps else 1
 	local step = if type(v.step) == "number" then v.step else 1
@@ -844,7 +848,7 @@ function TutorialBanner._set(self: any, t: Store.Tutorial?)
 	end
 end
 
--- A short "look here" wiggle (the 8 second hint). Reduced motion: the stripe brightens once instead.
+-- A short "look here" wiggle (the 8 second hint, ONCE per step). Reduced motion: the green bar brightens once instead.
 function TutorialBanner.wiggle(self: any)
 	if self._destroyed or not self.root.Visible then
 		return
@@ -857,7 +861,7 @@ function TutorialBanner.wiggle(self: any)
 		Motion.tween(stripe, "flash", Motion.info(0.35), { BackgroundTransparency = 0 })
 		return
 	end
-	local angles = { -3, 3, -2, 2, 0 }
+	local angles = { -2, 2, -1.5, 1.5, 0 }
 	local function step(i: number)
 		if self._destroyed then
 			return
@@ -944,11 +948,11 @@ end
 
 function TutorialBanner.setSkipHandler(self: any, handler: (() -> ())?)
 	self._opts.onSkip = handler
-	self._skip.Visible = handler ~= nil
-	self._skipLip.Visible = handler ~= nil
+	self._skipHolder.Visible = handler ~= nil
+	self:_arrange()
 end
 
--- The pill and Skip as drawn, in device px relative to the device frame.
+-- The pill as drawn, in device px relative to the device frame.
 function TutorialBanner.getRect(self: any): (Vector2, Vector2)
 	local ctx: Types.Ctx = self._ctx
 	return ctx.screen:rectOf(self._all)
@@ -965,6 +969,10 @@ function TutorialBanner.getDebugState(self: any): { [string]: any }
 	end
 	local pos, size = ctx.screen:rectOf(self._body)
 	local skipPos, skipSize = ctx.screen:rectOf(self._skip)
+	local barPos, barSize = ctx.screen:rectOf(self._stripe)
+	local headPos, headSize = ctx.screen:rectOf(self._headline)
+	local stripPos, stripSize = ctx.screen:rectOf(self._track)
+	local iconPos, iconSize = ctx.screen:rectOf(self._iconHolder)
 	return {
 		visible = self.root.Visible,
 		placement = self._placement,
@@ -974,10 +982,11 @@ function TutorialBanner.getDebugState(self: any): { [string]: any }
 		objectiveSize = self._headline.TextSize,
 		instruction = self._stripeText.Text,
 		stripeSize = self._stripeText.TextSize,
+		barLines = self._barLines,
 		counter = self._counter.Text,
 		counterVisible = self._counter.Visible,
-		legendVisible = self._legend.Visible,
-		legendCaps = #self._legend:GetChildren(),
+		legendVisible = false, -- the Round 1 legend is gone (N8-01a: the device words are in the green bar)
+		legendCaps = 0,
 		hintSize = self._hintText.TextSize,
 		progress = self._progress,
 		hintVisible = self._hint.Visible,
@@ -988,11 +997,19 @@ function TutorialBanner.getDebugState(self: any): { [string]: any }
 		pillWidth = self._pillW,
 		groupWidth = self._groupW,
 		wiggles = self._wiggles,
-		skipVisible = self._skip.Visible,
+		skipVisible = self._skipHolder.Visible,
 		skipPos = skipPos,
-		skipSize = skipSize, -- the touch target: at least 44 in design px times the scale
-		skipDesignHeight = self._variant.skipH,
+		skipSize = skipSize, -- the touch target: Tokens.Touch.Minimum in design px times the scale
+		skipDesignHeight = Tokens.Touch.Minimum,
 		objectiveFits = self._headline.TextFits,
+		-- the grid, device px relative to the device frame: the bar's centre must equal the headline's centre, and the
+		-- icon column must sit left of both (N8-02a)
+		barCentreX = barPos.X + barSize.X / 2,
+		headlineCentreX = headPos.X + headSize.X / 2,
+		barLeftInset = barPos.X - pos.X,
+		barRightInset = (pos.X + size.X) - (barPos.X + barSize.X),
+		iconRight = iconPos.X + iconSize.X,
+		stripRect = { x = stripPos.X, y = stripPos.Y, w = stripSize.X, h = stripSize.Y },
 		devicePos = pos,
 		deviceSize = size,
 		reservedOverlap = ctx.screen:overlapsReserved(pos, size),

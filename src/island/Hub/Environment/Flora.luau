@@ -177,6 +177,10 @@ export type Planter = {
 	placed: { { p: Vector2, r: number } },
 }
 
+-- Every crown placed in this build, by every planter (the wild planting and the park's), so the two
+-- never grow into each other.
+local PLACED: { { p: Vector2, r: number } } = {}
+
 -- Plants one kit tree or bush with its ground line on the lowest ground under its roots.
 local function newCounts(): Counts
 	return {
@@ -198,19 +202,22 @@ end
 
 -- A planter for other dressing modules (the park): its own counts and floor patches.
 function Flora.newPlanter(grid: TerrainWriter.Grid): Planter
-	return { grid = grid, counts = newCounts(), patches = {}, placed = {} }
+	return { grid = grid, counts = newCounts(), patches = {}, placed = PLACED }
 end
 
 -- The plan radius a plant's foliage covers, for spacing recovered plants.
 local function crownRadius(variant: string, scale: number): number
 	local name = if KitManifest[variant] ~= nil then variant else variant .. "_Canopy"
 	local e = KitAssets.info(name)
-	return math.max(e.max.X - e.min.X, e.max.Z - e.min.Z) / 2 * scale
+	-- from the trunk's spot, the widest way: a crown's middle is not always over its trunk, and it turns
+	return math.max(e.max.X, -e.min.X, e.max.Z, -e.min.Z) * scale
 end
 
+-- No plant's crown touches another's (Adam, Round 2 N4-03): crowns stand CANOPY_GAP apart at least.
+local CANOPY_GAP = 1
 local function crowded(pl: Planter, q: Vector2, r: number): boolean
 	for _, other in pl.placed do
-		if (other.p - q).Magnitude < 0.75 * (other.r + r) then
+		if (other.p - q).Magnitude < other.r + r + CANOPY_GAP then
 			return true
 		end
 	end
@@ -222,7 +229,7 @@ end
 -- passes the same trunk-grounding rule, on plantable ground no closer to the hub, and clear of
 -- the crowns already planted. The first point that passes is used; otherwise the spot stays
 -- empty, counted by its reason.
-local RECOVERY_RINGS = { 2.5, 5, 7.5 }
+local RECOVERY_RINGS = { 2.5, 5, 7.5, 10 }
 Flora.RecoverSteep = true -- set false (on a required copy) to measure the old planting
 
 local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2, scale: number, yaw: number): Model?
@@ -236,8 +243,11 @@ local function plant(pl: Planter, parent: Instance, variant: string, p: Vector2,
 	-- the uphill side may bury at most this much of the trunk before the spot is too steep
 	local maxBury = if single then 0.9 * scale else math.min(3.2, 0.3 * (meta.canopy_base or 6) * scale + 1.2)
 	local crown = crownRadius(variant, scale)
-	if hi - lo > maxBury then
-		pl.counts.skippedSteep += 1
+	local steep = hi - lo > maxBury
+	if steep or crowded(pl, p, crown) then
+		if steep then
+			pl.counts.skippedSteep += 1
+		end
 		if not Flora.RecoverSteep then
 			return nil
 		end
