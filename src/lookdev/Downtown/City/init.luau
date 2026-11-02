@@ -256,6 +256,11 @@ function CityClass.build(self: City, station: number?): Assembler.Stats
 	return self.assembler:getStats()
 end
 
+-- Applies this World's lighting (for a city built with lighting = false and shown later).
+function CityClass.applyLighting(self: City)
+	Assembler.applyLighting(if self.world then self.world.lighting else nil)
+end
+
 -- Moves the active window (for a caller driving its own camera).
 function CityClass.setStation(self: City, s: number)
 	self.assembler:setStation(s)
