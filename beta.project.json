@@ -1,5 +1,5 @@
 {
-  "name": "CarHop-Beta-1",
+  "name": "CarHop-Beta-2",
   "servePlaceIds": [118605678346800],
   "tree": {
     "$className": "DataModel",
@@ -15,12 +15,26 @@
       "Cars": {
         "$path": "assets/cars"
       },
+      "LookDev": {
+        "$path": "src/lookdev"
+      },
       "CarHopBeta": {
         "$className": "Configuration",
         "$attributes": {
           "Note": "Car Hop Beta 1 switch (decision 0030). Only beta.project.json creates it; default.project.json never does.",
-          "Version": "beta-1"
+          "Version": "beta-2",
+          "WorldScenery": true
         }
+      }
+    },
+
+    "ReplicatedFirst": {
+      "$className": "ReplicatedFirst",
+      "LoadingBoot": {
+        "$path": "src/replicatedfirst/LoadingBoot.client.luau"
+      },
+      "Loading": {
+        "$path": "src/client/UI/Loading"
       }
     },
 

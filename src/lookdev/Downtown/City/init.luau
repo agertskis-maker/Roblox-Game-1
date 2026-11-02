@@ -59,6 +59,11 @@ export type Options = {
 	kit: Instance?,
 	kitData: Instance?,
 	world: string?, -- "Downtown" (default) | "DustyHighway" | "SummitPass" (Round 2: data feeding the same planner)
+	-- the beta's Worlds under the real road (big round M8): the route starts at `origin`, lays straight, stands `frontagePush`
+	-- further out and builds only what stands beside the road
+	sceneryOnly: boolean?,
+	origin: CFrame?,
+	frontagePush: number?,
 	extraKits: { Instance }?, -- the World's own mesh folders, searched after `kit`
 	textureId: string?,
 	paletteColumn: string?,
@@ -145,6 +150,9 @@ function City.new(options: Options?): City
 			laneWidth = opts.laneWidth,
 			completeDistrict = opts.completeDistrict,
 			catalog = catalog,
+			origin = opts.origin,
+			straightOnly = opts.sceneryOnly,
+			frontagePush = opts.frontagePush,
 		})
 	)
 	local parent = opts.parent or Workspace
@@ -158,6 +166,7 @@ function City.new(options: Options?): City
 		textureId = opts.textureId,
 		paletteColumn = opts.paletteColumn or (if worldDef then worldDef.paletteColumn else nil),
 		meshIds = opts.meshIds,
+		sceneryOnly = opts.sceneryOnly,
 		behind = opts.behind,
 		ahead = opts.ahead,
 		budget = opts.budget,
@@ -232,7 +241,7 @@ function CityClass.build(self: City, station: number?): Assembler.Stats
 			self.worldLife = wl
 		end
 	end
-	if self.options.traffic ~= false and not self.traffic then
+	if self.options.traffic ~= false and not self.options.sceneryOnly and not self.traffic then
 		local traffic = Traffic.new({
 			parent = root,
 			plan = self.plan,

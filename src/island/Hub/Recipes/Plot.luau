@@ -16,6 +16,7 @@ local Signs = require(script.Parent.Parent.Environment.Signs)
 local PlotRecipe = {}
 
 local SURFACE = Layout.SurfaceY
+local PIT_ASPHALT = Color3.fromRGB(58, 62, 70) -- the track's own asphalt (Speedway Track.Colours)
 -- The preview level each plot shows until Lane 2 supplies a real one (Tunable, preview only):
 -- one plot per stage of the ladder, so the plaza view shows the progression.
 PlotRecipe.PreviewLevels = { 1, 3, 5, 8, 10, 12 }
@@ -45,16 +46,24 @@ local function polyline(
 	topY: number,
 	options: Kit.PartOptions
 )
+	-- each strip runs past a joint just far enough for the outer edges to meet in a mitre
+	local function mitre(u: Vector2, v: Vector2): number
+		return math.min(width / 2 * math.tan(math.acos(math.clamp(u:Dot(v), -1, 1)) / 2) + 0.02, width)
+	end
 	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local d = (b - a).Unit
+		local before = if i > 1 then mitre((a - points[i - 1]).Unit, d) else 0
+		local after = if i < #points - 1 then mitre(d, (points[i + 2] - b).Unit) else 0
 		Kit.strip(
 			parent,
-			Layout.plotToWorld(bearing, points[i]),
-			Layout.plotToWorld(bearing, points[i + 1]),
+			Layout.plotToWorld(bearing, a - d * before),
+			Layout.plotToWorld(bearing, b + d * after),
 			width,
 			0.1,
 			topY,
 			options,
-			width * 0.5
+			0
 		)
 	end
 end
@@ -280,7 +289,9 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 	paddock.Name = "Paddock"
 	paddock.Parent = visual
 	local px0, pu0, px1, pu1 = Layout.bounds(Layout.reservation("Paddock").poly)
-	rect(paddock, bearing, px0, pu0, px1, pu1, SURFACE + 0.1, 0.2, {
+	-- height layers: concrete floor, then the asphalt aisle and pit lanes (one surface, one colour),
+	-- then the track above them where a lane joins it
+	rect(paddock, bearing, px0 - 0.1, pu0, px1 + 0.1, pu1, SURFACE + 0.04, 0.2, {
 		name = "Floor",
 		color = Color3.fromRGB(206, 200, 190),
 		material = Enum.Material.Concrete,
@@ -289,7 +300,7 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 	})
 	rect(paddock, bearing, px0, Layout.Aisle[1], px1, Layout.Aisle[2], SURFACE + 0.12, 0.2, {
 		name = "Aisle",
-		color = Color3.fromRGB(150, 154, 160),
+		color = PIT_ASPHALT,
 		material = Enum.Material.Asphalt,
 		collide = true,
 		castShadow = false,
@@ -302,16 +313,16 @@ local function buildFront(visual: Folder, bearing: number, index: number)
 		bearing,
 		Layout.PitOut,
 		Layout.PitLaneWidth,
-		SURFACE + 0.13,
-		{ name = "PitOut", color = Color3.fromRGB(70, 74, 82), castShadow = false }
+		SURFACE + 0.12,
+		{ name = "PitOut", color = PIT_ASPHALT, material = Enum.Material.Asphalt, castShadow = false }
 	)
 	polyline(
 		paddock,
 		bearing,
 		Layout.PitIn,
 		Layout.PitLaneWidth,
-		SURFACE + 0.13,
-		{ name = "PitIn", color = Color3.fromRGB(70, 74, 82), castShadow = false }
+		SURFACE + 0.12,
+		{ name = "PitIn", color = PIT_ASPHALT, material = Enum.Material.Asphalt, castShadow = false }
 	)
 end
 

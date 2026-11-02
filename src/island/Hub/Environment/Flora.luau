@@ -463,7 +463,7 @@ function Flora.build(parent: Instance, grid: TerrainWriter.Grid, seed: number): 
 				Tiered = 2.5,
 				Birch = 1.5,
 				Blossom = if dF < 70 then 1.2 else 0,
-				Fruit = if dF < 70 then 0.8 else 0,
+				Fruit = 0, -- their mesh's apples float (Adam, M2-08); back after a re-export
 			})
 			if plant(pl, cluster, treeVariant(rng, focal), p, rng:NextNumber(1.15, 1.4), rng:NextNumber(0, 6.28)) then
 				table.insert(centres, p)
