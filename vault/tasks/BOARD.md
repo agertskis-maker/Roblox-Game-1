@@ -25,6 +25,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - Choosing the concept does not approve any propose-first item (Cash and the economy, paid items, cross-server data). Each still needs its own approval first.
 
 ## In progress
+- [ ] Lane 2: economy design v1 (Cash, Lap Pay, Raceway levels, parking spots, World unlocks, crafted special editions) - Brian L, with Claude Code, 2026-11-02. Proposal document only, `vault/design/specs/economy-v1.md` on branch `feature/lane2-economy-design`; no code, saves or remotes yet
 - [ ] Cars: showroom models into `assets/cars/` (27 cars x Normal, Gold, Diamond, Rainbow = 108 `.rbxmx` files) - Brian L, with Claude Code, 2026-11-02. Branch `feature/lane2-showroom-cars`, pull request to `main`; no Catalog, save or remote changes
   - 2026-11-02 status: 108 files exported and build-checked (`check.ps1` exit 0, `rojo build` OK); not yet loaded in Studio. Names, logos and the Diamond Variant kept as Brian L decided ([[2026-11-02]]). Pull request open, not merged
 - [ ] Lane 3: Round 3 (Shop revamp, Launch Pads, tutorial, run results, playtest fixes) - Adam, with Claude Code, 2026-11-02. Branch `feature/lane3-big-round` (draft PR #8, worktree `Roblox-Game-1-biground`) and `integration/beta-2` (draft PR #9, worktree `Roblox-Game-1-beta2`); brief `vault/design/specs/lane3-round3.md` on the feature branch (source `Car-Hop-Art/review/round3/BRIEF-ROUND3.md`), ledger `vault/design/specs/lane3-round3-ledger.md`, decision 0033. Private places only; no merge, no publish.
