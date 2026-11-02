@@ -19,63 +19,23 @@ local W = Layout.planToWorld
 local PATH_TOP = Layout.PathTop
 local STREAM_TOP = SURFACE + 0.06
 
-type Cut = { at: Vector2, half: number }
+type Cut = Layout.Cut
 
--- How far a strip runs past a joint so the outer edges meet in a clean mitre (Adam's screenshots
--- 08 and 09: square strip ends left saw-tooth notches at every bend).
-local function mitre(width: number, u: Vector2, v: Vector2): number
-	local cosT = math.clamp(u:Dot(v), -1, 1)
-	return math.min(width / 2 * math.tan(math.acos(cosT) / 2) + 0.02, width)
-end
-
--- Strips along a polyline; `cuts` leave gaps (where a bridge deck crosses open water).
+-- Strips along a polyline; `cuts` leave gaps (where a bridge deck crosses open water). Layout.stripsAlong
+-- does the geometry: the joint mitres, the cuts, and `ends`, how far each free end runs on. The paths
+-- take Layout.PathEndRuns (a path tucks under what it arrives at, and stops dead at a free end); the
+-- greybox stream passes none and keeps the old 15 % of its width.
 local function polyline(
 	parent: Instance,
 	points: { Vector2 },
 	width: number,
 	topY: number,
 	options: Kit.PartOptions,
-	cuts: { Cut }?
+	cuts: { Cut }?,
+	ends: Layout.EndRuns?
 )
-	for i = 1, #points - 1 do
-		local a, b = points[i], points[i + 1]
-		local length = (b - a).Magnitude
-		local dir = (b - a) / length
-		-- pieces of [0, length] that stay after the cuts
-		local pieces = { { 0, length } }
-		for _, cut in cuts or {} do
-			local s = (cut.at - a):Dot(dir)
-			local off = math.abs((cut.at - a):Dot(Vector2.new(-dir.Y, dir.X)))
-			if off < 3 then
-				local kept = {}
-				for _, piece in pieces do
-					local c0, c1 = s - cut.half, s + cut.half
-					if c1 <= piece[1] or c0 >= piece[2] then
-						table.insert(kept, piece)
-					else
-						if c0 > piece[1] then
-							table.insert(kept, { piece[1], c0 })
-						end
-						if c1 < piece[2] then
-							table.insert(kept, { c1, piece[2] })
-						end
-					end
-				end
-				pieces = kept
-			end
-		end
-		-- a joint gets its mitre; a path's free end runs on under whatever it arrives at, which
-		-- covers the lens between a square end and a curving edge. An end at a bridge cut stops
-		-- exactly at the deck.
-		local before = if i > 1 then mitre(width, (a - points[i - 1]).Unit, dir) else width * 0.15
-		local after = if i < #points - 1 then mitre(width, dir, (points[i + 2] - b).Unit) else width * 0.15
-		for _, piece in pieces do
-			if piece[2] - piece[1] > 0.05 then
-				local s0 = if piece[1] <= 0 then -before else piece[1]
-				local s1 = if piece[2] >= length then length + after else piece[2]
-				Kit.strip(parent, W(a + dir * s0), W(a + dir * s1), width, 0.1, topY, options, 0)
-			end
-		end
+	for _, strip in Layout.stripsAlong(points, width, cuts, ends) do
+		Kit.strip(parent, W(strip.a), W(strip.b), width, 0.1, topY, options, 0)
 	end
 end
 
@@ -286,7 +246,8 @@ local function buildPaths(model: Model)
 			p.width,
 			if p.kind == "Promenade" then Layout.PromenadeTop else PATH_TOP,
 			{ name = p.kind, color = colour, collide = true, castShadow = false },
-			cuts
+			cuts,
+			Layout.PathEndRuns[p.kind]
 		)
 	end
 
