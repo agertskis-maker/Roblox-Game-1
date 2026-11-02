@@ -31,12 +31,15 @@ export type Data = {
 	cars: { Car },
 	cash: number,
 	revives: number,
+	outOfBolts: boolean?,
 }
 
 export type Options = {
 	onRetry: () -> (),
 	onHome: () -> (),
 	onRevive: (() -> ())?,
+	onBuyRespawn: (() -> ())?, -- PREVIEW: ends in Coming soon
+	respawnRobux: number?,
 	onEarnFaster: (() -> ())?,
 }
 
@@ -330,7 +333,9 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		-- a tip, on a run with no cars
 		if not good then
 			tipIndex = tipIndex % #RunResults.Tips + 1
-			local tip = RunResults.Tips[tipIndex]
+			local tip = if data.outOfBolts
+				then { icon = "stamina", text = "Out of bolts! Each hop uses one." }
+				else RunResults.Tips[tipIndex]
 			local tipH = math.round(52 * k)
 			local bar = CarKit.board(card, {
 				size = UDim2.new(1, -math.round(28 * k), 0, tipH),
@@ -363,14 +368,14 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, card) :: Frame
 		CarKit.art(row, "art_cash2", {
 			size = UDim2.fromOffset(rowH * 1.1, rowH * 1.1),
-			position = UDim2.new(0.3, 0, 0.5, 0),
+			position = UDim2.new(0, rowH * 0.8, 0.5, 0),
 			z = 6,
 			placeholder = false,
 		})
 		local cashPx = math.round(54 * k)
 		local cashLabel = CarKit.title(row, "+$0", cashPx, {
-			position = UDim2.new(0.38, 0, 0, 0),
-			size = UDim2.new(0.6, 0, 1, 0),
+			position = UDim2.fromOffset(rowH * 1.5, 0),
+			size = UDim2.new(0.5, -rowH * 1.5, 1, 0),
 			color = CarKit.CashText,
 			z = 7,
 			name = "Cash",
@@ -408,17 +413,40 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				self:pressHome()
 			end,
 		})
+		-- back into the run: free ones first; only with none left is there a cheap Robux one. No timer, no nagging.
+		local respawnSize = UDim2.new(0.46, 0, 0, math.round(math.max(58 * k, 46)))
+		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, y + rowH / 2)
 		if data.revives > 0 and options.onRevive then
 			CarKit.button(card, {
-				text = ("REVIVE (%d)"):format(data.revives),
-				tone = "Navy",
-				px = 20,
-				size = UDim2.fromOffset(150, 46),
-				position = UDim2.new(1, -8, 0, -2),
-				anchor = Vector2.new(1, 1),
+				text = ("RESPAWN FREE (%d)"):format(data.revives),
+				tone = "Green",
+				px = math.max(math.round(30 * k), 20),
+				size = respawnSize,
+				position = respawnAt,
+				anchor = Vector2.new(1, 0.5),
 				z = 8,
-				name = "Revive",
+				name = "Respawn",
 				onPress = options.onRevive,
+			})
+		elseif options.onBuyRespawn then
+			local respawn: CarKit.Button
+			respawn = CarKit.button(card, {
+				text = ("RESPAWN %d Robux"):format(options.respawnRobux or 19),
+				tone = "Green",
+				px = math.max(math.round(28 * k), 19),
+				size = respawnSize,
+				position = respawnAt,
+				anchor = Vector2.new(1, 0.5),
+				z = 8,
+				name = "Respawn",
+				onPress = function()
+					respawn.setText("Coming soon!")
+					respawn.setTone("Grey")
+					respawn.setEnabled(false)
+					if options.onBuyRespawn then
+						options.onBuyRespawn()
+					end
+				end,
 			})
 		end
 		if good and not earnFasterShown and options.onEarnFaster then
@@ -428,10 +456,10 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				Text = "",
 				AutoButtonColor = false,
 				BackgroundTransparency = 1,
-				Position = UDim2.new(0.62, 0, 0, 0),
-				Size = UDim2.new(0.36, 0, 1, 0),
+				Position = UDim2.new(0.3, 0, 0, -4),
+				Size = UDim2.new(0.4, 0, 0, 20),
 				ZIndex = 8,
-			}, row)
+			}, card)
 			CarKit.text(link, "Earn faster: Double Lap Pay", 14, {
 				align = Enum.TextXAlignment.Right,
 				alignY = Enum.TextYAlignment.Bottom,

@@ -7,7 +7,8 @@
 --     input = { cashW: number, cashH: number, hasTimer: boolean }
 --
 -- Rules (preview choices recorded here; reversible):
---   * LEFT: three labelled tiles (Shop, Garage, Missions), top-left of the safe area. The biggest tile that fits above the
+--   * LEFT: three labelled tiles (Shop, Garage, Missions), centred on the middle of the left edge (Adam, Round 3), between the
+--     top of the safe area and whatever is below. The biggest tile that fits above the
 --     thumbstick zone (and above Cash when Cash sits bottom-left) wins: 104 x 92, 104 x 72, 104 x 64 icon-over-label
 --     squares, else 124 x 56 or 124 x 48 icon-beside-label rows (56 is the primary-button size, 48 the touch minimum). Phone landscape (844 x 390) ends up on rows
 --     because the free height above the thumbstick is about 170 design px; a 1080p desktop gets the big squares.
@@ -137,10 +138,13 @@ function HomeLayout.plan(m: HomeView.Metrics, input: Input): Plan
 			break
 		end
 	end
-	local navBottom = m.top + 3 * HomeLayout.tileRowHeight(chosen) + 2 * chosen.gap
+	local navH = 3 * HomeLayout.tileRowHeight(chosen) + 2 * chosen.gap
+	-- the middle of the screen when there is room, sliding up only as far as Cash or the thumbstick needs
+	local navY = math.clamp((m.height - navH) / 2, m.top, math.max(m.top, limit - navH))
+	local navBottom = navY + navH
 	local nav: NavPlan = {
 		x = x0,
-		y = m.top,
+		y = navY,
 		tile = chosen,
 		rowHeight = HomeLayout.tileRowHeight(chosen),
 		bottom = navBottom,

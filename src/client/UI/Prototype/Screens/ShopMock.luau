@@ -386,6 +386,25 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end
 	end
 
+	-- Art fills a box inside its card: as big as it can be, and never over the edge.
+	local function boxArt(
+		parent: Instance,
+		key: string,
+		x: number,
+		y: number,
+		w: number,
+		h: number,
+		z: number,
+		name: string?
+	)
+		return CarKit.art(parent, key, {
+			size = UDim2.fromOffset(w, h),
+			position = UDim2.fromOffset(x + w / 2, y + h / 2),
+			z = z,
+			name = name or "Art",
+		})
+	end
+
 	-- FEATURED: the hero. One slide at a time; a new slide replaces the old inside `heroSlot`.
 	renderHero = function()
 		local p = currentPlan
@@ -400,23 +419,21 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local w, h = slot:GetAttribute("W") :: number, slot:GetAttribute("H") :: number
 		local card, family, gradient =
 			CarKit.card(slot, s.family, { radius = math.round(16 * math.max(k, 0.6)), z = 2, name = "Hero" })
-		local artSide = math.min(h * 1.2, w * 0.6)
+		local titlePx = fontPx(p, 84, 34)
+		local inset = math.round(10 * k)
+		local artW = w * 0.56
+		local artY = titlePx * 0.86
+		local artH = h - artY - inset
 		-- a glow under the art, in the family colour
 		CarKit.art(card, "fx_glow", {
-			size = UDim2.fromOffset(artSide * 1.1, artSide * 0.9),
-			position = UDim2.new(0, artSide * 0.52, 1, -artSide * 0.34),
+			size = UDim2.fromOffset(artW, artH),
+			position = UDim2.fromOffset(inset + artW / 2, artY + artH / 2),
 			color = family.motifColor,
 			transparency = 0.25,
 			z = 4,
 			placeholder = false,
 		})
-		CarKit.art(card, s.art, {
-			size = UDim2.fromOffset(artSide, artSide),
-			position = UDim2.new(0, artSide * 0.47, 1, -artSide * 0.44),
-			z = 6,
-			name = "HeroArt",
-		})
-		local titlePx = fontPx(p, 84, 34)
+		boxArt(card, s.art, inset, artY, artW, artH, 6, "HeroArt")
 		CarKit.art(card, "fx_flag", {
 			size = UDim2.fromOffset(titlePx * 1.5, titlePx * 0.8),
 			position = UDim2.new(0, -titlePx * 0.1, 0, titlePx * 0.12),
@@ -434,7 +451,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			z = 8,
 			name = "HeroTitle",
 		})
-		local right = w - artSide * 0.93
+		local right = w - artW - inset * 2
 		local offer = s.offer and Catalog.get(s.offer)
 		if offer and offer.parts then
 			local tileW = math.floor((right - 20 * k) / 3)
@@ -575,14 +592,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			z = 2,
 			name = "Side_" .. id,
 		})
-		local artSide = if id == "vip" then math.min(h * 1.32, w * 0.8) else math.min(h * 0.92, w * 0.5)
-		CarKit.art(card, art, {
-			size = UDim2.fromOffset(artSide, artSide),
-			position = if id == "vip" then UDim2.new(0.42, 0, 0.52, 0) else UDim2.new(0, artSide * 0.54, 0.6, 0),
-			z = 6,
-			name = "Art",
-		})
 		local px = fontPx(p, 62, 24)
+		local inset = math.round(7 * k)
+		if id == "vip" then
+			boxArt(card, art, w * 0.1, inset, w * 0.6, h - inset * 2, 6)
+		else
+			local top = px * 0.9
+			boxArt(card, art, inset * 2, top, h - top - inset, h - top - inset, 6)
+		end
 		CarKit.title(card, title, px, {
 			position = UDim2.fromOffset(math.round(12 * k), math.round(4 * k)),
 			size = UDim2.new(1, -math.round(16 * k), 0, px * 1.06),
@@ -646,13 +663,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			z = 8,
 			name = "DealTitle",
 		})
-		local artSide = h * 1.24
-		CarKit.art(card, "art_bundle", {
-			size = UDim2.fromOffset(artSide, artSide),
-			position = UDim2.new(0.56, 0, 0.5, -h * 0.06),
-			z = 6,
-			name = "Art",
-		})
+		boxArt(card, "art_bundle", p.inner * 0.49, 5, h * 1.25, h - 10, 6)
 		if offer and offer.price then
 			priceButton(card, offer.id, "The bundle", "art_bundle", offer.price, {
 				px = fontPx(p, 40, 22),
@@ -813,13 +824,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local top = amountPx * 1.14 + chipPx * 1.5 + 8 * k
 			local bh = math.round(math.max(50 * k, 44))
 			local artH = h - top - bh - 12 * k
-			local artSide = math.min(artH * 1.1, w * 0.92)
-			CarKit.art(card, row.pack.art, {
-				size = UDim2.fromOffset(artSide, artSide),
-				position = UDim2.new(0.5, 0, 0, top + artH / 2),
-				z = 6,
-				name = "Art",
-			})
+			boxArt(card, row.pack.art, 8, top, w - 16, artH, 6)
 			priceButton(card, row.pack.id, "This Cash pack", row.pack.art, row.pack.robux, {
 				px = fontPx(p, 32, 20),
 				size = UDim2.new(1, -math.round(16 * k), 0, bh),
@@ -870,13 +875,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				top = CarKit.White,
 				bottom = edgeTint(row[2]),
 			})
-			local artSide = h * 0.74
-			CarKit.art(card, row[3], {
-				size = UDim2.fromOffset(artSide, artSide),
-				position = UDim2.new(0.5, 0, 0, px * 0.96 + artSide * 0.42),
-				z = 6,
-				name = "Art",
-			})
+			local artY = px * 1.14
+			boxArt(card, row[3], 10, artY, w - 20, h - artY - fontPx(p, 60, 50), 6)
 			CarKit.text(card, offer.body, fontPx(p, 19, 13), {
 				wrap = true,
 				size = UDim2.new(1, -math.round(170 * k), 0, fontPx(p, 54, 34)),
@@ -911,24 +911,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			z = 2,
 			name = "FreeCard",
 		})
-		local artSide = h * 1.12
-		CarKit.art(card, "art_gift", {
-			size = UDim2.fromOffset(artSide, artSide),
-			position = UDim2.new(0, artSide * 0.56, 0.5, -h * 0.02),
-			z = 6,
-			name = "Art",
-		})
+		local artSide = h - 14
+		boxArt(card, "art_gift", 12, 7, artSide, artSide, 6)
 		local offer = Catalog.get("free-legion")
 		local px = fontPx(p, 58, 26)
 		CarKit.title(card, offer and offer.name or "FREE GIFT", px, {
-			position = UDim2.fromOffset(artSide * 1.1, math.round(10 * k)),
+			position = UDim2.fromOffset(artSide + 28, math.round(10 * k)),
 			size = UDim2.new(0.6, 0, 0, px * 1.1),
 			top = CarKit.White,
 			bottom = CarKit.Yellow,
 			z = 8,
 		})
 		CarKit.text(card, "Join our group for a free paint. Coming soon!", fontPx(p, 21, 14), {
-			position = UDim2.fromOffset(artSide * 1.1, px * 1.15 + 12 * k),
+			position = UDim2.fromOffset(artSide + 28, px * 1.15 + 12 * k),
 			size = UDim2.new(0.5, 0, 0, fontPx(p, 54, 34)),
 			wrap = true,
 			alignY = Enum.TextYAlignment.Top,

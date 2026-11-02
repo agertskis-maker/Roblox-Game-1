@@ -19,13 +19,13 @@ local UserInputService = game:GetService("UserInputService")
 
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
-local GameIcons = require(Prototype.GameIcons)
 local Motion = require(Prototype.Motion)
 local StyleState = require(Prototype.StyleState)
 local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local TrailPreview = require(script.Parent.TrailPreview) :: any
 
 local make = CarKit.make
 
@@ -79,7 +79,6 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local dragging = false
 	local dragX = 0
 	local spinRestUntil = 0
-	local ribbon: ImageLabel
 	local currentSlots: { [string]: Frame } = {}
 
 	local root = trove:Add(make("Frame", {
@@ -109,16 +108,14 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		z = 4,
 		placeholder = false,
 	})
-	ribbon = make("ImageLabel", {
-		Name = "TrailRibbon",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.34, 0.4),
-		Size = UDim2.fromScale(0.42, 0.2),
-		ScaleType = Enum.ScaleType.Stretch,
-		Visible = false,
-		ZIndex = 5,
-	}, stage)
+	local trailView = TrailPreview.new(stage, {
+		position = UDim2.fromScale(0.34, 0.41),
+		size = UDim2.fromScale(0.42, 0.22),
+		z = 5,
+	})
+	trove:Add(function()
+		trailView:destroy()
+	end)
 	local view = make("ViewportFrame", {
 		Name = "Turntable",
 		BackgroundTransparency = 1,
@@ -273,13 +270,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function applyTrail(item: Catalog.Item?)
-		local uri = item and item.key and GameIcons.uri("ribbon_" .. item.key)
-		if uri then
-			ribbon.Image = uri
-			ribbon.Visible = true
-		else
-			ribbon.Visible = false
-		end
+		trailView:set(item)
 	end
 
 	local function applyToCar()
@@ -624,6 +615,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if not root.Visible or Motion.reduced() then
 			return
 		end
+		trailView:step(dt)
 		if not dragging and os.clock() >= spinRestUntil and tab ~= "Trails" then
 			setYaw(yaw + dt * math.rad(14))
 		end

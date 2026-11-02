@@ -9,11 +9,11 @@ local RunService = game:GetService("RunService")
 
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
-local GameIcons = require(Prototype.GameIcons)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
 local StyleState = require(Prototype.StyleState)
 local Supercar = require(Prototype.Supercar)
+local TrailPreview = require(script.Parent.TrailPreview) :: any
 
 local make = CarKit.make
 
@@ -62,18 +62,28 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			name = "World",
 		})
 		local stageY = titlePx * 1.1 + 6
+		local boltPx = math.max(math.round(30 * k), 24)
+		CarKit.slot(card, "stamina", boltPx, {
+			position = UDim2.new(0.5, -math.round(58 * k), 0, stageY + boltPx * 0.4),
+			z = 7,
+		})
+		CarKit.text(card, "10 hops this run", math.max(math.round(18 * k), 14), {
+			position = UDim2.new(0.5, -math.round(38 * k), 0, stageY - 4),
+			size = UDim2.fromOffset(180, boltPx),
+			stroke = 1.5,
+			z = 7,
+			name = "Bolts",
+		})
 		local bottom = math.round(190 * k)
 		local stageH = h - stageY - bottom
-		local ribbon = make("ImageLabel", {
-			Name = "TrailRibbon",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(0.42, 0, 0, stageY + stageH * 0.46),
-			Size = UDim2.fromScale(0.5, 0.2),
-			ScaleType = Enum.ScaleType.Stretch,
-			Visible = false,
-			ZIndex = 4,
-		}, card) :: ImageLabel
+		local trailView = TrailPreview.new(card, {
+			position = UDim2.new(0.36, 0, 0, stageY + stageH * 0.42),
+			size = UDim2.fromScale(0.34, 0.16),
+			z = 4,
+		})
+		buildTrove:Add(function()
+			trailView:destroy()
+		end)
 		local view = make("ViewportFrame", {
 			Name = "Turntable",
 			BackgroundTransparency = 1,
@@ -110,10 +120,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				rig:setDecal(StyleState.item("Decals"))
 				rig:setWheels(StyleState.item("Wheels"))
 			end
-			local trail = StyleState.item("Trails")
-			local uri = trail and trail.key and GameIcons.uri("ribbon_" .. trail.key)
-			ribbon.Visible = uri ~= nil
-			ribbon.Image = uri or ""
+			trailView:set(StyleState.item("Trails"))
 		end
 		if rig then
 			rig.model.Parent = world
@@ -127,7 +134,8 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 
 		-- the car sways a little: enough to feel alive, never turning its tail away from the ribbon
 		local started = os.clock()
-		buildTrove:Connect(RunService.Heartbeat, function()
+		buildTrove:Connect(RunService.Heartbeat, function(dt: number)
+			trailView:step(dt)
 			if rig and not Motion.reduced() then
 				local a = math.rad(215 + math.sin((os.clock() - started) * 0.7) * 12)
 				rig.model:PivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
