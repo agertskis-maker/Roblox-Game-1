@@ -54,16 +54,6 @@ HomeShell.Updates = {
 }
 HomeShell.UpdateVersion = "beta-2.2"
 
-local function profileFor(viewport: Vector2): string
-	local short = math.min(viewport.X, viewport.Y)
-	if short <= 420 then
-		return "PhoneLandscape"
-	elseif short <= 800 then
-		return "Tablet"
-	end
-	return "Desktop"
-end
-
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
 	local self = setmetatable({}, HomeShell) :: any
@@ -80,11 +70,10 @@ function HomeShell.start(options: Options?): any
 	gui.IgnoreGuiInset = true
 	gui.ScreenInsets = Enum.ScreenInsets.None
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.DisplayOrder = 8
+	gui.DisplayOrder = 1 -- under the run's own screens: its results card is never covered
 	gui.Parent = player:WaitForChild("PlayerGui")
 
-	local camera = Workspace.CurrentCamera
-	local screen = Screen.new(gui, profileFor(if camera then camera.ViewportSize else Vector2.new(1920, 1080)))
+	local screen = Screen.new(gui, "Live")
 	local store = Store.new()
 	local priority = Priority.new()
 	trove:Add(function()
@@ -201,7 +190,13 @@ function HomeShell.start(options: Options?): any
 	})
 	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
 	mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
-	mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {})
+	mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {
+		-- the coins of CLAIM fly to the Cash counter: a look only, the amount comes from the server later
+		cashTarget = function(): Vector2?
+			local plus = self.hud and self.hud:getButton("CashPlus")
+			return if plus and plus.Visible then plus.AbsolutePosition else nil
+		end,
+	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
 
 	local function shopAt(section: string?)

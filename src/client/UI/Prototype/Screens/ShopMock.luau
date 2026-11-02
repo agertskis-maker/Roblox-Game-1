@@ -990,8 +990,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		-- the scroll cue: a calm chip while there is more below (never cutting a primary button in half)
 		local scrollCue =
 			ShopKit.chip(shell, { text = "Scroll for more", fill = "Steel", size = 16, z = 12, name = "ScrollCue" })
-		scrollCue.AnchorPoint = Vector2.new(0.5, 1)
-		scrollCue.Position = UDim2.new(0.5, 0, 0, L.pageY + L.pageH - 6)
+		-- on a phone the deal banner fills the page's foot, so the cue sits on the shell's edge below it
+		scrollCue.AnchorPoint = Vector2.new(0.5, if L.dealW and L.pageH < 300 then 0.5 else 1)
+		scrollCue.Position = UDim2.new(0.5, 0, 0, L.pageY + L.pageH + (if L.dealW and L.pageH < 300 then 4 else -6))
 		cue = scrollCue
 
 		-- HEADER -------------------------------------------------------------------------------------------------

@@ -334,7 +334,7 @@ function UpdateLog.show(parent: GuiBase2d, content: Content, opts: ShowOptions?)
 			local stamp = Style.stamp(tile, "PREVIEW", "Gold", 12)
 			stamp.frame.Rotation = 0
 			stamp.frame.AnchorPoint = Vector2.new(1, 0)
-			stamp.frame.Position = UDim2.new(1, -6, 0, -4)
+			stamp.frame.Position = UDim2.new(1, -6, 1, -18) -- bottom right of the tile, under the words
 			stamp.frame.Size = UDim2.fromOffset(0, 22)
 			stamp.label.Size = UDim2.fromOffset(0, 22)
 			stamp.frame:SetAttribute("PersistentPreview", true)

@@ -31,6 +31,7 @@ local Arcade = require(Prototype.Arcade)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local IconArt = require(Prototype.Home.IconArt)
 local Overlay = require(script.Parent.Overlay)
+local PanelKit = require(script.Parent.PanelKit)
 local PortalFixtures = require(Prototype.SupportFixtures.PortalFixtures)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Sounds = require(Prototype.Sounds)
@@ -41,6 +42,9 @@ local A = PreviewTokens.Arcade
 local make = Arcade.make
 
 local PortalCardMock = {}
+
+-- the ring round the chosen starting car (a bright blue boundary on the light chip; the tick says it too)
+local SELECTED_EDGE = Color3.fromRGB(24, 138, 232)
 
 export type GoRequest = PortalFixtures.GoRequest
 
@@ -233,7 +237,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 	local content = overlay.content
 	local pickerTrove = trove:Extend()
 
-	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local shell = PanelKit.panel(content, { name = "Panel", z = 3 })
 	local panel = shell.body
 
 	-- header: World name + tag, the state pill, the X
@@ -244,7 +248,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		height = 56,
 	})
 	local worldSub = Style.text(header.band, state.worldTag, "Label", { name = "World", z = header.title.ZIndex })
-	local closeX = SupportKit.closeX(panel, function()
+	local closeX = PanelKit.closeX(panel, function()
 		portal:close()
 	end)
 	trove:Add(closeX.trove)
@@ -289,13 +293,15 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 	-- the body: one vertical scrolling column
 	local body = Style.scroll(panel, "Body", 5)
 	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = PanelKit.InkSoft
+	body.ScrollBarImageTransparency = 0.1
 	make("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = body,
 	})
-	local titleLine = SupportKit.label(body, "Title", 22, 6)
+	local titleLine = PanelKit.ink(SupportKit.label(body, "Title", 22, 6))
 	titleLine.LayoutOrder = 1
 	titleLine.Size = UDim2.new(1, -8, 0, 30)
 	local reqList: Frame = make("Frame", {
@@ -330,7 +336,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		AutomaticCanvasSize = Enum.AutomaticSize.X,
 		ScrollingDirection = Enum.ScrollingDirection.X,
 		ScrollBarThickness = 6,
-		ScrollBarImageColor3 = Color3.new(1, 1, 1),
+		ScrollBarImageColor3 = PanelKit.InkSoft,
 		HorizontalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
 		ClipsDescendants = true,
 		Selectable = false,
@@ -343,9 +349,8 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = pickerScroll,
 	})
-	local caption = SupportKit.label(body, "PreviewValues", 16, 6)
+	local caption = PanelKit.ink(SupportKit.label(body, "PreviewValues", 16, 6), true)
 	caption.Text = "Preview values. The real requirements come from the game."
-	caption.TextColor3 = Style.TextSoft
 	caption.LayoutOrder = 4
 	caption.Size = UDim2.new(1, -8, 0, 40)
 	caption:SetAttribute("PersistentPreview", true) -- fixture numbers must never read as real ones
@@ -365,9 +370,8 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		Parent = peekBox,
 	})
-	local peekNote = SupportKit.label(body, "PeekNote", 16, 6)
+	local peekNote = PanelKit.ink(SupportKit.label(body, "PeekNote", 16, 6), true)
 	peekNote.Text = "Cars you have not found yet show as ???"
-	peekNote.TextColor3 = Style.TextSoft
 	peekNote.LayoutOrder = 6
 	peekNote.Size = UDim2.new(1, -8, 0, 24)
 
@@ -504,7 +508,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		end
 		table.clear(rows)
 		for i, req in state.requirements do
-			local frame = Style.well(reqList, "Row_" .. req.id, 5)
+			local frame = PanelKit.row(reqList, "Row_" .. req.id, 5)
 			frame.LayoutOrder = i
 			local icon: Frame = make("Frame", {
 				Name = "Icon",
@@ -514,7 +518,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 				Parent = frame,
 			})
 			IconArt.draw(icon, { req.icon, "Star" })
-			local label = SupportKit.label(frame, "Label", 18, 6)
+			local label = PanelKit.ink(SupportKit.label(frame, "Label", 18, 6))
 			local track, set = Overlay.progress(frame, if req.kind == "cash" then "Green" else "Garage", 6)
 			local check: Frame = make("Frame", {
 				Name = "Met",
@@ -546,7 +550,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 	local function refreshSelection()
 		for _, chip in chips do
 			local on = chip.id == selectedId
-			chip.stroke.Color = if on then Color3.new(1, 1, 1) else A.Ink
+			chip.stroke.Color = if on then SELECTED_EDGE else PanelKit.RowEdge
 			chip.stroke.Thickness = if on then 4 else A.OutlineMinor
 			chip.tick.Visible = on
 		end
@@ -565,8 +569,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 				Name = "Chip_" .. c.id,
 				LayoutOrder = i,
 				Size = UDim2.fromOffset(geo.chipW, geo.chipH),
-				BackgroundColor3 = Style.Well,
-				BackgroundTransparency = Style.WellTransparency,
+				BackgroundColor3 = PanelKit.RowFill,
 				AutoButtonColor = false,
 				Text = "",
 				Selectable = true,
@@ -574,7 +577,8 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 				Parent = pickerScroll,
 			})
 			Arcade.corner(chip, 8)
-			local stroke = Arcade.outline(chip, "Minor")
+			local stroke = Arcade.outline(chip, "Minor", PanelKit.RowEdge)
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- round the chip's edge, not round its (empty) text
 			local holder: Frame = make("Frame", {
 				Name = "Icon",
 				AnchorPoint = Vector2.new(0.5, 0),
@@ -585,16 +589,16 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 				Parent = chip,
 			})
 			SupportKit.carIcon(holder, c)
-			local name = SupportKit.label(chip, "Name", 16, 7)
+			local name = PanelKit.ink(SupportKit.label(chip, "Name", 16, 7))
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position = UDim2.fromOffset(2, geo.iconSide + 8)
 			name.Size = UDim2.fromOffset(geo.chipW - 4, 38)
 			SupportKit.fitLabel(name, c.name, geo.chipW - 4, 38, 16)
 			if c.loaner then
-				local tag = SupportKit.label(chip, "Loaner", 16, 7)
+				local tag = PanelKit.ink(SupportKit.label(chip, "Loaner", 16, 7))
 				tag.Text = "LOANER"
 				tag.TextXAlignment = Enum.TextXAlignment.Center
-				tag.TextColor3 = PreviewTokens.Color.KeysLight
+				tag.TextColor3 = PanelKit.Warm
 				tag.AnchorPoint = Vector2.new(0.5, 1)
 				tag.Position = UDim2.new(0.5, 0, 1, -3)
 				tag.Size = UDim2.fromOffset(geo.chipW - 4, 20)
@@ -642,7 +646,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 		peekCells = 0
 		grid.CellSize = UDim2.fromOffset(geo.cellW, geo.cellH)
 		for i, c in state.roster do
-			local cell: Frame = Style.well(peekBox, "Cell_" .. c.id, 6)
+			local cell: Frame = PanelKit.row(peekBox, "Cell_" .. c.id, 6)
 			cell.LayoutOrder = i
 			local holder: Frame = make("Frame", {
 				Name = "Icon",
@@ -659,7 +663,7 @@ function PortalCardMock.new(ctx: Overlay.Ctx, options: Options?): Portal
 				SupportKit.carIcon(holder, { family = c.family, paint = nil })
 				SupportKit.silhouette(holder)
 			end
-			local name = SupportKit.label(cell, "Name", 16, 7)
+			local name = PanelKit.ink(SupportKit.label(cell, "Name", 16, 7))
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position = UDim2.fromOffset(2, geo.iconSide + 8)
 			name.Size = UDim2.fromOffset(geo.cellW - 4, 38)

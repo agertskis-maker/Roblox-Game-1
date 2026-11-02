@@ -355,6 +355,7 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 	local plate = CardKit.titlePlate(stage, {
 		text = spec.title,
 		icon = spec.icon,
+		iconFallback = { "Padlock", "Info" },
 		size = 30,
 		height = 52,
 		face = "White",

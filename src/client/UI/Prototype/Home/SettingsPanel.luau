@@ -22,11 +22,11 @@
 --                  shown, the switch is dimmed, disabled and OFF, and the line says "Not available on this device";
 --                  nothing is requested and nothing errors. Turning it OFF stops a cue that is running.
 --
--- Look (Arcade kit family): a deep navy card with the thick dark boundary and a shallow lip, a
--- big white outlined "Settings" title, a red labelled "Close" button (kit Small, the same family
--- as the Home Settings rectangle), white outlined row labels, chunky sliders (dark track, green
--- fill, white knob with a dark outline) and segment buttons (gold when chosen, with a tick, so
--- the state is not colour alone).
+-- Look (Round 2 N7-02, the one panel family; Screens/PanelKit): a white to pale-blue card with the thick dark boundary and a
+-- shallow lip, a bold Garage-blue header band with the Settings icon and a big white outlined "Settings" title, a red square X
+-- (48 px) in the header, light rows with icons and navy text (the two audio rows, Reduce motion, Haptics), chunky sliders (dark
+-- track, green fill, cream knob with a dark outline), segment buttons (gold when chosen, with a tick, so the state is not
+-- colour alone) and the kit's green ON / OFF switch (PanelKit.toggle) for Haptics. Nothing about a setting changed.
 --
 -- Input: sliders take drag and tap (mouse and touch). A drag owns the one pointer that started it until that pointer ends
 -- or is cancelled (or the window loses focus), clamps to 0 and 100 anywhere on screen, and ends when the card closes. While
@@ -46,9 +46,9 @@
 --   :layout()  :setVisible(on)  :destroy()  :getDebugState()
 --   :getControls() -> { music, sfx, musicMute, sfxMute, motionRoblox, motionOn, motionOff, haptics, close, replay? }  (test hook)
 --
--- Replay tutorial (BRIEF M11-07): when options.onReplayTutorial is given, a "Replay tutorial" button sits in the title row,
--- left of Close (a 48 px hit box). It closes the card and calls the option. It is a button in the title row and not a fifth
--- row because the card has no spare height on the tablet and phone frames (the rows already fill 495 and 258 design px).
+-- Replay tutorial (BRIEF M11-07): when options.onReplayTutorial is given, a "Replay tutorial" button sits in the header band,
+-- left of the X (a 48 px hit box). It closes the card and calls the option. It is a button in the header and not a fifth
+-- row because the card has no spare height on the tablet and phone frames (the rows already fill about 450 and 270 design px).
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -65,8 +65,10 @@ local IconArt = require(script.Parent.IconArt)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
 local MusicSetting = require(script.Parent.MusicSetting)
+local PanelKit = require(script.Parent.Parent.Screens.PanelKit)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local Sounds = require(script.Parent.Parent.Sounds)
+local Style = require(script.Parent.Parent.Screens.Style)
 local TutorialStrings = require(script.Parent.Parent.Parent.Tutorial.TutorialStrings)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -82,37 +84,38 @@ local BACK_ACTION = "Lane3PreviewSettingsBack"
 local PAD = 16 -- Design 7 side padding (was 20)
 local LABEL = Tokens.TextSize.Value
 local VALUE = Tokens.TextSize.Minimum
--- Design 7 audio rows (Adam's proposed values; spec section 2)
-local AUDIO_H = 80
+-- Design 7 audio rows (Adam's proposed values; spec section 2), on light rows in Round 2 (4 px of air above the content)
+local AUDIO_H = 88
+local ROW_PAD = 8 -- the inner side padding of a light row; widths below are measured inside it
+local ROW_TOP = 4
 local MUTE = Tokens.Touch.Minimum -- the mute button, 48 x 48
 local AUDIO_TEXT_X = MUTE + 8 -- the label and the slider start here
 local AUDIO_LABEL = Tokens.TextSize.Label -- 18
 local KNOB = 24
 local SURROUND_H = 16 -- the navy recessed surround around the 10 px visual track
 local TRACK_H = 10
-local SLIDER_Y = 64 -- the slider hit box (48 high) is centred here: y 40 to 88
+local SLIDER_Y = 64 -- the slider hit box (48 high) is centred here: y 40 to 88 inside the row's padding
 local COLUMN_GAP = 24 -- COMPACT: between the two audio rows (12 left MUSIC's "MUTED" reading as part of the next row)
 local KEY_STEP = 0.05 -- keyboard / gamepad: 5 points
 local TICK_GAP = 0.15 -- the preview tick: at most one per 150 ms
 local TRACK_CREAM = Tokens.Color.Card
-local TRACK_TEAL = Tokens.Color.Calm
--- TOKEN CANDIDATE: the settings card body (deep navy) and an unchosen segment.
-local CARD_FILL = ColorSequence.new(Color3.fromRGB(58, 74, 126), Color3.fromRGB(28, 36, 72))
-local SEGMENT_OFF = Color3.fromRGB(70, 86, 140)
+local TRACK_FILL = Color3.fromRGB(72, 214, 84) -- the slider fill: green, the same family as the switch
+-- TOKEN CANDIDATE: the settings card body (the light card family) and an unchosen segment (a dark chip on the light row).
+local CARD_FILL = ColorSequence.new(PanelKit.CardTop, PanelKit.CardBottom)
+local SEGMENT_OFF = Color3.fromRGB(52, 72, 128)
+local HEADER_FILL: Arcade.FillName = "Garage"
 -- Haptics row text (child-facing)
 local HAPTICS_ON_LINE = "Buzz when you get a car"
 local HAPTICS_OFF_LINE = "Buzz is off"
 local HAPTICS_UNAVAILABLE_LINE = "Not available on this device"
 
 -- TOKEN CANDIDATE: card metrics. COMPACT is used when the safe height is under COMPACT_BELOW design px (the phone frames):
--- the two 80 px audio rows side by side, then two 52 px rows: 52 + 80 + 8 + 52 + 4 + 52 + 10 = 258 px against the smallest
--- safe height of 300 (four stacked rows would need 338). NORMAL stacks all four: 70 + 80 + 12 + 80 + 12 + 60 + 12 + 60 + 48
--- = 434 px, against 495 on the tablet.
+-- the two 88 px audio rows side by side, then two 52 px rows: 56 + 92 + 4 + 52 + 4 + 52 + 10 = 270 px against the smallest
+-- safe height of 300 (four stacked rows would need 350). NORMAL stacks all four: 72 + 88 + 12 + 88 + 12 + 60 + 12 + 60 + 48
+-- = 452 px, against 495 on the tablet.
 local COMPACT_BELOW = 400
 type Metrics = {
-	titleY: number, -- the "Settings" title top
-	titleBoxH: number,
-	closeY: number, -- the Close button top
+	headerH: number, -- the header band (title, icon, X)
 	rowsTop: number, -- where the first row starts
 	rowH: number, -- Reduce motion and Haptics
 	gap: number, -- between rows
@@ -122,13 +125,11 @@ type Metrics = {
 	valueY: number, -- the small line under the row label
 	controlY: number,
 	footer: number, -- space under the last row (NORMAL: the harness caption line sits there)
-	noteInTitle: boolean, -- the harness caption goes on the title row (COMPACT)
+	noteInTitle: boolean, -- the harness caption goes on the header band (COMPACT)
 }
 local NORMAL: Metrics = {
-	titleY = 12,
-	titleBoxH = 44,
-	closeY = 10,
-	rowsTop = 70,
+	headerH = 58,
+	rowsTop = 72,
 	rowH = 60,
 	gap = 12,
 	audioGap = 12,
@@ -140,10 +141,8 @@ local NORMAL: Metrics = {
 	noteInTitle = false,
 }
 local COMPACT: Metrics = {
-	titleY = 4,
-	titleBoxH = 40,
-	closeY = 2,
-	rowsTop = 52,
+	headerH = 48,
+	rowsTop = 56,
 	rowH = 52,
 	gap = 4,
 	audioGap = 8,
@@ -229,6 +228,11 @@ end
 local function rectOf(g: GuiObject): { number }
 	local p, z = g.AbsolutePosition, g.AbsoluteSize
 	return { math.floor(p.X + 0.5), math.floor(p.Y + 0.5), math.floor(z.X + 0.5), math.floor(z.Y + 0.5) }
+end
+
+-- the width of the label column of a labelled row: 210 on a wide card, less on the narrow 667 px phone so the control keeps room
+local function labelColumnFor(cardInner: number): number
+	return math.clamp(cardInner - 2 * ROW_PAD - 304, 170, 210)
 end
 
 local function pct(v: number): string
@@ -461,7 +465,7 @@ function SettingsPanel._makeSlider(
 	local fill = make("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(initial, 1),
-		BackgroundColor3 = TRACK_TEAL,
+		BackgroundColor3 = TRACK_FILL,
 		Visible = initial > 0, -- no misleading sliver at 0
 		ZIndex = 47,
 		Parent = inner,
@@ -565,14 +569,18 @@ function SettingsPanel._audioRow(
 ): AudioRow
 	local ctx: Types.Ctx = self._ctx
 	local trove = self._content
-	local row = make("Frame", {
-		Name = "Audio" .. category,
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(x, y),
-		Size = UDim2.fromOffset(width, AUDIO_H),
-		ZIndex = 42,
-		Parent = parent,
+	local row = PanelKit.row(parent, "Audio" .. category, 42)
+	row.Position = UDim2.fromOffset(x, y)
+	row.Size = UDim2.fromOffset(width, AUDIO_H)
+	make("UIPadding", {
+		PaddingLeft = UDim.new(0, ROW_PAD),
+		PaddingRight = UDim.new(0, ROW_PAD),
+		PaddingTop = UDim.new(0, ROW_TOP),
+		Parent = row,
 	})
+	width -= 2 * ROW_PAD -- everything below is measured inside the row's padding
+	-- a narrow column (the 667 px phone, two rows side by side) sets the label at the 16 px minimum so MUTED never touches it
+	local labelSize = if width < 250 then VALUE else AUDIO_LABEL
 	local mute = make("TextButton", {
 		Name = "Mute",
 		Size = UDim2.fromOffset(MUTE, MUTE),
@@ -615,20 +623,21 @@ function SettingsPanel._audioRow(
 		text = text,
 		role = "Label",
 		name = "Label",
-		size = AUDIO_LABEL,
+		size = labelSize,
 		xAlign = Enum.TextXAlignment.Left,
 		z = 43,
 	})
+	PanelKit.ink(label)
 	label.Position = UDim2.fromOffset(AUDIO_TEXT_X, 0)
-	label.Size = UDim2.fromOffset(math.ceil(measure(text, AUDIO_LABEL)) + 12, MUTE)
+	label.Size = UDim2.fromOffset(math.ceil(measure(text, labelSize)) + 12, MUTE)
 	local value = Arcade.text(row, {
 		text = "",
 		role = "Small",
 		name = "Percent",
 		size = VALUE,
-		colour = Color3.fromRGB(214, 226, 255),
 		z = 43,
 	})
+	PanelKit.ink(value, true)
 	value.AnchorPoint = Vector2.new(1, 0)
 	value.Position = UDim2.fromScale(1, 0)
 	value.Size = UDim2.fromOffset(72, MUTE)
@@ -724,13 +733,13 @@ function SettingsPanel._row(
 	m: Metrics
 ): (Frame, TextLabel, number)
 	local rowH = m.rowH
-	local row = make("Frame", {
-		Name = "Row" .. order,
-		BackgroundTransparency = 1,
-		LayoutOrder = order,
-		Size = UDim2.fromOffset(cardInner, rowH),
-		ZIndex = 42,
-		Parent = parent,
+	local row = PanelKit.row(parent, "Row" .. order, 42, if order % 2 == 0 then "Alt" else nil)
+	row.LayoutOrder = order
+	row.Size = UDim2.fromOffset(cardInner, rowH)
+	make("UIPadding", {
+		PaddingLeft = UDim.new(0, ROW_PAD),
+		PaddingRight = UDim.new(0, ROW_PAD),
+		Parent = row,
 	})
 	local iconHolder = make("Frame", {
 		Name = "Icon",
@@ -749,6 +758,7 @@ function SettingsPanel._row(
 		xAlign = Enum.TextXAlignment.Left,
 		z = 43,
 	})
+	PanelKit.ink(label)
 	label.Position = UDim2.fromOffset(38, 0)
 	label.Size = UDim2.fromOffset(math.ceil(measure(text, LABEL)) + 12, m.labelH)
 	local value = Arcade.text(row, {
@@ -756,10 +766,10 @@ function SettingsPanel._row(
 		role = "Small",
 		name = "Value",
 		size = VALUE,
-		colour = Color3.fromRGB(214, 226, 255),
 		z = 43,
 	})
-	local labelColumn = 210
+	PanelKit.ink(value, true)
+	local labelColumn = labelColumnFor(cardInner)
 	value.Position = UDim2.fromOffset(38, m.valueY)
 	value.Size = UDim2.fromOffset(labelColumn - 40, 22)
 	value.TextXAlignment = Enum.TextXAlignment.Left
@@ -767,7 +777,7 @@ function SettingsPanel._row(
 		Name = "Control",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(labelColumn, m.controlY),
-		Size = UDim2.fromOffset(cardInner - labelColumn, 48),
+		Size = UDim2.fromOffset(cardInner - 2 * ROW_PAD - labelColumn, 48),
 		ZIndex = 43,
 		Parent = row,
 	})
@@ -804,7 +814,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		ZIndex = 41,
 		Parent = holder,
 	})
-	Arcade.corner(lip, B.Radius + 3)
+	Arcade.corner(lip, Style.Radius)
 	local card = make("Frame", {
 		Name = "Card",
 		Size = UDim2.fromScale(1, 1),
@@ -817,51 +827,43 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		SelectionBehaviorRight = Enum.SelectionBehavior.Stop,
 		Parent = holder,
 	})
-	Arcade.corner(card, B.Radius + 3)
+	Arcade.corner(card, Style.Radius)
 	Arcade.outline(card, "Button")
 	make("UIGradient", { Color = CARD_FILL, Rotation = 90, Parent = card })
 	self._card = card
 	self._holder = holder
 
-	local title = Arcade.text(card, {
-		text = "Settings",
-		role = "Display",
-		name = "Title",
-		xAlign = Enum.TextXAlignment.Left,
-		z = 42,
+	-- the header band: the Settings icon, the big outlined title and the red square X (48 px), as on every panel
+	local header = Style.header(card, {
+		fill = HEADER_FILL,
+		title = "Settings",
+		icon = "Settings",
+		height = m.headerH,
+		rightInset = 8 + Tokens.Touch.Minimum + 8,
 	})
-	title.Position = UDim2.fromOffset(PAD, m.titleY)
-	title.Size = UDim2.new(1, -2 * PAD - B.SmallW - 8, 0, m.titleBoxH)
-	local close = Arcade.button(card, {
-		name = "Close",
-		label = "Close",
-		fill = "Settings",
-		size = "Small",
-		sound = "Tap",
-		position = UDim2.new(1, -14, 0, m.closeY),
-		anchor = Vector2.new(1, 0),
-		onActivate = function()
-			self:close()
-		end,
-	})
-	self._content:Add(close.trove)
-	close.root.ZIndex = 44
-	self._closeButton = close.body
+	local closeX = PanelKit.closeX(card, function()
+		self:close()
+	end)
+	self._content:Add(closeX.trove)
+	closeX.root.ZIndex = 44
+	closeX.root.Position = UDim2.new(1, -8, 0, m.headerH / 2)
+	self._closeButton = closeX.root
 	self._replayButton = nil :: GuiObject?
 	local onReplay = self._opts.onReplayTutorial
 	if onReplay then
 		-- the title is about 150 design px wide ("Settings" at the Display size): the button starts after it
 		local replayW = 196
+		local replayH = 40
 		local replay = Arcade.button(card, {
 			name = "ReplayTutorial",
 			label = TutorialStrings.get("replay.button"),
-			fill = "Garage",
+			fill = "Retry",
 			size = "Custom",
 			width = replayW,
-			height = 40,
+			height = replayH,
 			icon = "Hand",
 			sound = "Tap",
-			position = UDim2.fromOffset(PAD + 150 + 14, m.closeY),
+			position = UDim2.fromOffset(header.title.Position.X.Offset + 150 + 14, (m.headerH - replayH) // 2),
 			onActivate = function()
 				self:close()
 				onReplay()
@@ -870,8 +872,8 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		self._content:Add(replay.trove)
 		replay.root.ZIndex = 44
 		self._replayButton = replay.body
-		replay.body.NextSelectionRight = close.body
-		close.body.NextSelectionLeft = replay.body
+		replay.body.NextSelectionRight = closeX.root
+		closeX.root.NextSelectionLeft = replay.body
 	end
 
 	local list = make("Frame", {
@@ -921,6 +923,14 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	local motionControl, motionValue, h3 = self:_row(list, 3, { "Motion" }, "Reduce motion", inner, m)
 	self._motionValue = motionValue
 	local choices = { { "Roblox", "Use Roblox setting" }, { "On", "On" }, { "Off", "Off" } }
+	-- a narrow card (the 667 px phone) has no room for the long word: the first choice then reads "Auto" (the same setting)
+	local needed = 2 * 8
+	for _, pair in choices do
+		needed += math.max(72, math.ceil(measure(pair[2], VALUE)) + 20 + 26)
+	end
+	if needed > inner - 2 * ROW_PAD - labelColumnFor(inner) then
+		choices[1][2] = "Auto"
+	end
 	local x = 0
 	for _, pair in choices do
 		local label = pair[2]
@@ -968,7 +978,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	-- (the state line) has the control's whole width after the 92 px track.
 	local hapticsControl, hapticsValue, h4 = self:_row(list, 4, { "Haptics", "Motion" }, "Haptics", inner, m)
 	hapticsValue.Visible = false -- the line sits beside the switch instead (it needs more than the label column)
-	local toggle = Arcade.toggle(hapticsControl, {
+	local toggle = PanelKit.toggle(hapticsControl, {
 		name = "HapticsSwitch",
 		label = HAPTICS_ON_LINE,
 		value = true,
@@ -1009,16 +1019,20 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 		role = "Small",
 		name = "PreviewNote", -- harness caption (hidden in player-facing captures)
 		size = VALUE,
-		colour = Color3.fromRGB(255, 236, 140),
+		colour = PanelKit.Warm,
 		xAlign = if m.noteInTitle then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left,
-		z = 42,
+		z = 44,
 	})
+	PanelKit.ink(footer)
+	footer.TextColor3 = PanelKit.Warm
 	footer:SetAttribute("PreviewCaption", true)
 	if m.noteInTitle then
-		-- short phone frames: the caption shares the title row, left of the Close button
+		-- short phone frames: the caption shares the header band, left of the X
 		footer.AnchorPoint = Vector2.new(1, 0)
-		footer.Position = UDim2.new(1, -(B.SmallW + 28), 0, m.titleY + 10)
+		footer.Position = UDim2.new(1, -(Tokens.Touch.Minimum + 16), 0, (m.headerH - 22) // 2)
 		footer.Size = UDim2.fromOffset(220, 22)
+		footer.TextColor3 = Color3.new(1, 1, 1)
+		Arcade.outline(footer, "Minor")
 	else
 		footer.Position = UDim2.fromOffset(PAD, m.rowsTop + total + 10)
 		footer.Size = UDim2.new(1, -2 * PAD, 0, 22)
@@ -1039,15 +1053,15 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	sfx.hit.NextSelectionDown = self._segments[1].button
 	for i, seg in self._segments do
 		seg.button.NextSelectionUp = sfx.hit
-		seg.button.NextSelectionDown = close.body
+		seg.button.NextSelectionDown = closeX.root
 		seg.button.NextSelectionLeft = if i > 1 then self._segments[i - 1].button else seg.button
 		seg.button.NextSelectionRight = if i < #self._segments then self._segments[i + 1].button else seg.button
 	end
 	hit.NextSelectionUp = self._segments[1].button
-	hit.NextSelectionDown = close.body
-	close.body.NextSelectionDown = musicRow.mute
-	close.body.NextSelectionUp = self._segments[1].button
-	musicRow.mute.NextSelectionUp = close.body
+	hit.NextSelectionDown = closeX.root
+	closeX.root.NextSelectionDown = musicRow.mute
+	closeX.root.NextSelectionUp = self._segments[1].button
+	musicRow.mute.NextSelectionUp = closeX.root
 	self:_refreshHaptics(true) -- reads the device capability, then links the motion choices and Close around the switch
 
 	self._fade = Fade.capture(self.root)

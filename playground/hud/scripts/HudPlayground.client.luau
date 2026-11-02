@@ -593,6 +593,8 @@ mount("shop", { "Screens", "ShopMock" }, "Overlay", {
 	end,
 })
 mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
+mount("dialogue", { "Screens", "DialogueCard" }, "Modal", {})
+mount("updateLog", { "Screens", "UpdateLog" }, "Modal", {})
 mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
 mount("missionTracker", { "Screens", "MissionTracker" }, "Hud", {})
 mount("iconsSheet", { "IconsSheet" }, "Overlay", {})
