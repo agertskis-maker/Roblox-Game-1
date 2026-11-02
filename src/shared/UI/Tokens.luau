@@ -205,6 +205,16 @@ function Tokens.uiScaleFor(viewport: Vector2): number
 	return math.clamp(shortSide / Tokens.Scale.BaseShortSide, Tokens.Scale.Min, Tokens.Scale.Max)
 end
 
+-- The scale of a real window (Adam, 2026-11-02: "the hud is so big"). Phones keep the approved rule; anything bigger follows the
+-- window's short side from a calmer base, because the phone rule reaches its maximum on any laptop.
+function Tokens.windowScale(viewport: Vector2): number
+	local shortSide = math.min(viewport.X, viewport.Y)
+	if shortSide < 500 then
+		return Tokens.uiScaleFor(viewport)
+	end
+	return math.clamp(shortSide / 800, 0.7, 1.15)
+end
+
 -- Motion timings. With reduced motion, decorative oscillation and fades are
 -- removed and essential values snap.
 --

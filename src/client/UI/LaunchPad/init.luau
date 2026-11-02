@@ -352,6 +352,15 @@ end
 local function hideHisResults()
 	local gui = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
 	if gui then
+		-- his keyboard hint names keys, and phones play too; he sets it visible again, so keep it down
+		for _, d in gui:GetDescendants() do
+			if d:IsA("TextLabel") and string.find(d.Text, "Cut lanes", 1, true) then
+				d.Visible = false
+				runTrove:Connect(d:GetPropertyChangedSignal("Visible"), function()
+					d.Visible = false
+				end)
+			end
+		end
 		local card = gui:FindFirstChild("Results")
 		if card and card:IsA("GuiObject") then
 			card.Visible = false

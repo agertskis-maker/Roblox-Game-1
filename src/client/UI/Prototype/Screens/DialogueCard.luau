@@ -309,7 +309,7 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		return (parent :: any).AbsoluteSize
 	end
 	local function scaleNow(): number
-		return Tokens.uiScaleFor(parentSize())
+		return Tokens.windowScale(parentSize())
 	end
 
 	local root: Frame = trove:Add(make("Frame", {

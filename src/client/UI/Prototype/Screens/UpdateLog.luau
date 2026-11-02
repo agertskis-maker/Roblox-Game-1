@@ -457,7 +457,7 @@ function UpdateLog.show(parent: GuiBase2d, content: Content, opts: ShowOptions?)
 	end
 
 	local function layoutNow()
-		local s = Tokens.uiScaleFor(parentSize())
+		local s = Tokens.windowScale(parentSize())
 		hudScale.Scale = s
 		root.Size = UDim2.fromScale(1 / s, 1 / s)
 		geo = UpdateLog.geometry(parentSize() / s, #entries, hasDetails)
