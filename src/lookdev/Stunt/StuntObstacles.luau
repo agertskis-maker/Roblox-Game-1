@@ -171,7 +171,7 @@ local function buildArms(root: Folder)
 				Parts.box(
 					model,
 					"ArmSegment" .. i,
-					Vector3.new(2.4, 3.5, segment),
+					Vector3.new(2.4, 3.3, segment),
 					pivot * CFrame.new(0, 0, -(2.5 + (i + 0.5) * segment)),
 					colour
 				)
