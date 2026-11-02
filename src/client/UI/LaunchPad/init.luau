@@ -32,7 +32,7 @@ local LaunchPad = {}
 
 export type Hooks = {
 	startRun: (world: string) -> any,
-	stopRun: () -> (),
+	stopRun: (again: boolean) -> (),
 	onPhase: ((phase: string) -> ())?,
 }
 
@@ -358,10 +358,10 @@ end
 local begin: () -> ()
 local stamina: any = nil
 
-local function finishRun()
+local function finishRun(again: boolean?)
 	runTrove:Clean()
 	if hooks then
-		hooks.stopRun()
+		hooks.stopRun(again == true)
 	end
 	if shell and shell.gui then
 		shell.gui.DisplayOrder = 1
@@ -459,7 +459,7 @@ end
 
 -- RETRY goes straight back into a run: the point of retry is speed, and the pad has been seen.
 local function retry()
-	finishRun()
+	finishRun(true)
 	begin()
 end
 
@@ -510,6 +510,13 @@ end
 function LaunchPad.attachShell(s: any)
 	shell = s
 	unbindKey = RunCamera.bindKey()
+	-- "Get more spots" on the Raceway's parking panel opens the Shop at the passes
+	pcall(function()
+		local ShopPanel = (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel)
+		ShopPanel.onMoreSpots = function()
+			s.shopAt("Passes")
+		end
+	end)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
 		onStart = function()
 			padTrove:Clean()
