@@ -268,9 +268,18 @@ local function buildPaths(model: Model)
 				table.insert(cuts, { at = b.at, half = Bridges.pathCut(b) })
 			end
 		end
+		-- A path that starts on the plaza's rim runs on under the plaza: its square end stops on the tangent, and the round rim
+		-- curves away from it, which left a thin crescent of grass at every join (Adam, Round 2).
+		local points = table.clone(p.points)
+		for _, i in { 1, #points } do
+			local q = points[i]
+			if math.abs(q.Magnitude - park.plazaRadius) < 1 then
+				points[i] = q * ((park.plazaRadius - 4) / q.Magnitude)
+			end
+		end
 		polyline(
 			folder,
-			p.points,
+			points,
 			p.width,
 			if p.kind == "Promenade" then Layout.PromenadeTop else PATH_TOP,
 			{ name = p.kind, color = colour, collide = true, castShadow = false },
