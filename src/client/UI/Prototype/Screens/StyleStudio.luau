@@ -126,7 +126,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		ZIndex = 6,
 		Active = true,
 	}, stage) :: ViewportFrame
-	local camera = make("Camera", { FieldOfView = 21 }, view) :: Camera
+	-- the whole car always fits, however tall the stage is
+	local stageAspect = leftW / math.max(size.Y - 6 - (if showStrip then 78 else 8), 1)
+	local camera = make("Camera", { FieldOfView = math.clamp(29 / stageAspect, 19, 36) }, view) :: Camera
 	view.CurrentCamera = camera
 	local world = make("WorldModel", {}, view) :: WorldModel
 	local rig = if Supercar.available() then Supercar.new() else nil
