@@ -101,11 +101,6 @@ local function samplesOf(r: Rect): { Vector2 }
 	return out
 end
 
--- Level 12's widened straight: everything between its two edge lines is open road. Paint there is a fault.
-local function inApron(p: Vector2): boolean
-	return p.Y > uS + 50 and p.Y < 445 and p.X > R - HALF - 16 + MARGIN + 0.6 and p.X < R + HALF - MARGIN - 0.6
-end
-
 -- Two rects overlap along their middles, other than one chain's end-to-end joint.
 local function layered(x: Rect, y: Rect): boolean
 	local dx, dy = x.b - x.a, y.b - y.a
@@ -156,6 +151,18 @@ local function checkLook(
 		end
 	end
 	local rects = paintRects(look, bearing, PAINT)
+	-- the widened road's own outline, as the track draws it (the lines on the loop are the loop's, and stand on it)
+	local apron: { Vector2 }? = nil
+	if level == 12 then
+		local Track = (require :: any)(shared().Island.Speedway.Track)
+		apron = Track.apronPolygon()
+		for i = #rects, 1, -1 do
+			local part = rects[i].part
+			if part and part:FindFirstAncestor("Loop") then
+				table.remove(rects, i)
+			end
+		end
+	end
 	local laneStrips = { RoadNet.Left, RoadNet.Right }
 	local inJunctionOrLane = function(p: Vector2): (string?, number)
 		for _, j in RoadNet.Junctions do
@@ -189,7 +196,7 @@ local function checkLook(
 					add("crossing", string.format("%s inside the track at (%.1f, %.1f)", r.name, p.X, p.Y))
 					break
 				end
-				if level == 12 and inApron(p) then
+				if apron and depth(p, apron, RoadNet) > MARGIN then
 					add("crossing", string.format("%s inside the widened road at (%.1f, %.1f)", r.name, p.X, p.Y))
 					break
 				end
@@ -542,9 +549,13 @@ function LineChecks.selfTest(): { [string]: number }
 	Look.clear(plot)
 	Look.apply(plot, 12, { index = index, bearing = bearing, owner = "" })
 	look = plot:FindFirstChild("SpeedwayLook") :: Folder
-	local apronLine = line(at(25, 445 - 8), at(25, 445 - 2))
-	out.apronCaught = #checkLook(look, plot, bearing, RoadNet, 12).crossing
-	apronLine:Destroy()
+	-- in the taper, in the full width, and in the exit bend's reach
+	for key, u in { apronTaperCaught = 425, apronWideCaught = 440, apronExitCaught = 455 } do
+		local x = if u == 425 then 20 else 21
+		local planted = line(at(x, u - 3), at(x, u + 3))
+		out[key] = #checkLook(look, plot, bearing, RoadNet, 12).crossing
+		planted:Destroy()
+	end
 	-- 5: the walk pulled back from the road, the old gap
 	local walks = {}
 	for _, d in (plot :: any).Visual:GetDescendants() do

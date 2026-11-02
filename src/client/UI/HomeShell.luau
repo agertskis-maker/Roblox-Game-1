@@ -232,9 +232,6 @@ function HomeShell.start(options: Options?): any
 			onVip = function()
 				shopAt("Passes")
 			end,
-			getMissionsClaimable = function(): number?
-				return store:get().missionsClaimable
-			end,
 			preview = { cash = o.cashPreview ~= false },
 		}, { screen = screen, world = world })
 	end)

@@ -527,7 +527,7 @@ end
 -- Level 12: the widened straight. The road's inner edge moves 16 into the infield (two full track widths
 -- in all) over a 48-stud taper from the turn, runs straight past the loop, and comes back along the
 -- exit bend's own edge. It is one polygon joined edge to edge to the ribbon at x = R - HALF_W.
-function Track.loopApron(folder: Folder, ctx: Ctx)
+local function apronEdge(): ({ Vector2 }, { Vector2 })
 	local path = Path.forLevel(12)
 	local xIn = R - HALF_W
 	local extra = 2 * HALF_W
@@ -551,6 +551,18 @@ function Track.loopApron(folder: Folder, ctx: Ctx)
 		table.insert(poly, p)
 	end
 	table.insert(poly, Vector2.new(xIn, farU))
+	return poly, edge
+end
+
+-- The widened road's outline, for the line checks.
+function Track.apronPolygon(): { Vector2 }
+	return (apronEdge())
+end
+
+function Track.loopApron(folder: Folder, ctx: Ctx)
+	local xIn = R - HALF_W
+	local farU = uS + Path.Straight
+	local poly, edge = apronEdge()
 	local fill = {
 		name = "Surface",
 		color = C.Asphalt,

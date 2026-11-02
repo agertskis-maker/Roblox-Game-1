@@ -523,10 +523,14 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 	-- Frame the car by the width it needs: a 12.5 stud car turning on the stage wants about 14.5 studs across. A short, wide
 	-- turntable (a phone) therefore brings the camera in and the car fills it, instead of floating small in the middle.
 	-- `liftPx` raises the car in the frame (the words that ride the turntable's foot take that much of it).
-	local function frameCamera(usableW: number, height: number, liftPx: number)
+	local function frameCamera(usableW: number, height: number, liftPx: number, clearH: number?)
 		local pxPerStud = math.max(usableW, 80) / 14.5
+		if clearH then
+			-- about 6.5 studs of car and stage must fit in the height the words leave clear
+			pxPerStud = math.min(pxPerStud, clearH / 6.5)
+		end
 		local visibleH = height / pxPerStud
-		local dist = math.clamp(visibleH / (2 * math.tan(math.rad(15))), 16, 36)
+		local dist = math.clamp(visibleH / (2 * math.tan(math.rad(15))), 16, 48)
 		local target = Vector3.new(0, 1.8 - liftPx / pxPerStud, 0)
 		local direction = Vector3.new(15, 6.2, 25).Unit
 		camera.CFrame = CFrame.lookAt(target + direction * dist, target)
@@ -1167,7 +1171,7 @@ function StuntCustomize.new(ctx: Overlay.Ctx, options: Options?): Customize
 		infoLabel.TextXAlignment = align
 		nameLabel.ZIndex = if overlayText then 14 else 6
 		infoLabel.ZIndex = if overlayText then 14 else 6
-		frameCamera(v.w - (if overlayText then 70 else 0), v.h, if overlayText then 22 else 0)
+		frameCamera(v.w, v.h, if overlayText then 18 else 0, if overlayText then math.max(v.h - 74, 40) else nil)
 		noteLabel.Position = UDim2.fromOffset(v.x, geo.noteY)
 		noteLabel.Size = UDim2.fromOffset(v.w, 20)
 		SupportKit.fitLabel(noteLabel, StuntCustomize.NoteText, v.w, 20, 16)

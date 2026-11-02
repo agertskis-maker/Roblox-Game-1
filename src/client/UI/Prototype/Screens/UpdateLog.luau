@@ -392,6 +392,9 @@ function UpdateLog.show(parent: GuiBase2d, content: Content, opts: ShowOptions?)
 	if content.preview then
 		local s = Style.stamp(stage, "PREVIEW", "Gold", 26)
 		s.frame.Name = "PreviewStamp"
+		s.frame.Rotation = 0
+		s.frame.AnchorPoint = Vector2.new(0.5, 1)
+		s.frame.Position = UDim2.new(0.5, 0, 1, -4) -- in the foot row, between its two buttons
 		s.frame:SetAttribute("PersistentPreview", true)
 		sampleStamp = s
 	end
