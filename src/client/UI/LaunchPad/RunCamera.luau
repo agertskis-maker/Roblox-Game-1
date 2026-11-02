@@ -29,8 +29,8 @@ export type Settings = { back: number, up: number, look: number, focus: number, 
 -- back: studs behind the car. up: studs above it. look: studs ahead the eye aims. focus: height of that aim. fov: added degrees.
 RunCamera.Presets = {
 	Classic = { back = 15, up = 8.5, look = 34, focus = 2, fov = 0 },
-	Higher = { back = 19, up = 15, look = 46, focus = 1, fov = 0 },
-	["Top-ish"] = { back = 15, up = 22, look = 44, focus = 0, fov = -4 },
+	Higher = { back = 18, up = 14, look = 30, focus = 0, fov = 0 },
+	["Top-ish"] = { back = 13, up = 20, look = 24, focus = 0, fov = -4 },
 } :: { [string]: Settings }
 RunCamera.PresetOrder = { "Classic", "Higher", "Top-ish" }
 RunCamera.Recommended = "Higher"
