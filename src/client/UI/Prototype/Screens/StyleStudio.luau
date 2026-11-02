@@ -576,7 +576,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	}, well) :: ScrollingFrame
 	local cellW = math.floor((rightW - 22 - 8 * (columns - 1)) / columns)
 	make("UIGridLayout", {
-		CellSize = UDim2.fromOffset(cellW, math.round(cellW * 1.02)),
+		CellSize = UDim2.fromOffset(cellW, math.round(cellW * (if phone then 0.8 else 1.02))),
 		CellPadding = UDim2.fromOffset(8, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
