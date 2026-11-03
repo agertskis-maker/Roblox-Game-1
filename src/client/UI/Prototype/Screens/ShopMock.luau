@@ -908,13 +908,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				bottom = edgeTint(row[2]),
 			})
 			local artY = px * 1.14
-			boxArt(card, row[3], 10, artY, w - 20, h - artY - fontPx(p, 60, 50), 6)
-			CarKit.text(card, offer.body, fontPx(p, 19, 13), {
+			-- Round 4 (C-05): what the pass does sits on its own full-width line above the price, so the price button can
+			-- never cover it (on a phone it used to hide half the line)
+			local btnH = math.round(math.max(54 * k, 46))
+			local bodyPx = fontPx(p, 19, 14)
+			local bodyH = math.round(bodyPx * 2.5)
+			local bottomH = btnH + bodyH + math.round(16 * k) + 6
+			boxArt(card, row[3], 10, artY, w - 20, h - artY - bottomH, 6)
+			CarKit.text(card, offer.body, bodyPx, {
 				wrap = true,
-				size = UDim2.new(1, -math.round(170 * k), 0, fontPx(p, 54, 34)),
-				position = UDim2.new(0, math.round(12 * k), 1, -math.round(8 * k)),
-				anchor = Vector2.new(0, 1),
-				alignY = Enum.TextYAlignment.Bottom,
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
+				position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
+				anchor = Vector2.new(0.5, 1),
+				alignY = Enum.TextYAlignment.Center,
 				stroke = 1.5,
 				z = 8,
 				name = "Body",
@@ -922,9 +929,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			if offer.price then
 				priceButton(card, offer.id, offer.name, row[3], offer.price, {
 					px = fontPx(p, 34, 22),
-					size = UDim2.fromOffset(math.round(math.max(142 * k, 112)), math.round(math.max(54 * k, 46))),
-					position = UDim2.new(1, -math.round(10 * k), 1, -math.round(10 * k)),
-					anchor = Vector2.new(1, 1),
+					size = UDim2.fromOffset(math.round(math.max(142 * k, 112)), btnH),
+					position = UDim2.new(0.5, 0, 1, -math.round(10 * k)),
+					anchor = Vector2.new(0.5, 1),
 					z = 12,
 				})
 			end
