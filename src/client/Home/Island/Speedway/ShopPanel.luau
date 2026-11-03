@@ -1433,6 +1433,12 @@ function ShopPanel.refresh()
 		return
 	end
 	local latest = safeCurrent(p)
+	-- the Expanded Paddock pass changes the maximum (and the count jumps by 3): rebuild the card for both at once
+	if p.kind ~= "upgrade" and Parking.maxFor(p.source.plot) ~= p.max then
+		p.shown = latest
+		buildContent(p)
+		return
+	end
 	if latest ~= p.shown then
 		showValue(p, latest, true)
 	end
