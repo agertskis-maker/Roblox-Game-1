@@ -19,7 +19,7 @@ Lane 3 now shows every economy v1 number as PREVIEW from one module, `src/shared
 ## Section 11: Fair for kids
 
 1. **No daily streaks, no limited-time offers, no countdown pressure, no paid random rolls.** Agreed. Lane 3 has none.
-2. **Editions and cars are never sold for Robux.** Agreed; unchanged.
+2. **Editions and cars are never sold for Robux.** Agreed, with one exception Adam decided on 2026-11-03 (decision 0038, on `feature/lane3-round4`): the Starter Pack includes one Rare car, **Brawler**, one per player, so its car art is true. Editions are still never sold and no other car is sold. This changes your rule, so please answer under Replies whether you agree.
    **Game passes (Double Lap Pay, Expanded Paddock, VIP).** In the launch scope (Adam, item 4 below). Lane 3 shows PREVIEW prices; the real prices and a current Roblox policy check are still needed before anything is sold.
 3. **Nothing is ever lost.** Agreed.
 4. **The 19 Robux respawn.** Decided by Adam: "we definitely are going to have the 19 Robux respawn, and we're going to have all the Robux purchases. That's non-negotiable." The respawn and every planned Robux purchase are in the launch scope. This replaces the recommendation in this section, the outline's "No Developer Products (Cash packs) at launch", and, for the respawn, "Paid passes never change Heat, Keys or race performance".
@@ -69,7 +69,7 @@ Every price is the PREVIEW default Lane 3 shows today. In Lane 3 every price pre
 | Expanded Paddock (pass) | 149 Robux | Park 3 more cars: up to 18! | Shop (Passes); the full parking card's GET MORE SPOTS |
 | VIP (pass) | 299 Robux | VIP paints, a name tag and your own lounge; offline earnings build for up to 12 hours | Shop (Featured, Passes); HUD VIP button |
 | All Passes Bundle | 549 Robux | Double Lap Pay, Expanded Paddock and VIP (647 Robux bought one by one) | Shop (Passes) |
-| Starter Pack | 79 Robux | $5,000 Cash, Rookie Flame paint and Starter Stripe decal | Shop (Featured) |
+| Starter Pack | 79 Robux | Brawler (a Rare car), $5,000 Cash, Rookie Flame paint and Starter Stripe decal; one per player (decision 0038) | Shop (Featured) |
 | Flame Rush trail | 99 Robux | A flashy trail behind your car (looks only) | Garage, Customize, Trails |
 | Confetti Party trail | 129 Robux | A flashy trail (looks only) | Garage, Customize, Trails |
 | Prism Ribbon trail | 199 Robux | A flashy trail (looks only) | Garage, Customize, Trails |
@@ -79,6 +79,7 @@ Cheaper trails stay Cash. No item involves paid randomness, and no item sells a 
 
 Recommendation for how to build them. Lane 3 has not tested any of this against Roblox; please check each point against the current official Roblox documentation before building:
 
+- **The Starter Pack's car** is granted like a claimed car: Brawler into `Cars` at Normal with 0 copies, once per player, inside the same receipt grant as the pack's Cash. A player who already owns Brawler: decide what they get instead (for example a copy toward Gold), so the pack never gives nothing.
 - **Consumables (the respawn, Cash packs, the Starter Pack's Cash) as Developer Products**, granted on the server in `MarketplaceService.ProcessReceipt`, never from a client callback. Make the grant safe to repeat: record the purchase id so a retried receipt never grants twice, and return "granted" only after the grant is saved.
 - **Permanent items (passes, Robux trails) as Game Passes**, or Developer Products with saved ownership. Check ownership on the server when the player joins and after a purchase.
 - **Per-player purchase restrictions:** check `PolicyService` before showing a purchase prompt, and show a clear "not available" state when they apply. Only the returned fields that apply to the item matter; none of them is a general "can buy" answer.
