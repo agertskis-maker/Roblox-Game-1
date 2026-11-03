@@ -57,3 +57,15 @@ Round 3 was 185 to 389 before any backdrop. The World below is 57 to 209 of thes
 | Summit Pass | yes | no | yes | yes | yes | yes | yes |
 
 No script errors in Output. The one repeating line is an old wrong-type asset, 203785492, present before this work.
+
+## Reviewer scores
+
+Two fresh reviewers, on stills. Motion was not judged.
+
+| Pad | Stylish / fun / simple, first | Final | AI look, first | Final |
+|---|---|---|---|---|
+| Downtown | 3 / 3 / 4 | 4 / 4 / 4 | 3 | 4, arrival view only, after the last lighting fix |
+| Dusty Highway | 3 / 3 / 4 | 4 / 4 / 4 | 3.5 | 4 |
+| Summit Pass | 4 / 3 / 4 | 4 / 4 / 4 | 4 | 4 |
+
+The round rainbow loop came after the final scores and was not re-scored.
