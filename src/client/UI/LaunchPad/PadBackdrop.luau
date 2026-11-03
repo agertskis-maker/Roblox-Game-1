@@ -68,7 +68,7 @@ local function downtown(k: any, theme: any, rng: Random)
 			for _, share in { 0.3, 0.62 } do
 				local band = k:box(
 					"CityWindows",
-					Vector3.new(w * 0.86, h * 0.1, w * 0.86),
+					Vector3.new(w * 1.02, h * 0.07, w * 1.02),
 					CFrame.new(p.X, -DEPTH + h * share, p.Z) * cf.Rotation,
 					Color3.fromRGB(255, 214, 140),
 					Enum.Material.Neon

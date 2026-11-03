@@ -52,8 +52,10 @@ function PadParts.platform(k: any, theme: any)
 	k:cyl("Under", R * 2 - 56, 12, CFrame.new(0, -23, 0), theme.under)
 	k:ball("UnderTip", R, CFrame.new(0, -30, 0), theme.under)
 	-- a calm inner circle, so the emblem sits on something
-	k:cyl("Panel", R * 2 - 14, 0.1, CFrame.new(0, 0.05, 0), theme.panel, theme.floorMaterial)
-	k:cyl("Panel", R * 2 - 18, 0.1, CFrame.new(0, 0.13, 0), theme.floor, theme.floorMaterial) -- calm tiles on the open floor, so it reads as paved, not painted one colour
+	k:cyl("Panel", R * 2 - 14, 0.1, CFrame.new(0, 0.01, 0), theme.panel, theme.floorMaterial)
+	k:cyl("Panel", R * 2 - 18, 0.1, CFrame.new(0, 0.07, 0), theme.floor, theme.floorMaterial)
+	k:cyl("Panel", 60, 0.1, CFrame.new(0, 0.13, 0), theme.panel, theme.floorMaterial)
+	k:cyl("Panel", 56, 0.1, CFrame.new(0, 0.19, 0), theme.floor, theme.floorMaterial) -- calm tiles on the open floor, so it reads as paved, not painted one colour
 	for _, a in { 52, 104, 150, -52, -104, -150 } do
 		k:box(
 			"FloorTile",
@@ -113,17 +115,17 @@ end
 
 -- The emblem on the floor: one original mark, used on all three Worlds.
 function PadParts.emblem(k: any, theme: any)
-	k:cyl("EmblemDisc", 32, 0.1, CFrame.new(0, 0.29, 2), INK)
-	k:cyl("EmblemRing", 30, 0.1, CFrame.new(0, 0.37, 2), theme.stripeA)
-	k:cyl("EmblemFace", 28.6, 0.1, CFrame.new(0, 0.45, 2), rgb(248, 244, 232))
+	k:cyl("EmblemDisc", 32, 0.1, CFrame.new(0, 0.32, 2), INK)
+	k:cyl("EmblemRing", 30, 0.1, CFrame.new(0, 0.4, 2), theme.stripeA)
+	k:cyl("EmblemFace", 28.6, 0.1, CFrame.new(0, 0.48, 2), rgb(248, 244, 232))
 	local face =
-		k:box("EmblemArt", Vector3.new(28, 0.04, 28), CFrame.new(0, 0.54, 2) * CFrame.Angles(0, -math.pi / 2, 0), INK)
+		k:box("EmblemArt", Vector3.new(28, 0.04, 28), CFrame.new(0, 0.56, 2) * CFrame.Angles(0, -math.pi / 2, 0), INK)
 	face.Transparency = 1
 	local g = surface(face, Enum.NormalId.Top, 24)
 	g.LightInfluence = 0.8
 	local px = 28 * 24
 	local root = make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, g)
-	local cols, rows = 8, 4
+	local cols, rows = 6, 4
 	local cell = math.floor(px * 0.9 / cols)
 	local top = (px - rows * cell) / 2
 	local left = (px - cols * cell) / 2
@@ -144,10 +146,10 @@ function PadParts.emblem(k: any, theme: any)
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0.92, 0, 0, cell * 2.3),
+		Size = UDim2.new(0.98, 0, 0, cell * 2),
 	}, root)
 	make("UICorner", { CornerRadius = UDim.new(0, 40) }, band)
-	CarKit.title(band, "CAR HOP", math.floor(cell * 1.9), {
+	CarKit.title(band, "CAR HOP", math.floor(cell * 1.5), {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.White,
@@ -160,18 +162,18 @@ end
 
 -- Where the player lands: a glowing pad with the World's name, and the chevrons that show the way the first few times.
 function PadParts.arrival(k: any, theme: any, name: string): { Part }
-	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.19, 34), theme.trim)
-	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.27, 34), theme.glow, Enum.Material.Neon)
-	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.35, 34), INK)
+	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.22, 34), theme.trim)
+	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.3, 34), theme.glow, Enum.Material.Neon)
+	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.38, 34), INK)
 	local label = k:box(
 		"ArrivalArt",
-		Vector3.new(4, 0.04, 14),
-		CFrame.new(0, 0.54, 28.2) * CFrame.Angles(0, -math.pi / 2, 0),
+		Vector3.new(3, 0.04, 10.6),
+		CFrame.new(0, 0.56, 26.8) * CFrame.Angles(0, -math.pi / 2, 0),
 		INK
 	)
 	label.Transparency = 1
 	local g = surface(label, Enum.NormalId.Top, 40)
-	CarKit.title(g, name, 64, {
+	CarKit.title(g, name, 52, {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.Yellow,
@@ -186,7 +188,7 @@ function PadParts.arrival(k: any, theme: any, name: string): { Part }
 			local c = k:neon(
 				"Chevron",
 				Vector3.new(4, 0.08, 1.2),
-				CFrame.new(s * 1.5, 0.6, z) * CFrame.Angles(0, s * math.rad(-34), 0),
+				CFrame.new(s * 1.5, 0.64, z) * CFrame.Angles(0, s * math.rad(-34), 0),
 				rgb(255, 226, 70)
 			)
 			c:SetAttribute("Step", i)
@@ -605,7 +607,7 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		end
 	end)
 	local knot, knotModel = k:model("TrailKnot")
-	local knotAt = trailAt * CFrame.new(0, trailTop + 4.4, 0)
+	local knotAt = trailAt * CFrame.new(0, trailTop + 2.6, 0)
 	local beads = 12
 	for i = 0, beads - 1 do
 		local a = i / beads * math.pi * 2
@@ -618,7 +620,7 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 			Enum.Material.Neon
 		)
 	end
-	bobbing(knotModel, life, 0.8)
+	bobbing(knotModel, life, 0)
 
 	-- PAINT: a spray booth with shelves of cans; a chunky can floats over the roof
 	local paintAt = placed(29, -19)
@@ -659,7 +661,7 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		can:cyl("CanBand", 3, 1.3, canAt * CFrame.new(0, (i - 2) * 1.3, 0), c)
 	end
 	can:cyl("CanShoulder", 2.2, 0.8, canAt * CFrame.new(0, 2.3, 0), CHROME, Enum.Material.Metal)
-	can:cyl("CanNozzle", 1.1, 0.8, canAt * CFrame.new(0, 3, 0), rgb(232, 64, 72))
+	can:cyl("CanNozzle", 1.1, 0.8, canAt * CFrame.new(0, 3, 0), CHROME, Enum.Material.Metal)
 	for i, size in { 1.5, 1.1, 0.8 } do
 		can:ball(
 			"SprayPuff",
