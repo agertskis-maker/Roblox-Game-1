@@ -1073,20 +1073,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		y += sectionHeader(body, q, y, "freeGift", "FREE", nil) + p.gap
 		y += freeBlock(body, q, y) + p.gap
 
-		CarKit.text(body, "PREVIEW: prices and contents are proposals. Nothing can be bought yet.", 14, {
-			size = UDim2.new(1, 0, 0, 22),
-			position = UDim2.fromOffset(0, y),
-			align = Enum.TextXAlignment.Center,
-			color = CarKit.Soft,
-			z = 3,
-			name = "PreviewFooter",
-		})
-		y += 30
+		-- Round 4 (C-05): one PREVIEW line only, the panel's own note under the page (this second one repeated it)
+		y += 12
 		body.Size = UDim2.new(1, 0, 0, y)
 		scroll.CanvasSize = UDim2.fromOffset(0, y)
 		buildTrove:Connect(scroll:GetPropertyChangedSignal("CanvasPosition"), function()
 			local canvasH = scroll.CanvasSize.Y.Offset
-			local at = scroll.CanvasPosition.Y / (if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1) + 40
+			local k = if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1
+			local at = scroll.CanvasPosition.Y / k + 40
+			-- Round 4 (C-05): at the bottom of the page the last section cannot reach the top, so the deepest section that is
+			-- in view wins (pressing FREE used to leave PASSES lit)
+			local bottom = scroll.CanvasPosition.Y >= scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y - 2
+			if bottom then
+				at = (scroll.CanvasPosition.Y + scroll.AbsoluteWindowSize.Y) / k - 60
+			end
 			local best = "featured"
 			for _, id in { "featured", "cash", "passes", "free" } do
 				if at >= (sectionY[id] or 0) then
