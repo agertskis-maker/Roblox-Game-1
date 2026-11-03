@@ -150,7 +150,7 @@ function LoadingController.start(env: Env, config: Config, sink: Sink): Handle
 		if not loaded then
 			stage = "Connecting..."
 		elseif total > 0 and not preloadDone then
-			stage = "Loading assets"
+			stage = "Loading cars..."
 		elseif not character then
 			stage = "Getting your car ready..."
 		elseif flagRequired and flag ~= true then

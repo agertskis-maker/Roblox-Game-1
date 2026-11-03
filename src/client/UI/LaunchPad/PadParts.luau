@@ -140,7 +140,8 @@ function PadParts.emblem(k: any, theme: any)
 		Size = UDim2.new(0.8, 0, 0, cell * 2.2),
 	}, root)
 	make("UICorner", { CornerRadius = UDim.new(0, 40) }, band)
-	CarKit.title(band, "CAR HOP", math.floor(cell * 1.7), {
+	-- the official name (decision 0037: "Catch A Car!", in capitals on a logo)
+	CarKit.title(band, "CATCH A CAR!", math.floor(cell * 1.15), {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.White,
