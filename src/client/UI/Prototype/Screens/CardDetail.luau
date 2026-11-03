@@ -60,9 +60,14 @@ local EARN_H = 22
 -- row height, badge height and the gap between rows (design px); `compact` is for a short phone frame
 local function metrics(compact: boolean): (number, number, number)
 	if compact then
-		return 42, 48, 4
+		return 36, 44, 4
 	end
 	return 46, 52, 6
+end
+-- a short phone frame: WORLD and LAP PAY share one row when the column is this wide, so the copies bar shows without scrolling
+local PAIR_MIN = 560
+local function paired(colW: number, compact: boolean?): boolean
+	return compact == true and colW >= PAIR_MIN
 end
 local LOCKED_FILL = Color3.fromRGB(26, 36, 78)
 local WORLD_UNKNOWN_FILL = Color3.fromRGB(70, 82, 120)
@@ -362,7 +367,8 @@ end
 function Facts.rowsHeight(colW: number, compact: boolean?): number
 	local rowH, badgeH, gap = metrics(compact == true)
 	local badgesH = if colW >= LADDER_ACROSS then badgeH else 2 * badgeH + gap
-	return rowH + gap + rowH + gap + LADDER_LABEL_H + badgesH + gap + BAR_H + gap + EARN_H
+	local infoH = if paired(colW, compact) then rowH + gap else rowH + gap + rowH + gap
+	return infoH + LADDER_LABEL_H + badgesH + gap + BAR_H + gap + EARN_H
 end
 
 -- The card size and the row density for a scrolling area `innerW` wide and `scrollH` tall (design px): beside the card
@@ -406,11 +412,19 @@ function Facts.layout(self: FactsPanel, width: number, cardSize: Vector2, compac
 	rows.Size = UDim2.fromOffset(colW, rowsH)
 	local worldRow, payRow, ladder = self._worldRow :: Frame, self._payRow :: Frame, self._ladder :: Frame
 	local y = 0
-	worldRow.Position = UDim2.fromOffset(0, y)
-	worldRow.Size = UDim2.fromOffset(colW, rowH)
-	y += rowH + gap
-	payRow.Position = UDim2.fromOffset(0, y)
-	payRow.Size = UDim2.fromOffset(colW, rowH)
+	if paired(colW, compact) then
+		local half = math.floor((colW - 6) / 2)
+		worldRow.Position = UDim2.fromOffset(0, y)
+		worldRow.Size = UDim2.fromOffset(half, rowH)
+		payRow.Position = UDim2.fromOffset(colW - half, y)
+		payRow.Size = UDim2.fromOffset(half, rowH)
+	else
+		worldRow.Position = UDim2.fromOffset(0, y)
+		worldRow.Size = UDim2.fromOffset(colW, rowH)
+		y += rowH + gap
+		payRow.Position = UDim2.fromOffset(0, y)
+		payRow.Size = UDim2.fromOffset(colW, rowH)
+	end
 	y += rowH + gap
 	ladder.Position = UDim2.fromOffset(0, y)
 	ladder.Size = UDim2.fromOffset(colW, rowsH - y)
