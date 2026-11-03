@@ -1,14 +1,16 @@
 --!strict
--- CarStall: the Launch Pad's Car stall (Lane 3, Round 3 N6-04): choose the car you start in. PREVIEW: the run always starts in Brian
--- R's Loaner until his RunController takes a start car, and the panel says so; the choice is kept in StyleState for that day.
+-- CarStall: the Launch Pad's Car stall (Lane 3, Round 3 N6-04): choose the car you start in, from Brian L's 27 showroom cars.
+-- PREVIEW: every car shows, because no real ownership exists yet, and the run always starts in Brian R's Loaner until his
+-- RunController takes a start car, and the panel says so; the choice is kept in StyleState and shows on the other screens.
+-- Each card's picture is built only as it scrolls near the view, so opening the stall does not load all 27.
 --
 --   local c = CarStall.new(ctx, { onClose = fn? })
 --   c:open()  c:close()  c:isOpen()  c:destroy()
 
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
-local Fixtures = require(Prototype.Fixtures) :: any
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local StyleState = require(Prototype.StyleState)
 
 local make = CarKit.make
@@ -75,16 +77,22 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 			CellPadding = UDim2.fromOffset(8, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}, grid)
-		local state = StyleState.get() :: any
 		local rings: { [string]: Frame } = {}
-		local cars = Fixtures.Cars or {}
+		local pending: { { holder: Frame, name: string } } = {}
+		local cars = RealCar.list()
+		if #cars == 0 then
+			CarKit.text(panel, "Cars are on their way.", 22, {
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(1, -24, 0, 30),
+				position = UDim2.new(0, 12, 0.5, -15),
+				z = 5,
+				name = "Empty",
+			})
+		end
 		for i, car in cars do
-			if i > 6 then
-				break
-			end
 			local rarity = (CarKit.Rarity :: any)[car.rarity] or CarKit.Rarity.Common
 			local button = make("TextButton", {
-				Name = "Car_" .. car.id,
+				Name = "Car_" .. car.name,
 				Text = "",
 				AutoButtonColor = false,
 				BackgroundColor3 = Color3.fromRGB(18, 26, 52),
@@ -94,19 +102,15 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 			}, grid) :: TextButton
 			make("UICorner", { CornerRadius = UDim.new(0, 10) }, button)
 			make("UIStroke", { Thickness = 2.5, Color = rarity, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, button)
-			CarKit.art(button, "thumb_car_body", {
-				size = UDim2.new(1, -10, 1, -30),
-				position = UDim2.new(0.5, 0, 0.5, -10),
-				color = rarity,
-				z = 5,
-				placeholder = false,
-			})
-			CarKit.art(button, "thumb_car_top", {
-				size = UDim2.new(1, -10, 1, -30),
-				position = UDim2.new(0.5, 0, 0.5, -10),
-				z = 7,
-				placeholder = false,
-			})
+			local holder = make("Frame", {
+				Name = "Thumb",
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.new(1, -10, 1, -30),
+				Position = UDim2.new(0.5, 0, 0.5, -10),
+				ZIndex = 5,
+			}, button) :: Frame
+			table.insert(pending, { holder = holder, name = car.name })
 			CarKit.title(button, car.name, 20, {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, -6, 0, 24),
@@ -119,7 +123,7 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 				Name = "Selected",
 				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
-				Visible = state.car == car.id,
+				Visible = StyleState.car() == car.name,
 				ZIndex = 9,
 			}, button) :: Frame
 			make("UICorner", { CornerRadius = UDim.new(0, 10) }, ring)
@@ -128,14 +132,27 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 				{ Thickness = 3.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
 				ring
 			)
-			rings[car.id] = ring
+			rings[car.name] = ring
 			button.Activated:Connect(function()
-				state.car = car.id
-				for id, r in rings do
-					r.Visible = id == car.id
+				StyleState.setCar(car.name)
+				for name, r in rings do
+					r.Visible = name == car.name
 				end
 			end)
 		end
+		local function buildNear()
+			local bottom = grid.AbsolutePosition.Y + grid.AbsoluteSize.Y * 1.5
+			for i = #pending, 1, -1 do
+				local p = pending[i]
+				if p.holder.AbsolutePosition.Y < bottom then
+					table.remove(pending, i)
+					RealCar.thumb(p.holder, p.name)
+				end
+			end
+		end
+		buildTrove:Connect(grid:GetPropertyChangedSignal("CanvasPosition"), buildNear)
+		buildTrove:Connect(grid:GetPropertyChangedSignal("AbsoluteSize"), buildNear)
+		task.defer(buildNear)
 		CarKit.text(panel, "For now every run starts in the Loaner. Your pick starts working soon.", 15, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -24, 0, 24),

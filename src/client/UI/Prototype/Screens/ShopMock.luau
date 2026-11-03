@@ -6,7 +6,7 @@
 --
 --   local shop = ShopMock.new(ctx, { onClose = fn?, adapter = A?, onFreeReward = fn?, autoAdvance = true?, blur = true? })
 --   shop:open(returnTo?)                       -- starts at Featured
---   shop:openSection(name, returnTo?)          -- "Featured", "Passes", "Cash", "Style", "Trails", "Free"
+--   shop:openSection(name, returnTo?)          -- "Featured", "Passes", "Cash", "Trails", "Free"
 --   shop:openAt(sectionId?, offerId?, returnTo?)
 --   shop:openExpandedPaddock(returnTo?)        -- "Get more spots" in the Raceway's parking panel
 --   shop:openDoubleLapPay(returnTo?)           -- "Earn faster"
@@ -54,7 +54,6 @@ local TABS = {
 	{ id = "featured", label = "Featured" },
 	{ id = "passes", label = "Passes" },
 	{ id = "cash", label = "Cash" },
-	{ id = "style", label = "Style" },
 	{ id = "trails", label = "Trails" },
 	{ id = "free", label = "Free" },
 }
@@ -1114,7 +1113,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local StyleStudio = require(script.Parent.StyleStudio) :: any
 		studio = StyleStudio.new(ctx, host, {
 			tab = tab,
-			tabs = if tab == "Trails" then { "Trails" } else { "Paint", "Decals", "Wheels" },
+			tabs = { "Trails" },
 			size = size,
 			trove = buildTrove,
 			onGetCash = function()
@@ -1306,7 +1305,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if view == "store" then
 			buildPage(stage, p)
 		else
-			mountStudio(stage, if activeTab == "trails" then "Trails" else "Paint", Vector2.new(p.inner, p.pageH))
+			mountStudio(stage, "Trails", Vector2.new(p.inner, p.pageH))
 		end
 		if isShopOpen and visible then
 			motion.start()
@@ -1315,7 +1314,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	end
 
 	showTab = function(id: string, animate: boolean?)
-		local wantStudio = id == "style" or id == "trails"
+		local wantStudio = id == "trails"
 		activeTab = id
 		if wantStudio or view == "studio" then
 			view = if wantStudio then "studio" else "store"
@@ -1470,7 +1469,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		press(id, if offer then offer.name else id, nil)
 	end
 
-	-- the Style page, for tests and the Launch Pad's paint corner
+	-- the Trails page, for tests
 	function shop.styleTab(_self: Shop, name: string)
 		if studio then
 			studio:setTab(name)

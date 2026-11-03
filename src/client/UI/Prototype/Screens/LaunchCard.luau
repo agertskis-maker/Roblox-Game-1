@@ -11,8 +11,8 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local StyleState = require(Prototype.StyleState)
-local Supercar = require(Prototype.Supercar)
 local TrailPreview = require(script.Parent.TrailPreview) :: any
 
 local make = CarKit.make
@@ -77,14 +77,6 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		})
 		local bottom = math.round(190 * k)
 		local stageH = h - stageY - bottom
-		local trailView = TrailPreview.new(card, {
-			position = UDim2.new(0.36, 0, 0, stageY + stageH * 0.42),
-			size = UDim2.fromScale(0.34, 0.16),
-			z = 4,
-		})
-		buildTrove:Add(function()
-			trailView:destroy()
-		end)
 		local view = make("ViewportFrame", {
 			Name = "Turntable",
 			BackgroundTransparency = 1,
@@ -97,8 +89,12 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, card) :: ViewportFrame
 		local camera = make("Camera", { FieldOfView = 17.5 }, view) :: Camera
 		view.CurrentCamera = camera
-		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.2, 30), Vector3.new(0, 1.3, 0))
+		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.2, 30), Vector3.new(0, 1.9, 0))
 		local world = make("WorldModel", {}, view) :: WorldModel
+		local trailView = TrailPreview.new(world, { length = 6.5 })
+		buildTrove:Add(function()
+			trailView:destroy()
+		end)
 		make("Part", {
 			Anchored = true,
 			Shape = Enum.PartType.Cylinder,
@@ -114,33 +110,29 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			Color = Color3.fromRGB(110, 170, 255),
 			Material = Enum.Material.Neon,
 		}, world)
-		local rig = if Supercar.available() then Supercar.new() else nil
+		local rig = RealCar.mount(world, { height = 4.8 })
 		local function applyStyle()
-			if rig then
-				rig:setPaint(StyleState.item("Paint"), 0.18)
-				rig:setDecal(StyleState.item("Decals"))
-				rig:setWheels(StyleState.item("Wheels"))
-			end
+			rig:setCar(StyleState.car())
+			rig:setPaint(StyleState.item("Paint"), 0.18)
+			rig:setDecal(StyleState.item("Decals"))
+			rig:setWheels(StyleState.item("Wheels"))
 			trailView:set(StyleState.item("Trails"))
 		end
-		if rig then
-			rig.model.Parent = world
-			rig.model:PivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(215), 0))
-			buildTrove:Add(function()
-				rig:destroy()
-			end)
-		end
+		rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(215), 0))
+		buildTrove:Add(function()
+			rig:destroy()
+		end)
 		applyStyle()
 		buildTrove:Connect(StyleState.Changed, applyStyle)
 
 		-- the car sways a little: enough to feel alive, never turning its tail away from the ribbon
 		local started = os.clock()
 		buildTrove:Connect(RunService.Heartbeat, function(dt: number)
-			trailView:step(dt)
-			if rig and not Motion.reduced() then
+			if not Motion.reduced() then
 				local a = math.rad(215 + math.sin((os.clock() - started) * 0.7) * 12)
-				rig.model:PivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
+				rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
 			end
+			trailView:step(dt, rig:tail())
 		end)
 
 		local small = math.max(math.round(52 * k), 46)

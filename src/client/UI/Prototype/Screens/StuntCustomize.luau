@@ -1,5 +1,5 @@
 --!strict
--- StuntCustomize: the Stunt Circuit's "Customize" screen (Lane 3, Round 3 N4-01). It is the Shop's Style screen in its own overlay:
+-- StuntCustomize: the "Customize" screen of the Garage and the Stunt Circuit (Lane 3, Round 3 N4-01). StyleStudio in its own overlay:
 -- StyleStudio and StyleState are the one implementation, so the two can never disagree about what you own or wear.
 --
 --   local c = StuntCustomize.new(ctx, { onClose = fn?, onBuy = fn?, onViewShop = fn? })

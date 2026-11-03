@@ -1,5 +1,5 @@
 --!strict
--- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Shop's Style and Trails tabs, the Stunt customization
+-- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Garage's Customize screen, the Shop's Trails tab, the Stunt customization
 -- screen and the Launch Pad's stalls, so they cannot disagree. A turntable car on the left; PAINT, DECALS, WHEELS and TRAILS on the
 -- right, each a grid of identical cards; one big action button.
 --
@@ -10,8 +10,8 @@
 -- PREVIEW Cash balance that lasts this session. A Robux item goes to `onBuy` and ends in Coming soon. A medal item says what it
 -- needs. Leaving resets the preview to what is worn. Everything is PREVIEW: no remote, no save, nothing real is charged.
 --
--- The trail on the turntable is a drawn ribbon behind the car, because a ViewportFrame cannot show Trail, Beam or particle
--- objects. The car's own trail in the world is a real Trail (RunTrail, Launch Pad).
+-- The trail on the turntable is parts on the car's tail (TrailPreview), because a ViewportFrame cannot show Trail, Beam or
+-- particle objects; it turns with the car. The car's own trail in the world is a real Trail (RunTrail, Launch Pad).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -20,8 +20,8 @@ local UserInputService = game:GetService("UserInputService")
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
+local RealCar = require(Prototype.RealCar)
 local StyleState = require(Prototype.StyleState)
-local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -108,14 +108,6 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		z = 4,
 		placeholder = false,
 	})
-	local trailView = TrailPreview.new(stage, {
-		position = UDim2.fromScale(0.5, 0.42),
-		size = UDim2.fromScale(0.5, 0.26),
-		z = 5,
-	})
-	trove:Add(function()
-		trailView:destroy()
-	end)
 	local view = make("ViewportFrame", {
 		Name = "Turntable",
 		BackgroundTransparency = 1,
@@ -131,15 +123,17 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local camera = make("Camera", { FieldOfView = math.clamp(29 / stageAspect, 19, 36) }, view) :: Camera
 	view.CurrentCamera = camera
 	local world = make("WorldModel", {}, view) :: WorldModel
-	local rig = if Supercar.available() then Supercar.new() else nil
+	local TRAIL_LENGTH = 6
+	local trailView = TrailPreview.new(world, { length = TRAIL_LENGTH })
+	trove:Add(function()
+		trailView:destroy()
+	end)
+	local rig = RealCar.mount(world)
+	rig:setCar(StyleState.car())
+	trove:Add(function()
+		rig:destroy()
+	end)
 	local pivot = CFrame.new(0, 0.5, 0)
-	local TRAIL_POSE = CFrame.new(4.5, 0.5, 0) -- the car slides right on the Trails tab, so its trail has room
-	if rig then
-		rig.model.Parent = world
-		trove:Add(function()
-			rig:destroy()
-		end)
-	end
 	-- the turntable under it
 	local disc = make("Part", {
 		Name = "Disc",
@@ -161,15 +155,17 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		Color = Color3.fromRGB(110, 170, 255),
 		Material = Enum.Material.Neon,
 	}, world)
+	-- the camera backs off until the whole car fits, and on the Trails tab its trail too, at any angle of the turntable
 	local function placeCamera()
-		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 1, 0))
+		local tanHalf = math.tan(math.rad(camera.FieldOfView) / 2)
+		local reach = if tab == "Trails" then 7 + TRAIL_LENGTH else 8.2
+		local distance = math.max(31, 5.4 / tanHalf, reach / (tanHalf * stageAspect))
+		camera.CFrame = CFrame.lookAt(Vector3.new(0, distance * 0.24, distance), Vector3.new(0, 2.2, 0))
 	end
 	placeCamera()
 	local function setYaw(a: number)
 		yaw = a
-		if rig then
-			rig.model:PivotTo(pivot * CFrame.Angles(0, a, 0))
-		end
+		rig:pivotTo(pivot * CFrame.Angles(0, a, 0))
 		disc.CFrame = CFrame.new(pivot.X, 0.32, 0) * CFrame.Angles(0, 0, math.pi / 2)
 		discEdge.CFrame = disc.CFrame
 	end
@@ -280,12 +276,11 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function applyToCar()
-		if rig then
-			rig:setPaint(shownItem("Paint"), 0.18)
-			rig:setDecal(shownItem("Decals"))
-			rig:setWheels(shownItem("Wheels"))
-		end
-		applyTrail(shownItem("Trails"))
+		rig:setCar(StyleState.car())
+		rig:setPaint(shownItem("Paint"), 0.18)
+		rig:setDecal(shownItem("Decals"))
+		rig:setWheels(shownItem("Wheels"))
+		applyTrail(if tab == "Trails" then shownItem("Trails") else nil)
 	end
 
 	local function refreshCurrent()
@@ -328,6 +323,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		local state = isShown(item)
 		local name = item.name
 		message.Text = string.match(item.note, "^[^.!]+[.!]") or item.note -- one short line
+		if tab == "Decals" and rig.source ~= "Supercar" then
+			message.Text = "The card shows this decal. Decals reach real cars soon."
+		end
 		if state == "equipped" then
 			action.setText("EQUIPPED")
 			action.setTone("Grey")
@@ -367,7 +365,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	end
 
 	local function thumbFor(item: Catalog.Item, holder: Frame, z: number)
-		if item.tab == "Paint" then
+		if item.id == "factory_paint" and RealCar.thumb(holder, rig.source) then
+			return -- the car itself, as Brian L made it
+		elseif item.tab == "Paint" then
 			local body = CarKit.art(holder, "thumb_car_body", { z = z, placeholder = false, color = item.colours[1] })
 			local image = body:FindFirstChild("Image") :: ImageLabel?
 			if image and #item.colours > 1 and item.kind ~= "solid" then
@@ -511,9 +511,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		buildGrid()
 		gridHost.CanvasPosition = Vector2.zero
 		spinRestUntil = 0
-		-- the ribbon needs the car's tail to the left
-		pivot = if tab == "Trails" then TRAIL_POSE else CFrame.new(0, 0.5, 0)
+		placeCamera()
 		setYaw(if tab == "Trails" then math.rad(215) else yaw)
+		applyTrail(if tab == "Trails" then shownItem("Trails") else nil)
 	end
 
 	for i, name in tabNames do
@@ -641,18 +641,21 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local accumulate = 0
 	local started = os.clock()
 	trove:Connect(RunService.Heartbeat, function(dt: number)
-		if not root.Visible or Motion.reduced() then
+		if not root.Visible then
 			return
 		end
-		trailView:step(dt)
-		if not dragging and os.clock() >= spinRestUntil and tab ~= "Trails" then
+		trailView:step(dt, rig:tail())
+		if Motion.reduced() then
+			return
+		end
+		if not dragging and os.clock() >= spinRestUntil then
 			setYaw(yaw + dt * math.rad(14))
 		end
 		accumulate += dt
 		if accumulate >= 1 / 12 then
 			accumulate = 0
 			local paint = shownItem("Paint")
-			if rig and paint and Supercar.isAnimated(paint) then
+			if paint and RealCar.isAnimated(paint) then
 				rig:tick(((os.clock() - started) / (paint.cycleSeconds or 6)) % 1)
 			end
 		end
@@ -684,7 +687,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			cards = count,
 			previewed = previewed,
 			equipped = StyleState.get().equipped,
-			rig = rig ~= nil,
+			rig = rig.source,
 		}
 	end
 

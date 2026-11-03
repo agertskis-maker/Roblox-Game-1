@@ -6,7 +6,7 @@
 -- header, "Unlocked X / Y" in the header, and a detail panel for the chosen car with the PUT ON RACEWAY action.
 --
 --   local garage = GarageMock.new(ctx, { onDrive = function(car) end, onClose = fn?, cars = list?, infoOf = fn?, acquired = map?,
---                                        canPutOnRaceway = fn?, onPreviewClaim = fn?, detailExtras = boolean? })
+--                                        canPutOnRaceway = fn?, onPreviewClaim = fn?, detailExtras = boolean?, onCustomize = fn? })
 --   garage:open(returnTo?)  garage:close()  garage:isOpen()
 --   garage:selectTab("Downtown" | "Dusty" | "Summit")
 --   garage:selectCar(id)    -- also opens the detail page on a phone (and switches to the car's World)
@@ -80,8 +80,9 @@ local SORT_H = 48
 local SORT_MIN_W = 104
 local SORT_MAX_W = 168
 local SORT_GAP = 8
--- the header: CLAIM ALL and the "Unlocked" chip sit left of the red X
+-- the header: CLAIM ALL and the "Unlocked" chip sit left of the red X, and CUSTOMIZE left of those
 local CLAIM_ALL_W = 132
+local CUSTOMIZE_W = 150
 local CHIP_W_WIDE = 190
 local CHIP_W_SHORT = 124
 -- the reward box under the grid (Wide) and the bar under the detail (PUT ON RACEWAY + its reason line)
@@ -113,6 +114,7 @@ export type Options = {
 	canPutOnRaceway: ((CarRef) -> (boolean, string?))?, -- the adapter's verdict (lineup full, ...): ok, and a plain reason when not
 	onPreviewClaim: ((Tab, number) -> ())?, -- a harness hook for a session-only preview claim; never a grant
 	detailExtras: boolean?, -- show the Family quirk and Race stats rows (supplied data only; "Not available yet" otherwise)
+	onCustomize: (() -> ())?, -- opens paint, decals and wheels; the button shows only when this is given
 }
 
 export type SortButtonState = {
@@ -348,6 +350,25 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	})
 	trove:Add(claimAllButton.trove)
 	claimAllButton.root.ZIndex = 12
+	local customizeButton: any = nil
+	if opts.onCustomize then
+		customizeButton = Arcade.button(panel, {
+			name = "Customize",
+			label = "CUSTOMIZE",
+			fill = "Rainbow",
+			size = "Custom",
+			width = CUSTOMIZE_W,
+			height = Tokens.Touch.Minimum,
+			cooldown = 0.5,
+			onActivate = function()
+				if opts.onCustomize then
+					opts.onCustomize()
+				end
+			end,
+		})
+		trove:Add(customizeButton.trove)
+		customizeButton.root.ZIndex = 12
+	end
 	local closeX = PanelKit.closeX(panel, function()
 		garage:close()
 	end)
@@ -1291,6 +1312,11 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		countChip.Position = UDim2.new(1, -(8 + Tokens.Touch.Minimum + 8 + CLAIM_ALL_W + 8), 0, headH / 2)
 		countText.TextXAlignment = Enum.TextXAlignment.Center
 		local rightUsed = 8 + Tokens.Touch.Minimum + 8 + CLAIM_ALL_W + 8 + chipW + 12
+		if customizeButton then
+			customizeButton.root.AnchorPoint = Vector2.new(1, 0.5)
+			customizeButton.root.Position = UDim2.new(1, -rightUsed + 4, 0, headH / 2)
+			rightUsed += CUSTOMIZE_W + 8
+		end
 		local titleLeft = header.title.Position.X.Offset
 		header.title.Size =
 			UDim2.new(1, -titleLeft - rightUsed, 0, math.min(PreviewTokens.Arcade.Text.Display + 8, headH - 6))

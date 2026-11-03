@@ -10,7 +10,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SignKit = require(ReplicatedStorage.Shared.Island.SignKit)
-local Supercar = require(script.Parent.Parent.Prototype.Supercar)
+local RealCar = require(script.Parent.Parent.Prototype.RealCar)
+local StyleState = require(script.Parent.Parent.Prototype.StyleState)
 
 local Build = {}
 
@@ -271,22 +272,12 @@ function Build.build(world: string, origin: CFrame): Pad
 	local paintAt = stall("Paint", "PAINT", CFrame.new(-23, 0, -24) * CFrame.Angles(0, math.rad(-22), 0), theme.neonA)
 
 	-- the car on show
-	if Supercar.available() then
-		local rig = Supercar.new()
-		rig.model:PivotTo(origin * carAt * CFrame.new(-3.4, 0.45, 0.4) * CFrame.Angles(0, math.rad(62), 0))
-		-- a display car: the meshes scale, so the pieces move in to match
-		local mini = 0.62
-		local pivot = rig.model:GetPivot()
-		for _, d in rig.model:GetDescendants() do
-			if d:IsA("SpecialMesh") then
-				d.Scale = Vector3.new(mini, mini, mini)
-			elseif d:IsA("BasePart") then
-				local rel = pivot:ToObjectSpace(d.CFrame)
-				d.CFrame = CFrame.new(pivot * (rel.Position * mini)) * pivot.Rotation * rel.Rotation
-			end
-		end
-		rig.model.Parent = folder
-	end
+	local carRig = RealCar.mount(folder, { length = 8, height = 6.5 })
+	carRig:pivotTo(origin * carAt * CFrame.new(-3.4, 0.45, 0.4) * CFrame.Angles(0, math.rad(62), 0))
+	carRig:setCar(StyleState.car())
+	local carWatch = StyleState.Changed:Connect(function()
+		carRig:setCar(StyleState.car())
+	end)
 
 	-- three trail swatches on the wall of the Trail stall
 	for i, c in { rgb(255, 80, 60), rgb(255, 214, 60), rgb(120, 90, 255) } do
@@ -503,6 +494,8 @@ function Build.build(world: string, origin: CFrame): Pad
 		stalls = stalls,
 	}
 	function pad.destroy(self: Pad)
+		carWatch:Disconnect()
+		carRig:destroy()
 		self.folder:Destroy()
 	end
 	return pad :: Pad

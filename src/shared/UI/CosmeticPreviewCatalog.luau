@@ -10,7 +10,7 @@
 -- Showpiece), shown as words as well as colour. The medal conditions are PRESENTATION states: Brian R supplies the achievement
 -- evidence, Brian L approves the entitlement. An unknown medal stays locked; nothing is unlocked by a made-up race result.
 --
---   Counts: 33 paints (8 free + 25), 14 decals (plus "No decal"), 10 wheels, 9 trails (plus "No trail").
+--   Counts: 34 paints (9 free + 25), 14 decals (plus "No decal"), 10 wheels, 9 trails (plus "No trail").
 --   CosmeticPreviewCatalog.Items[tab] / .Tiers[tab] / .byId(tab, id) / .counts() / .tierItems(tab, tierId)
 --   CosmeticPreviewCatalog.defaultOwnership() / .defaultEquipped() / .stateOf(item, ownership, equippedId)
 --
@@ -141,7 +141,8 @@ local FADE = "A front-to-rear blend, shown as six body bands (not a texture)."
 local FLOW = "A slow colour cycle across six body bands, about 12 updates a second (not a texture)."
 
 local paints: { Item } = {
-	-- BASIC, free (8): immediately available in the preview
+	-- BASIC, free (9): immediately available in the preview. Factory Paint leaves a real car as Brian L made it.
+	paint("Factory Paint", "basic", 0, "solid", { rgb(40, 120, 232) }, "The car's own colours."),
 	paint("Pit White", "basic", 0, "solid", { rgb(236, 240, 248) }, SOLID),
 	paint("Asphalt Charcoal", "basic", 0, "solid", { rgb(58, 62, 74) }, SOLID),
 	paint("Downtown Blue", "basic", 0, "solid", { rgb(40, 120, 232) }, SOLID),
@@ -599,7 +600,7 @@ function CosmeticPreviewCatalog.defaultOwnership(): Ownership
 end
 
 function CosmeticPreviewCatalog.defaultEquipped(): Equipped
-	return { Paint = "downtown_blue", Decals = "none", Wheels = "stock_five", Trails = "no_trail" }
+	return { Paint = "factory_paint", Decals = "none", Wheels = "stock_five", Trails = "no_trail" }
 end
 
 export type ItemState = "equipped" | "owned" | "locked" | "priced" | "unavailable"
