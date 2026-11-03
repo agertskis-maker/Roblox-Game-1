@@ -343,7 +343,7 @@ local function attach(root: Instance): Trove.Trove
 		trove:Connect(plot.AttributeChanged, function(name)
 			if name == "SpeedwayLevel" or name == "SpeedwayPreviewLevel" or name == "OwnerDisplayName" then
 				refresh(info, false)
-			elseif name == "ParkingSpots" then
+			elseif name == "ParkingSpots" or name == "ExpandedPaddock" then
 				refreshParking(info, info.near)
 			end
 		end)
