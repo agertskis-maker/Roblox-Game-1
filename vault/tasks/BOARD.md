@@ -26,7 +26,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## In progress
 - [ ] Lane 3: Launch Pad redesign and bolt change - Adam, with Claude Code, 2026-11-02. Direction B, Sky Launch Platform; branch `feature/lane3-big-round` (draft PR #8) and `integration/beta-2` (draft PR #9); brief `vault/design/specs/lane3-launchpads.md`. Private places only; no merge, no publish.
-  - 2026-11-02 status: built and Studio Play-tested; waiting for Adam's walkthrough. [[lane3-launchpads-ledger]], `Car-Hop-Art/review/hubs/RESULT.md`.
+  - 2026-11-02 status: built and Studio Play-tested; Adam walked it through and asked for it on `main` through PR #8. [[lane3-launchpads-ledger]], `Car-Hop-Art/review/hubs/RESULT.md`.
 - [ ] Lane 3: real showroom cars on the Style, trails, Launch Pad, launch card and Car stall screens - Adam, with Claude Code, 2026-11-02. Plan approved by Adam (Figma step skipped for this job: no layout change). Branch `feature/lane3-big-round`; `Supercar` stays as the fallback. No `assets/cars`, `src/shared/Catalog`, `src/client/Run` or `default.project.json` changes.
   - 2026-11-02 status: built and Studio Play-tested in a local test copy; Style moved to the Garage. See [[lane3-real-cars-ledger]] and `Car-Hop-Art/review/real-cars/index.html`. Decals are card-only on real cars until flat art exists. For Brian L: car pivots in the built place and mesh ownership ([[0034-real-cars-on-lane3-screens]]).
 - [ ] Lane 2: economy design v1 (Cash, Lap Pay, Raceway levels, parking spots, World unlocks, crafted special editions) - Brian L, with Claude Code, 2026-11-02. Proposal document only, `vault/design/specs/economy-v1.md` on branch `feature/lane2-economy-design`; no code, saves or remotes yet
