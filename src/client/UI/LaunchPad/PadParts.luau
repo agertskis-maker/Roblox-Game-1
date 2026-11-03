@@ -99,7 +99,8 @@ function PadParts.emblem(k: any, theme: any)
 	k:cyl("EmblemDisc", 32, 0.1, CFrame.new(0, 0.14, 2), INK)
 	k:cyl("EmblemRing", 30, 0.1, CFrame.new(0, 0.17, 2), theme.stripeA)
 	k:cyl("EmblemFace", 28.6, 0.1, CFrame.new(0, 0.2, 2), rgb(248, 244, 232))
-	local face = k:box("EmblemArt", Vector3.new(28, 0.04, 28), CFrame.new(0, 0.26, 2), INK)
+	local face =
+		k:box("EmblemArt", Vector3.new(28, 0.04, 28), CFrame.new(0, 0.26, 2) * CFrame.Angles(0, -math.pi / 2, 0), INK)
 	face.Transparency = 1
 	local g = surface(face, Enum.NormalId.Top, 24)
 	g.LightInfluence = 0.8
@@ -144,12 +145,12 @@ end
 function PadParts.arrival(k: any, theme: any, name: string): { Part }
 	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.15, 34), theme.trim)
 	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.2, 34), theme.glow, Enum.Material.Neon)
-	k:cyl("ArrivalFace", 17, 0.3, CFrame.new(0, 0.25, 34), INK)
+	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.25, 34), INK)
 	local label =
-		k:box("ArrivalArt", Vector3.new(15, 0.04, 6), CFrame.new(0, 0.42, 34) * CFrame.Angles(0, math.pi, 0), INK)
+		k:box("ArrivalArt", Vector3.new(6, 0.04, 16), CFrame.new(0, 0.42, 34) * CFrame.Angles(0, -math.pi / 2, 0), INK)
 	label.Transparency = 1
-	local g = surface(label, Enum.NormalId.Top, 20)
-	CarKit.title(g, name, 62, {
+	local g = surface(label, Enum.NormalId.Top, 40)
+	CarKit.title(g, name, 76, {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.Yellow,
@@ -195,7 +196,7 @@ function PadParts.ramp(k: any, theme: any)
 		theme.floorMaterial,
 		true
 	)
-	k:box("RampSupport", Vector3.new(wide - 2, 24, len + 12), CFrame.new(0, -6, foot - len / 2 - 8), theme.under)
+	k:box("RampSupport", Vector3.new(wide - 2, 10, len + 12), CFrame.new(0, -5.2, foot - len / 2 - 8), theme.under)
 	local slope = math.atan2(rise, len)
 	local along = CFrame.new(0, rise / 2, foot - len / 2) * CFrame.Angles(slope, 0, 0)
 	for _, s in { 1, -1 } do
@@ -233,7 +234,7 @@ function PadParts.ramp(k: any, theme: any)
 	stop.Transparency = 1
 	-- the road goes on up into the sky, for the eye only
 	local at = CFrame.new(0, rise, foot - len - 16)
-	local pitch = 0.1
+	local pitch = 0.03
 	for _ = 1, 7 do
 		at = at * CFrame.Angles(pitch, 0.05, 0) * CFrame.new(0, 0, -11)
 		k:box("SkyRoad", Vector3.new(wide, 0.8, 23), at, theme.floor, theme.floorMaterial)
@@ -241,7 +242,7 @@ function PadParts.ramp(k: any, theme: any)
 			k:neon("SkyRoadEdge", Vector3.new(1, 0.9, 23), at * CFrame.new(s * (wide / 2 - 0.2), 0.5, 0), theme.stripeA)
 		end
 		at = at * CFrame.new(0, 0, -11)
-		pitch = math.min(pitch + 0.015, 0.2)
+		pitch = math.min(pitch + 0.008, 0.09)
 	end
 end
 
@@ -268,15 +269,15 @@ function PadParts.gantry(k: any, theme: any, world: string): { Part }
 			k:ball("GantrySnow", 4.4, CFrame.new(s * x, 25.6, z), rgb(248, 252, 255), Enum.Material.Snow)
 		end
 	end
-	k:box("GantryHead", Vector3.new(x * 2 + 2, 6, 2.4), CFrame.new(0, 21, z), legColour, material)
+	k:box("GantryHead", Vector3.new(x * 2 + 2, 4.4, 2.4), CFrame.new(0, 21, z), legColour, material)
 	k:box("GantryHeadTrim", Vector3.new(x * 2 + 2.4, 0.5, 2.8), CFrame.new(0, 18.2, z), GOLD)
-	SignKit.sign(k.parent, k.origin * CFrame.new(0, 26.2, z + 1.4) * CFrame.Angles(0, 0, 0), {
+	SignKit.sign(k.parent, k.origin * CFrame.new(0, 25.6, z + 1.4) * CFrame.Angles(0, math.pi, 0), {
 		style = theme.sign,
 		text = world,
 		width = 20,
 		height = 3.4,
 	})
-	SignKit.sign(k.parent, k.origin * CFrame.new(0, 15.6, z + 1.4), {
+	SignKit.sign(k.parent, k.origin * CFrame.new(0, 16.2, z + 1.4) * CFrame.Angles(0, math.pi, 0), {
 		style = "Race",
 		text = "START",
 		width = 13,
@@ -312,24 +313,17 @@ function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 	end
 	k:box("HomeArch", Vector3.new(16, 2.2, 3), at * CFrame.new(0, 14.3, 0), cream)
 	-- the crest with a chunky house
-	k:cyl("HomeCrest", 8.6, 1.4, at * CFrame.new(0, 19.2, 0) * CFrame.Angles(math.pi / 2, 0, 0), rgb(36, 56, 130))
-	k:cyl(
-		"HomeCrestRim",
-		9.6,
-		1,
-		at * CFrame.new(0, 19.2, 0.2) * CFrame.Angles(math.pi / 2, 0, 0),
-		GOLD,
-		Enum.Material.Metal
+	local crest = at * CFrame.new(0, 18.2, 0)
+	local upright = CFrame.Angles(math.pi / 2, 0, 0)
+	k:cyl("HomeCrestRim", 7, 0.9, crest * CFrame.new(0, 0, 0.1) * upright, GOLD, Enum.Material.Metal)
+	k:cyl("HomeCrest", 6, 1.2, crest * CFrame.new(0, 0, -0.1) * upright, rgb(36, 56, 130))
+	k:box("HomeHouse", Vector3.new(2.3, 1.7, 0.4), crest * CFrame.new(0, -0.7, -0.9), GOLD)
+	k:box(
+		"HomeRoof",
+		Vector3.new(2.3, 2.3, 0.4),
+		crest * CFrame.new(0, 0.3, -0.9) * CFrame.Angles(0, 0, math.rad(45)),
+		GOLD
 	)
-	k:box("HomeHouse", Vector3.new(3.6, 2.6, 0.6), at * CFrame.new(0, 18.2, -0.9), GOLD)
-	for _, s in { 1, -1 } do
-		k:wedge(
-			"HomeRoof",
-			Vector3.new(0.6, 2, 2.6),
-			at * CFrame.new(s * 1.3, 20.5, -0.9) * CFrame.Angles(0, s * math.pi / 2, 0),
-			GOLD
-		)
-	end
 	SignKit.sign(k.parent, k.origin * at * CFrame.new(0, 14.4, -1.7), {
 		style = "Race",
 		text = "HOME",
@@ -414,7 +408,7 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 				* CFrame.new(0, top + 0.6, 1)
 				* CFrame.Angles(0, a, 0)
 				* CFrame.new(0, 1.3, 4.5)
-				* CFrame.Angles(math.rad(-30), 0, 0)
+				* CFrame.Angles(math.rad(30), 0, 0)
 			k:box("AwningSlice", Vector3.new(3.2, 0.4, 7), slope, if i % 2 == 0 then main else second)
 			k:ball(
 				"AwningScallop",
@@ -457,13 +451,18 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 		end
 		top += 3
 	end
-	SignKit.sign(k.parent, k.origin * at * CFrame.new(0, top + 1, -5.2), {
-		style = theme.sign,
-		text = label,
-		width = 10,
-		height = 2.8,
-		accent = main,
-	})
+	local chalet = theme.roof == "Chalet"
+	SignKit.sign(
+		k.parent,
+		k.origin * at * CFrame.new(0, if chalet then top - 3.6 else top + 1, if chalet then -6 else -5.2),
+		{
+			style = theme.sign,
+			text = label,
+			width = 10,
+			height = 2.8,
+			accent = main,
+		}
+	)
 	-- the circle to stand on
 	local stand = k:cyl("KioskRing", 8, 0.1, at * CFrame.new(0, 0.32, -11), main, Enum.Material.Neon)
 	k:cyl("KioskRingCore", 6.8, 0.1, at * CFrame.new(0, 0.36, -11), theme.floor, theme.floorMaterial)
@@ -560,8 +559,8 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	local hues = 14
 	for i = 0, hues - 1 do
 		local a = i / hues * math.pi * 2
-		local cf = knotAt * CFrame.new(math.sin(a) * 2.8, math.sin(a * 2) * 1.2, 0)
-		knot:ball("KnotBead", 1.5, cf, Color3.fromHSV(i / hues, 0.8, 1), Enum.Material.Neon)
+		local cf = knotAt * CFrame.new(math.sin(a) * 2.4, math.sin(a * 2) * 1, 0)
+		knot:ball("KnotBead", 1.1, cf, Color3.fromHSV(i / hues, 0.8, 1), Enum.Material.Neon)
 	end
 	bobbing(knotModel, life, 0.8)
 
@@ -627,7 +626,7 @@ function PadParts.touches(k: any, theme: any, world: string, life: any)
 		end
 		for _, s in { 1, -1 } do
 			k:cyl("LampPost", 0.7, 12, CFrame.new(s * 40 * 0.42, 6, 28), rgb(50, 60, 100))
-			k:ball("LampGlow", 2.2, CFrame.new(s * 40 * 0.42, 12.6, 28), rgb(255, 214, 140), Enum.Material.Neon)
+			k:ball("LampGlow", 1.7, CFrame.new(s * 40 * 0.42, 12.6, 28), rgb(255, 214, 140), Enum.Material.Neon)
 		end
 	elseif world == "DustyHighway" then
 		for _, p in { { -14, -30 }, { 14, -30 }, { 18, 34 }, { -18, 34 } } do

@@ -187,6 +187,19 @@ local function setLight(name: string?)
 	end)
 end
 
+-- Keep the HUD simple on the pad: the leaderboard and VIP buttons rest until the player is back on the island.
+local function quietHud(on: boolean)
+	local hud = shell and shell.hud
+	if hud then
+		for _, name in { "Leaderboard", "VIP", "Vip" } do
+			local button = hud:getButton(name)
+			if button then
+				button.Visible = not on
+			end
+		end
+	end
+end
+
 local function setPadLight(pad: Build.Pad)
 	local look = ReplicatedStorage:FindFirstChild("LookDev")
 	if look then
@@ -372,6 +385,8 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 		moveTo(pad.arrival)
 		padVisits += 1
 		pad:showChevrons(padVisits <= CHEVRON_VISITS or isTutorial())
+		pad:setLive(true)
+		quietHud(true)
 		arrivalBanner(pad.theme.title)
 		-- a pad built this frame has no collision yet: hold the player still for a moment
 		local r = root()
@@ -393,6 +408,11 @@ function LaunchPad.leave()
 	padTrove:Clean()
 	lifeTrove:Clean()
 	capZoom(false)
+	quietHud(false)
+	local gone = pads[world]
+	if gone then
+		gone:setLive(false)
+	end
 	setPhase("leaving")
 	local card = panel("launchCard")
 	if card and card:isOpen() then
@@ -552,10 +572,12 @@ begin = function()
 		end
 		local pad = pads[world]
 		if pad then
+			pad:setLive(false)
 			pad.folder.Parent = nil
 		end
 		setLight(world)
 		capZoom(false)
+		quietHud(false)
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
 		stamina = runTrove:Add(

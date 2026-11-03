@@ -9,7 +9,10 @@
 --   pad:step(dt)                 motion, called while the pad is on show
 --   pad:showChevrons(on)         the way to the ramp
 --   pad:setLight(i, colour?)     one of the four start lights; nil is off
+--   pad:setLive(on)              the theme's quiet ambient loop
 --   pad:destroy()
+
+local SoundService = game:GetService("SoundService")
 
 local Motion = require(script.Parent.Parent.Prototype.Motion)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
@@ -32,10 +35,12 @@ export type Pad = {
 	step: (self: Pad, dt: number) -> (),
 	showChevrons: (self: Pad, on: boolean) -> (),
 	setLight: (self: Pad, index: number, colour: Color3?) -> (),
+	setLive: (self: Pad, on: boolean) -> (),
 	destroy: (self: Pad) -> (),
 }
 
 local LIGHT_OFF = Color3.fromRGB(60, 26, 30)
+local AMBIENT_VOLUME = 0.16
 local WORLD_NAME: { [string]: string } =
 	{ Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
 
@@ -79,6 +84,13 @@ function Build.build(world: string, origin: CFrame): Pad
 			end
 		end
 	end)
+	local ambient = Instance.new("Sound")
+	ambient.Name = "PadAmbient"
+	ambient.SoundId = theme.ambient
+	ambient.Looped = true
+	ambient.Volume = AMBIENT_VOLUME
+	ambient.SoundGroup = SoundService:FindFirstChild("Lane3PreviewMusic") :: SoundGroup?
+	ambient.Parent = folder
 
 	local carWatch = StyleState.Changed:Connect(syncCars)
 	local clock = 0
@@ -116,6 +128,13 @@ function Build.build(world: string, origin: CFrame): Pad
 		if lamp then
 			lamp.Color = colour or LIGHT_OFF
 			lamp.Material = if colour then Enum.Material.Neon else Enum.Material.Glass
+		end
+	end
+	function pad.setLive(_self: Pad, on: boolean)
+		if on then
+			ambient:Play()
+		else
+			ambient:Stop()
 		end
 	end
 	function pad.destroy(self: Pad)

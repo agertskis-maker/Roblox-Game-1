@@ -35,6 +35,7 @@ export type Theme = {
 	worldMaterial: Enum.Material,
 	lighting: any,
 	portal: Color3,
+	ambient: string,
 }
 
 PadKit.Themes = {
@@ -42,12 +43,12 @@ PadKit.Themes = {
 		title = "DOWNTOWN LAUNCH PAD",
 		roof = "Awning",
 		sign = "Race",
-		floor = rgb(36, 44, 92),
+		floor = rgb(52, 66, 138),
 		floorMaterial = Enum.Material.SmoothPlastic,
-		panel = rgb(58, 92, 168),
+		panel = rgb(92, 128, 210),
 		rim = rgb(196, 204, 222),
 		under = rgb(44, 50, 84),
-		stripeA = rgb(255, 136, 30),
+		stripeA = rgb(240, 110, 20),
 		stripeB = rgb(255, 196, 70),
 		pillar = rgb(244, 232, 206),
 		trim = rgb(240, 186, 60),
@@ -57,18 +58,19 @@ PadKit.Themes = {
 			Trails = { rgb(40, 110, 220), rgb(250, 240, 222) },
 			Paint = { rgb(232, 64, 92), rgb(250, 240, 222) },
 		},
-		world = rgb(36, 46, 78),
+		world = rgb(56, 70, 96),
 		worldMaterial = Enum.Material.SmoothPlastic,
 		portal = rgb(64, 190, 255),
+		ambient = "rbxassetid://9112758242", -- City Ambience 1 (SFX), Pro Sound Effects
 		lighting = {
 			props = {
-				ClockTime = 18.45,
-				Brightness = 1.7,
-				Ambient = rgb(92, 84, 130),
-				OutdoorAmbient = rgb(128, 112, 160),
+				ClockTime = 17.2,
+				Brightness = 2.8,
+				Ambient = rgb(150, 136, 176),
+				OutdoorAmbient = rgb(176, 156, 196),
 				EnvironmentDiffuseScale = 1,
 				EnvironmentSpecularScale = 0.7,
-				ExposureCompensation = 0.1,
+				ExposureCompensation = 0.25,
 				GlobalShadows = true,
 				ShadowSoftness = 0.3,
 				GeographicLatitude = 30,
@@ -76,21 +78,21 @@ PadKit.Themes = {
 				ColorShift_Bottom = rgb(40, 30, 70),
 			},
 			atmosphere = {
-				density = 0.32,
-				offset = 0.2,
-				colour = rgb(226, 150, 150),
-				decay = rgb(92, 70, 150),
-				haze = 1.8,
+				density = 0.2,
+				offset = 0.12,
+				colour = rgb(248, 190, 170),
+				decay = rgb(190, 110, 130),
+				haze = 1.2,
 			},
-			grade = { brightness = 0.02, contrast = 0.1, saturation = 0.2, tint = rgb(255, 240, 246) },
+			grade = { brightness = 0.02, contrast = 0.1, saturation = 0.24, tint = rgb(255, 238, 232) },
 		},
 	},
 	DustyHighway = {
 		title = "DUSTY HIGHWAY LAUNCH PAD",
 		roof = "Canopy",
 		sign = "Fuel",
-		floor = rgb(226, 184, 136),
-		floorMaterial = Enum.Material.Slate,
+		floor = rgb(232, 196, 150),
+		floorMaterial = Enum.Material.Sandstone,
 		panel = rgb(240, 208, 164),
 		rim = rgb(250, 232, 200),
 		under = rgb(156, 92, 64),
@@ -107,9 +109,10 @@ PadKit.Themes = {
 		world = rgb(206, 124, 84),
 		worldMaterial = Enum.Material.Sand,
 		portal = rgb(90, 210, 240),
+		ambient = "rbxassetid://102354126031648", -- desert_wind_loop, Creator Store
 		lighting = {
 			props = {
-				ClockTime = 17.35,
+				ClockTime = 17.8,
 				Brightness = 2.2,
 				Ambient = rgb(132, 104, 92),
 				OutdoorAmbient = rgb(186, 150, 120),
@@ -123,13 +126,13 @@ PadKit.Themes = {
 				ColorShift_Bottom = rgb(60, 30, 20),
 			},
 			atmosphere = {
-				density = 0.26,
-				offset = 0.22,
+				density = 0.18,
+				offset = 0.14,
 				colour = rgb(244, 190, 140),
 				decay = rgb(200, 120, 110),
-				haze = 1.7,
+				haze = 1.2,
 			},
-			grade = { brightness = 0.02, contrast = 0.08, saturation = 0.18, tint = rgb(255, 242, 226) },
+			grade = { brightness = 0.02, contrast = 0.1, saturation = 0.2, tint = rgb(255, 226, 190) },
 		},
 	},
 	SummitPass = {
@@ -154,6 +157,7 @@ PadKit.Themes = {
 		world = rgb(232, 240, 250),
 		worldMaterial = Enum.Material.Snow,
 		portal = rgb(110, 210, 255),
+		ambient = "rbxassetid://136454830957820", -- loop_wind_03, Creator Store
 		lighting = {
 			props = {
 				ClockTime = 11,
@@ -170,11 +174,11 @@ PadKit.Themes = {
 				ColorShift_Bottom = Color3.new(0, 0, 0),
 			},
 			atmosphere = {
-				density = 0.24,
-				offset = 0.2,
+				density = 0.16,
+				offset = 0.14,
 				colour = rgb(216, 232, 250),
 				decay = rgb(140, 176, 216),
-				haze = 1.4,
+				haze = 1,
 			},
 			grade = { brightness = 0.02, contrast = 0.06, saturation = 0.12, tint = rgb(250, 252, 255) },
 		},
@@ -277,6 +281,20 @@ function PadKit.wedge(
 	return p
 end
 
+-- A soft flattened ball: a cloud's puff.
+function PadKit.puff(self: any, size: Vector3, cf: CFrame, colour: Color3): Part
+	local p = Instance.new("Part")
+	p.Size = size
+	p.CFrame = self.origin * cf
+	finish(self, p, "Cloud", colour)
+	p.Transparency = 0.12
+	p.CastShadow = false
+	local m = Instance.new("SpecialMesh")
+	m.MeshType = Enum.MeshType.Sphere
+	m.Parent = p
+	return p
+end
+
 -- A kit mesh on a plain part, sized so it culls with what it draws. `size` is the size drawn for a unit mesh, or a scale for a sized one.
 function PadKit.mesh(
 	self: any,
@@ -285,7 +303,8 @@ function PadKit.mesh(
 	palette: string?,
 	size: Vector3,
 	cf: CFrame,
-	bounds: Vector3?
+	bounds: Vector3?,
+	tint: Vector3?
 ): Part
 	local p = Instance.new("Part")
 	p.Size = bounds or size
@@ -298,6 +317,7 @@ function PadKit.mesh(
 	m.MeshId = id
 	m.TextureId = palette or ""
 	m.Scale = size
+	m.VertexColor = tint or Vector3.one
 	m.Parent = p
 	return p
 end

@@ -1,5 +1,6 @@
 --!strict
--- PadBackdrop: the World far below a Launch Pad (Lane 3, Launch Pad redesign). The platform floats 300 studs up. Under it is one wide
+-- PadBackdrop: the World far below a Launch Pad (Lane 3, Launch Pad redesign). The platform floats 170 studs up, close enough that a
+-- phone's short draw distance still shows it. Under it is one wide
 -- ground, a ring of its World's own kit pieces, and a far ring that closes the horizon, so no zoom and no angle shows an edge. The kit
 -- meshes are the group-owned World kits; with no kit in the place, plain blocks stand in. Clouds drift round the platform.
 --
@@ -9,7 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PadBackdrop = {}
 
-local DEPTH = 300
+local DEPTH = 170
 local WORLD_D = 2040
 
 local function kit(): (any, any)
@@ -51,24 +52,32 @@ local function downtown(k: any, theme: any, rng: Random)
 		local id = ids and ids.meshes[name]
 		local cf = CFrame.new(p.X, -DEPTH + h / 2, p.Z) * CFrame.Angles(0, rng:NextNumber() * math.pi, 0)
 		if id then
-			k:mesh("CityTower", id, palette, Vector3.new(w, h, w), cf)
+			k:mesh("CityTower", id, palette, Vector3.new(w, h, w), cf, nil, Vector3.new(0.5, 0.56, 0.78))
 		else
 			k:box("CityTower", Vector3.new(w, h, w), cf, Color3.fromRGB(70, 90, 150))
 		end
 		-- lit rooftops: they read as a city at dusk from far up
 		k:neon(
 			"CityGlow",
-			Vector3.new(w * 0.5, 2, w * 0.5),
-			CFrame.new(p.X, -DEPTH + h + 1, p.Z),
+			Vector3.new(w * 0.5, 1, w * 0.5),
+			CFrame.new(p.X, -DEPTH + h + 0.6, p.Z),
 			if rng:NextNumber() < 0.5 then Color3.fromRGB(255, 200, 110) else Color3.fromRGB(120, 200, 255)
 		)
 	end
-	for i = 1, 26 do
-		tower(ring(rng:NextNumber(150, 520), i * 2.399), rng:NextNumber(26, 52), rng:NextNumber(70, 190))
+	for i = 1, 14 do
+		tower(ring(rng:NextNumber(90, 240), i * 2.399), rng:NextNumber(20, 34), rng:NextNumber(36, 90))
 	end
-	for i = 1, 22 do
-		local a = (i / 22) * math.pi * 2
-		tower(ring(rng:NextNumber(800, 900), a), rng:NextNumber(70, 110), rng:NextNumber(220, 420))
+	for i = 1, 16 do
+		tower(ring(rng:NextNumber(260, 560), i * 2.399 + 1), rng:NextNumber(34, 60), rng:NextNumber(90, 210))
+	end
+	for i = 1, 24 do
+		local a = (i / 24) * math.pi * 2
+		tower(ring(rng:NextNumber(860, 930), a), rng:NextNumber(110, 170), rng:NextNumber(240, 460))
+	end
+	-- parks between the blocks
+	for i = 1, 5 do
+		local p = ring(rng:NextNumber(120, 420), i * 1.7)
+		k:cyl("CityPark", rng:NextNumber(70, 130), 1, CFrame.new(p.X, -DEPTH + 2.4, p.Z), Color3.fromRGB(70, 130, 96))
 	end
 	-- two lit roads and a river
 	k:box(
@@ -78,11 +87,17 @@ local function downtown(k: any, theme: any, rng: Random)
 		Color3.fromRGB(46, 74, 140)
 	)
 	for _, r in { 0.9, -0.5 } do
-		k:neon(
+		k:box(
 			"CityRoad",
-			Vector3.new(12, 1, 1900),
+			Vector3.new(26, 1, 1900),
 			CFrame.new(90, -DEPTH + 3, -60) * CFrame.Angles(0, r, 0),
-			theme.stripeA
+			Color3.fromRGB(34, 38, 56)
+		)
+		k:neon(
+			"CityRoadLight",
+			Vector3.new(2, 0.4, 1900),
+			CFrame.new(90, -DEPTH + 3.7, -60) * CFrame.Angles(0, r, 0),
+			theme.stripeB
 		)
 	end
 end
@@ -104,16 +119,16 @@ local function dusty(k: any, _theme: any, rng: Random)
 		local size = piece[2] * scale
 		local cf = CFrame.new(p.X, -DEPTH + size.Y / 2, p.Z) * CFrame.Angles(0, a + math.pi / 2, 0)
 		if id then
-			k:mesh("Mesa", id, palette, Vector3.one * scale, cf, size)
+			k:mesh("Mesa", id, palette, Vector3.one * scale, cf, size, Vector3.new(0.92, 0.6, 0.46))
 		else
 			k:box("Mesa", size, cf, Color3.fromRGB(170, 92, 60))
 		end
 	end
 	for i = 1, 8 do
-		mesa(rng:NextNumber(280, 460), i * 2.399, rng:NextNumber(0.5, 0.9))
+		mesa(rng:NextNumber(200, 420), i * 2.399, rng:NextNumber(0.5, 0.9))
 	end
-	for i = 1, 12 do
-		mesa(860, (i / 12) * math.pi * 2, 1.9)
+	for i = 1, 16 do
+		mesa(900, (i / 16) * math.pi * 2, 2.4)
 	end
 	-- the highway across the desert
 	k:box(
@@ -159,7 +174,7 @@ local function summit(k: any, _theme: any, rng: Random)
 	end
 	local spruce = piece("SP_Fol_Spruce")
 	for i = 1, 34 do
-		local p = ring(rng:NextNumber(130, 620), i * 2.399)
+		local p = ring(rng:NextNumber(90, 460), i * 2.399)
 		local scale = rng:NextNumber(1.6, 2.6)
 		local cf = CFrame.new(p.X, -DEPTH + 21 * scale, p.Z)
 		if spruce then
@@ -168,28 +183,18 @@ local function summit(k: any, _theme: any, rng: Random)
 			k:box("Spruce", Vector3.new(14, 42, 14) * scale, cf, Color3.fromRGB(46, 96, 80))
 		end
 	end
-	-- a ski lift climbing out of the valley
-	local tower = piece("SP_LM_LiftTower_A")
+	-- a ski lift climbing away across the valley
+	local tower = piece("SP_LM_LiftTower_B")
 	for i = 0, 4 do
-		local p = Vector3.new(-430 + i * 80, 0, -300 + i * 60)
-		local rise = i * 44
-		local cf = CFrame.new(p.X, -DEPTH + rise + 80, p.Z)
+		local cf = CFrame.new(-420 + i * 90, -DEPTH + 31, -250 + i * 70)
 		if tower then
-			k:mesh("LiftTower", tower, palette, Vector3.one * 2, cf, Vector3.new(40, 158, 38))
+			k:mesh("LiftTower", tower, palette, Vector3.one, cf, Vector3.new(15.4, 62.8, 15.4))
 		end
-		k:cyl(
-			"LiftBase",
-			180 - i * 12,
-			rise + 4,
-			CFrame.new(p.X, -DEPTH + (rise + 4) / 2, p.Z),
-			_theme.world,
-			Enum.Material.Snow
-		)
 	end
 	k:box(
 		"Lake",
-		Vector3.new(260, 1, 180),
-		CFrame.new(240, -DEPTH + 3, 200),
+		Vector3.new(220, 1, 150),
+		CFrame.new(190, -DEPTH + 3, 150),
 		Color3.fromRGB(110, 176, 214),
 		Enum.Material.Ice
 	)
@@ -205,21 +210,19 @@ function PadBackdrop.build(k: any, world: string, theme: any, life: (fn: (number
 
 	-- clouds: a few soft clumps at platform height and below, on one slow drift
 	local cloudKit, clouds = k:model("Clouds")
-	local white = if world == "Downtown" then Color3.fromRGB(150, 130, 190) else Color3.fromRGB(250, 248, 246)
+	local white = if world == "Downtown" then Color3.fromRGB(255, 226, 226) else Color3.fromRGB(252, 250, 248)
 	for i = 1, 10 do
 		local a = i * 2.399
 		local p = ring(rng:NextNumber(120, 420), a)
-		local y = rng:NextNumber(-150, -24)
-		local base = rng:NextNumber(26, 46)
+		local y = rng:NextNumber(-110, -20)
+		local base = rng:NextNumber(20, 34)
 		for j = -1, 1 do
-			local puff = cloudKit:ball(
-				"Cloud",
-				base * (if j == 0 then 1 else 0.72),
-				CFrame.new(p.X + j * base * 0.6, y, p.Z + j * base * 0.2),
+			local size = base * (if j == 0 then 1 else 0.72)
+			cloudKit:puff(
+				Vector3.new(size * 1.9, size * 0.6, size * 1.2),
+				CFrame.new(p.X + j * base * 0.9, y, p.Z + j * base * 0.3),
 				white
 			)
-			puff.Transparency = 0.18
-			puff.CastShadow = false
 		end
 	end
 	local home = clouds:GetPivot()
