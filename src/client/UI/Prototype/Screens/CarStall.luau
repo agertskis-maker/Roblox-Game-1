@@ -142,7 +142,8 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 					name = "Loaner",
 				})
 			end
-			CarKit.title(button, car.name, 20, {
+			-- a car not found yet keeps its name secret, as in the Garage
+			CarKit.title(button, if car.owned then car.name else "???", 20, {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, -6, 0, 24),
 				position = UDim2.new(0, 3, 1, -26),
