@@ -6,7 +6,7 @@
 --
 --   local shop = ShopMock.new(ctx, { onClose = fn?, adapter = A?, onFreeReward = fn?, autoAdvance = true?, blur = true? })
 --   shop:open(returnTo?)                       -- starts at Featured
---   shop:openSection(name, returnTo?)          -- "Featured", "Passes", "Cash", "Trails", "Free"
+--   shop:openSection(name, returnTo?)          -- "Featured", "Passes", "Cash", "Free"
 --   shop:openAt(sectionId?, offerId?, returnTo?)
 --   shop:openExpandedPaddock(returnTo?)        -- "Get more spots" in the Raceway's parking panel
 --   shop:openDoubleLapPay(returnTo?)           -- "Earn faster"
@@ -54,7 +54,6 @@ local TABS = {
 	{ id = "featured", label = "Featured" },
 	{ id = "passes", label = "Passes" },
 	{ id = "cash", label = "Cash" },
-	{ id = "trails", label = "Trails" },
 	{ id = "free", label = "Free" },
 }
 
@@ -70,14 +69,6 @@ type Slide = {
 
 local SLIDES: { Slide } = {
 	{ title = "STARTER PACK!", family = "Starter", art = "art_starter", offer = "starter-pack" },
-	{
-		title = "NEW TRAILS!",
-		family = "Trail",
-		art = "art_trail",
-		go = "trails",
-		line = "Leave your mark behind you!",
-		button = "SEE TRAILS",
-	},
 	{
 		title = "CASH VAULT!",
 		family = "CashVault",
@@ -158,7 +149,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local buildTrove = trove:Extend()
 	local isShopOpen = false
 	local visible = true
-	local view = "store"
 	local activeTab = "featured"
 	local slide = 1
 	local nextAdvance = 0
@@ -169,7 +159,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	local buttons: { [string]: { CarKit.Button } } = {}
 	local tabButtons: { [string]: any } = {}
 	local page: ScrollingFrame? = nil
-	local studio: any = nil
 	local panel: Frame? = nil
 	local blur: BlurEffect? = nil
 	local soon: Frame? = nil
@@ -1088,9 +1077,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		body.Size = UDim2.new(1, 0, 0, y)
 		scroll.CanvasSize = UDim2.fromOffset(0, y)
 		buildTrove:Connect(scroll:GetPropertyChangedSignal("CanvasPosition"), function()
-			if view ~= "store" then
-				return
-			end
 			local canvasH = scroll.CanvasSize.Y.Offset
 			local at = scroll.CanvasPosition.Y / (if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1) + 40
 			local best = "featured"
@@ -1109,22 +1095,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		motion.setViewport(scroll)
 	end
 
-	local function mountStudio(host: Frame, tab: string, size: Vector2)
-		local StyleStudio = require(script.Parent.StyleStudio) :: any
-		studio = StyleStudio.new(ctx, host, {
-			tab = tab,
-			tabs = { "Trails" },
-			size = size,
-			trove = buildTrove,
-			onGetCash = function()
-				showTab("cash", true)
-			end,
-			onBuy = function(id: string, title: string, art: string?)
-				press(id, title, art)
-			end,
-		})
-	end
-
 	build = function()
 		buildTrove:Clean()
 		heroTrove = buildTrove:Extend()
@@ -1133,7 +1103,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		table.clear(cashRow)
 		page = nil
 		heroSlot = nil
-		studio = nil
 		cashLabel = nil
 		motion.clear()
 		counters.builds += 1
@@ -1302,11 +1271,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			Size = UDim2.new(1, -p.pad * 2 + 4, 1, -p.headerH - p.pad - 8 - FOOT),
 			ZIndex = 3,
 		}, shell) :: Frame
-		if view == "store" then
-			buildPage(stage, p)
-		else
-			mountStudio(stage, "Trails", Vector2.new(p.inner, p.pageH))
-		end
+		buildPage(stage, p)
 		if isShopOpen and visible then
 			motion.start()
 		end
@@ -1314,18 +1279,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	end
 
 	showTab = function(id: string, animate: boolean?)
-		local wantStudio = id == "trails"
 		activeTab = id
-		if wantStudio or view == "studio" then
-			view = if wantStudio then "studio" else "store"
-			build()
-		end
 		for tab, refs in tabButtons do
 			refs.paint(tab == id)
 		end
-		if not wantStudio then
-			shop:scrollTo(id, animate)
-		end
+		shop:scrollTo(id, animate)
 	end
 
 	-- PUBLIC ----------------------------------------------------------------------------------------------------
@@ -1375,7 +1333,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			return
 		end
 		isShopOpen = true
-		view = "store"
 		activeTab = "featured"
 		slide = 1
 		overlay:setBack(function()
@@ -1469,23 +1426,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		press(id, if offer then offer.name else id, nil)
 	end
 
-	-- the Trails page, for tests
-	function shop.styleTab(_self: Shop, name: string)
-		if studio then
-			studio:setTab(name)
-		end
-	end
-
-	function shop.styleSelect(_self: Shop, id: string): boolean
-		return studio ~= nil and studio:select(id)
-	end
-
-	function shop.styleAction(_self: Shop)
-		if studio then
-			studio:pressAction()
-		end
-	end
-
 	function shop.getAdapter(_self: Shop): ShopPurchaseAdapter.Adapter
 		return adapter
 	end
@@ -1493,7 +1433,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 	function shop.getDebugState(_self: Shop): { [string]: any }
 		return {
 			open = isShopOpen,
-			view = view,
 			tab = activeTab,
 			slide = slide,
 			builds = counters.builds,
@@ -1503,7 +1442,6 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			adapter = adapter:stats(),
 			tier = currentPlan and currentPlan.tier,
 			k = currentPlan and currentPlan.k,
-			studio = if studio then studio:getDebugState() else nil,
 		}
 	end
 
@@ -1533,8 +1471,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			end
 			shop:layout()
 			if
-				view == "store"
-				and opts.autoAdvance ~= false
+				opts.autoAdvance ~= false
 				and not Motion.reduced()
 				and os.clock() >= nextAdvance
 				and not pendingId

@@ -118,7 +118,7 @@ local LINES: { [string]: string } = {
 	["later.upgrade.title"] = "UPGRADE YOUR RACEWAY!",
 	["later.upgrade.line"] = "Visit your Raceway to level it up.",
 	["later.shop.title"] = "SEE WHAT'S NEW!",
-	["later.shop.line"] = "New trails in the Shop.",
+	["later.shop.line"] = "New trails in the Garage.",
 	["return.mission.title"] = "REWARD WAITING!",
 	["return.mission.line"] = "Open Missions to claim it.",
 	-- accessibility labels and debug

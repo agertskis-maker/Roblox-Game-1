@@ -8,7 +8,8 @@
 --   local pills = HomePills.new(parent)
 --   pills:place(plan, scale)                   -- HomeLayout.TopPlan and the HUD scale
 --   pills:notify(text, icon?)                  -- one event; a repeat of the shown text within 1 s only extends its dwell
---   pills:setGoal(spec?)                       -- { title, subtitle?, progress? 0..1, icon?, onActivate? }; nil clears it
+--   pills:setGoal(spec?)                       -- { title, subtitle?, progress? 0..1, icon?, onActivate?, seconds? }; the red X
+--                                                 always clears it, and `seconds` clears it by itself; nil clears it
 --   pills:setSuppressed(on)  pills:setVisible(on)  pills:getDebugState()  pills:destroy()
 --
 -- Motion (N7-04a starting values): a pill slides in over 0.18 s and out over 0.14 s, a notification is readable for 2.5 s,
@@ -47,6 +48,7 @@ export type GoalSpec = {
 	progress: number?,
 	icon: string?,
 	onActivate: (() -> ())?,
+	seconds: number?, -- clears itself after this long
 }
 
 export type Pills = {
@@ -329,6 +331,26 @@ function HomePills._buildGoal(self: any)
 			spec.onActivate()
 		end
 	end)
+	local dismiss = make("TextButton", {
+		Name = "Dismiss",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -6, 0.5, 0),
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = Color3.fromRGB(226, 50, 56),
+		Text = "X",
+		TextColor3 = Color3.new(1, 1, 1),
+		TextSize = 22,
+		Font = Enum.Font.FredokaOne,
+		AutoButtonColor = true,
+		Selectable = true,
+		ZIndex = 13,
+		Parent = body,
+	})
+	Arcade.corner(dismiss, 12)
+	self._trove:Connect(dismiss.Activated, function()
+		Sounds.play("Tap")
+		self:setGoal(nil)
+	end)
 	self._g = {
 		holder = holder,
 		body = body,
@@ -362,7 +384,7 @@ function HomePills._layoutGoal(self: any)
 	g.holder.Size = UDim2.fromOffset(w, h + DEPTH)
 	g.icon.Size = UDim2.fromOffset(iconSize, iconSize)
 	local textX = 8 + iconSize + 8
-	local textW = w - textX - 12
+	local textW = w - textX - 52 -- room for the X
 	g.title.TextSize = if compact then 18 else 20
 	g.title.Position = UDim2.fromOffset(textX, pad)
 	g.title.Size = UDim2.fromOffset(textW, titleH)
@@ -384,6 +406,14 @@ function HomePills.setGoal(self: any, spec: GoalSpec?)
 	local g = self._g
 	local previous: GoalSpec? = self._goal
 	self._goal = spec
+	local seconds = spec and spec.seconds
+	if seconds then
+		task.delay(seconds, function()
+			if self._goal == spec and not self._destroyed then
+				self:setGoal(nil)
+			end
+		end)
+	end
 	if not spec then
 		self._goalOn = false
 		self:_layoutStack(false)

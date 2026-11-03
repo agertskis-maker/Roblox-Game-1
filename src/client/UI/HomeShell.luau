@@ -197,16 +197,21 @@ function HomeShell.start(options: Options?): any
 			self.shopAt("Cash")
 		end,
 	})
-	local CUSTOMIZE_VIEW = { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels" }, tab = "Paint" }
+	local function customizeView(tab: string): { [string]: any }
+		return { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels", "Trails" }, tab = tab }
+	end
+	self.customizeAt = function(tab: string)
+		userPanel("customize", nil, customizeView(tab))
+	end
 	mount("garage", { "Screens", "GarageMock" }, "Overlay", {
 		onCustomize = function()
-			components.customize:open(nil, CUSTOMIZE_VIEW)
+			components.customize:open(nil, customizeView("Paint"))
 		end,
 	})
 	-- the Garage building on the island
 	trove:Connect(ProximityPromptService.PromptTriggered, function(prompt: ProximityPrompt, who: Player)
 		if prompt.Name == "OpenGarage" and who == player then
-			userPanel("customize", nil, CUSTOMIZE_VIEW)
+			self.customizeAt("Paint")
 		end
 	end)
 	mount("shop", { "Screens", "ShopMock" }, "Overlay", {
