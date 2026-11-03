@@ -147,7 +147,7 @@ type Panel = {
 	destroyed: boolean,
 }
 
-local priceText: (Kind, number) -> string
+local priceText: (Panel) -> string
 local shortBy: (Panel) -> number?
 
 local active: Panel? = nil -- the open card
@@ -562,20 +562,25 @@ end
 type UpgradeTexts = { current: string, nextTile: string, lapNow: string, lapNext: string, newLine: string }
 type ParkingTexts = { owned: string, nextSpot: string }
 
--- The PREVIEW price of the next step: Raceway level `shown + 1`, or parking spot `shown + 1`.
-local function nextPrice(kind: Kind, shown: number): number?
-	return if kind == "upgrade" then EconomyPreview.racewayPrice(shown + 1) else EconomyPreview.spotPrice(shown + 1)
+-- The PREVIEW price of the next step: Raceway level `shown + 1`, or the next BOUGHT parking spot. With the Expanded Paddock
+-- pass the shown count includes the pass's 3 bays, so the spot being bought is `shown - 3 + 1` (the same price ladder).
+local function nextPrice(p: Panel): number?
+	if p.kind == "upgrade" then
+		return EconomyPreview.racewayPrice(p.shown + 1)
+	end
+	local extra = if Parking.hasExpanded(p.source.plot) then Parking.ExpandedSpots else 0
+	return EconomyPreview.spotPrice(p.shown - extra + 1)
 end
 
-priceText = function(kind: Kind, shown: number): string
-	local price = nextPrice(kind, shown)
+priceText = function(p: Panel): string
+	local price = nextPrice(p)
 	return "PRICE: " .. (if price then Format.cash(price) else "?")
 end
 
 -- How much Cash is missing for the next step, from the numbers (0 = can afford; nil = no Cash source to compare with).
 shortBy = function(p: Panel): number?
 	local cashOf = ShopPanel.cashOf
-	local price = nextPrice(p.kind, p.shown)
+	local price = nextPrice(p)
 	if not (cashOf and price) then
 		return nil
 	end
@@ -596,9 +601,9 @@ local function upgradeTexts(level: number): UpgradeTexts
 	}
 end
 
-local function parkingTexts(owned: number): ParkingTexts
+local function parkingTexts(owned: number, max: number): ParkingTexts
 	return {
-		owned = string.format("%d / %d", owned, Parking.MaxSpots),
+		owned = string.format("%d / %d", owned, max),
 		nextSpot = tostring(owned + 1),
 	}
 end
@@ -618,12 +623,12 @@ local function applyTexts(p: Panel)
 		setText(p, "lapNow", t.lapNow)
 		setText(p, "lapNext", t.lapNext)
 		setText(p, "newLine", t.newLine)
-		setText(p, "price", priceText(p.kind, p.shown))
+		setText(p, "price", priceText(p))
 	else
-		local t = parkingTexts(p.shown)
+		local t = parkingTexts(p.shown, p.max)
 		setText(p, "owned", t.owned)
 		setText(p, "nextSpot", t.nextSpot)
-		setText(p, "price", priceText(p.kind, p.shown))
+		setText(p, "price", priceText(p))
 	end
 end
 
@@ -696,7 +701,7 @@ end
 local function buildPriceStrip(p: Panel, parent: Instance, y: number, width: number)
 	local strip = frame(parent, "PriceStrip", 0, y, width, 32, nil)
 	dashedOutline(strip, width, 32)
-	local label = text(strip, "Text", priceText(p.kind, p.shown), Tokens.TextSize.Label, C.Text, 0)
+	local label = text(strip, "Text", priceText(p), Tokens.TextSize.Label, C.Text, 0)
 	label.Size = UDim2.new(1, -96, 1, 0)
 	local tag = box(strip, "PreviewTag", width - 88, 4, 80, 24, C.Stroke, Tokens.Stroke.Thin, Tokens.Radius.Pill, MINT)
 	text(tag, "Text", "PREVIEW", Tokens.TextSize.Minimum, MINT, 0)
@@ -776,7 +781,7 @@ local function buildUpgradeRows(p: Panel, body: Frame, width: number)
 end
 
 local function buildParkingRows(p: Panel, body: Frame, width: number)
-	local texts = parkingTexts(p.shown)
+	local texts = parkingTexts(p.shown, p.max)
 	local x0 = math.floor((width - TILE_ROW_W) / 2)
 
 	-- row 2: OWNED tile, arrow, NEXT SPOT tile (two lines each: a label, then a 36 value)
@@ -814,7 +819,8 @@ end
 local function buildMaxBody(p: Panel, inner: Frame, width: number, height: number)
 	local viewH = height - HEADER_H
 	local parking = p.kind ~= "upgrade"
-	local more = ShopPanel.onMoreSpots
+	-- the pass is the one way past 15; a plot that has it is at its true top and is offered nothing
+	local more = if Parking.hasExpanded(p.source.plot) then nil else ShopPanel.onMoreSpots
 	local contentH = if parking then 84 + 8 + 26 + 8 + (if more then 60 else 0) else 84 + 12 + 56
 	local body = scrollBody(inner, HEADER_H, width, viewH, contentH)
 	p.scrolls = contentH > viewH + 0.5
@@ -996,6 +1002,11 @@ local function buildContent(p: Panel)
 	p.buyEnabled = false
 	p.scrolls = false
 
+	-- the Paddock's maximum follows the plot (15, or 18 with the Expanded Paddock pass), so a pass bought while the card is
+	-- open counts at once
+	if p.kind ~= "upgrade" then
+		p.max = Parking.maxFor(p.source.plot)
+	end
 	local layout = p.layout
 	local width = layout.cardW - 2 * layout.pad
 	local height = layout.cardH - 2 * layout.pad
@@ -1222,16 +1233,16 @@ end
 -- Public interface
 ----------------------------------------------------------------------------------------------------
 
-local function rangeOf(kind: Kind): (number, number)
-	if kind == "upgrade" then
+local function rangeOf(source: Source): (number, number)
+	if source.kind == "upgrade" then
 		return Ladder.MinLevel, Ladder.MaxLevel
 	end
-	return Parking.StartSpots, Parking.MaxSpots
+	return Parking.StartSpots, Parking.maxFor(source.plot)
 end
 
 local function createPanel(source: Source, playerGui: PlayerGui): Panel
 	local root = Trove.new()
-	local minValue, maxValue = rangeOf(source.kind)
+	local minValue, maxValue = rangeOf(source)
 	local gui: ScreenGui = make("ScreenGui", {
 		Name = "Lane3RacewayPanel",
 		ResetOnSpawn = false,
