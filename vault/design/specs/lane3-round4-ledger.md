@@ -34,7 +34,7 @@ Evidence types (F-00): **code** = source change and `check.ps1`; **self-test** =
 | E-07 | Big numbers | Done | `FormatTests.selfTest` PASS | Qa added; ShopMock, card Lap Pay and Style prices moved to `Format.cash`. CashLine's tip keeps exact dollars on purpose |
 | E-08 | Economy v1 numbers | Done in code, partly seen | parking frames ($500, $1,500, $265M) | Raceway board and upgrade panel prices not captured |
 | E-09 | Rider Level gate | Done | search: no Rider Level readout in Lane 3 | Deferred line on the board (`main`) |
-| E-10 | Robux items consistent | Done | E10 frame | Respawn decided, "Keep your run going" line; Expanded Paddock one name; paid trails and paints no longer share a word with an edition. Not seen: the Results respawn line |
+| E-10 | Robux items consistent | Done | E10 frame | Starter Pack includes Brawler (Rare), Adam's decision 0038 on 2026-11-03; seen at desktop and phone (D0038 frames). Respawn decided, "Keep your run going" line; Expanded Paddock one name; paid trails and paints no longer share a word with an edition. Not seen: the Results respawn line |
 | E-11 | Done-when | Partly | | Format tests pass, answers on `main`, 0036 written. Stills at all three sizes exist only for the Garage and the Shop |
 | C-01 | Flicker scan | Not done | | Not run this round |
 | C-02 | Real claim with a driver | Not done | | No driver built. Recording a claim in the beta save would mean trusting a client claim (the run is client-only); left for Brian R and Brian L |
