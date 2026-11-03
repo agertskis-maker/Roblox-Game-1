@@ -860,8 +860,7 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	local onReplay = self._opts.onReplayTutorial
 	if onReplay then
 		-- Round 4 (C-04): centred on the band itself when that clears the title and the X, else in the free part between them;
-		-- up and down, on the
-		-- band's own middle. The button is a face with a 4 px lip under it, so its box (hit box plus lip) is centred, not
+		-- up and down, on the band's own middle. The button is a face with a 4 px lip under it, so its box (hit box plus lip) is centred, not
 		-- its top edge (the old top-left placement sat 6 px low and its lip crossed the dark rule under the band).
 		local replayW = 196
 		local replayH = 40
