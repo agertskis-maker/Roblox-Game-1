@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
+local BetaLineup = require(script.Parent.BetaLineup)
 local BetaPlots = require(script.Parent.BetaPlots)
 local Ladder = require(ReplicatedStorage.Shared.Island.Speedway.Ladder)
 local Parking = require(ReplicatedStorage.Shared.Island.Speedway.Parking)
@@ -43,6 +44,7 @@ function BetaShop.start()
 	local tutorialDone = Instance.new("RemoteEvent")
 	tutorialDone.Name = BetaConfig.Remotes.TutorialDone
 	tutorialDone.Parent = net
+	BetaLineup.start(net)
 	net.Parent = ReplicatedStorage
 
 	-- the tutorial is for first-time players: the client reads this attribute, and says when it is over. No arguments,
