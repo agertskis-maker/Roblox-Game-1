@@ -13,7 +13,11 @@
 -- The requirement ROWS ("Downtown cars", "$5,000") are a fixture of the reviewed outline and the old PortalCardMock
 -- (cars from the previous World). They are NOT a rule: BRIEF M12-03a keeps them labelled and asks Brian L for the real ones.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Fixtures = require(script.Parent.Parent.Fixtures)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 
 local PortalFixtures = {}
 
@@ -64,43 +68,18 @@ local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
-local function car(id: string, name: string, rarity: Rarity, family: string, paint: Color3, loaner: boolean?): RosterCar
-	return { id = id, name = name, rarity = rarity, family = family, paint = paint, owned = false, loaner = loaner }
+-- Round 4 (E-05): each World's nine real cars from the one roster (src/shared/UI/RosterFixtures), Loaner first.
+local ROSTERS: { [string]: { RosterCar } } = {}
+for _, world in RosterFixtures.Worlds do
+	local list: { RosterCar } = {}
+	for _, c in RosterFixtures.inWorld(world) do
+		table.insert(
+			list,
+			{ id = c.id, name = c.name, rarity = c.rarity, family = "Sedan", owned = false, loaner = c.loaner or nil }
+		)
+	end
+	ROSTERS[world] = list
 end
-
--- The proposed rosters (vault/design/cars/roster.md), eight per World. Proposed names, not final.
-local ROSTERS: { [string]: { RosterCar } } = {
-	Downtown = {
-		car("puglet", "Puglet", "Common", "Compact", rgb(40, 120, 232), true),
-		car("fishbowl", "Fishbowl Express", "Common", "Truck", rgb(0, 166, 180)),
-		car("waffle", "Citrine Waffle Van", "Uncommon", "Van", rgb(194, 24, 91)),
-		car("rangy", "Rangy", "Uncommon", "Pickup", rgb(232, 179, 58)),
-		car("rev6", "Revolution 6", "Rare", "Sedan", rgb(30, 86, 200)),
-		car("zoomurai", "Zoomurai", "Rare", "Motorcycle", rgb(244, 194, 13)),
-		car("hurrikan", "Hurrikan", "Epic", "Sports", rgb(139, 203, 44)),
-		car("hyperion", "Hyperion", "Legendary", "Special", rgb(238, 241, 245)),
-	},
-	DustyHighway = {
-		car("razzer", "Razzer", "Common", "Compact", rgb(25, 181, 176), true),
-		car("peterbolt", "Peterbolt", "Common", "Truck", rgb(45, 91, 211)),
-		car("winnie", "Winnie Bravo", "Uncommon", "Van", rgb(224, 165, 38)),
-		car("chopsticks", "Chopsticks", "Uncommon", "Motorcycle", rgb(40, 44, 58)),
-		car("recharger", "Recharger", "Rare", "Sedan", rgb(110, 47, 158)),
-		car("baja", "Baja Bruiser", "Rare", "Pickup", rgb(226, 80, 60)),
-		car("fortyniner", "Forty-Niner", "Epic", "Sports", rgb(196, 200, 210)),
-		car("thunderfoot", "Thunderfoot", "Legendary", "Special", rgb(240, 120, 30)),
-	},
-	SummitPass = {
-		car("resnow4", "Re-Snow 4", "Common", "Compact", rgb(252, 200, 40), true),
-		car("hiice", "Hi-Ice", "Common", "Van", rgb(18, 146, 140)),
-		car("snowmog", "Snowmog", "Uncommon", "Truck", rgb(160, 210, 50)),
-		car("snowva", "Snowva", "Uncommon", "Pickup", rgb(183, 58, 46)),
-		car("subaroo", "Subaroo", "Rare", "Sedan", rgb(40, 84, 200)),
-		car("huskvarna", "Huskvarna", "Rare", "Motorcycle", rgb(45, 127, 249)),
-		car("lancestratus", "Lance Stratus", "Epic", "Sports", rgb(224, 40, 140)),
-		car("yeti6x6", "Yeti 6x6", "Legendary", "Special", rgb(226, 232, 244)),
-	},
-}
 
 PortalFixtures.Worlds = table.freeze({
 	Downtown = { name = "DOWNTOWN", tag = "World 1" },
@@ -131,21 +110,27 @@ export type Lock = {
 	cashNeed: number,
 }
 
+-- Round 4 (E-08): the requirement numbers are economy v1's (EconomyPreview.WorldUnlock), still PREVIEW; the progress is the
+-- example collection's cars of the World before (capped at the need) and the preview HUD's fixture Cash.
+local function lockFor(world: string): Lock
+	local unlock = EconomyPreview.WorldUnlock[world]
+	local owned = 0
+	for _, c in RosterFixtures.inWorld(unlock.from) do
+		if Fixtures.PreviewCollection[c.id] then
+			owned += 1
+		end
+	end
+	return table.freeze({
+		previous = RosterFixtures.WorldNames[unlock.from],
+		cars = math.min(owned, unlock.cars),
+		carsNeed = unlock.cars,
+		cash = 9450,
+		cashNeed = unlock.cash,
+	} :: Lock)
+end
 PortalFixtures.Locks = table.freeze({
-	DustyHighway = table.freeze({
-		previous = "Downtown",
-		cars = 1,
-		carsNeed = 3,
-		cash = 1200,
-		cashNeed = 5000,
-	} :: Lock),
-	SummitPass = table.freeze({
-		previous = "Dusty Highway",
-		cars = 2,
-		carsNeed = 5,
-		cash = 8400,
-		cashNeed = 20000,
-	} :: Lock),
+	DustyHighway = lockFor("DustyHighway"),
+	SummitPass = lockFor("SummitPass"),
 })
 
 -- remaining = max(0, need - have), computed once here for every reader of the lock fixture
@@ -221,11 +206,16 @@ local function build(
 end
 
 -- A roster id list of cars that count as owned, by World (a few cars, then all of them).
-local FEW: { [string]: { string } } = {
-	Downtown = { "puglet", "waffle" },
-	DustyHighway = { "winnie", "baja" },
-	SummitPass = { "hiice" },
-}
+local FEW: { [string]: { string } } = {}
+for _, world in RosterFixtures.Worlds do
+	local ids = {}
+	for _, c in RosterFixtures.inWorld(world) do
+		if Fixtures.PreviewCollection[c.id] then
+			table.insert(ids, c.id)
+		end
+	end
+	FEW[world] = ids
+end
 
 local function allIds(worldId: string): { string }
 	local ids = {}
@@ -288,7 +278,7 @@ presets.Dusty_LongStrings = function(): State
 	state.requirements[1].need = 5000000
 	state.requirements[1].label = "Cash saved up so far"
 	state.requirements[2].label = "Downtown cars you have collected"
-	state.roster[3].name = "Winnie Bravo Grand Touring Deluxe"
+	state.roster[3].name = "Beach Bug Grand Touring Deluxe"
 	return state
 end
 -- a car whose art is missing: an unknown family and no paint

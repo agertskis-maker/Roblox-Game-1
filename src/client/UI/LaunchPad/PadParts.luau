@@ -516,7 +516,7 @@ local function bobbing(model: Model, life: any, spin: number)
 	end)
 end
 
-function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }, () -> ())
+function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [string]: BasePart }, () -> ())
 	local centre = Vector3.new(0, 0, 2)
 	local function placed(x: number, z: number): CFrame
 		return CFrame.lookAt(Vector3.new(x, 0, z), centre)
@@ -531,8 +531,8 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	local shown = RealCar.mount(k.parent, { length = 9.5, height = 6 })
 	local mini = RealCar.mount(k.parent, { length = 5.4, height = 3.4 })
 	table.insert(rigs, mini)
-	-- the turntable is a little showroom: it brings out one car after another
-	local line = RealCar.list()
+	-- the turntable is a little showroom: it brings out this World's cars one after another (Round 4: its nine, Loaner first)
+	local line = RealCar.forWorld(world or "Downtown")
 	local onShow = 1
 	local shownAt = 0
 	k:cyl("Turntable", 12.6, 0.8, carsAt * CFrame.new(0, 1.2, 1), theme.kiosk.Cars[1])

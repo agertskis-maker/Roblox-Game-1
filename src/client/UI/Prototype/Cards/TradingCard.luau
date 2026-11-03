@@ -53,6 +53,8 @@ export type Info = {
 	stats: { Stat }?, -- only values the game really has (bars need a documented shared scale)
 	quirkLine: string?, -- one truthful line
 	variants: { Gold: boolean?, Chrome: boolean?, Rainbow: boolean? }?,
+	edition: number?, -- Round 4: the best edition reached, 1 Normal .. 5 Galaxy (nil = not owned)
+	copies: number?, -- copies held at that edition (the agreed Cars field's Copies, read as 0..24)
 	flavour: string?,
 	collectionNo: number?,
 	collectionTotal: number?,

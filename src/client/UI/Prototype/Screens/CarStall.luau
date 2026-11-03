@@ -1,11 +1,13 @@
 --!strict
--- CarStall: the Launch Pad's Car stall (Lane 3, Round 3 N6-04): choose the car you start in, from Brian L's 27 showroom cars.
--- PREVIEW: every car shows, because no real ownership exists yet, and the run always starts in Brian R's Loaner until his
--- RunController takes a start car, and the panel says so; the choice is kept in StyleState and shows on the other screens.
+-- CarStall: the Launch Pad's Car stall (Lane 3, Round 3 N6-04): choose the car you start in. Round 4 (E-05): only this pad's
+-- World's nine cars (RealCar.forWorld), the Loaner first and always free to pick, then the cars you own, then the ones you have
+-- not found yet, shown dark with a lock and not pickable. Ownership is the example collection until Brian L's save reaches the
+-- client. The run still starts in Brian R's Loaner until his RunController takes a start car, and the panel says so; the choice
+-- is kept in StyleState and shows on the other screens.
 -- Each card's picture is built only as it scrolls near the view, so opening the stall does not load all 27.
 --
 --   local c = CarStall.new(ctx, { onClose = fn? })
---   c:open()  c:close()  c:isOpen()  c:destroy()
+--   c:open(world?)  c:close()  c:isOpen()  c:destroy()
 
 local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
@@ -23,6 +25,7 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 	local trove = overlay.trove
 	local buildTrove = trove:Extend()
 	local isOpen = false
+	local world = "Downtown"
 	local self: { [string]: any } = {}
 
 	local function build()
@@ -79,7 +82,7 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 		}, grid)
 		local rings: { [string]: Frame } = {}
 		local pending: { { holder: Frame, name: string } } = {}
-		local cars = RealCar.list()
+		local cars = RealCar.forWorld(world)
 		if #cars == 0 then
 			CarKit.text(panel, "Cars are on their way.", 22, {
 				align = Enum.TextXAlignment.Center,
@@ -111,6 +114,34 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 				ZIndex = 5,
 			}, button) :: Frame
 			table.insert(pending, { holder = holder, name = car.name })
+			if not car.owned then
+				-- not found yet: dark over the picture, a lock, and no pick
+				local shade = make("Frame", {
+					Name = "NotYours",
+					BackgroundColor3 = Color3.fromRGB(10, 14, 30),
+					BackgroundTransparency = 0.25,
+					Size = UDim2.fromScale(1, 1),
+					ZIndex = 7,
+				}, button) :: Frame
+				make("UICorner", { CornerRadius = UDim.new(0, 10) }, shade)
+				CarKit.text(shade, "Find it in a run", 15, {
+					align = Enum.TextXAlignment.Center,
+					size = UDim2.new(1, -8, 0, 22),
+					position = UDim2.new(0, 4, 0.5, -11),
+					z = 8,
+					name = "Hint",
+				})
+			end
+			if car.loaner then
+				CarKit.text(button, "LOANER", 13, {
+					align = Enum.TextXAlignment.Left,
+					size = UDim2.new(1, -12, 0, 18),
+					position = UDim2.fromOffset(8, 4),
+					color = CarKit.Gold,
+					z = 8,
+					name = "Loaner",
+				})
+			end
 			CarKit.title(button, car.name, 20, {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, -6, 0, 24),
@@ -134,6 +165,9 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 			)
 			rings[car.name] = ring
 			button.Activated:Connect(function()
+				if not car.owned then
+					return
+				end
 				StyleState.setCar(car.name)
 				for name, r in rings do
 					r.Visible = name == car.name
@@ -163,11 +197,12 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 		})
 	end
 
-	function self.open(_self: any)
+	function self.open(_self: any, worldId: string?)
 		if isOpen then
 			return
 		end
 		isOpen = true
+		world = worldId or world
 		overlay:setBack(function()
 			self:close()
 		end)
