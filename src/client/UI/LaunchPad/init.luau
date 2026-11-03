@@ -5,6 +5,9 @@
 --   LaunchPad.configure({ startRun = fn(world) -> run, stopRun = fn(), onPhase = fn(phase)? })
 --   LaunchPad.attachShell(shell)           -- mounts the panels on the HomeShell's screen
 --   LaunchPad.enter(world, islandCFrame)   -- from a portal: wipe, stand on the pad
+--
+-- On the pad: stand in a kiosk's glowing circle to open it, walk the ramp for the launch card, and START runs the gantry's four
+-- lights before the run. The camera's zoom is capped on the pad and put back when the player leaves it.
 --   LaunchPad.phase() -> "island" | "pad" | "run"     LaunchPad.reset()     LaunchPad.prepare()
 --
 -- From a run it reads only public things: run:getDebugState(), run:revive(), run.Ended, and PlayerGui.Lane1RunOverlay (to hide his
@@ -24,6 +27,7 @@ local RunStamina = require(script.RunStamina)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
+local Sounds = require(Prototype.Sounds)
 local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -52,11 +56,21 @@ local world = "Downtown"
 local returnTo: CFrame? = nil
 local pads: { [string]: Build.Pad } = {}
 local padTrove = Trove.new()
+local lifeTrove = Trove.new()
 local runTrove = Trove.new()
 local rampArmed = true
 local bestMetres = 0
 local unbindKey: (() -> ())? = nil
 local hint: string? = nil
+local padVisits = 0
+local savedZoom: number? = nil
+
+local PAD_ZOOM = 44 -- far enough to take in the floor, never so far the platform looks small
+local STAND_RADIUS = 3.8
+local LIGHT_RED = Color3.fromRGB(255, 50, 50)
+local LIGHT_GREEN = Color3.fromRGB(70, 255, 110)
+local LIGHT_SECONDS = 0.4
+local CHEVRON_VISITS = 3 -- how many visits show the way to the ramp
 
 -- tutorial events, through the lazily required module, so a place with no tutorial still runs
 local function tutorial(name: string, data: { [string]: any }?)
@@ -173,6 +187,56 @@ local function setLight(name: string?)
 	end)
 end
 
+local function setPadLight(pad: Build.Pad)
+	local look = ReplicatedStorage:FindFirstChild("LookDev")
+	if look then
+		pcall(function()
+			((require :: any)(look.Downtown.City.Assembler)).applyLighting(pad.theme.lighting)
+		end)
+	end
+end
+
+local function capZoom(on: boolean)
+	if on and savedZoom == nil then
+		savedZoom = player.CameraMaxZoomDistance
+		player.CameraMaxZoomDistance = PAD_ZOOM
+	elseif not on and savedZoom then
+		player.CameraMaxZoomDistance = savedZoom
+		savedZoom = nil
+	end
+end
+
+-- "<WORLD> LAUNCH PAD" slides in for about two seconds.
+local function arrivalBanner(text: string)
+	local gui = shell and shell.gui
+	if not gui then
+		return
+	end
+	local label = CarKit.title(gui, text, 54, {
+		align = Enum.TextXAlignment.Center,
+		anchor = Vector2.new(0.5, 0),
+		position = UDim2.new(0.5, 0, 0, -80),
+		size = UDim2.new(0.9, 0, 0, 66),
+		top = CarKit.White,
+		bottom = CarKit.Yellow,
+		z = 60,
+		name = "PadBanner",
+	})
+	if Motion.reduced() then
+		label.Position = UDim2.new(0.5, 0, 0, 56)
+	else
+		local info = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(label, info, { Position = UDim2.new(0.5, 0, 0, 56) }):Play()
+	end
+	task.delay(2.2, function()
+		local gone = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		TweenService:Create(label, gone, { Position = UDim2.new(0.5, 0, 0, -80) }):Play()
+		task.delay(0.3, function()
+			label:Destroy()
+		end)
+	end)
+end
+
 local function padFor(name: string): Build.Pad
 	local pad = pads[name]
 	if not pad then
@@ -193,13 +257,20 @@ function LaunchPad.prepare()
 	end)
 end
 
+local function isTutorial(): boolean
+	local ok, active = pcall(function()
+		return (require :: any)(script.Parent.Tutorial).isActive()
+	end)
+	return ok and active == true
+end
+
 local function panel(key: string): any
 	return shell and shell.components[key]
 end
 
 -- A panel left open must not ride along through a portal.
 local function closeHomePanels()
-	for _, key in { "shop", "garage", "missions", "settings", "stuntBoard" } do
+	for _, key in { "shop", "garage", "customize", "missions", "settings", "stuntBoard" } do
 		local c = panel(key)
 		if c and c.isOpen and c.close and c:isOpen() then
 			c:close()
@@ -208,7 +279,7 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
-	for _, key in { "launchStyle", "carStall", "shop" } do
+	for _, key in { "launchStyle", "carStall", "shop", "garage", "customize", "missions", "settings" } do
 		local c = panel(key)
 		if c and c.isOpen and c:isOpen() then
 			return true
@@ -229,22 +300,13 @@ end
 
 local function watchPad(pad: Build.Pad)
 	padTrove:Clean()
+	lifeTrove:Clean()
 	rampArmed = true
-	-- the stalls' prompts
-	for key, part in pad.stalls do
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "Stall"
-		prompt.ActionText = "Open"
-		prompt.ObjectText = if key == "Cars" then "Your car" elseif key == "Trails" then "Trails" else "Paint"
-		prompt.HoldDuration = 0
-		prompt.MaxActivationDistance = 16
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = part
-		padTrove:Add(prompt)
-		padTrove:Connect(prompt.Triggered, function()
-			openStall(key)
-		end)
-	end
+	lifeTrove:Connect(RunService.Heartbeat, function(dt: number)
+		pad:step(dt)
+	end)
+	-- the kiosks' circles: each opens once per visit to the circle
+	local standing: { [string]: boolean } = {}
 	local last = 0
 	padTrove:Connect(RunService.Heartbeat, function()
 		local now = os.clock()
@@ -257,6 +319,22 @@ local function watchPad(pad: Build.Pad)
 			return
 		end
 		local p = r.Position
+		-- over the edge somehow: back on the pad, no harm done
+		if p.Y < pad.floorY - 12 then
+			moveTo(pad.arrival)
+			return
+		end
+		for key, part in pad.stalls do
+			local flat = Vector3.new(p.X - part.Position.X, 0, p.Z - part.Position.Z)
+			if flat.Magnitude < STAND_RADIUS then
+				if not standing[key] and not anyPanelOpen() then
+					standing[key] = true
+					openStall(key)
+				end
+			else
+				standing[key] = false
+			end
+		end
 		local d = p - pad.rampCentre
 		local inside = math.abs(d.X) < pad.rampHalf.X and math.abs(d.Z) < pad.rampHalf.Y and math.abs(d.Y) < 12
 		local card = panel("launchCard")
@@ -289,8 +367,12 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	wipe(WORLD_TITLE[name], function()
 		local pad = padFor(name)
 		pad.folder.Parent = Workspace
-		setLight(name)
+		setPadLight(pad)
+		capZoom(true)
 		moveTo(pad.arrival)
+		padVisits += 1
+		pad:showChevrons(padVisits <= CHEVRON_VISITS or isTutorial())
+		arrivalBanner(pad.theme.title)
 		-- a pad built this frame has no collision yet: hold the player still for a moment
 		local r = root()
 		if r then
@@ -300,7 +382,7 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 			end)
 		end
 		watchPad(pad)
-		tutorial("PadEntered", { ramp = pad.rampCentre })
+		tutorial("PadEntered", { ramp = pad.rampCentre, world = name })
 	end)
 end
 
@@ -309,6 +391,8 @@ function LaunchPad.leave()
 		return
 	end
 	padTrove:Clean()
+	lifeTrove:Clean()
+	capZoom(false)
 	setPhase("leaving")
 	local card = panel("launchCard")
 	if card and card:isOpen() then
@@ -466,11 +550,62 @@ begin = function()
 		if not h then
 			return
 		end
+		local pad = pads[world]
+		if pad then
+			pad.folder.Parent = nil
+		end
+		setLight(world)
+		capZoom(false)
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
-		stamina = runTrove:Add(RunStamina.attach(run), "destroy")
+		stamina = runTrove:Add(
+			RunStamina.attach(run, { max = if isTutorial() then RunStamina.TutorialMax else nil }),
+			"destroy"
+		)
 		attachTrail()
 		watchRun(run)
+	end)
+end
+
+-- START: the gantry's lights go red, red, red, green, a beep each, and the run begins on green. Reduce Motion keeps the view where it
+-- is and the lights steady: nothing flashes or swings.
+local function countdown()
+	local pad = pads[world]
+	if not pad then
+		begin()
+		return
+	end
+	setPhase("launching")
+	local r = root()
+	if r then
+		r.Anchored = true
+	end
+	local cam = Workspace.CurrentCamera
+	local calm = Motion.reduced()
+	if cam and not calm then
+		cam.CameraType = Enum.CameraType.Scriptable
+		cam.CFrame = pad.gantryView
+	end
+	task.spawn(function()
+		for i = 1, 3 do
+			pad:setLight(i, LIGHT_RED)
+			Sounds.startLight(false)
+			task.wait(LIGHT_SECONDS)
+		end
+		pad:setLight(4, LIGHT_GREEN)
+		Sounds.startLight(true)
+		task.wait(0.2)
+		lifeTrove:Clean()
+		for i = 1, 4 do
+			pad:setLight(i, nil)
+		end
+		if cam then
+			cam.CameraType = Enum.CameraType.Custom
+		end
+		if r then
+			r.Anchored = false
+		end
+		begin()
 	end)
 end
 
@@ -541,8 +676,9 @@ function LaunchPad.attachShell(s: any)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
 		onStart = function()
 			padTrove:Clean()
-			begin()
+			countdown()
 		end,
+		hops = RunStamina.Max,
 		onChangeCar = function()
 			panel("carStall"):open()
 		end,
@@ -615,8 +751,10 @@ end
 -- The character was replaced in the middle of something: back to the island's normal state.
 function LaunchPad.reset()
 	padTrove:Clean()
+	lifeTrove:Clean()
 	runTrove:Clean()
 	setLight(nil)
+	capZoom(false)
 	phase = "island"
 end
 

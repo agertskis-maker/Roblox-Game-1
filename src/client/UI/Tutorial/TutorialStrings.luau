@@ -66,6 +66,7 @@ local STEPS: { [number]: StepText } = {
 
 local LINES: { [string]: string } = {
 	-- step 1
+	["portal.pad.title"] = "To the ramp!",
 	["portal.pad.line"] = "Walk up the ramp",
 	["portal.pad.hint"] = "Step on the glowing ramp.",
 	["portal.card.line"] = "Press START!",
