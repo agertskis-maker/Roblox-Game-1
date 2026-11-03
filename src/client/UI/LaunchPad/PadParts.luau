@@ -55,16 +55,7 @@ function PadParts.platform(k: any, theme: any)
 	k:cyl("Panel", R * 2 - 14, 0.1, CFrame.new(0, 0.01, 0), theme.panel, theme.floorMaterial)
 	k:cyl("Panel", R * 2 - 18, 0.1, CFrame.new(0, 0.07, 0), theme.floor, theme.floorMaterial)
 	k:cyl("Panel", 60, 0.1, CFrame.new(0, 0.13, 0), theme.panel, theme.floorMaterial)
-	k:cyl("Panel", 56, 0.1, CFrame.new(0, 0.19, 0), theme.floor, theme.floorMaterial) -- calm tiles on the open floor, so it reads as paved, not painted one colour
-	for _, a in { 52, 104, 150, -52, -104, -150 } do
-		k:box(
-			"FloorTile",
-			Vector3.new(15, 0.1, 8),
-			CFrame.Angles(0, math.rad(a), 0) * CFrame.new(0, 0.19, 25),
-			theme.panel,
-			theme.floorMaterial
-		)
-	end
+	k:cyl("Panel", 56, 0.1, CFrame.new(0, 0.19, 0), theme.floor, theme.floorMaterial)
 	-- two lanes from the arrival pad to the ramp
 	for _, s in { 1, -1 } do
 		k:box("Lane", Vector3.new(2.8, 0.1, 74), CFrame.new(s * 3.2, 0.25, -9), theme.stripeA)
