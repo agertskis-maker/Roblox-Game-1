@@ -598,18 +598,12 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		end
 	end)
 	local knot, knotModel = k:model("TrailKnot")
-	local knotAt = trailAt * CFrame.new(0, trailTop + 2.6, 0)
-	local beads = 12
+	local beads = 16
+	local facing = trailAt * CFrame.new(0, trailTop + 2.6, 0) * CFrame.Angles(0, math.rad(45), 0)
 	for i = 0, beads - 1 do
 		local a = i / beads * math.pi * 2
-		local cf = knotAt * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
-		knot:box(
-			"LoopSegment",
-			Vector3.new(1.5, 1, if i % 2 == 0 then 1.5 else 1.26),
-			cf,
-			Color3.fromHSV(i / beads, 0.85, 1),
-			Enum.Material.Neon
-		)
+		local cf = facing * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
+		knot:ball("LoopBead", 1.5, cf, Color3.fromHSV(i / beads, 0.85, 1), Enum.Material.Neon)
 	end
 	bobbing(knotModel, life, 0)
 
