@@ -211,19 +211,19 @@ function Facts.new(parent: Instance, name: string?)
 	})
 	PanelKit.ink(caption, true)
 	caption.Position = UDim2.fromOffset(4, 0)
-	caption.Size = UDim2.new(0.5, -4, 0, LADDER_LABEL_H)
+	caption.Size = UDim2.fromOffset(96, LADDER_LABEL_H)
 	self._ladderCaption = caption
 	local boost = Arcade.text(ladder, {
 		text = "",
 		role = "Small",
 		name = "Boost",
-		xAlign = Enum.TextXAlignment.Right,
+		xAlign = Enum.TextXAlignment.Left,
 		z = 8,
 	})
 	PanelKit.ink(boost)
-	boost.AnchorPoint = Vector2.new(1, 0)
-	boost.Position = UDim2.new(1, -4, 0, 0)
-	boost.Size = UDim2.new(0.5, -4, 0, LADDER_LABEL_H)
+	-- beside the caption, left: the right end of this line is where Galaxy's PREVIEW tag sits
+	boost.Position = UDim2.fromOffset(104, 0)
+	boost.Size = UDim2.new(0.5, -104, 0, LADDER_LABEL_H)
 	self._boost = boost
 	local badges: { Badge } = {}
 	for _, edition in EconomyPreview.Editions do
