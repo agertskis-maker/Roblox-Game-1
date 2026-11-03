@@ -71,8 +71,15 @@ Catalog.PriceWord = "Robux"
 Catalog.PreviewValueTag = "PREVIEW VALUE"
 Catalog.PreviewNote = "PREVIEW: contents and price proposed"
 Catalog.StyleNote = "Looks only. Same driving stats."
--- A cheap way back into a run after a crash, once the free ones are used (Adam, 2026-11-02). PREVIEW: nothing can be bought yet.
+-- The Robux respawn: a way back into a run after a crash, once the free respawns are used. DECIDED by Adam (2026-11-02, decision
+-- 0036: in the launch scope, not a proposal). The price is the PREVIEW default; nothing can be bought yet (press: Coming soon).
 Catalog.RespawnRobux = 19
+Catalog.Respawn = table.freeze({
+	name = "Respawn",
+	price = Catalog.RespawnRobux,
+	benefit = "Keep your run going.",
+	where = "Run results, after the free respawns are used",
+})
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -128,10 +135,11 @@ local offers: { Offer } = {
 	{
 		id = "expanded-paddock",
 		kind = "Pass",
-		name = "Extra Parking",
+		name = "Expanded Paddock",
 		tag = "+3 PARKING SPOTS",
-		body = "Park 3 more cars!",
-		detail = "Three more spots on your Raceway. Each car earns at its normal rate.",
+		body = "Park 3 more cars: up to 18!",
+		-- Round 4 (C-03): Lane 3's recommendation, a question for Brian L: the pass raises the 15-spot maximum to 18
+		detail = "Three more spots on your Raceway, up to 18. Each car earns at its normal rate.",
 		icon = "Paddock",
 		art = "expanded-paddock",
 		fill = "Lime",

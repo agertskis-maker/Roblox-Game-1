@@ -68,6 +68,34 @@ function RealCar.list(): { Entry }
 	return list
 end
 
+-- One World's cars for the Launch Pad (Round 4, E-05): the roster's nine (src/shared/UI/RosterFixtures), the Loaner first (always
+-- available), then the cars the player owns, then the rest; roster order inside each group. `owned` reads the example collection
+-- (Fixtures.PreviewCollection) until Brian L's saved Cars field reaches the client. Cars whose model is missing are left out.
+export type WorldEntry = Entry & { owned: boolean, loaner: boolean }
+function RealCar.forWorld(world: string): { WorldEntry }
+	local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures) :: any
+	local Fixtures = require(Prototype.Fixtures) :: any
+	local byName: { [string]: Entry } = {}
+	for _, e in RealCar.list() do
+		byName[e.name] = e
+	end
+	local groups: { { WorldEntry } } = { {}, {}, {} }
+	for _, car in RosterFixtures.inWorld(world) do
+		local entry = byName[car.model]
+		if entry then
+			local owned = car.loaner or Fixtures.PreviewCollection[car.id] ~= nil
+			local item: WorldEntry =
+				{ name = entry.name, rarity = car.rarity, model = entry.model, owned = owned, loaner = car.loaner }
+			table.insert(groups[if car.loaner then 1 elseif owned then 2 else 3], item)
+		end
+	end
+	local out: { WorldEntry } = {}
+	for _, g in groups do
+		table.move(g, 1, #g, #out + 1, out)
+	end
+	return out
+end
+
 local function find(name: string?): Entry?
 	local list = RealCar.list()
 	for _, e in list do
@@ -244,6 +272,37 @@ end
 
 function Body.destroy(self: any)
 	self.model:Destroy()
+end
+
+-- A plain display copy of a car in ReplicatedStorage.Cars by its model name (any edition: "Gold Putter"), for the collectible
+-- cards (Round 4): anchored, nothing runs or sounds, pivot squared up from the wheels and placed at the origin with the front
+-- toward -Z. No paint wash and no scaling (the card fits its camera). nil when the model is not there.
+function RealCar.displayModel(name: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("Cars")
+	local source = folder and folder:FindFirstChild(name)
+	if not (source and source:IsA("Model")) then
+		return nil
+	end
+	local model = source:Clone()
+	local wheels: { BasePart } = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			if string.find(d.Name, "wheel", 1, true) then
+				table.insert(wheels, d)
+			end
+		elseif d:IsA("Script") or d:IsA("LocalScript") or d:IsA("Sound") then
+			d:Destroy()
+		end
+	end
+	if #wheels >= 2 then
+		squareUp(model, wheels)
+	end
+	model:PivotTo(CFrame.identity)
+	return model
 end
 
 -- A still picture of a car for a card: no spin and no render loop. nil when the car is not here, so the caller keeps its own art.

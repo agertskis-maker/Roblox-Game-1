@@ -455,6 +455,21 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 					end
 				end,
 			})
+			-- what it does, said plainly (Round 4, E-10); the price button above says the price and, pressed, Coming soon
+			CarKit.text(card, "Keep your run going", math.max(math.round(15 * k), 13), {
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(0.46, 0, 0, math.round(math.max(18 * k, 15))),
+				position = UDim2.new(
+					1,
+					-math.round(16 * k),
+					0,
+					y + rowH / 2 + math.round(math.max(58 * k, 46) / 2) + 2
+				),
+				anchor = Vector2.new(1, 0),
+				color = CarKit.Soft,
+				z = 8,
+				name = "RespawnWhat",
+			})
 		end
 		if good and not earnFasterShown and options.onEarnFaster then
 			earnFasterShown = true

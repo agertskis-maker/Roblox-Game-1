@@ -25,6 +25,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - Choosing the concept does not approve any propose-first item (Cash and the economy, paid items, cross-server data). Each still needs its own approval first.
 
 ## In progress
+- [ ] Lane 3: Round 4 (economy decisions in Lane 3 screens, Round 3 and Launch Pad close-out, two-player test) - Adam, with Claude Code, 2026-11-03. Branch `feature/lane3-round4` (worktree `Roblox-Game-1-round4`, from `main`) and `integration/beta-2` (draft PR #9); brief `Car-Hop-Art/review/round4/BRIEF-ROUND4.md` (copied to `vault/design/specs/lane3-round4.md` on the branch), ledger `vault/design/specs/lane3-round4-ledger.md`, decision 0036. Private places only; no publish, no Team Create edits.
 - [ ] Lane 3: Launch Pad redesign and bolt change - Adam, with Claude Code, 2026-11-02. Direction B, Sky Launch Platform; branch `feature/lane3-big-round` (draft PR #8) and `integration/beta-2` (draft PR #9); brief `vault/design/specs/lane3-launchpads.md`. Private places only; no merge, no publish.
   - 2026-11-02 status: built and Studio Play-tested; Adam walked it through and asked for it on `main` through PR #8. [[lane3-launchpads-ledger]], `Car-Hop-Art/review/hubs/RESULT.md`.
 - [ ] Lane 3: real showroom cars on the Style, trails, Launch Pad, launch card and Car stall screens - Adam, with Claude Code, 2026-11-02. Plan approved by Adam (Figma step skipped for this job: no layout change). Branch `feature/lane3-big-round`; `Supercar` stays as the fallback. No `assets/cars`, `src/shared/Catalog`, `src/client/Run` or `default.project.json` changes.
@@ -93,6 +94,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Figma-first UI workflow for Lane 3 (setup and documentation only; no screen designed): decision, skills, `AGENTS.md` line and read counter done; Figma sign-in on the owner's machine pending - Adam, with Claude Code ([[0012-figma-ui-workflow]], [[2026-10-20]])
 
 ## Up next
+- [ ] Brian L: read `vault/design/specs/economy-v1-answers-from-adam.md` (Adam's answers to economy v1 sections 11 to 13: the 27-car split by World, Rider Level gate deferred, the Qa display rule, the Robux products to build, the Expanded Paddock maximum, and four questions on what the agreed fields mean) and answer under "Brian L" in its Replies section - Adam, 2026-11-03
 - [ ] Brian R: answer `vault/design/specs/lane3-big-round-for-brian-r.md` (scenery contract, tutorial events, first-run assists, Stunt driving)
 - [ ] Brian L: answer `vault/design/specs/lane3-big-round-for-brian-l.md` (Shop catalog and purchases, save fields, group reward, missions, welcome-back and portal data)
 - [ ] Brian L: read the Raceway round 2 section and the beta note at the top of `vault/design/specs/speedway-levels-for-brian-l.md` (Lap Pay table, parking spots 2 to 15 with the 1.6x price proposal, `RacewayLevel` / `ParkingSpots` save fields, the purchase flow; the beta's stand-in save and free purchases in `src/server/Beta` wait for your real ones) and answer under "Brian L" in its Replies section - sent by Adam 2026-10-31
@@ -130,6 +132,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 
 ## Backlog
 - [ ] _add ideas here_
+- [ ] Deferred, not at launch: the Rider Level gate (Brian R's note 0022). Decided under Adam's delegation on 2026-11-03 (decision 0036 on `feature/lane3-round4`): World unlocks, Keys times and the 5-bolt Stamina already pace a run. Revisit if playtests show skilled players claiming every car of a World in one run even with 5 bolts
 - [ ] HOP STREAK (combo cue for consecutive well-timed hops): proposal only, **not built and not scheduled**. Dropped from the Round 3 task on 2026-10-26 (Adam); no hidden streak mechanic is kept in the preview. Revisit only if Adam asks, with Brian R for the hop-timing rule ([[hud-round2]] R2-S1)
 - [ ] Decide the reduced-motion mechanism with the visual direction, after the concept is chosen ([[0004-workflow-rules]])
 - [ ] Decide where source `.blend` and exported `.fbx` art lives, and which account or group owns animations ([[0005-animation-pipeline]])

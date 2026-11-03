@@ -27,9 +27,11 @@ local RunStamina = require(script.RunStamina)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
+local RealCar = require(Prototype.RealCar)
 local Sounds = require(Prototype.Sounds)
 local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local LaunchPad = {}
@@ -292,7 +294,7 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
-	for _, key in { "launchStyle", "carStall", "shop", "garage", "customize", "missions", "settings" } do
+	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
 		local c = panel(key)
 		if c and c.isOpen and c:isOpen() then
 			return true
@@ -301,13 +303,21 @@ local function anyPanelOpen(): boolean
 	return false
 end
 
+-- Round 4 (C-09): TRAILS and PAINT open the Garage's own CUSTOMIZE panel at that tab, so there is one Trails screen, not two.
+local function openCustomize(tab: string)
+	local c = panel("customize")
+	if c then
+		c:open(nil, { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels", "Trails" }, tab = tab })
+	end
+end
+
 local function openStall(key: string)
 	if key == "Cars" then
-		panel("carStall"):open()
+		panel("carStall"):open(world)
 	elseif key == "Trails" then
-		panel("launchStyle"):open(nil, { title = "TRAILS", tabs = { "Trails" }, tab = "Trails" })
+		openCustomize("Trails")
 	else
-		panel("launchStyle"):open(nil, { title = "PAINT SHOP", tabs = { "Paint", "Decals", "Wheels" }, tab = "Paint" })
+		openCustomize("Paint")
 	end
 end
 
@@ -376,6 +386,19 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	setPhase("pad")
 	world = name
 	returnTo = islandCFrame
+	-- the start car belongs to this World (Round 4): a pick from another World goes back to this World's Loaner
+	local inWorld = false
+	for _, car in RealCar.forWorld(name) do
+		if car.name == StyleState.car() then
+			inWorld = true
+		end
+	end
+	if not inWorld then
+		local loaner = RosterFixtures.loaner(name)
+		if loaner then
+			StyleState.setCar(loaner.model)
+		end
+	end
 	closeHomePanels()
 	wipe(WORLD_TITLE[name], function()
 		local pad = padFor(name)
@@ -692,11 +715,19 @@ end
 function LaunchPad.attachShell(s: any)
 	shell = s
 	unbindKey = RunCamera.bindKey()
-	-- "Get more spots" on the Raceway's parking panel opens the Shop at the passes
+	-- "Get more spots" on the Raceway's full parking panel opens the Shop on the Expanded Paddock pass (Round 4, C-03)
 	pcall(function()
 		local ShopPanel = (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel)
 		ShopPanel.onMoreSpots = function()
-			s.shopAt("Passes")
+			local shop = s.components.shop
+			if shop and shop.isOpen and shop:isOpen() then
+				shop:openExpandedPaddock()
+				return
+			end
+			s.userPanel("shop")
+			if shop and shop.openExpandedPaddock then
+				shop:openExpandedPaddock()
+			end
 		end
 	end)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
@@ -706,21 +737,13 @@ function LaunchPad.attachShell(s: any)
 		end,
 		hops = RunStamina.Max,
 		onChangeCar = function()
-			panel("carStall"):open()
+			panel("carStall"):open(world)
 		end,
 		onChangeTrail = function()
-			panel("launchStyle"):open(nil, { title = "TRAILS", tabs = { "Trails" }, tab = "Trails" })
+			openCustomize("Trails")
 		end,
 	})
 	s:mountPanel("carStall", { "Screens", "CarStall" }, "Modal", {})
-	s:mountPanel("launchStyle", { "Screens", "StuntCustomize" }, "Modal", {
-		onBuy = function(_id: string, title: string, _art: string?)
-			s.hud:notify(title .. ": coming soon!", "Trail")
-		end,
-		onViewShop = function()
-			s.shopAt("Cash")
-		end,
-	})
 	s:mountPanel("runResults", { "Screens", "RunResults" }, "Overlay", {
 		onRetry = retry,
 		onHome = home,

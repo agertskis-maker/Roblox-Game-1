@@ -21,6 +21,7 @@ local Arcade = require(script.Parent.Parent.Arcade)
 local Icons = require(script.Parent.Parent.Icons)
 local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
 local ProxyCar = require(script.Parent.Parent.ProxyCar)
+local RealCar = require(script.Parent.Parent.RealCar)
 local Store = require(script.Parent.Parent.Store)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -66,11 +67,8 @@ function RunKit.thumb(holder: Frame, car: Store.CarRef?): ViewportFrame?
 	if car.model == "Proxy" then
 		model = ProxyCar.build(car)
 	elseif car.model ~= nil then
-		local folder = ReplicatedStorage:FindFirstChild("Cars")
-		local source = folder and folder:FindFirstChild(car.model)
-		if source and source:IsA("Model") then
-			model = source:Clone()
-		end
+		-- a showroom car, squared up from its wheels (decision 0034)
+		model = RealCar.displayModel(car.model)
 	end
 	if not model then
 		return nil

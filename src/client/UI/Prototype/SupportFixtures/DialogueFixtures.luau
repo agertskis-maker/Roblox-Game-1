@@ -7,6 +7,9 @@
 -- ONE FIXTURE SOURCE: the locked cards read PortalFixtures.Locks (the portal card's own numbers), so the dialogue, the portal
 -- card and the Home HUD demo's goal pill all say the same thing about a locked Dusty Highway.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Format = require(ReplicatedStorage.Shared.UI.Format)
 local PortalFixtures = require(script.Parent.PortalFixtures)
 
 local DialogueFixtures = {}
@@ -42,16 +45,28 @@ local function locked(worldName: string, requirement: string, current: number, t
 	}
 end
 
+-- Round 4: a World needs cars from the World before AND Cash (economy v1). The card asks for the cars while they are short,
+-- then for the Cash, so it never says "open" while the other requirement is still missing.
+local function lockedFor(worldName: string, lock: PortalFixtures.Lock): Preset
+	if lock.cars < lock.carsNeed then
+		return locked(worldName, lock.previous, lock.cars, lock.carsNeed)
+	end
+	local spec = locked(worldName, lock.previous, lock.cars, lock.carsNeed)
+	spec.text = function(remaining: number): string
+		return string.format("Save up %s more Cash to unlock %s.", Format.cash(remaining), worldName)
+	end
+	spec.progress = { label = "CASH", current = lock.cash, target = lock.cashNeed, cash = true }
+	return spec
+end
+
 DialogueFixtures.PresetNames = table.freeze({ "DustyLocked", "SummitLocked", "Shopkeeper", "Unknown", "Tutorial" })
 
 local presets: { [string]: () -> Preset } = {
 	DustyLocked = function(): Preset
-		local lock = PortalFixtures.Locks.DustyHighway
-		return locked("Dusty Highway", lock.previous, lock.cars, lock.carsNeed)
+		return lockedFor("Dusty Highway", PortalFixtures.Locks.DustyHighway)
 	end,
 	SummitLocked = function(): Preset
-		local lock = PortalFixtures.Locks.SummitPass
-		return locked("Summit Pass", lock.previous, lock.cars, lock.carsNeed)
+		return lockedFor("Summit Pass", PortalFixtures.Locks.SummitPass)
 	end,
 	-- the Raceway shopkeeper points to the EXISTING upgrade panel; nothing is bought from here
 	Shopkeeper = function(): Preset
