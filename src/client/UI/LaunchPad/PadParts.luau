@@ -116,7 +116,7 @@ function PadParts.emblem(k: any, theme: any)
 	g.LightInfluence = 0.8
 	local px = 28 * 24
 	local root = make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, g)
-	local cols, rows = 6, 4
+	local cols, rows = 8, 6
 	local cell = math.floor(px * 0.9 / cols)
 	local top = (px - rows * cell) / 2
 	local left = (px - cols * cell) / 2
@@ -137,10 +137,10 @@ function PadParts.emblem(k: any, theme: any)
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0.98, 0, 0, cell * 2),
+		Size = UDim2.new(0.8, 0, 0, cell * 2.2),
 	}, root)
 	make("UICorner", { CornerRadius = UDim.new(0, 40) }, band)
-	CarKit.title(band, "CAR HOP", math.floor(cell * 1.5), {
+	CarKit.title(band, "CAR HOP", math.floor(cell * 1.7), {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.White,
