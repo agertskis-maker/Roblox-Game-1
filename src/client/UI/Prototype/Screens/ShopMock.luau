@@ -27,6 +27,7 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local ShopKit = require(Prototype.ShopKit)
 local ShopMotion = require(Prototype.ShopMotion)
 local ShopPurchaseAdapter = require(Prototype.ShopPurchaseAdapter)
@@ -470,12 +471,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local offer = s.offer and Catalog.get(s.offer)
 		if offer and offer.parts then
 			local buyW = if phone then 132 else 0
-			local tileW = math.floor((right - 20 * k - buyW) / 3)
+			local count = #offer.parts
+			local tileW = math.floor((right - 20 * k - buyW) / count)
 			local plateH = if phone
 				then h - titlePx * 1.04 - inset * 2
 				else h - titlePx * 0.5 - math.max(84 * k, 52) - math.round(30 * k)
 			local plate = CarKit.board(card, {
-				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
+				size = UDim2.fromOffset(tileW * count + 16 * k, plateH),
 				position = if phone
 					then UDim2.fromOffset(artW + inset * 2, titlePx * 1.04 + inset)
 					else UDim2.new(1, -math.round(10 * k), 0, titlePx * 0.5),
@@ -501,11 +503,41 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
 				local side = math.min(tileW - 2, tileH * 1.2)
-				CarKit.art(plate, part.art, {
-					size = UDim2.fromOffset(side, side),
-					position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
-					z = 12,
-				})
+				if part.car then
+					-- the car itself (decision 0038): the real model, still, with a RARE chip so the rarity reads at once
+					local holder = make("Frame", {
+						Name = "CarTile",
+						BackgroundTransparency = 1,
+						AnchorPoint = Vector2.new(0.5, 0.5),
+						Size = UDim2.fromOffset(side * 1.25, side),
+						Position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
+						ZIndex = 12,
+					}, plate) :: Frame
+					RealCar.thumb(holder, part.car)
+					local chipPx = fontPx(p, 16, 11)
+					local chip = make("Frame", {
+						Name = "RareChip",
+						BackgroundColor3 = CarKit.Rarity.Rare,
+						AnchorPoint = Vector2.new(0.5, 0),
+						Position = UDim2.fromOffset(x + tileW / 2, tileTop - 2),
+						Size = UDim2.fromOffset(chipPx * 3.6, chipPx * 1.3),
+						ZIndex = 14,
+					}, plate) :: Frame
+					make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, chip)
+					CarKit.text(chip, "RARE", chipPx, {
+						align = Enum.TextXAlignment.Center,
+						size = UDim2.fromScale(1, 1),
+						z = 15,
+						stroke = 1.5,
+						name = "Rare",
+					})
+				else
+					CarKit.art(plate, part.art :: string, {
+						size = UDim2.fromOffset(side, side),
+						position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
+						z = 12,
+					})
+				end
 				CarKit.text(plate, part.label, labelPx, {
 					align = Enum.TextXAlignment.Center,
 					alignY = Enum.TextYAlignment.Top,
