@@ -255,3 +255,15 @@ Two differences from local files: the importer re-centres each mesh on itself, s
 - 6 kept from the Round 2 family: index, music, heat, group, stuntCircuit, medal.
 
 Local test places read them from Studio's content folder (`art/install-local-art.ps1`), only where `ReplicatedStorage.Lane3_LocalArt` exists. A Studio update needs that script run again.
+
+## Launch Pad ambient sounds (2026-11-02)
+
+Creator Store audio, free, not uploaded by us and not listened to yet. Set in `src/client/UI/LaunchPad/PadKit.luau`.
+
+| World | Id | Title | Creator |
+|---|---|---|---|
+| Downtown | 9112758242 | City Ambience 1 (SFX) | ProSoundEffects |
+| Dusty Highway | 102354126031648 | desert_wind_loop | Vibe Shift Studios |
+| Summit Pass | 136454830957820 | loop_wind_03 | WhistleAcousticMan |
+
+The pads add no new meshes or images: they reuse the group-owned B2 and Worlds kits and the island portal art.
