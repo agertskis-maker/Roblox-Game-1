@@ -64,7 +64,7 @@ PadKit.Themes = {
 		ambient = "rbxassetid://9112758242", -- City Ambience 1 (SFX), Pro Sound Effects
 		lighting = {
 			props = {
-				ClockTime = 17.2,
+				ClockTime = 17.7,
 				Brightness = 2.8,
 				Ambient = rgb(150, 136, 176),
 				OutdoorAmbient = rgb(176, 156, 196),
@@ -78,11 +78,11 @@ PadKit.Themes = {
 				ColorShift_Bottom = rgb(40, 30, 70),
 			},
 			atmosphere = {
-				density = 0.2,
-				offset = 0.12,
-				colour = rgb(248, 190, 170),
-				decay = rgb(190, 110, 130),
-				haze = 1.2,
+				density = 0.3,
+				offset = 0.26,
+				colour = rgb(255, 176, 140),
+				decay = rgb(200, 90, 150),
+				haze = 2,
 			},
 			grade = { brightness = 0.02, contrast = 0.1, saturation = 0.24, tint = rgb(255, 238, 232) },
 		},
@@ -126,11 +126,11 @@ PadKit.Themes = {
 				ColorShift_Bottom = rgb(60, 30, 20),
 			},
 			atmosphere = {
-				density = 0.18,
-				offset = 0.14,
-				colour = rgb(244, 190, 140),
-				decay = rgb(200, 120, 110),
-				haze = 1.2,
+				density = 0.3,
+				offset = 0.26,
+				colour = rgb(255, 196, 130),
+				decay = rgb(230, 120, 80),
+				haze = 2,
 			},
 			grade = { brightness = 0.02, contrast = 0.1, saturation = 0.2, tint = rgb(255, 226, 190) },
 		},

@@ -139,7 +139,7 @@ local function dusty(k: any, _theme: any, rng: Random)
 	)
 	k:box(
 		"Highway",
-		Vector3.new(3, 1, 1900),
+		Vector3.new(3, 1, 1880),
 		CFrame.new(140, -DEPTH + 3.4, 0) * CFrame.Angles(0, 0.5, 0),
 		Color3.fromRGB(246, 214, 96)
 	)
