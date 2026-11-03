@@ -88,7 +88,7 @@ Recommendation for how to build them. Lane 3 has not tested any of this against 
 
 ## Expanded Paddock and the 15-spot maximum
 
-Economy v1 says the maximum is 15 parking spots. The outline's Expanded Paddock adds 3 spots, which would be above the maximum. **Recommendation: the pass raises the maximum from 15 to 18**, because a pass that adds nothing at the maximum would be a broken purchase. Lane 3 shows it that way in the PREVIEW ("+3 spots: up to 18"), from one value (`EconomyPreview.ExpandedPaddockSpots`). If you choose otherwise, that value and the pass text change in one place.
+Economy v1 says the maximum is 15 parking spots. The outline's Expanded Paddock adds 3 spots, which would be above the maximum. **Recommendation: the pass gives 3 more bays on top of the ones bought, so a pass holder can reach 18**, because a pass that adds nothing at the maximum would be a broken purchase. Lane 3 built it that way on 2026-11-03 (Adam asked): the 3 bays sit at the two ends of the front row on a small floor extension, and the parking sign moves out. The saved `ParkingSpots` stays 2 to 15; your server would set the plot attribute `ExpandedPaddock = true` and publish `ParkingSpots` as bought + 3. In the beta, ownership is a Studio-only test switch; the real sale and ownership check are yours. If you choose otherwise, `Parking.ExpandedSpots` and the pass text change in one place.
 
 ## The Qa display rule
 
