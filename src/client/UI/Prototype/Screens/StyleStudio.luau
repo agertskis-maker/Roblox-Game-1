@@ -1,5 +1,5 @@
 --!strict
--- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Garage's Customize screen, the Shop's Trails tab, the Stunt customization
+-- StyleStudio: the one customization screen (Lane 3, Round 3 N4), used by the Garage's Customize screen, the Stunt customization
 -- screen and the Launch Pad's stalls, so they cannot disagree. A turntable car on the left; PAINT, DECALS, WHEELS and TRAILS on the
 -- right, each a grid of identical cards; one big action button.
 --

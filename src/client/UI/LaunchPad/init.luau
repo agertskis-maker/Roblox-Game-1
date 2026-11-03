@@ -639,6 +639,7 @@ end
 
 -- One-time hints, later and gentle: never a block, once a session at most (Adam's decision 5).
 local homeRuns = 0
+local HINT_SECONDS = 12
 local function laterHints()
 	homeRuns += 1
 	local hud = shell and shell.hud
@@ -651,14 +652,17 @@ local function laterHints()
 			title = Strings.get("later.upgrade.title"),
 			subtitle = Strings.get("later.upgrade.line"),
 			icon = "Raceway",
+			seconds = HINT_SECONDS,
 		})
 	elseif homeRuns == 3 then
 		hud:setGoal({
 			title = Strings.get("later.shop.title"),
 			subtitle = Strings.get("later.shop.line"),
-			icon = "Shop",
+			icon = "Garage",
+			seconds = HINT_SECONDS,
 			onActivate = function()
-				shell.shopAt("Trails")
+				shell.customizeAt("Trails")
+				hud:setGoal(nil)
 			end,
 		})
 	end
