@@ -65,7 +65,7 @@ local function metrics(compact: boolean): (number, number, number)
 	return 46, 52, 6
 end
 -- a short phone frame: WORLD and LAP PAY share one row when the column is this wide, so the copies bar shows without scrolling
-local PAIR_MIN = 560
+local PAIR_MIN = 480
 local function paired(colW: number, compact: boolean?): boolean
 	return compact == true and colW >= PAIR_MIN
 end
