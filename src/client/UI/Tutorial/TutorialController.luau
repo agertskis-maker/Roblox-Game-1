@@ -313,6 +313,7 @@ function Controller._onEvent(self: any, source: string, name: string, data: { [s
 	elseif name == "PadEntered" then
 		-- on the Launch Pad the Portal step's sub-hint takes over: the arrows lead to the ramp, then "Press START!"
 		f.padTarget = data.ramp
+		f.padWorld = data.world
 		f.onCard = false
 		self._lastRouteAt = -math.huge
 		self._guide:setGround(nil, nil)
@@ -564,6 +565,9 @@ function Controller._present(self: any)
 		elseif step.key == "Portal" and f.padTarget then
 			line = Strings.get("portal.pad.line")
 			hintLine = Strings.get("portal.pad.hint")
+			if f.padWorld and f.padWorld ~= "Downtown" then
+				title = Strings.get("portal.pad.title") -- the step's title names Downtown; this pad is not
+			end
 		elseif step.key == "Portal" and self._retryLine then
 			line = Strings.get("portal.retry")
 			hintLine = Strings.get("portal.retry.hint")

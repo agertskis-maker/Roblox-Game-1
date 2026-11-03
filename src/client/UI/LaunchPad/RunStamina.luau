@@ -1,12 +1,13 @@
 --!strict
--- Stamina in the real run: the lightning bolts (Lane 3, Round 3; Adam: "so people can't have infinite runs"). The team's proposal from
--- HUD Round 2: 10 Stamina per run, one spent on each hop that really happens, a refused press spends nothing, and at zero there are
--- no more hops, so the ride ends the run. Lives in the beta from outside Brian R's files: his input calls run:requestHop(), so a
+-- Stamina in the real run: the lightning bolts (Lane 3, Round 3; Adam: "so people can't have infinite runs"). 5 Stamina per run (Tunable,
+-- Launch Pad redesign, B-01; it was 10), one spent on each hop that really happens, a refused press spends nothing, and at zero there
+-- are no more hops, so the ride ends the run. Lives in the beta from outside Brian R's files: his input calls run:requestHop(), so a
 -- field of that name on this run object goes first and his method does the hop. Move the rule into his RunController when agreed.
 --
---   local s = RunStamina.attach(run, { spent = fn? })   s:value()   s:isOut()   s:refill(n)   s:destroy()
+--   local s = RunStamina.attach(run, { max = n? })   s:value()   s:isOut()   s:refill(n)   s:destroy()
 --
--- Nothing is bought here and nothing is saved: a new run starts full. Colours: 6-10 yellow, 4-5 orange, 1-3 red, 0 cracked.
+-- Nothing is bought here and nothing is saved: a new run starts full. Colours follow the share left: over half yellow, over a quarter
+-- orange, then red; 0 is cracked.
 
 local Players = game:GetService("Players")
 
@@ -19,20 +20,23 @@ local make = CarKit.make
 
 local RunStamina = {}
 
-RunStamina.Max = 10
-RunStamina.ReviveRefill = 3
+RunStamina.Max = 5 -- Tunable
+RunStamina.ReviveRefill = 2 -- Tunable
+RunStamina.TutorialMax = 8 -- Tunable: the first run must leave room for a claim while a new player learns
 
 local YELLOW = Color3.fromRGB(255, 216, 50)
 local ORANGE = Color3.fromRGB(255, 150, 40)
 local RED = Color3.fromRGB(255, 70, 60)
 local SPENT = Color3.fromRGB(60, 68, 92)
 
-local function colourFor(v: number): Color3
-	return if v >= 6 then YELLOW elseif v >= 4 then ORANGE else RED
+local function colourFor(v: number, max: number): Color3
+	local share = v / max
+	return if share > 0.5 then YELLOW elseif share > 0.25 then ORANGE else RED
 end
 
-function RunStamina.attach(run: any): { [string]: any }
-	local value = RunStamina.Max
+function RunStamina.attach(run: any, options: { max: number? }?): { [string]: any }
+	local max = options and options.max or RunStamina.Max
+	local value = max
 	local viewport = (workspace.CurrentCamera :: Camera).ViewportSize
 	local phone = math.min(viewport.X, viewport.Y) < 500
 	local gui = make("ScreenGui", {
@@ -41,9 +45,10 @@ function RunStamina.attach(run: any): { [string]: any }
 		IgnoreGuiInset = true,
 		DisplayOrder = 6,
 	}, Players.LocalPlayer:WaitForChild("PlayerGui")) :: ScreenGui
-	local boltPx = if phone then 15 else 19
+	local boltPx = if phone then 20 else 26 -- five big bolts read at a glance; a longer tutorial run takes a second row
 	local heroPx = if phone then 32 else 42
-	local width = heroPx + 12 + (boltPx * 0.7 + 3) * 5 + 12
+	local perRow = 5
+	local width = heroPx + 12 + (boltPx * 0.8 + 4) * perRow + 12
 	local board = CarKit.board(gui, {
 		size = UDim2.fromOffset(width, if phone then 58 else 72),
 		position = UDim2.new(0, if phone then 10 else 18, 0.5, 40),
@@ -59,11 +64,13 @@ function RunStamina.attach(run: any): { [string]: any }
 	hero.root.ZIndex = 4
 	local pips: { any } = {}
 	local pipsX = heroPx * 0.75 + 16
-	for i = 1, RunStamina.Max do
-		local pip = StaminaBolt.new(board, { height = boltPx, colour = YELLOW, slim = 0.8 })
+	for i = 1, max do
+		local pip = StaminaBolt.new(board, { height = boltPx, colour = YELLOW, slim = 0.9 })
 		pip.root.AnchorPoint = Vector2.new(0, 0)
-		local row = if i <= 5 then 0 else 1
-		pip.root.Position = UDim2.fromOffset(pipsX + ((i - 1) % 5) * (boltPx * 0.7 + 3), 8 + row * (boltPx + 6))
+		local row = math.floor((i - 1) / perRow)
+		local rowsTall = math.ceil(max / perRow)
+		local top = if rowsTall > 1 then 4 else ((if phone then 58 else 72) - boltPx) / 2
+		pip.root.Position = UDim2.fromOffset(pipsX + ((i - 1) % perRow) * (boltPx * 0.8 + 4), top + row * (boltPx + 2))
 		pip.root.ZIndex = 4
 		table.insert(pips, pip)
 	end
@@ -80,7 +87,7 @@ function RunStamina.attach(run: any): { [string]: any }
 	out.Visible = false
 
 	local function draw()
-		local c = colourFor(value)
+		local c = colourFor(value, max)
 		hero:setColour(if value > 0 then c else SPENT)
 		hero:setCracked(value <= 0)
 		for i, pip in pips do
@@ -132,7 +139,7 @@ function RunStamina.attach(run: any): { [string]: any }
 	end
 
 	function self.refill(_self: any, n: number)
-		value = math.min(value + n, RunStamina.Max)
+		value = math.min(value + n, max)
 		draw()
 	end
 
