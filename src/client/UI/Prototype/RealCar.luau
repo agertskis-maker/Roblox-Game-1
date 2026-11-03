@@ -5,13 +5,15 @@
 --   RealCar.list() -> { Entry }             the 27 Normal cars, Common first, then by name
 --   local rig = RealCar.mount(parent, { length = number?, height = number? })
 --   rig:setCar(name)  rig:pivotTo(cf)  rig:setPaint(item?, phase?)  rig:tick(phase)  rig:setDecal(item?)  rig:setWheels(item?)
+--   rig:tail() -> CFrame                    the back of the car, +Z pointing away from it: where the trail starts
 --   rig.source -> the car's name, "Supercar" or nil        rig:destroy()
 --   RealCar.thumb(holder, name) -> ViewportFrame?          RealCar.isAnimated(item?) -> boolean
 --
 -- HOW IT DRAWS. The cars' textures are baked per car, so the Supercar's shells cannot map onto them. Paint is a see-through coloured
--- copy of the body, which keeps the car's detail (it tints the glass too); pattern paints show their first colour. Decals are real
--- Decals on the two sides of a second, invisible copy, so paint does not tint them. Wheels hide the car's own and put the game's tyre
--- and rim at each wheel. "Factory Paint" and "Stock Five" leave the car as Brian L made it.
+-- copy of the body, which keeps the car's detail (it tints the glass too); pattern paints show their first colour. Wheels hide the
+-- car's own and put the game's tyre and rim at each wheel. "Factory Paint" and "Stock Five" leave the car as Brian L made it.
+-- Decals do not reach a real car yet: the decal images are the Supercar's own texture sheets or pictures of it, so the Decals tab
+-- shows the design on its card and says so. Flat decal art is the fix.
 --
 -- Every car is scaled to one length so the turntable and the trail ribbon fit them all, and shrunk further to stay under `height`.
 -- The Supercar stays as the fallback: it shows when ReplicatedStorage.Cars is empty or a car's meshes fail to load.
@@ -21,7 +23,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent
 local GameIconIds = require(Prototype.GameIconIds)
-local GameIcons = require(Prototype.GameIcons)
 local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 
@@ -33,7 +34,6 @@ local LENGTH = 12.6
 local HEIGHT = 6
 local WASH = 0.45
 local WASH_GROW = 1.012
-local DECAL_GROW = 1.02
 local TYRE_DIAMETER = 2.04 -- the game's tyre mesh, at scale 1
 local RARITY_ORDER: { [string]: number } = { COMMON = 1, UNCOMMON = 2, RARE = 3, EPIC = 4, LEGENDARY = 5 }
 local RARITY_NAME: { [string]: string } =
@@ -87,19 +87,6 @@ local function sample(colours: { Color3 }, t: number): Color3
 	local f = (t % 1) * n
 	local i = math.floor(f)
 	return colours[(i % n) + 1]:Lerp(colours[((i + 1) % n) + 1], f - i)
-end
-
--- The side faces of a body, worked out from its rotation: some bodies are turned inside the model.
-local function sideFace(body: BasePart, pivot: CFrame, side: number): Enum.NormalId
-	local v = body.CFrame:VectorToObjectSpace(pivot.RightVector * side)
-	local best, score = Enum.NormalId.Right, -2
-	for _, face in Enum.NormalId:GetEnumItems() do
-		local s = Vector3.FromNormalId(face):Dot(v)
-		if s > score then
-			best, score = face, s
-		end
-	end
-	return best
 end
 
 local function meshUri(key: string): string
@@ -170,8 +157,19 @@ local function buildBody(entry: Entry, length: number, height: number): any
 		end
 	end
 	local size = squareUp(model, wheels)
-	model:ScaleTo(model:GetScale() * math.min(length / size.Z, height / size.Y))
-	local self = setmetatable({ model = model, _wheels = wheels, _rims = {}, _rimMeshes = {} } :: any, Body)
+	local fit = math.min(length / size.Z, height / size.Y)
+	model:ScaleTo(model:GetScale() * fit)
+	local self = setmetatable(
+		{
+			model = model,
+			halfLength = size.Z * fit / 2,
+			tailHeight = size.Y * fit * 0.32,
+			_wheels = wheels,
+			_rims = {},
+			_rimMeshes = {},
+		} :: any,
+		Body
+	)
 	self._body = assert(body, "a showroom car has no body_geom")
 	local wash = self._body:Clone() :: MeshPart
 	wash.Name = "PaintWash"
@@ -203,35 +201,7 @@ function Body.setPaint(self: any, item: Catalog.Item?, phase: number?)
 	self:tick(phase or 0.18)
 end
 
-function Body.setDecal(self: any, item: Catalog.Item?)
-	local uri = item and item.key and GameIcons.uri("thumb_decal_" .. item.key)
-	if not uri then
-		if self._decals then
-			self._decals.Parent = nil
-		end
-		return
-	end
-	if not self._decals then
-		local layer = self._body:Clone() :: MeshPart
-		layer.Name = "DecalLayer"
-		layer.Transparency = 1
-		layer.Size = self._body.Size * DECAL_GROW
-		layer.CFrame = self._body.CFrame
-		local pivot = self.model:GetPivot()
-		self._decalSides = {}
-		for _, side in { 1, -1 } do
-			local d = Instance.new("Decal")
-			d.Face = sideFace(self._body, pivot, side)
-			d.Parent = layer
-			table.insert(self._decalSides, d)
-		end
-		self._decals = layer
-	end
-	for _, d in self._decalSides do
-		d.Texture = uri
-	end
-	self._decals.Parent = self.model
-end
+function Body.setDecal(_self: any, _item: Catalog.Item?) end
 
 local function buildWheels(self: any)
 	local pivot = self.model:GetPivot()
@@ -307,8 +277,10 @@ local function buildSupercar(length: number): any
 	if not Supercar.available() then
 		return nil
 	end
-	local rig = Supercar.new()
+	local rig = Supercar.new() :: any
 	local k = length / Supercar.Length
+	rig.halfLength = math.min(length, Supercar.Length) / 2
+	rig.tailHeight = 1.1
 	if k < 1 then
 		local pivot = rig.model:GetPivot()
 		for _, d in rig.model:GetDescendants() do
@@ -406,6 +378,11 @@ function Mount.pivotTo(self: any, cf: CFrame)
 	if self._body then
 		self._body.model:PivotTo(cf)
 	end
+end
+
+function Mount.tail(self: any): CFrame
+	local body = self._body
+	return self._cf * CFrame.new(0, if body then body.tailHeight else 1, if body then body.halfLength else 6)
 end
 
 function Mount.setPaint(self: any, item: Catalog.Item?, phase: number?)
