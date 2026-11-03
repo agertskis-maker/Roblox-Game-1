@@ -87,8 +87,9 @@ local ART_ZOOM_BY_KEY: { [string]: number } = {
 	art_doublelap = 1.6,
 }
 
+-- Round 4 (E-07): every Cash amount in the Shop goes through Format.cash ("$12.4K", "$1.2M", up to Qa), the one display rule
 local function money(n: number): string
-	return "$" .. Format.group(math.floor(n))
+	return Format.cash(n)
 end
 
 local function edgeTint(name: string): Color3
