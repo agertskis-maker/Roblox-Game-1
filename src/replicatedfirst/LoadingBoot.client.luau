@@ -88,7 +88,8 @@ local function buildManifest(): { string }
 	for _, key in keys do
 		local id = icons[key]
 		if type(id) == "string" and KIND[id] == nil then
-			KIND[id] = if string.sub(key, 1, 4) == "car_" then "Mesh" else "Image"
+			-- the car kit's meshes are car_<part>; car_detail is the Supercar's texture sheet, an image
+			KIND[id] = if string.sub(key, 1, 4) == "car_" and key ~= "car_detail" then "Mesh" else "Image"
 			table.insert(ids, id)
 		end
 	end
