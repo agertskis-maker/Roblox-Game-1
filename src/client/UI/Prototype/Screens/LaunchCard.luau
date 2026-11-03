@@ -90,23 +90,23 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, card) :: ViewportFrame
 		local camera = make("Camera", { FieldOfView = 17.5 }, view) :: Camera
 		view.CurrentCamera = camera
-		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.2, 30), Vector3.new(0, 1.9, 0))
+		camera.CFrame = CFrame.lookAt(Vector3.new(-2, 7.2, 30), Vector3.new(-2, 1.9, 0))
 		local world = make("WorldModel", {}, view) :: WorldModel
-		local trailView = TrailPreview.new(world, { length = 6.5 })
+		local trailView = TrailPreview.new(world, { length = 5.5 })
 		buildTrove:Add(function()
 			trailView:destroy()
 		end)
 		make("Part", {
 			Anchored = true,
 			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.3, 15, 15),
+			Size = Vector3.new(0.3, 13, 13),
 			CFrame = CFrame.new(0, 0.32, 0) * CFrame.Angles(0, 0, math.pi / 2),
 			Color = Color3.fromRGB(40, 48, 84),
 		}, world)
 		make("Part", {
 			Anchored = true,
 			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.14, 15.6, 15.6),
+			Size = Vector3.new(0.14, 13.6, 13.6),
 			CFrame = CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.pi / 2),
 			Color = Color3.fromRGB(110, 170, 255),
 			Material = Enum.Material.Neon,
@@ -119,7 +119,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			rig:setWheels(StyleState.item("Wheels"))
 			trailView:set(StyleState.item("Trails"))
 		end
-		rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(215), 0))
+		rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(242), 0))
 		buildTrove:Add(function()
 			rig:destroy()
 		end)
@@ -130,7 +130,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local started = os.clock()
 		buildTrove:Connect(RunService.Heartbeat, function(dt: number)
 			if not Motion.reduced() then
-				local a = math.rad(215 + math.sin((os.clock() - started) * 0.7) * 12)
+				local a = math.rad(242 + math.sin((os.clock() - started) * 0.7) * 10)
 				rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
 			end
 			trailView:step(dt, rig:tail())

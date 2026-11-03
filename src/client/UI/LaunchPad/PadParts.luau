@@ -116,7 +116,7 @@ function PadParts.emblem(k: any, theme: any)
 	g.LightInfluence = 0.8
 	local px = 28 * 24
 	local root = make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, g)
-	local cols, rows = 6, 4
+	local cols, rows = 8, 6
 	local cell = math.floor(px * 0.9 / cols)
 	local top = (px - rows * cell) / 2
 	local left = (px - cols * cell) / 2
@@ -137,10 +137,10 @@ function PadParts.emblem(k: any, theme: any)
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0.98, 0, 0, cell * 2),
+		Size = UDim2.new(0.8, 0, 0, cell * 2.2),
 	}, root)
 	make("UICorner", { CornerRadius = UDim.new(0, 40) }, band)
-	CarKit.title(band, "CAR HOP", math.floor(cell * 1.5), {
+	CarKit.title(band, "CAR HOP", math.floor(cell * 1.7), {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.White,
@@ -598,18 +598,12 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		end
 	end)
 	local knot, knotModel = k:model("TrailKnot")
-	local knotAt = trailAt * CFrame.new(0, trailTop + 2.6, 0)
-	local beads = 12
+	local beads = 16
+	local facing = trailAt * CFrame.new(0, trailTop + 2.6, 0) * CFrame.Angles(0, math.rad(45), 0)
 	for i = 0, beads - 1 do
 		local a = i / beads * math.pi * 2
-		local cf = knotAt * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
-		knot:box(
-			"LoopSegment",
-			Vector3.new(1.5, 1, if i % 2 == 0 then 1.5 else 1.26),
-			cf,
-			Color3.fromHSV(i / beads, 0.85, 1),
-			Enum.Material.Neon
-		)
+		local cf = facing * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
+		knot:ball("LoopBead", 1.5, cf, Color3.fromHSV(i / beads, 0.85, 1), Enum.Material.Neon)
 	end
 	bobbing(knotModel, life, 0)
 
