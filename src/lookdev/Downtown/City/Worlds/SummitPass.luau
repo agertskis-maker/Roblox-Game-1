@@ -34,9 +34,50 @@ return {
 	prefix = "SP_",
 	paletteColumn = "SU",
 	ground = rgb(236, 243, 250),
-	-- asked of the planner: it finishes the district it is in, so five districts (about 3,150 studs) end the route
+	-- asked of the planner: it finishes the district it is in, so five districts (3,099.19 studs) end the route
 	length = 3000,
 	landmarkSpacing = { 300, 440 },
+	-- HAND-AUTHORED LANDMARK PLAN (Adam, 2026-11-02: "set the landmark order by hand, so the spacing always works"). Read by
+	-- City/Sequencer.luau, which lays these down instead of sweeping, and bends the hazards around them. `station` is studs
+	-- along one lap; a longer route repeats the lap. `side` is 1 (right), -1 (left), or "outside" / "inside" of the district's
+	-- first curve. The bridge landmark is still placed at its deck's centre, its row is here for the gaps and is cross-checked.
+	--
+	-- Why one table holds for every seed: each random choice in a district swaps a 96 straight for a 192 one and the planner
+	-- fills the rest to the district's target, so the district lengths never change (Pine Village 580.53, Ski Lift Ridge
+	-- 585.06, Frozen Lake 676.53, Glacier Tunnel 576, Summit Lodge 681.06; the lap is 3,099.19 and the tunnel's deck centre is
+	-- 2,226.12). Curve sides and hazards do move with the seed; they cannot move a station.
+	--
+	-- Rules, from v2.spacingCheck (WorldPlan): neighbours 300 to 440 apart, up to 780 beside the glacier tunnel; the five
+	-- district signatures (MAJOR) 500 apart; every other landmark (minor) 250 from every major; the wrap counts.
+	--
+	--   station     gap  landmark        district        side      note
+	--     125.00  334.19  SnowmenRow      Pine Village    right     minor; 65 past the welcome gate (nothing within 60 of it)
+	--     441.00  316.00  ChaletCluster   Pine Village    left      MAJOR; 632 to the ski lift
+	--     757.00  316.00  WarmingHut      Ski Lift Ridge  right     minor; between two majors
+	--   1,073.00  316.00  SkiLift         Ski Lift Ridge  outside   MAJOR; 632 to the lake; its far glade falls inside
+	--   1,389.00  316.00  SkateHut        Frozen Lake     inside    minor; between two majors, off the lake's side
+	--   1,705.00  316.00  FrozenLake      Frozen Lake     inside    MAJOR; 521.12 to the tunnel (the one gap over 440)
+	--   2,226.12  521.12  GlacierTunnel   Glacier Tunnel  (bridge)  MAJOR; 663.88 to the lodge
+	--   2,558.00  331.88  Observatory     Summit Lodge    inside    minor; the lodge district opens with it
+	--   2,890.00  332.00  SummitLodge     Summit Lodge    outside   MAJOR; 650.19 round the wrap to the chalet cluster
+	--   (wrap)    334.19  back to SnowmenRow at 125.00 + 3,099.19
+	--
+	-- The gaps add to 3,099.19. The nine landmarks are the least that works: a major pair 500 apart needs a minor between
+	-- unless the tunnel is one of them, so the ski lift needs the hut before it and the skate hut after it, and the lodge's
+	-- wrap needs the snowmen. Sides: both lake buildings stand inside, away from the lake and its fence; the ski lift stands
+	-- outside so its far-side glade is the inside one, opposite the second glade (pin `glade2`); the lodge stands outside, on
+	-- the bend the summit horn is on. The clock tower is not here: it is a pin (v2.pins).
+	fixedLandmarks = {
+		{ id = "SnowmenRow", district = "PineVillage", station = 125, side = 1 },
+		{ id = "ChaletCluster", district = "PineVillage", station = 441, side = -1 },
+		{ id = "WarmingHut", district = "SkiLiftRidge", station = 757, side = 1 },
+		{ id = "SkiLift", district = "SkiLiftRidge", station = 1073, side = "outside" },
+		{ id = "SkateHut", district = "FrozenLake", station = 1389, side = "inside" },
+		{ id = "FrozenLake", district = "FrozenLake", station = 1705, side = "inside" },
+		{ id = "GlacierTunnel", district = "GlacierTunnel", station = 2226.12, side = 0 },
+		{ id = "Observatory", district = "SummitLodge", station = 2558, side = "inside" },
+		{ id = "SummitLodge", district = "SummitLodge", station = 2890, side = "outside" },
+	},
 	lighting = {
 		props = {
 			ClockTime = 10.6,
@@ -78,17 +119,16 @@ return {
 			curves = 1,
 			bridge = false,
 			signature = "ChaletCluster",
-			landmarks = { "ChaletCluster", "BellTower" },
+			landmarks = { "ChaletCluster" },
 			-- Adam's S8 decision (2026-10-29): the snowmen row MOVED here from Summit Lodge. Pine Village opens with it and then the
-			-- chalet cluster, each 300 to 440 after the one before (after the lodge across the wrap; near the start on lap one)
-			leadLandmarks = { "SnowmenRow", "ChaletCluster" },
+			-- chalet cluster (stations in `fixedLandmarks`, 2026-11-02; they used to be forward `leadLandmarks`)
 			required = { "SnowmenRow" },
 			furniture = { "woodpile", "pine", "sled", "bench", "pine", "lantern" },
 			treatmentEvery = { 5, 8 },
 			parkBias = 0.6,
 			midHeight = { 28, 56 },
 			skyHeight = { 100, 170 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			welcome = "WELCOME TO SUMMIT PASS",
 			cart = false,
@@ -115,7 +155,7 @@ return {
 			parkBias = 0.7,
 			midHeight = { 48, 100 },
 			skyHeight = { 120, 200 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			cart = false,
 		},
@@ -189,8 +229,9 @@ return {
 			signature = "SummitLodge",
 			landmarks = { "SummitLodge", "Observatory" },
 			-- V2 (Adam, 2026-10-28): observatory, snowmen, lodge. S8 (Adam, 2026-10-29): the snowmen row moved to the next district
-			-- (Pine Village, after the wrap), so here the observatory, then the lodge, 300 to 440 apart; the small festival
-			-- terrace stage is promoted
+			-- (Pine Village, after the wrap), so here the observatory, then the lodge; the small festival terrace stage is
+			-- promoted. The stations are in `fixedLandmarks`; this field now only marks that the route closes on this district
+			-- (WorldPlan reads it to count the wrap from the lodge back to Pine Village)
 			landmarkOrder = { "Observatory", "SummitLodge" },
 			required = { "Observatory" },
 			furniture = { "lantern", "bench", "pine", "trailMarker", "snowman", "pine" },
@@ -198,7 +239,7 @@ return {
 			parkBias = 0.6,
 			midHeight = { 48, 100 },
 			skyHeight = { 130, 210 },
-			signs = true,
+			signs = false,
 			bunting = false,
 			cart = false,
 		},
@@ -392,7 +433,8 @@ return {
 		"Observatory",
 		"SnowmenRow",
 	},
-	-- (BellTower, WarmingHut and SkateHut are supporting landmarks: planned when they fit, not required)
+	-- (WarmingHut and SkateHut are minors that the spacing needs between the majors, so `fixedLandmarks` always plans them;
+	-- BellTower is a pin, not a landmark)
 	tierB = { "SledHill" },
 	-- WORLD BUILD V2 (decision 0026; Adam approved the plan 2026-10-28). Read by City/WorldPlan.luau and WorldFeatures.luau:
 	-- backdrop first (far massifs, ridge curtains, spurs, one recurring summit horn), the Frozen Lake plane, the glacier
@@ -406,8 +448,59 @@ return {
 		-- S8 (Adam, 2026-10-29): the order across districts and the wrap (observatory, lodge, then the next lap's snowmen row and
 		-- chalet cluster), and the spacing measured on the route (station differences, as Sequencer.check reports them): every
 		-- consecutive landmark 300 to 440 apart, majors (district signatures) 500 or more, minors 250 or more from a major
+		-- (met by construction since 2026-11-02: `fixedLandmarks` above lists the stations and every gap)
 		landmarkCycle = { "Observatory", "SummitLodge", "SnowmenRow", "ChaletCluster" },
-		spacingCheck = { min = 300, max = 440, majors = 500, minorFromMajor = 250 },
+		spacingCheck = {
+			min = 300,
+			max = 440,
+			majors = 500,
+			minorFromMajor = 250,
+			-- a longer gap is allowed next to the glacier tunnel only (Adam, big round M7-01; decision 0029 option 1)
+			longGapBeside = { id = "GlacierTunnel", max = 780 },
+		},
+		-- wayfinding in the Summit family (big round M5): carved lodge boards in the villages, enamel trail markers on the mountain
+		signs = {
+			{
+				district = "PineVillage",
+				t = 0.03,
+				side = 1,
+				lateral = 50,
+				w = 12,
+				h = 3.2,
+				text = "PINE VILLAGE",
+				style = "Lodge",
+			},
+			{
+				district = "SkiLiftRidge",
+				t = 0.08,
+				side = -1,
+				lateral = 50,
+				w = 10,
+				h = 2.8,
+				text = "SKI LIFT",
+				style = "Trail",
+			},
+			{
+				district = "FrozenLake",
+				t = 0.1,
+				side = 1,
+				lateral = 50,
+				w = 12,
+				h = 2.8,
+				text = "FROZEN LAKE",
+				style = "Trail",
+			},
+			{
+				district = "SummitLodge",
+				t = 0.08,
+				side = 1,
+				lateral = 50,
+				w = 13,
+				h = 3.2,
+				text = "SUMMIT LODGE",
+				style = "Lodge",
+			},
+		},
 		subSeeds = true,
 		replaceMasses = true,
 		welcomeLater = "KEEP CLIMBING!", -- Adam, 2026-10-28: the first lap says WELCOME TO SUMMIT PASS, later laps this
@@ -540,6 +633,23 @@ return {
 		},
 		skiers = { "SP_BG_PisteGlade_A", "SP_BG_PisteGlade_B" },
 		pins = {
+			-- the clock tower, set out behind the chalets with its base in the clear (Adam, big round M7-02): a pin, so it stands
+			-- on the same spot on every seed and takes no slot from the landmark rhythm
+			{
+				id = "BellTower",
+				m = "SP_LM_BellTower",
+				district = "PineVillage",
+				t = 0.66,
+				side = 1,
+				lateral = 108,
+				scale = 1,
+				yaw = "alongRoad",
+				y = 0,
+				kind = "mass",
+				band = "near",
+				label = "VILLAGE CLOCK TOWER",
+				colour = rgb(170, 150, 130),
+			},
 			-- a second ski glade for the skiers (the lift's own glade is placed by WorldFeatures.lift)
 			{
 				id = "glade2",
@@ -901,8 +1011,8 @@ return {
 					{ m = "SP_Lot_LodgeWing_B", x = "rightOf", z = 6, label = "LODGE WING" },
 					{ m = "SP_Lot_Annex36", x = "rightOf", z = 30, gap = 40, label = "LODGE ANNEX" },
 					{ m = "SP_LM_FestivalStage", x = 6, z = 44, label = "FESTIVAL STAGE" },
-					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = -4, label = "PENNANT POLE" },
-					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = -4, label = "PENNANT POLE" },
+					{ m = "SP_Prop_PennantPole", x = "leftOf", gap = 4, z = 4, label = "PENNANT POLE" },
+					{ m = "SP_Prop_PennantPole", x = "rightOf", gap = 4, z = 4, label = "PENNANT POLE" },
 				},
 			},
 			-- the observatory stands on a rock knoll

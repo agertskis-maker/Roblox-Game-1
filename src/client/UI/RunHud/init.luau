@@ -257,7 +257,7 @@ function RunHud.new(parent: Instance, options: Options?)
 	local function applyScale()
 		local camera = Workspace.CurrentCamera
 		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
-		local scale = Tokens.uiScaleFor(viewport)
+		local scale = Tokens.windowScale(viewport)
 		self._scale = scale
 		self._viewport = viewport
 		local gap = Tokens.Space.M * scale

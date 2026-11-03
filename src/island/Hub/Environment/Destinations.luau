@@ -19,7 +19,7 @@
 -- No texture from the spec is uploaded; each face has a one-line hook where its approved texture
 -- id would go.
 --
--- Presentation (turntable spin, the start-light preview countdown, the "Open Garage" reply) is on
+-- Presentation (turntable spin, the start-light preview countdown) is on
 -- each client: src/client/Home/Island/Destinations.client.luau. Nothing here sends, saves or
 -- reads player data, and the prompt has no server handler.
 
@@ -620,7 +620,7 @@ local function previewCar(seat: CFrame, index: number, parent: Instance): Model
 		-- tyres: inside the cover's sides, the lower half showing under the hem (hem at 0.9)
 		for _, x in { -2.55, 2.55 } do
 			for _, z in { -4.1, 4.1 } do
-				piece("Tyre", Enum.PartType.Cylinder, Vector3.new(0.9, 2, 2), Vector3.new(x, 1, z), STAND_TYRE)
+				piece("Tyre", Enum.PartType.Cylinder, Vector3.new(0.8, 2, 2), Vector3.new(x, 1, z), STAND_TYRE)
 			end
 		end
 		-- the covered body: a block with rounded nose and tail, then a rounded cabin hump
@@ -633,7 +633,7 @@ local function previewCar(seat: CFrame, index: number, parent: Instance): Model
 			piece("Cover", Enum.PartType.Cylinder, Vector3.new(5, 1.4, 1.4), Vector3.new(0, 3.4, z), COVER)
 		end
 		-- a cream tie band round the middle, like a fitted cover's strap
-		piece("CoverBand", Enum.PartType.Block, Vector3.new(6.08, 1.84, 0.5), Vector3.new(0, 1.8, 0.6), CREAM)
+		piece("CoverBand", Enum.PartType.Block, Vector3.new(6.2, 1.96, 0.5), Vector3.new(0, 1.8, 0.6), CREAM)
 		model.WorldPivot = seat -- no PrimaryPart, so the pivot stays at the bottom centre
 	end
 	model:SetAttribute("Preview", true)
@@ -763,7 +763,7 @@ local function buildGarage(root: Instance, report: Report): Model
 	local by1 = shell.meta["forecourt.bays.1.y.1"] or -28
 	local by2 = shell.meta["forecourt.bays.1.y.2"] or -20
 	for i, x in { bx1, bx2 } do
-		local l1, h1 = blenderBox(x - 0.15, x + 0.15, by1, by2, 0.01, 0.04)
+		local l1, h1 = blenderBox(x - 0.15, x + 0.15, by1, by2, 0.01, 0.08)
 		local line = box("BayLine" .. i, base, l1, h1, forecourt)
 		line.Transparency = 0
 		line.Color = BAY_LINE
@@ -893,8 +893,8 @@ local function buildGarage(root: Instance, report: Report): Model
 		previewTag(bg, math.floor(h * 0.17), UDim2.fromScale(0.5, 0.8), Vector2.new(0.5, 0.5))
 	end
 
-	-- the "Open Garage" prompt at the recorded PromptPoint, outside the entrance. Preview only:
-	-- each client shows "Not connected yet" to whoever pressed it (Destinations.client.luau).
+	-- the "Open Garage" prompt at the recorded PromptPoint, outside the entrance. Each client opens the
+	-- Customize screen for whoever pressed it (HomeShell).
 	local promptAt = needPoint("GarageShell", "PromptPoint.position")
 	local promptPart = plain("PromptPoint", Vector3.one, base * CFrame.new(promptAt), model)
 	promptPart:SetAttribute("Zone", "Forecourt")
@@ -905,11 +905,6 @@ local function buildGarage(root: Instance, report: Report): Model
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 10 -- spec proposal
 	prompt.RequiresLineOfSight = false
-	prompt:SetAttribute("PressedText", "Not connected yet")
-	prompt:SetAttribute("PressedSeconds", 3)
-	-- Production hook: the Garage screen opens here once it exists. It is new screen UI, so it goes
-	-- through vault/decisions/0012-figma-ui-workflow.md; until then nothing is sent or saved.
-	prompt:SetAttribute("ProductionHook", "open the Garage screen (not built; 0012 Figma workflow)")
 	prompt.Parent = promptPart
 
 	-- colliders: the three volumes (simple boxes); the forecourt paving is walkable

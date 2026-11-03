@@ -1,40 +1,44 @@
 --!strict
--- StuntMock: a mock-only Stunt Circuit HUD (Lane 3 HUD prototype, PREVIEW only). There is no
--- racing simulation, no leaderboard and no reward: every number is a placeholder that the
--- caller sets (or the local display clock started by :play()). HUD rebuild (2026-10-22, H-15):
--- restyled into the arcade family: the lap timer is a large italic outlined number with no
--- backing card; the mode tag, checkpoints, ghost and medal list are compact dark kit chips with
--- the thick boundary (no cream pills).
+-- StuntMock: the Stunt Circuit race HUD (Lane 3, PREVIEW only; big round M17-04, finished 2026-11-01). There is no racing
+-- simulation, no leaderboard and no reward: every number is a fixture that the caller sets (or the local display clock started
+-- by :play()). HUD rebuild (2026-10-22, H-15): the lap timer is a large italic outlined number with no backing card; the mode
+-- tag, checkpoints, ghost, flash and medal list are compact dark kit chips with the thick boundary (no cream pills).
 --
 --   local stunt = StuntMock.new(ctx, { onExit = fn? })
 --   stunt:open(returnTo?)  stunt:close()  stunt:isOpen()
---   stunt:setTime(seconds)              -- lap timer display, m:ss.cc
---   stunt:setCheckpoint(n, total)       -- "CHECKPOINT 3 / 5" plus segment ticks
---   stunt:setGhostGap(seconds?)         -- "+0.42 behind" / "-0.42 ahead" with "ghost"; nil hides
---   stunt:setMedals({ gold, silver, bronze })   -- placeholder target times in seconds
+--   stunt:setTime(seconds)              -- lap timer display, m:ss.cc (the timer is the stable anchor at the top)
+--   stunt:setCheckpoint(n, total)       -- "CHECKPOINT 3 / 5" plus segment ticks (secondary to the timer)
+--   stunt:setGhostGap(seconds?)         -- "+0.42 behind" / "-0.42 ahead" with "ghost"; nil, NaN or a silly value hides it
+--   stunt:setMedals({ gold, silver, bronze })   -- PREVIEW target times in seconds (StuntFixtures.MedalTargets)
+--   stunt:flashCheckpoint(n, delta?)    -- a short "CHECKPOINT 2" banner, with the ghost split when one is supplied
+--   stunt:setPreset("AheadOfGhost")     -- StuntFixtures.HudPresets: Default, AheadOfGhost, NoGhost, Start, GoldMissed, AllMissed
 --   stunt:play() / stunt:stop()         -- a local 10 Hz display clock (not a simulation)
 --   stunt:layout()  stunt:setVisible(on)  stunt:destroy()  stunt:getDebugState()
 --
--- Consistency with outline v2.2 section 10: one lap of about 60-90 s, checkpoints about every
--- 15 s (so the default total is 5, not 8), Bronze / Silver / Gold medal times, your own best
--- run always shown as a ghost, Heat off (no Heat bar here). Medal colours always come with the
--- medal word and its letter. "mock HUD" and "placeholder times" are harness captions.
--- Back (Escape / gamepad B) closes the mock.
+-- THE MEDAL LIST (M17-04b): the three targets are NAMED PREVIEW values with a PREVIEW caption that stays on screen. A target
+-- the clock has already passed is MISSED: its row is dimmed and its time struck through (state is never colour alone); the
+-- best target still reachable carries a white outline (the goal). Nothing here says the targets are balanced.
+--
+-- Consistency with outline v2.2 section 10: one lap of about 60-90 s, checkpoints about every 15 s (so the default total is 5:
+-- four arches and the line), Bronze / Silver / Gold target times, your own best run as a ghost, Heat off (no Heat bar here).
+-- Reduced motion: the checkpoint banner appears and disappears with no movement. Back (Escape / gamepad B) closes the mock.
 
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
+local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Style = require(script.Parent.Style)
+local StuntFixtures = require(Prototype.SupportFixtures.StuntFixtures)
 
 local A = PreviewTokens.Arcade
 local make = Arcade.make
 
 local StuntMock = {}
 
-StuntMock.DefaultMedals = { gold = 65, silver = 75, bronze = 90 } -- placeholders, seconds
+StuntMock.DefaultMedals = table.clone(StuntFixtures.MedalTargets) -- PREVIEW seconds (kept for older callers)
 
-export type Medals = { gold: number, silver: number, bronze: number }
+export type Medals = StuntFixtures.Targets
 
 export type Options = {
 	onExit: (() -> ())?,
@@ -49,7 +53,15 @@ export type DebugState = {
 	checkpoints: number,
 	ghostGap: number?,
 	ghostText: string,
+	ghostVisible: boolean,
 	medals: Medals,
+	missed: { string },
+	goal: string,
+	caption: string,
+	tagCaption: string,
+	flashText: string,
+	flashVisible: boolean,
+	preset: string,
 	playing: boolean,
 }
 
@@ -64,6 +76,8 @@ export type Stunt = {
 	setCheckpoint: (self: Stunt, n: number, total: number) -> (),
 	setGhostGap: (self: Stunt, seconds: number?) -> (),
 	setMedals: (self: Stunt, medals: Medals) -> (),
+	flashCheckpoint: (self: Stunt, n: number, delta: number?) -> (),
+	setPreset: (self: Stunt, name: string) -> boolean,
 	play: (self: Stunt) -> (),
 	stop: (self: Stunt) -> (),
 	destroy: (self: Stunt) -> (),
@@ -71,11 +85,7 @@ export type Stunt = {
 }
 
 function StuntMock.formatTime(seconds: number): string
-	local s = math.max(seconds, 0)
-	local m = math.floor(s / 60)
-	local rest = s - m * 60
-	local cs = math.floor(rest * 100 + 1e-6)
-	return string.format("%d:%02d.%02d", m, cs // 100, cs % 100)
+	return StuntFixtures.formatTime(seconds)
 end
 
 local MEDALS = {
@@ -88,6 +98,17 @@ local MEDALS = {
 local GHOST_BEHIND = Color3.fromRGB(255, 196, 120)
 local GHOST_AHEAD = Color3.fromRGB(120, 245, 225)
 
+local FLASH_SECONDS = 1.6
+local GHOST_LIMIT = 599 -- a gap beyond ten minutes is not meaningful for a lap of about a minute and a half
+
+local function meaningful(gap: number?): boolean
+	if gap == nil then
+		return false
+	end
+	local g = gap :: number
+	return g == g and math.abs(g) <= GHOST_LIMIT
+end
+
 function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local opts: Options = options or {}
 	local time = 42.18
@@ -96,11 +117,15 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local medals: Medals = table.clone(StuntMock.DefaultMedals)
 	local playing = false
 	local playToken = 0
+	local presetName = "Default"
+	local flashToken = 0
+	local lastStateKey = ""
 	local stunt: Stunt
 
 	local overlay = Overlay.new(ctx, { name = "StuntMock", dim = false, sounds = false })
 	local trove = overlay.trove
 	local content = overlay.content
+	local flashTrove = trove:Extend()
 
 	-- mode tag (top-left; Heat is off in the Stunt Circuit, so this corner is free)
 	local tag = Style.chip(content, "ModeTag", 4)
@@ -118,8 +143,10 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	tagText.AnchorPoint = Vector2.new(0, 0.5)
 	tagText.Position = UDim2.new(0, 46, 0.5, -8)
 	tagText.Size = UDim2.new(1, -52, 0, 24)
-	local tagSub = Overlay.text(tag, "mock HUD", 16, Style.TextSoft, nil, 6)
-	tagSub:SetAttribute("PreviewCaption", true)
+	-- the persistent caption: it is part of the screen, not a harness caption, so it carries PersistentPreview
+	local tagSub = Overlay.text(tag, StuntFixtures.Caption, 16, Style.TextSoft, nil, 6)
+	tagSub.Name = "TagCaption"
+	tagSub:SetAttribute("PersistentPreview", true)
 	tagSub.AnchorPoint = Vector2.new(0, 0.5)
 	tagSub.Position = UDim2.new(0, 46, 0.5, 12)
 	tagSub.Size = UDim2.new(1, -52, 0, 20)
@@ -164,7 +191,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	})
 	local tickTrove = trove:Extend()
 
-	-- ghost gap
+	-- ghost gap (shown only when a meaningful gap is supplied; the layout slot stays so nothing jumps)
 	local ghost = Style.chip(content, "GhostGap", 4)
 	local ghostValue = Style.text(ghost, "", "Value", {
 		name = "Gap",
@@ -178,6 +205,25 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	local ghostLabel = Overlay.text(ghost, "ghost", 16, Style.TextSoft, Enum.TextXAlignment.Center, 6)
 	ghostLabel.Position = UDim2.fromOffset(0, 30)
 	ghostLabel.Size = UDim2.new(1, 0, 0, 20)
+
+	-- the checkpoint banner: a short flash under the timer row
+	local flash = Style.chip(content, "CheckpointFlash", 8)
+	flash.Visible = false
+	local flashScale: UIScale = make("UIScale", { Name = "FlashScale", Parent = flash })
+	local flashName = Style.text(flash, "", "Label", { name = "Name", size = 24, z = 10 })
+	flashName.AnchorPoint = Vector2.new(0, 0.5)
+	flashName.Position = UDim2.new(0, 10, 0.5, 0)
+	flashName.Size = UDim2.new(0.52, -10, 0, 30)
+	local flashDelta = Style.text(flash, "", "Value", {
+		name = "Split",
+		italic = true,
+		size = 22,
+		xAlign = Enum.TextXAlignment.Right,
+		z = 10,
+	})
+	flashDelta.AnchorPoint = Vector2.new(1, 0.5)
+	flashDelta.Position = UDim2.new(1, -10, 0.5, 0)
+	flashDelta.Size = UDim2.new(0.48, -10, 0, 28)
 
 	-- medal targets
 	local medalCard = Style.chip(content, "Medals", 4)
@@ -194,7 +240,14 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = medalList,
 	})
-	local medalTimes: { [string]: TextLabel } = {}
+	type MedalRow = {
+		row: Frame,
+		disc: Frame,
+		word: TextLabel,
+		time: TextLabel,
+		goal: Frame,
+	}
+	local medalRows: { [string]: MedalRow } = {}
 	for i, m in MEDALS do
 		local row: Frame = make("Frame", {
 			Name = "Medal_" .. m.word,
@@ -204,6 +257,17 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			ZIndex = 5,
 			Parent = medalList,
 		})
+		local goal: Frame = make("Frame", {
+			Name = "Goal",
+			Position = UDim2.fromOffset(-4, 0),
+			Size = UDim2.new(1, 8, 1, 0),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 5,
+			Parent = row,
+		})
+		Arcade.corner(goal, 7)
+		Arcade.outline(goal, 2, Color3.new(1, 1, 1))
 		local disc: Frame = make("Frame", {
 			Name = "Disc",
 			AnchorPoint = Vector2.new(0, 0.5),
@@ -231,18 +295,81 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			xAlign = Enum.TextXAlignment.Right,
 			z = 6,
 		})
+		t.RichText = true
 		t.AnchorPoint = Vector2.new(1, 0)
 		t.Position = UDim2.fromScale(1, 0)
 		t.Size = UDim2.new(0, 76, 1, 0)
-		medalTimes[m.key] = t
+		medalRows[m.key] = { row = row, disc = disc, word = word, time = t, goal = goal }
 	end
-	local medalCaption = Overlay.text(medalList, "placeholder times", 16, Style.TextSoft, Enum.TextXAlignment.Right, 6)
-	medalCaption:SetAttribute("PreviewCaption", true)
+	-- the persistent caption: these targets are PREVIEW values until they are measured with the real car physics
+	local medalCaption = Overlay.text(medalList, "PREVIEW targets", 16, Style.TextSoft, Enum.TextXAlignment.Right, 6)
+	medalCaption.Name = "TargetsCaption"
+	medalCaption:SetAttribute("PersistentPreview", true)
 	medalCaption.LayoutOrder = 10
 	medalCaption.Size = UDim2.new(1, 0, 0, 20)
 
+	-- which targets the clock has passed, and the best one still reachable
+	local function medalStates(): ({ string }, string)
+		local missed: { string } = {}
+		local goal = ""
+		for _, m in MEDALS do
+			if time > (medals :: any)[m.key] then
+				table.insert(missed, m.key)
+			elseif goal == "" then
+				goal = m.key
+			end
+		end
+		return missed, goal
+	end
+
+	local function renderMedals(force: boolean)
+		local missed, goal = medalStates()
+		local key = table.concat(missed, ",")
+			.. "|"
+			.. goal
+			.. "|"
+			.. medals.gold
+			.. ","
+			.. medals.silver
+			.. ","
+			.. medals.bronze
+		if not force and key == lastStateKey then
+			return
+		end
+		lastStateKey = key
+		for _, m in MEDALS do
+			local r = medalRows[m.key]
+			local isMissed = table.find(missed, m.key) ~= nil
+			local text = StuntFixtures.formatTime((medals :: any)[m.key])
+			r.time.Text = if isMissed then "<s>" .. text .. "</s>" else text
+			r.time.TextTransparency = if isMissed then 0.45 else 0
+			r.word.TextTransparency = if isMissed then 0.45 else 0
+			r.disc.BackgroundTransparency = if isMissed then 0.55 else 0
+			r.goal.Visible = m.key == goal
+			r.row:SetAttribute("Missed", isMissed)
+			r.row:SetAttribute("Goal", m.key == goal)
+		end
+	end
+
+	local function renderGhost()
+		local gap = ghostGap
+		local show = meaningful(gap)
+		ghost.Visible = show
+		if show and gap then
+			local behind = gap >= 0
+			ghostValue.Text = string.format(
+				"%s%.2f %s",
+				if behind then "+" else "\u{2212}",
+				math.abs(gap),
+				if behind then "behind" else "ahead"
+			)
+			ghostValue.TextColor3 = if behind then GHOST_BEHIND else GHOST_AHEAD
+			ghostLabel.Text = "ghost"
+		end
+	end
+
 	local function render()
-		timerText.Text = StuntMock.formatTime(time)
+		timerText.Text = StuntFixtures.formatTime(time)
 		cpText.Text = string.format("CHECKPOINT %d / %d", checkpoint, checkpoints)
 		tickTrove:Clean()
 		for i = 1, checkpoints do
@@ -260,22 +387,8 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			Arcade.corner(tick, 3)
 			Arcade.outline(tick, 1.5)
 		end
-		local gap = ghostGap
-		ghost.Visible = gap ~= nil
-		if gap then
-			local behind = gap >= 0
-			ghostValue.Text = string.format(
-				"%s%.2f %s",
-				if behind then "+" else "\u{2212}",
-				math.abs(gap),
-				if behind then "behind" else "ahead"
-			)
-			ghostValue.TextColor3 = if behind then GHOST_BEHIND else GHOST_AHEAD
-			ghostLabel.Text = "ghost"
-		end
-		for _, m in MEDALS do
-			medalTimes[m.key].Text = StuntMock.formatTime((medals :: any)[m.key])
-		end
+		renderGhost()
+		renderMedals(true)
 	end
 
 	local function layoutNow()
@@ -298,6 +411,9 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			medalCard.AnchorPoint = Vector2.new(0.5, 0)
 			medalCard.Position = UDim2.new(0.5, 0, 0, 192)
 			medalCard.Size = UDim2.fromOffset(250, 124)
+			flash.AnchorPoint = Vector2.new(0.5, 0)
+			flash.Position = UDim2.new(0.5, 0, 0, 324)
+			flash.Size = UDim2.fromOffset(300, 44)
 		else
 			local short = kind == "Short"
 			tag.Position = UDim2.fromOffset(8, 6)
@@ -314,6 +430,9 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			medalCard.AnchorPoint = Vector2.new(1, 0)
 			medalCard.Position = UDim2.new(1, -8, 0, 6)
 			medalCard.Size = UDim2.fromOffset(if short then 196 else 220, 124)
+			flash.AnchorPoint = Vector2.new(0.5, 0)
+			flash.Position = UDim2.new(0.5, 0, 0, 122)
+			flash.Size = UDim2.fromOffset(if short then 300 else 340, 44)
 		end
 	end
 
@@ -325,7 +444,16 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 	end)
 	trove:Add(function()
 		playToken += 1
+		flashToken += 1
+		Motion.cancelAll(flashScale)
 	end)
+
+	local function hideFlash()
+		flashToken += 1
+		Motion.cancelAll(flashScale)
+		flashScale.Scale = 1
+		flash.Visible = false
+	end
 
 	stunt = {
 		root = overlay.root,
@@ -345,6 +473,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 				return
 			end
 			self:stop()
+			hideFlash()
 			overlay:close()
 			if opts.onExit then
 				opts.onExit()
@@ -355,7 +484,8 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		end,
 		setTime = function(_self: Stunt, seconds: number)
 			time = math.max(seconds, 0)
-			timerText.Text = StuntMock.formatTime(time)
+			timerText.Text = StuntFixtures.formatTime(time)
+			renderMedals(false)
 		end,
 		setCheckpoint = function(_self: Stunt, n: number, total: number)
 			checkpoints = math.clamp(math.floor(total), 1, 12)
@@ -364,11 +494,51 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 		end,
 		setGhostGap = function(_self: Stunt, seconds: number?)
 			ghostGap = seconds
-			render()
+			renderGhost()
 		end,
 		setMedals = function(_self: Stunt, m: Medals)
 			medals = table.clone(m)
+			renderMedals(true)
+		end,
+		flashCheckpoint = function(_self: Stunt, n: number, delta: number?)
+			flashName.Text = string.format("CHECKPOINT %d", math.floor(n))
+			if meaningful(delta) and delta then
+				local behind = delta >= 0
+				flashDelta.Text = string.format("%s%.2f", if behind then "+" else "\u{2212}", math.abs(delta))
+				flashDelta.TextColor3 = if behind then GHOST_BEHIND else GHOST_AHEAD
+			else
+				flashDelta.Text = ""
+			end
+			flashToken += 1
+			local token = flashToken
+			Motion.cancelAll(flashScale)
+			flash.Visible = true
+			if Motion.reduced() then
+				flashScale.Scale = 1 -- no movement: it simply appears and goes
+			else
+				flashScale.Scale = 0.88
+				Motion.tween(flashScale, "pop", Motion.info(0.16, Enum.EasingStyle.Back), { Scale = 1 })
+			end
+			flashTrove:Clean()
+			flashTrove:Add(task.delay(FLASH_SECONDS, function()
+				if token == flashToken then
+					hideFlash()
+				end
+			end))
+		end,
+		setPreset = function(_self: Stunt, name: string): boolean
+			local preset = (StuntFixtures.HudPresets :: any)[name] :: StuntFixtures.HudPreset?
+			if not preset then
+				return false
+			end
+			presetName = name
+			time = preset.time
+			checkpoint = math.clamp(preset.checkpoint, 0, preset.total)
+			checkpoints = preset.total
+			ghostGap = preset.ghostGap
 			render()
+			hideFlash()
+			return true
 		end,
 		play = function(_self: Stunt)
 			if playing then
@@ -377,7 +547,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			playing = true
 			playToken += 1
 			local token = playToken
-			task.spawn(function()
+			trove:Add(task.spawn(function()
 				local last = os.clock()
 				while playing and token == playToken do
 					task.wait(0.1)
@@ -387,9 +557,10 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 					local now = os.clock()
 					time += now - last
 					last = now
-					timerText.Text = StuntMock.formatTime(time)
+					timerText.Text = StuntFixtures.formatTime(time)
+					renderMedals(false)
 				end
-			end)
+			end))
 		end,
 		stop = function(_self: Stunt)
 			playing = false
@@ -400,6 +571,7 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 			overlay:destroy()
 		end,
 		getDebugState = function(_self: Stunt): DebugState
+			local missed, goal = medalStates()
 			return {
 				open = overlay:isOpen(),
 				kind = overlay:kind(),
@@ -409,7 +581,15 @@ function StuntMock.new(ctx: Overlay.Ctx, options: Options?): Stunt
 				checkpoints = checkpoints,
 				ghostGap = ghostGap,
 				ghostText = if ghost.Visible then ghostValue.Text .. " " .. ghostLabel.Text else "",
+				ghostVisible = ghost.Visible,
 				medals = table.clone(medals),
+				missed = missed,
+				goal = goal,
+				caption = medalCaption.Text,
+				tagCaption = tagSub.Text,
+				flashText = flashName.Text .. " " .. flashDelta.Text,
+				flashVisible = flash.Visible,
+				preset = presetName,
 				playing = playing,
 			}
 		end,

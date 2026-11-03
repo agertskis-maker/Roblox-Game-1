@@ -432,7 +432,9 @@ function PortalGates.build(
 		local frame = origin * CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 		local p = frame.Position
 		local ground = groundAt(p.X, p.Z)
-		model:SetAttribute("PlaqueBase", CFrame.new(p.X, ground, p.Z) * frame.Rotation)
+		-- Round 2: no PlaqueBase any more, so the clients place no low tilted plaque beside the column;
+		-- the locked portal's dialogue card tells the player what opens it
+		model:SetAttribute("PlaqueSpot", CFrame.new(p.X, ground, p.Z) * frame.Rotation)
 	end
 	model.Parent = parent
 	return triangles

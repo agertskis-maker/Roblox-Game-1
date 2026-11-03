@@ -7,7 +7,7 @@
 --              timing, sound hooks and reduced-motion path unchanged; see the regression checklist in
 --              CashLine.luau). The counter icon stays fixed while digits grow rightward. Full exact value
 --              on tap / hover / gamepad focus (CashLine).
---   Earning    a smaller white slightly italic line "Speedway: +$120 / lap" from store.earningPerLap, a
+--   Earning    a smaller white slightly italic line "Raceway: +$120 / lap" from store.earningPerLap, a
 --              FIXTURE rate (Lane 2 owns the real units and wording); a PREVIEW caption beside it carries
 --              the PreviewCaption attribute. It ducks while the counter's own "+$N" label uses the same
 --              slot. Hidden when the rate is nil and while the block is compact.
@@ -48,7 +48,7 @@ local EARNING_ICON = 22
 
 export type Options = {
 	approvedCashIcon: boolean?, -- start with the approved CashIcon instead of the CashStack art
-	earningSource: string?, -- FIXTURE label before the rate, default "Speedway"
+	earningSource: string?, -- FIXTURE label before the rate, default "Raceway"
 }
 
 export type StatsStack = {
@@ -211,7 +211,7 @@ function StatsStack._setEarning(self: any, rate: number?)
 		return
 	end
 	self._earning.Visible = not self._compact
-	local source = self._opts.earningSource or "Speedway"
+	local source = self._opts.earningSource or "Raceway"
 	self._earningText.Text = string.format("%s: +%s / lap", source, Format.cash(rate))
 end
 

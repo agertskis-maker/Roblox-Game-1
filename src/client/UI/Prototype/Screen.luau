@@ -14,6 +14,7 @@
 --   screen:showReserved(on)     -- diagnostics: draw the reserved thumbstick and jump zones
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Signal = require(ReplicatedStorage.Packages.Signal)
@@ -116,6 +117,25 @@ Screen.Profiles = {
 
 Screen.Order = { "Desktop", "Tablet", "PhoneLandscape", "PhoneSmall", "PhoneLandscapeLeft", "PhoneLandscapeRight" }
 
+-- The real screen, for a real place (Round 2 N13): the same object, its size the viewport's, no fitted frame and no edge.
+local function liveProfile(viewport: Vector2): Profile
+	local short = math.min(viewport.X, viewport.Y)
+	local touch = UserInputService.TouchEnabled
+	local phone = short <= 500 and touch
+	local kind: "Desktop" | "Tablet" | "Phone" = if phone then "Phone" elseif touch then "Tablet" else "Desktop"
+	return {
+		name = "Live",
+		kind = kind,
+		label = "This screen",
+		size = viewport,
+		insets = if phone
+			then { top = 44, bottom = 21, left = 47, right = 47 }
+			else { top = 58, bottom = 0, left = 0, right = 0 },
+		touch = touch,
+		zones = if touch then phoneZones(viewport) else {},
+	}
+end
+
 function Screen.new(parent: Instance, profileName: string?)
 	local self = setmetatable({}, Screen)
 	self._trove = Trove.new()
@@ -152,6 +172,10 @@ function Screen.new(parent: Instance, profileName: string?)
 	self._zones = zones
 	self._showZones = false
 	self._profile = Screen.Profiles[profileName or "Desktop"] or Screen.Profiles.Desktop
+	self._live = profileName == "Live"
+	if self._live then
+		border.Enabled = false
+	end
 	local camera = Workspace.CurrentCamera
 	if camera then
 		self._trove:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function()
@@ -165,12 +189,16 @@ end
 export type ScreenObject = typeof(Screen.new(Instance.new("Folder")))
 
 function Screen._layout(self: ScreenObject)
+	local camera = Workspace.CurrentCamera
+	local live = (self :: any)._live == true
+	if live and camera then
+		self._profile = liveProfile(camera.ViewportSize)
+	end
 	local p = self._profile
 	self.root.Size = UDim2.fromOffset(p.size.X, p.size.Y)
-	local camera = Workspace.CurrentCamera
 	local viewport = if camera then camera.ViewportSize else p.size
 	-- leave a little room round the device for the preview controls
-	local fit = math.min((viewport.X - 24) / p.size.X, (viewport.Y - 24) / p.size.Y, 1)
+	local fit = if live then 1 else math.min((viewport.X - 24) / p.size.X, (viewport.Y - 24) / p.size.Y, 1)
 	local newFit = math.max(fit, 0.05)
 	local fitChanged = math.abs(self._fit.Scale - newFit) > 1e-3
 	self._fit.Scale = newFit
@@ -201,7 +229,7 @@ function Screen._layout(self: ScreenObject)
 	end
 	-- a viewport resize changes the fit: components that cache it (world billboards) re-lay out
 	local changed = (self :: any).Changed
-	if fitChanged and changed then
+	if (fitChanged or live) and changed then
 		changed:Fire(p)
 	end
 end
@@ -210,8 +238,15 @@ function Screen.profile(self: ScreenObject): Profile
 	return self._profile
 end
 
+-- Live, off a phone, the UI follows the window's height from a calmer base: the phone rule grows to 1.5 on any window taller
+-- than about 585 px, and on a laptop that filled the screen (Adam, 2026-11-02: "I can hardly see my screen").
+local LIVE_BASE = 800
 function Screen.uiScale(self: ScreenObject): number
-	return Tokens.uiScaleFor(self._profile.size)
+	local p = self._profile
+	if (self :: any)._live and p.kind ~= "Phone" then
+		return math.clamp(math.min(p.size.X, p.size.Y) / LIVE_BASE, if p.touch then 0.9 else 0.7, 1.15)
+	end
+	return Tokens.uiScaleFor(p.size)
 end
 
 function Screen.fitScale(self: ScreenObject): number

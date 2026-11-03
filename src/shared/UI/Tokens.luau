@@ -5,7 +5,7 @@
 -- 16 minimum), touch targets of 48 px (56 px for primary buttons), the
 -- short-side scaling rule below, and following Roblox's Reduce Motion
 -- setting. Colours, spacing, radii, strokes and motion timings are part of
--- the HUD sample that is still pending Adam's review
+-- the HUD sample Adam approved on 2026-10-20
 -- (vault/design/visual-direction.md).
 --
 -- Units: every size here is a design pixel at scale 1.0. Widgets are scaled
@@ -203,6 +203,16 @@ function Tokens.uiScaleFor(viewport: Vector2): number
 		return Tokens.Scale.Min
 	end
 	return math.clamp(shortSide / Tokens.Scale.BaseShortSide, Tokens.Scale.Min, Tokens.Scale.Max)
+end
+
+-- The scale of a real window (Adam, 2026-11-02: "the hud is so big"). Phones keep the approved rule; anything bigger follows the
+-- window's short side from a calmer base, because the phone rule reaches its maximum on any laptop.
+function Tokens.windowScale(viewport: Vector2): number
+	local shortSide = math.min(viewport.X, viewport.Y)
+	if shortSide < 500 then
+		return Tokens.uiScaleFor(viewport)
+	end
+	return math.clamp(shortSide / 800, 0.7, 1.15)
 end
 
 -- Motion timings. With reduced motion, decorative oscillation and fades are

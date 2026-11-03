@@ -80,7 +80,7 @@ Parking.Bays = bays
 Parking.SignAt = Vector2.new(-33.8, 264.2)
 
 local CREAM = Color3.fromRGB(244, 236, 214)
-local LINE_TOP = 0.17 -- just over the Paddock floor (its top is 0.1 above the surface)
+local LINE_TOP = 0.27 -- just over the Paddock floor (its top is the road's, 0.2 above the surface)
 
 -- The plan direction the bay opens toward (the aisle).
 local function opening(bay: Bay): Vector2

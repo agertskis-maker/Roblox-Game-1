@@ -18,17 +18,24 @@
 -- shows "?" for Lap Pay and NOT OWNED for every finish (nothing leaks). A finish whose state was not supplied shows "?".
 -- A finish chip is a label and an icon, not a button: nothing here offers a purchase or an unlock.
 --
+-- Look (Round 2 N7-02): the one panel family (Screens/PanelKit): a light card, the Garage-blue header with the icon and the
+-- outlined title, a red square X, light rows with navy captions. The car card and the finish chips keep their own colours.
+--
 -- Layout: the plain card (image, name, rarity word) on the left and the three rows on the right when the width allows
 -- (stacked below the card otherwise), inside a SCROLLING area; a FIXED action bar underneath (BACK, DRIVE). The scrolling
 -- area ends above the bar and clips its content, so nothing can scroll behind the buttons; the debug state reports the
 -- gap. Back (Escape or gamepad B) and CLOSE close it; the gamepad selection starts on BACK and returns to where it was.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Prototype = script.Parent.Parent
 local Arcade = require(Prototype.Arcade)
 local CarCard = require(Prototype.Cards.CarCard)
 local Overlay = require(script.Parent.Overlay)
+local PanelKit = require(script.Parent.PanelKit)
 local Style = require(script.Parent.Style)
 local TradingCard = require(Prototype.Cards.TradingCard)
+local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 
 local make = Arcade.make
 
@@ -105,16 +112,16 @@ function Facts.new(parent: Instance, name: string?)
 	self._rows = rows
 
 	-- WORLD: a label on the left, the World name in a tag on the right
-	local worldRow = Style.well(rows, "WorldRow", 6)
+	local worldRow = PanelKit.row(rows, "WorldRow", 6)
 	self._worldRow = worldRow
 	local worldCaption = Arcade.text(worldRow, {
 		text = CardDetail.RowLabels[1],
 		role = "Small",
 		name = "Label",
-		colour = Style.TextSoft,
 		xAlign = Enum.TextXAlignment.Left,
 		z = 8,
 	})
+	PanelKit.ink(worldCaption, true)
 	worldCaption.AnchorPoint = Vector2.new(0, 0.5)
 	worldCaption.Position = UDim2.new(0, 8, 0.5, 0)
 	worldCaption.Size = UDim2.fromOffset(CAPTION_W, 24)
@@ -136,16 +143,16 @@ function Facts.new(parent: Instance, name: string?)
 	self._worldTag, self._worldValue, self._worldCaption = worldTag, worldValue, worldCaption
 
 	-- LAP PAY: a label on the left, "$220 / lap" (or "?") on the right
-	local payRow = Style.well(rows, "LapPayRow", 6)
+	local payRow = PanelKit.row(rows, "LapPayRow", 6)
 	self._payRow = payRow
 	local payCaption = Arcade.text(payRow, {
 		text = CardDetail.RowLabels[2],
 		role = "Small",
 		name = "Label",
-		colour = Style.TextSoft,
 		xAlign = Enum.TextXAlignment.Left,
 		z = 8,
 	})
+	PanelKit.ink(payCaption, true)
 	payCaption.AnchorPoint = Vector2.new(0, 0.5)
 	payCaption.Position = UDim2.new(0, 8, 0.5, 0)
 	payCaption.Size = UDim2.fromOffset(CAPTION_W, 24)
@@ -171,10 +178,10 @@ function Facts.new(parent: Instance, name: string?)
 		text = CardDetail.RowLabels[3],
 		role = "Small",
 		name = "Label",
-		colour = Style.TextSoft,
 		xAlign = Enum.TextXAlignment.Left,
 		z = 8,
 	})
+	PanelKit.ink(finishCaption, true)
 	finishCaption.Position = UDim2.fromOffset(4, 0)
 	finishCaption.Size = UDim2.new(1, -8, 0, FINISH_LABEL_H)
 	self._finishCaption = finishCaption
@@ -426,12 +433,12 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	local overlay = Overlay.new(ctx, { name = "CardDetail" })
 	local trove = overlay.trove
 	local content = overlay.content
-	local shell = Style.panel(content, { name = "Panel", z = 3 })
+	local shell = PanelKit.panel(content, { name = "Panel", z = 3 })
 	local panel = shell.body
 	local header =
 		Style.header(panel, { fill = "Garage", title = "COLLECTIBLE CARD", icon = "GarageBook", height = 60 })
 	local self: any = { root = overlay.root }
-	local closeButton = Overlay.closeButton(panel, function()
+	local closeButton = PanelKit.closeX(panel, function()
 		self:close()
 	end)
 	trove:Add(closeButton.trove)
@@ -444,8 +451,10 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 	self._drives = 0
 	self._facts = nil :: any
 
-	local well = Style.well(panel, "Details", 4)
+	local well = PanelKit.row(panel, "Details", 4, "Alt")
 	local scroll = Style.scroll(well, "Scroll", 5)
+	scroll.ScrollBarImageColor3 = PanelKit.InkSoft
+	scroll.ScrollBarImageTransparency = 0.1
 	make("UIPadding", {
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 12),
@@ -516,7 +525,7 @@ function CardDetail.new(ctx: Overlay.Ctx, options: Options?)
 		header.setHeight(headH)
 		closeButton.root.Position = UDim2.new(1, -8, 0, headH / 2)
 		local titleLeft = header.title.Position.X.Offset
-		local rightUsed = Overlay.CloseWidth + 18
+		local rightUsed = Tokens.Touch.Minimum + 18
 		header.title.AnchorPoint = Vector2.new(0, 0.5)
 		header.title.Position = UDim2.new(0, titleLeft, 0.5, 0)
 		header.title.Size = UDim2.new(1, -titleLeft - rightUsed, 0, if short then 28 else 36)

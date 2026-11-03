@@ -32,6 +32,7 @@ local Motion = require(Prototype:WaitForChild("Motion"))
 local Music = require(Prototype:WaitForChild("Music"))
 local Priority = require(Prototype:WaitForChild("Priority"))
 local RunLayout = require(Prototype:WaitForChild("Run"):WaitForChild("RunLayout"))
+local PortalFixtures = require(Prototype:WaitForChild("SupportFixtures"):WaitForChild("PortalFixtures"))
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
@@ -440,7 +441,7 @@ mount("menu", { "Home", "LeftMenu" }, "Hud", {
 		api.open("shop")
 	end,
 	onMissions = function()
-		api.harness("Missions (mock): nothing to claim yet")
+		api.open("missions")
 	end,
 	onSettings = function()
 		local menu = components.menu
@@ -455,7 +456,126 @@ mount("toasts", { "Home", "ToastStack" }, "Feedback")
 mount("route", { "Home", "TutorialRoute" }, "Hud")
 mount("settings", { "Home", "SettingsPanel" }, "Modal", {
 	onClosed = function() end,
+	onReplayTutorial = function()
+		local Tutorial = (require :: any)((Prototype.Parent :: any).Tutorial)
+		Tutorial.replay()
+	end,
 })
+-- Round 2 Home HUD (Home/HomeHud, N7-01): the left tiles, the Cash block, the round buttons and the top-centre pills, driven by
+-- ADAPTERS over the preview store (the real beta passes its own). While it is on (the default) the Round 1 menu, stats, timer
+-- and toast stack stay hidden in Home, so two Home HUDs never sit on top of each other; api.useHomeHud(false) swaps back.
+-- Values from the store are fixtures, so they carry a small PREVIEW tag. api.homeFixture holds the optional extras:
+-- rate (Cash per second, nil = no rate shown), giftReady (a badge on Free gift), timer ({ label, seconds }, nil = none).
+api.homeHudOn = true
+api.homeFixture = {
+	rate = nil :: number?,
+	giftReady = false,
+	timer = nil :: { label: string?, seconds: number }?,
+}
+do
+	local homeHud: any = nil
+	local ok, result = pcall(function()
+		local HomeHud = require(Prototype:WaitForChild("Home"):WaitForChild("HomeHud")) :: any
+		local function openShopAt(section: string?)
+			api.open("shop")
+			local shop = components.shop
+			if section and shop and shop.openSection then
+				shop:openSection(section)
+			end
+		end
+		return HomeHud.mount(layers.Hud, {
+			getCash = function(): number?
+				return store:get().cash
+			end,
+			getCashRate = function(): number?
+				return api.homeFixture.rate
+			end,
+			getOwned = function(): (number?, number?)
+				local garage = store:get().garage
+				return garage.owned, garage.total
+			end,
+			onShop = function()
+				openShopAt(nil)
+			end,
+			onShopCash = function()
+				openShopAt("Cash")
+			end,
+			onGarage = function()
+				api.open("garage")
+			end,
+			onMissions = function()
+				api.open("missions")
+			end,
+			onSettings = function()
+				local settings = components.settings
+				if settings and settings.open then
+					settings:open(if homeHud then homeHud:getButton("Settings") else nil)
+				end
+			end,
+			onLeaderboard = function()
+				api.open("stuntBoard")
+			end,
+			onVip = function()
+				openShopAt("Passes")
+			end,
+			onFreeGift = function()
+				api.open("groupReward")
+			end,
+			getShopUnread = function(): boolean
+				local shop = store:get().shop
+				return shop ~= nil and shop.newItem == true
+			end,
+			getGarageUnseen = function(): number?
+				return store:get().garage.unseen
+			end,
+			getMissionsClaimable = function(): number?
+				return store:get().missionsClaimable
+			end,
+			getFreeGiftReady = function(): boolean
+				return api.homeFixture.giftReady == true
+			end,
+			getTimer = function()
+				return api.homeFixture.timer
+			end,
+			preview = { cash = true, rate = true, owned = true },
+		}, { screen = screen, world = backdrop.world })
+	end)
+	if ok then
+		homeHud = result
+		components.homeHud = result
+		trove:Add(function()
+			result:destroy()
+		end)
+		local banner = components.tutorial
+		if banner and banner.setHomeFrame then
+			result:attachBanner(banner)
+		end
+		-- the tutorial banner owns the top centre while the tutorial runs
+		trove:Connect(store.Changed, function(key: string)
+			if key == "tutorial" then
+				result:setTutorialActive(store:get().tutorial ~= nil)
+			end
+		end)
+		-- a Toast event is a notification pill in Home (the Round 1 toast stack is hidden while this HUD is on)
+		trove:Connect(store.Event, function(event: any)
+			if
+				api.homeHudOn
+				and store:get().mode == "Home"
+				and event.kind == "Toast"
+				and type(event.text) == "string"
+			then
+				result:notify(
+					event.text,
+					if event.tone == "Unlock" then "Star" elseif event.tone == "Success" then "Check" else nil
+				)
+			end
+		end)
+	else
+		api.homeHudOn = false -- the Round 1 pieces stay
+		failures.homeHud = tostring(result)
+		warn("[Lane3Hud] homeHud failed: " .. tostring(result))
+	end
+end
 -- Screens and cards
 mount("garage", { "Screens", "GarageMock" }, "Overlay", {
 	onDrive = function(car: any)
@@ -468,7 +588,21 @@ mount("portalCard", { "Screens", "PortalCardMock" }, "Overlay", {
 	end,
 })
 mount("welcome", { "Screens", "WelcomeBackMock" }, "Overlay", {})
-mount("shop", { "Screens", "ShopMock" }, "Overlay", {})
+mount("shop", { "Screens", "ShopMock" }, "Overlay", {
+	onFreeReward = function()
+		api.open("groupReward")
+	end,
+})
+mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
+mount("dialogue", { "Screens", "DialogueCard" }, "Modal", {})
+mount("updateLog", { "Screens", "UpdateLog" }, "Modal", {})
+mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {})
+mount("missionTracker", { "Screens", "MissionTracker" }, "Hud", {})
+mount("iconsSheet", { "IconsSheet" }, "Overlay", {})
+mount("stuntPreRace", { "Screens", "StuntPreRace" }, "Overlay", {})
+mount("stuntResults", { "Screens", "StuntResults" }, "Modal", {})
+mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+mount("stuntCustomize", { "Screens", "StuntCustomize" }, "Overlay", {})
 mount("results", { "Screens", "ResultsCard" }, "Modal", {
 	onRetry = function()
 		goRun()
@@ -706,8 +840,18 @@ local function applyMode(mode: string)
 	for _, k in HOME do
 		local c = components[k]
 		if c and c.setVisible then
-			c:setVisible(mode == "Home")
+			-- the Round 1 menu, stats and timer give way to the Round 2 Home HUD while it is on
+			local legacy = k == "stats" or k == "menu" or k == "timers"
+			c:setVisible(mode == "Home" and not (legacy and api.homeHudOn))
 		end
+	end
+	local homeHud = components.homeHud
+	if homeHud and homeHud.setVisible then
+		homeHud:setVisible(mode == "Home" and api.homeHudOn)
+	end
+	local toastStack = components.toasts
+	if toastStack and toastStack.setVisible then
+		toastStack:setVisible(not (api.homeHudOn and mode == "Home"))
 	end
 	for _, k in RUN do
 		local c = components[k]
@@ -721,7 +865,7 @@ local function applyMode(mode: string)
 	end
 	local stats = components.stats
 	if stats and stats.setVisible then
-		stats:setVisible(mode ~= "Results")
+		stats:setVisible(mode ~= "Results" and not (api.homeHudOn and mode == "Home"))
 		if stats.setCompact then
 			stats:setCompact(mode == "Run")
 		end
@@ -759,6 +903,61 @@ trove:Connect(store.ModeChanged, applyMode)
 -- re-applies the mode's visibility (a closing overlay can restore Home pieces it had hidden)
 function api.applyMode()
 	applyMode(store:get().mode)
+end
+-- Round 2: true (default) shows the new Home HUD (Home/HomeHud) in Home; false brings the Round 1 menu, stats and toasts back.
+function api.useHomeHud(on: boolean)
+	api.homeHudOn = on and components.homeHud ~= nil
+	applyMode(store:get().mode)
+end
+-- Round 2: sets one fixture the Home HUD reads ("rate" Cash per second, "giftReady" true / false, "timer" { label, seconds }).
+function api.setHomeFixture(key: string, value: any)
+	api.homeFixture[key] = value
+	local hud = components.homeHud
+	if hud then
+		hud:refresh()
+	end
+	return key
+end
+-- Round 2: shows every Home HUD piece at once for a review capture, like IMG-09 (true), or clears them again (false): a rate, a
+-- ready gift, the event pill, the goal pill, a chevron trail to the portal, a $/s label (tagged PREVIEW), a ground circle and a
+-- floating +$ label. Fixtures only. The goal pill reads the same lock fixture as the portal card and the dialogue card
+-- (PortalFixtures.Locks): Dusty Highway is LOCKED, so the pill asks for more Downtown cars and no UNLOCK! bubble stands over a
+-- portal that the portal card says is locked.
+function api.homeDemo(on: boolean): string
+	local hud = components.homeHud
+	local props = backdrop.props
+	if not hud or not props then
+		return "no home hud"
+	end
+	local function ground(p: Vector3): Vector3
+		return Vector3.new(p.X, 0.3, p.Z)
+	end
+	if on then
+		api.setHomeFixture("rate", 18900)
+		api.setHomeFixture("giftReady", true)
+		hud:notify("RACEWAY LEVEL 5!", "Star")
+		local lock = PortalFixtures.Locks.DustyHighway
+		hud:setGoal({
+			title = string.format("Get %d more %s cars", PortalFixtures.carsToGo("DustyHighway"), lock.previous),
+			subtitle = "Dusty Highway opens at " .. lock.carsNeed .. " cars",
+			progress = lock.cars / lock.carsNeed,
+			icon = "Car",
+		})
+		hud.world:setBubble("portal", nil, nil)
+		hud.world:setTrail({ ground(backdrop.homeSpot.Position), ground(props.portal.Position) })
+		hud.world:setRate("kiosk", props.kiosk, 18900, true)
+		hud.world:setCircle("garage", ground(props.garage.Position), 9)
+		hud.world:floatCash(props.garage, 1250)
+	else
+		api.setHomeFixture("rate", nil)
+		api.setHomeFixture("giftReady", false)
+		hud:setGoal(nil)
+		hud.world:setBubble("portal", nil, nil)
+		hud.world:setTrail(nil)
+		hud.world:setRate("kiosk", nil, nil)
+		hud.world:removeCircle("garage")
+	end
+	return if on then "home demo on" else "home demo off"
 end
 
 -- Debug-only: "Original" (default; the approved ENGINE HEAT panel) or "Segmented" (the round-1 bar), for
@@ -991,6 +1190,7 @@ function api.setProfile(name: string)
 	applyMode(store:get().mode)
 end
 function api.reset()
+	(require :: any)((Prototype.Parent :: any).Tutorial).stop()
 	scenarios:cancel()
 	priority:clear()
 	local specimen = components.specimen
@@ -1031,6 +1231,13 @@ local control = Instance.new("BindableFunction")
 control.Name = "Lane3HudControl"
 control.OnInvoke = function(command: string, ...: any): any
 	local args = { ... }
+	if command == "call" then
+		-- drive one component from a test: call(key, method, arguments...)
+		local c = components[args[1]]
+		assert(c, "no component " .. tostring(args[1]))
+		local result = c[args[2]](c, table.unpack(args, 3))
+		return if type(result) == "table" then HttpService:JSONEncode(result) else result
+	end
 	if command == "debug" then
 		local out: { [string]: any } = { mode = store:get().mode, profile = screen:profile().name, failures = failures }
 		out.priority = priority:getDebugState()
