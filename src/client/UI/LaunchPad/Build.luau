@@ -39,7 +39,6 @@ export type Pad = {
 	destroy: (self: Pad) -> (),
 }
 
-local LIGHT_OFF = Color3.fromRGB(60, 26, 30)
 local AMBIENT_VOLUME = 0.16
 local WORLD_NAME: { [string]: string } =
 	{ Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
@@ -126,7 +125,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	function pad.setLight(_self: Pad, index: number, colour: Color3?)
 		local lamp = lights[index]
 		if lamp then
-			lamp.Color = colour or LIGHT_OFF
+			lamp.Color = colour or PadParts.lightIdle(index)
 			lamp.Material = if colour then Enum.Material.Neon else Enum.Material.Glass
 		end
 	end

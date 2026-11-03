@@ -27,6 +27,8 @@ local RAIL_SEGMENTS = 24
 local WALL_SIDES = 16
 local rgb = Color3.fromRGB
 local GOLD = rgb(244, 190, 60)
+local SHOWROOM_SECONDS = 5
+local SPRAY_SECONDS = 3
 local CHROME = rgb(205, 212, 226)
 local INK = rgb(26, 34, 56)
 
@@ -51,11 +53,20 @@ function PadParts.platform(k: any, theme: any)
 	k:ball("UnderTip", R, CFrame.new(0, -30, 0), theme.under)
 	-- a calm inner circle, so the emblem sits on something
 	k:cyl("Panel", R * 2 - 14, 0.1, CFrame.new(0, 0.05, 0), theme.panel, theme.floorMaterial)
-	k:cyl("Panel", R * 2 - 18, 0.1, CFrame.new(0, 0.13, 0), theme.floor, theme.floorMaterial)
+	k:cyl("Panel", R * 2 - 18, 0.1, CFrame.new(0, 0.13, 0), theme.floor, theme.floorMaterial) -- calm tiles on the open floor, so it reads as paved, not painted one colour
+	for _, a in { 52, 104, 150, -52, -104, -150 } do
+		k:box(
+			"FloorTile",
+			Vector3.new(15, 0.1, 8),
+			CFrame.Angles(0, math.rad(a), 0) * CFrame.new(0, 0.19, 25),
+			theme.panel,
+			theme.floorMaterial
+		)
+	end
 	-- two lanes from the arrival pad to the ramp
 	for _, s in { 1, -1 } do
-		k:box("Lane", Vector3.new(2.8, 0.1, 74), CFrame.new(s * 3.2, 0.21, -9), theme.stripeA)
-		k:box("LaneEdge", Vector3.new(0.8, 0.1, 74), CFrame.new(s * 5.6, 0.21, -9), theme.stripeB)
+		k:box("Lane", Vector3.new(2.8, 0.1, 74), CFrame.new(s * 3.2, 0.25, -9), theme.stripeA)
+		k:box("LaneEdge", Vector3.new(0.8, 0.1, 74), CFrame.new(s * 5.6, 0.25, -9), theme.stripeB)
 	end
 
 	local step = math.pi * 2 / RAIL_SEGMENTS
@@ -112,7 +123,7 @@ function PadParts.emblem(k: any, theme: any)
 	g.LightInfluence = 0.8
 	local px = 28 * 24
 	local root = make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, g)
-	local cols, rows = 10, 4
+	local cols, rows = 8, 4
 	local cell = math.floor(px * 0.9 / cols)
 	local top = (px - rows * cell) / 2
 	local left = (px - cols * cell) / 2
@@ -133,14 +144,14 @@ function PadParts.emblem(k: any, theme: any)
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0.86, 0, 0, cell * 1.9),
+		Size = UDim2.new(0.92, 0, 0, cell * 2.3),
 	}, root)
 	make("UICorner", { CornerRadius = UDim.new(0, 40) }, band)
-	CarKit.title(band, "CAR HOP", math.floor(cell * 1.5), {
+	CarKit.title(band, "CAR HOP", math.floor(cell * 1.9), {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
-		top = CarKit.Yellow,
-		bottom = CarKit.Orange,
+		top = CarKit.White,
+		bottom = CarKit.Yellow,
 		shadow = false,
 		stroke = 5,
 		z = 3,
@@ -152,11 +163,15 @@ function PadParts.arrival(k: any, theme: any, name: string): { Part }
 	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.19, 34), theme.trim)
 	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.27, 34), theme.glow, Enum.Material.Neon)
 	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.35, 34), INK)
-	local label =
-		k:box("ArrivalArt", Vector3.new(6, 0.04, 16), CFrame.new(0, 0.54, 34) * CFrame.Angles(0, -math.pi / 2, 0), INK)
+	local label = k:box(
+		"ArrivalArt",
+		Vector3.new(4, 0.04, 14),
+		CFrame.new(0, 0.54, 28.2) * CFrame.Angles(0, -math.pi / 2, 0),
+		INK
+	)
 	label.Transparency = 1
 	local g = surface(label, Enum.NormalId.Top, 40)
-	CarKit.title(g, name, 76, {
+	CarKit.title(g, name, 64, {
 		align = Enum.TextXAlignment.Center,
 		size = UDim2.fromScale(1, 1),
 		top = CarKit.Yellow,
@@ -257,6 +272,11 @@ function PadParts.ramp(k: any, theme: any)
 	end
 end
 
+-- A start light at rest: three deep reds and a green, so the gantry reads as lights before they are lit.
+function PadParts.lightIdle(index: number): Color3
+	return if index < 4 then rgb(150, 40, 46) else rgb(40, 150, 76)
+end
+
 -- The START gantry over the ramp: two towers, the World's name, four lights and the checkered banner.
 function PadParts.gantry(k: any, theme: any, world: string): { Part }
 	local z = PadParts.RampFoot - 21
@@ -298,7 +318,7 @@ function PadParts.gantry(k: any, theme: any, world: string): { Part }
 	for i = 1, 4 do
 		local cx = (i - 2.5) * 4.6
 		k:cyl("LightHousing", 4, 1.2, CFrame.new(cx, 21, z + 1.5) * CFrame.Angles(math.pi / 2, 0, 0), INK)
-		local lamp = k:ball("StartLight", 2.9, CFrame.new(cx, 21, z + 2.1), rgb(60, 26, 30), Enum.Material.Glass)
+		local lamp = k:ball("StartLight", 2.9, CFrame.new(cx, 21, z + 2.1), PadParts.lightIdle(i), Enum.Material.Glass)
 		lamp.CastShadow = false
 		table.insert(lights, lamp)
 	end
@@ -312,7 +332,7 @@ local CORE = "rbxassetid://131487211688936"
 
 function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 	local at = CFrame.new(-33, 0, 15) * CFrame.Angles(0, math.rad(-114), 0)
-	local cream = rgb(246, 234, 206)
+	local cream = rgb(232, 214, 178)
 	k:box("HomeStep", Vector3.new(19, 0.6, 9), at * CFrame.new(0, 0.3, 0), theme.trim)
 	k:box("HomeStep", Vector3.new(16, 0.4, 7), at * CFrame.new(0, 0.8, 0), cream)
 	for _, s in { 1, -1 } do
@@ -376,7 +396,7 @@ function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 	local light = Instance.new("PointLight")
 	light.Color = theme.portal
 	light.Range = 22
-	light.Brightness = 2
+	light.Brightness = 1
 	light.Parent = carrier
 	k:cyl("HomePool", 13, 0.1, at * CFrame.new(0, 1.05, -4.6), theme.portal, Enum.Material.Neon).Transparency = 0.5
 	life(function(t: number, _dt: number)
@@ -410,29 +430,26 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 	end
 	local top = 9.5
 	if theme.roof == "Awning" then
-		k:cyl("AwningRing", 16.6, 0.9, at * CFrame.new(0, top + 0.2, 1), main)
-		local slices = 8
-		for i = 0, slices - 1 do
-			local a = (i + 0.5) / slices * math.pi * 2
-			local slope = at
-				* CFrame.new(0, top + 0.6, 1)
-				* CFrame.Angles(0, a, 0)
-				* CFrame.new(0, 1.3, 4.5)
-				* CFrame.Angles(math.rad(30), 0, 0)
-			k:box("AwningSlice", Vector3.new(4, 0.4, 7), slope, if i % 2 == 0 then main else second)
-			k:ball(
-				"AwningScallop",
-				2.8,
-				at * CFrame.new(0, top + 0.1, 1) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 7.8),
-				if i % 2 == 0 then main else second
-			)
+		-- a shop awning: straight stripes down four sloped sides, a flat top and a clean edge
+		k:box("AwningTop", Vector3.new(9, 0.8, 9), at * CFrame.new(0, top + 2.7, 1), second)
+		for side = 0, 3 do
+			local face = at * CFrame.new(0, top + 1.4, 1) * CFrame.Angles(0, side * math.pi / 2, 0)
+			for i = -1, 1 do
+				k:box(
+					"AwningStripe",
+					Vector3.new(5.7, 0.4, 5.8),
+					face * CFrame.new(i * 5.7, 0, 6.6) * CFrame.Angles(math.rad(26), 0, 0),
+					if i == 0 then second else main
+				)
+			end
+			k:box("AwningEdge", Vector3.new(17.2, 1, 0.3), face * CFrame.new(0, -1.9, 9.3), main)
 		end
-		k:cyl("AwningCap", 3.4, 1.8, at * CFrame.new(0, top + 3.3, 1), second)
-		top += 4
+		top += 3.2
 	elseif theme.roof == "Canopy" then
 		k:cyl("CanopyLip", 18.6, 0.9, at * CFrame.new(0, top + 0.2, 1), main)
 		k:cyl("CanopyBand", 17.6, 1, at * CFrame.new(0, top + 1.1, 1), second)
 		k:cyl("CanopyTop", 15, 0.8, at * CFrame.new(0, top + 1.9, 1), rgb(52, 138, 138))
+		k:wedge("CanopyFin", Vector3.new(1, 4, 8), at * CFrame.new(0, top + 4.2, 4), main)
 		top += 2.4
 	else
 		local run = 8.4
@@ -447,8 +464,7 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 				Enum.Material.Snow
 			)
 		end
-		k:ball("ChaletRidge", 2.2, at * CFrame.new(0, top + 4.5, 7.6), rgb(248, 252, 255), Enum.Material.Snow)
-		k:ball("ChaletRidge", 2.2, at * CFrame.new(0, top + 4.5, -5.6), rgb(248, 252, 255), Enum.Material.Snow)
+		k:box("ChaletRidge", Vector3.new(1.8, 1.4, 15.6), at * CFrame.new(0, top + 4.6, 1), main, Enum.Material.Wood)
 		k:box(
 			"ChaletBeam",
 			Vector3.new(14.6, 1, 1),
@@ -475,7 +491,22 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 	)
 	-- the circle to stand on
 	local stand = k:cyl("KioskRing", 8, 0.1, at * CFrame.new(0, 0.33, -11), main, Enum.Material.Neon)
-	k:cyl("KioskRingCore", 6.8, 0.1, at * CFrame.new(0, 0.41, -11), theme.floor, theme.floorMaterial)
+	k:cyl("KioskRingCore", 6.8, 0.1, at * CFrame.new(0, 0.41, -11), INK)
+	local word = k:box(
+		"KioskWord",
+		Vector3.new(2.4, 0.04, 6.2),
+		at * CFrame.new(0, 0.5, -11) * CFrame.Angles(0, math.pi / 2, 0),
+		INK
+	)
+	word.Transparency = 1
+	CarKit.title(surface(word, Enum.NormalId.Top, 30), label, 42, {
+		align = Enum.TextXAlignment.Center,
+		size = UDim2.fromScale(1, 1),
+		top = CarKit.White,
+		bottom = CarKit.Yellow,
+		shadow = false,
+		stroke = 2,
+	})
 	return stand, top
 end
 
@@ -506,8 +537,11 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	stands.Cars, carTop = kioskShell(k, theme, "Cars", "CARS", carsAt)
 	local shown = RealCar.mount(k.parent, { length = 9.5, height = 6 })
 	local mini = RealCar.mount(k.parent, { length = 5.4, height = 3.4 })
-	table.insert(rigs, shown)
 	table.insert(rigs, mini)
+	-- the turntable is a little showroom: it brings out one car after another
+	local line = RealCar.list()
+	local onShow = 1
+	local shownAt = 0
 	k:cyl("Turntable", 12.6, 0.8, carsAt * CFrame.new(0, 1.2, 1), theme.kiosk.Cars[1])
 	k:cyl("TurntableGlow", 13.2, 0.2, carsAt * CFrame.new(0, 0.95, 1), theme.glow, Enum.Material.Neon)
 	local turnAt = k.origin * carsAt * CFrame.new(0, 1.6, 1)
@@ -517,6 +551,11 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 			return
 		end
 		shown:pivotTo(turnAt * CFrame.Angles(0, t * 0.5, 0))
+		if t - shownAt > SHOWROOM_SECONDS and #line > 0 then
+			shownAt = t
+			onShow = (onShow % #line) + 1
+			shown:setCar(line[onShow].name)
+		end
 		mini:pivotTo(miniAt * CFrame.new(0, math.sin(t * 1.6) * 0.5, 0) * CFrame.Angles(0, t * 0.9, 0))
 	end)
 	shown:pivotTo(turnAt * CFrame.Angles(0, 0.6, 0))
@@ -530,17 +569,18 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	k:cyl("PedestalGlow", 13.2, 0.2, trailAt * CFrame.new(0, 0.95, 1), theme.glow, Enum.Material.Neon)
 	local runner = RealCar.mount(k.parent, { length = 5.4, height = 3.6 })
 	table.insert(rigs, runner)
+	runner:setPaint({ id = "kiosk", kind = "solid", colours = { rgb(50, 190, 255) } } :: any)
 	local carrier = k:box("TrailCarrier", Vector3.new(0.2, 0.2, 0.2), trailAt, rgb(0, 0, 0))
 	carrier.Transparency = 1
 	local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
-	a0.Position = Vector3.new(-1, 0, 0)
-	a1.Position = Vector3.new(1, 0, 0)
+	a0.Position = Vector3.new(-1.5, 0, 0)
+	a1.Position = Vector3.new(1.5, 0, 0)
 	a0.Parent = carrier
 	a1.Parent = carrier
 	local trail = Instance.new("Trail")
 	trail.Attachment0 = a0
 	trail.Attachment1 = a1
-	trail.Lifetime = 1.3
+	trail.Lifetime = 2.2
 	trail.LightEmission = 0.6
 	trail.FaceCamera = false
 	trail.TextureMode = Enum.TextureMode.Stretch
@@ -554,7 +594,7 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	local trailHome = k.origin * trailAt * CFrame.new(0, 1.7, 1)
 	local function ride(t: number)
 		local a = t * 1.1
-		local p = trailHome * CFrame.Angles(0, a, 0) * CFrame.new(3, 0, 0) * CFrame.Angles(0, 0, 0)
+		local p = trailHome * CFrame.Angles(0, a, 0) * CFrame.new(3.4, 0, 0)
 		runner:pivotTo(p)
 		carrier.CFrame = runner:tail() * CFrame.new(0, -0.5, 0.4)
 	end
@@ -565,12 +605,18 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		end
 	end)
 	local knot, knotModel = k:model("TrailKnot")
-	local knotAt = trailAt * CFrame.new(0, trailTop + 4.6, 0)
-	local hues = 10
-	for i = 0, hues - 1 do
-		local a = i / hues * math.pi * 2
-		local cf = knotAt * CFrame.new(math.sin(a) * 2.4, math.sin(a * 2) * 1, 0)
-		knot:ball("KnotBead", 1.1, cf, Color3.fromHSV(i / hues, 0.8, 1), Enum.Material.Neon)
+	local knotAt = trailAt * CFrame.new(0, trailTop + 4.4, 0)
+	local beads = 12
+	for i = 0, beads - 1 do
+		local a = i / beads * math.pi * 2
+		local cf = knotAt * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
+		knot:box(
+			"LoopSegment",
+			Vector3.new(1.5, 1, if i % 2 == 0 then 1.5 else 1.26),
+			cf,
+			Color3.fromHSV(i / beads, 0.85, 1),
+			Enum.Material.Neon
+		)
 	end
 	bobbing(knotModel, life, 0.8)
 
@@ -594,6 +640,19 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		local x = ((i - 1) % 3 - 1) * 3.2
 		k:cyl("Can", 1.3, 1.9, paintAt * CFrame.new(x, row + 0.95, 5.2), c)
 	end
+	-- a car in the booth, changing colour under the spray
+	local sprayed = RealCar.mount(k.parent, { length = 9, height = 5.4 })
+	table.insert(rigs, sprayed)
+	sprayed:pivotTo(k.origin * paintAt * CFrame.new(0, 0.9, 0) * CFrame.Angles(0, math.rad(70), 0))
+	local coat = 0
+	local coatAt = -math.huge
+	life(function(t: number, _dt: number)
+		if t - coatAt > SPRAY_SECONDS then
+			coatAt = t
+			coat = (coat % #cans) + 1
+			sprayed:setPaint({ id = "kiosk", kind = "solid", colours = { cans[coat] } } :: any)
+		end
+	end)
 	local can, canModel = k:model("SprayCan")
 	local canAt = paintAt * CFrame.new(0, paintTop + 4.8, 0) * CFrame.Angles(0, 0, math.rad(-18))
 	for i, c in { rgb(232, 64, 72), rgb(250, 200, 60), rgb(60, 150, 240) } do
@@ -601,6 +660,15 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 	end
 	can:cyl("CanShoulder", 2.2, 0.8, canAt * CFrame.new(0, 2.3, 0), CHROME, Enum.Material.Metal)
 	can:cyl("CanNozzle", 1.1, 0.8, canAt * CFrame.new(0, 3, 0), rgb(232, 64, 72))
+	for i, size in { 1.5, 1.1, 0.8 } do
+		can:ball(
+			"SprayPuff",
+			size,
+			canAt * CFrame.new(i * 1.4, 3.1 + i * 0.2, 0),
+			rgb(255, 150, 200),
+			Enum.Material.Neon
+		)
+	end
 	bobbing(canModel, life, 0.6)
 
 	local function sync()
@@ -608,11 +676,10 @@ function PadParts.kiosks(k: any, theme: any, life: any): ({ [string]: BasePart }
 		for _, r in rigs do
 			r:setCar(name)
 		end
-		shown:setPaint(StyleState.item("Paint"), 0.18)
-		shown:setWheels(StyleState.item("Wheels"))
 		trailArt()
 	end
 	sync()
+	shown:setCar(line[1] and line[1].name)
 	return stands, sync
 end
 
@@ -632,10 +699,6 @@ function PadParts.touches(k: any, theme: any, world: string, life: any)
 		for _, p in { { -14, -30 }, { 14, -30 } } do
 			planter(p[1], p[2])
 		end
-		for _, s in { 1, -1 } do
-			k:cyl("LampPost", 0.7, 12, CFrame.new(s * 40 * 0.42, 6, 28), rgb(50, 60, 100))
-			k:ball("LampGlow", 1.7, CFrame.new(s * 40 * 0.42, 12.6, 28), rgb(255, 214, 140), Enum.Material.Neon)
-		end
 	elseif world == "DustyHighway" then
 		for _, p in { { -14, -30 }, { 14, -30 }, { 18, 34 }, { -18, 34 } } do
 			planter(p[1], p[2])
@@ -647,15 +710,10 @@ function PadParts.touches(k: any, theme: any, world: string, life: any)
 		k:cyl("PumpDial", 2, 0.5, pump * CFrame.new(0, 6.6, 0) * CFrame.Angles(math.pi / 2, 0, 0), rgb(250, 236, 208))
 		k:box("PumpFace", Vector3.new(1.5, 1.6, 0.1), pump * CFrame.new(0, 3.6, -0.84), rgb(250, 236, 208))
 		for _, s in { 1, -1 } do
-			k:box(
-				"SignPost",
-				Vector3.new(0.8, 14, 0.8),
-				CFrame.new(-37 + s * 4, 7, -30) * CFrame.Angles(0, math.rad(50), 0),
-				theme.trim
-			)
+			k:box("SignPost", Vector3.new(0.8, 12, 0.8), CFrame.new(-41 + s * 2.2, 6, -3 + s * 3.4), theme.trim)
 		end
-		SignKit.sign(k.parent, k.origin * CFrame.new(-36, 16, -29) * CFrame.Angles(0, math.rad(50 + 180), 0), {
-			style = "Fuel",
+		SignKit.sign(k.parent, k.origin * CFrame.new(-41, 13, -3) * CFrame.Angles(0, math.rad(-57), 0), {
+			style = "Diner",
 			text = "DUSTY STOP",
 			width = 15,
 			height = 4,

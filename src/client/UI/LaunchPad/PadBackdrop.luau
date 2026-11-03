@@ -47,7 +47,7 @@ local function downtown(k: any, theme: any, rng: Random)
 		"B2_Sky_Needle_1",
 	}
 	local palette = ids and ids.palettes.Midtown
-	local function tower(p: Vector3, w: number, h: number)
+	local function tower(p: Vector3, w: number, h: number, lit: boolean?)
 		local name = names[rng:NextInteger(1, #names)]
 		local id = ids and ids.meshes[name]
 		local cf = CFrame.new(p.X, -DEPTH + h / 2, p.Z) * CFrame.Angles(0, rng:NextNumber() * math.pi, 0)
@@ -63,12 +63,25 @@ local function downtown(k: any, theme: any, rng: Random)
 			CFrame.new(p.X, -DEPTH + h + 0.6, p.Z),
 			if rng:NextNumber() < 0.5 then Color3.fromRGB(255, 200, 110) else Color3.fromRGB(120, 200, 255)
 		)
+		-- bands of lit windows: a tower, not a block
+		if lit then
+			for _, share in { 0.3, 0.62 } do
+				local band = k:box(
+					"CityWindows",
+					Vector3.new(w * 0.86, h * 0.1, w * 0.86),
+					CFrame.new(p.X, -DEPTH + h * share, p.Z) * cf.Rotation,
+					Color3.fromRGB(255, 214, 140),
+					Enum.Material.Neon
+				)
+				band.Transparency = 0.25
+			end
+		end
 	end
 	for i = 1, 14 do
-		tower(ring(rng:NextNumber(90, 240), i * 2.399), rng:NextNumber(20, 34), rng:NextNumber(36, 90))
+		tower(ring(rng:NextNumber(90, 240), i * 2.399), rng:NextNumber(20, 34), rng:NextNumber(36, 90), true)
 	end
 	for i = 1, 16 do
-		tower(ring(rng:NextNumber(260, 560), i * 2.399 + 1), rng:NextNumber(34, 60), rng:NextNumber(90, 210))
+		tower(ring(rng:NextNumber(260, 560), i * 2.399 + 1), rng:NextNumber(34, 60), rng:NextNumber(90, 210), true)
 	end
 	for i = 1, 24 do
 		local a = (i / 24) * math.pi * 2
