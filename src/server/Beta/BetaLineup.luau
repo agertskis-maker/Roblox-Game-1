@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
+local BetaPlots = require(script.Parent.BetaPlots)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 
 local BetaLineup = {}
@@ -30,11 +31,12 @@ local function publish(player: Player, data: Save)
 end
 
 -- The checks, apart from the remote so a test can call them: returns ok and a reason.
-function BetaLineup.apply(data: Save, slot: any, carId: any): (boolean, string)
+-- `spots` (optional) is the plot's spot count when it differs from the saved one (the Expanded Paddock pass adds 3).
+function BetaLineup.apply(data: Save, slot: any, carId: any, spots: number?): (boolean, string)
 	if type(slot) ~= "number" or slot ~= slot or slot % 1 ~= 0 then
 		return false, "slot is not a whole number"
 	end
-	if slot < 1 or slot > data.ParkingSpots then
+	if slot < 1 or slot > (spots or data.ParkingSpots) then
 		return false, "slot outside the owned parking spots"
 	end
 	local lineup = data.Lineup
@@ -79,7 +81,7 @@ function BetaLineup.start(net: Folder)
 		if not data then
 			return
 		end
-		local ok, why = BetaLineup.apply(data :: Save, slot, carId)
+		local ok, why = BetaLineup.apply(data :: Save, slot, carId, BetaPlots.spotsOf(player))
 		if ok then
 			publish(player, data :: Save)
 		else
