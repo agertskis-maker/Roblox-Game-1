@@ -8,21 +8,42 @@ local Workspace = game:GetService("Workspace")
 
 local Trove = require(game:GetService("ReplicatedStorage").Packages.Trove)
 
-local HEIGHT = 46 -- studs above the plot's centre, over the Raceway's signs
-local PICTURE = 30 -- studs
+local HEIGHT = 44 -- studs above the ground, over the middle of the Raceway
+local MIDDLE = 144 -- studs from the entrance marker to the middle of the Raceway
+local PICTURE = 46 -- studs
 local SEE_THROUGH = 0.3
 local SHOW_WITHIN = 420 -- studs
 
 local trove = Trove.new()
 
+-- The Raceway runs out from the plot's entrance marker along its bearing. The plot's own bounds grow as the track is built on this
+-- client, so they cannot say where the middle is.
+local function middleOf(plot: Model): Vector3
+	local marker = plot:FindFirstChild("Markers")
+	local bearing = plot:GetAttribute("BearingDeg")
+	if marker and marker:IsA("BasePart") and type(bearing) == "number" then
+		local b = math.rad(bearing)
+		return marker.Position + Vector3.new(math.sin(b), 0, -math.cos(b)) * MIDDLE + Vector3.yAxis * HEIGHT
+	end
+	return plot:GetBoundingBox().Position + Vector3.yAxis * HEIGHT
+end
 local function watch(plot: Model)
 	local board: BillboardGui? = nil
-
+	local anchor = Instance.new("Part")
+	anchor.Name = "Lane3PlotOwnerAnchor"
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.one
+	trove:Add(anchor)
 	local function clear()
 		if board then
 			board:Destroy()
 			board = nil
 		end
+		anchor.Parent = nil
 	end
 
 	local function refresh()
@@ -31,11 +52,12 @@ local function watch(plot: Model)
 		if type(owner) ~= "number" then
 			return
 		end
+		anchor.Position = middleOf(plot)
+		anchor.Parent = Workspace
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "Lane3PlotOwner"
-		gui.Adornee = plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart", true)
+		gui.Adornee = anchor
 		gui.Size = UDim2.fromScale(PICTURE, PICTURE + 5)
-		gui.StudsOffsetWorldSpace = Vector3.new(0, HEIGHT, 0)
 		gui.MaxDistance = SHOW_WITHIN
 		gui.LightInfluence = 0
 		gui.ResetOnSpawn = false

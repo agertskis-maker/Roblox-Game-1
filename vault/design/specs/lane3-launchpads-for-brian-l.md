@@ -17,3 +17,5 @@ Your 27 Normal cars now show on Customize, Trails, the launch card, the Car stal
 4. **Decals.** Your cars' textures are baked per car, so decals show only on their cards for now. Flat decal art would fix it.
 
 Bolts changed too: 5 per run, 1 per hop. Anything in economy-v1 that counts on 10 needs a look.
+
+**Owner avatars.** `src/client/Home/Island/PlotOwners.client.luau` reads each plot's `Owner` and `OwnerDisplayName` attributes. Please keep those names in the real plot service. No new data was added.
