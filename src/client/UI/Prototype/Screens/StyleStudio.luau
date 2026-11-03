@@ -123,7 +123,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local camera = make("Camera", { FieldOfView = math.clamp(29 / stageAspect, 19, 36) }, view) :: Camera
 	view.CurrentCamera = camera
 	local world = make("WorldModel", {}, view) :: WorldModel
-	local TRAIL_LENGTH = 6
+	local TRAIL_LENGTH = 5
 	local trailView = TrailPreview.new(world, { length = TRAIL_LENGTH })
 	trove:Add(function()
 		trailView:destroy()
@@ -512,7 +512,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		gridHost.CanvasPosition = Vector2.zero
 		spinRestUntil = 0
 		placeCamera()
-		setYaw(if tab == "Trails" then math.rad(215) else yaw)
+		setYaw(if tab == "Trails" then math.rad(245) else yaw) -- side on: the tail and its trail both show
 		applyTrail(if tab == "Trails" then shownItem("Trails") else nil)
 	end
 

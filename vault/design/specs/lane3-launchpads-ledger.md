@@ -69,3 +69,14 @@ Two fresh reviewers, on stills. Motion was not judged.
 | Summit Pass | 4 / 3 / 4 | 4 / 4 / 4 | 4 | 4 |
 
 The round rainbow loop came after the final scores and was not re-scored.
+
+## Adam's walkthrough fixes (2026-11-02)
+
+| What | Status | Evidence |
+|---|---|---|
+| Goal pill has a red X and later hints clear after 12 s | done | Play: after a run the X cleared the Raceway hint |
+| Owner's see-through avatar and name float over each owned Raceway | done | Play, one player; position formula checked against all six plots |
+| Trails left the Shop tabs and its slide; all four tabs are in Customize | done | Play |
+| Customize's Trails tab opens side-on so the trail shows | done | Play |
+
+Two players seeing each other's avatars was not tested. The Launch Pad TRAILS kiosk and launch card still open Trails.
