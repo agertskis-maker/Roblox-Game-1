@@ -39,6 +39,7 @@ local CurrencyCounter = require(script.Parent.CurrencyCounter)
 local FlagIcon = require(script.FlagIcon)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local HeatGauge = require(script.HeatGauge)
+local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local OutlinedText = require(script.Parent.OutlinedText)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -375,7 +376,8 @@ end
 function RunHud.setState(self: any, state: RunHudState)
 	self._state = state
 	-- The counter snaps on its first value and animates later changes.
-	self._counter:setValue(state.cash)
+	-- Round 5 (L-01): with a live server the counter shows the server's Cash (a run reports no balance of its own)
+	self._counter:setValue(LiveData.cash() or state.cash)
 	self:_setDistance(state.distance)
 	if self._mounted then
 		self._gauge:set(state.heat, state.stage)
