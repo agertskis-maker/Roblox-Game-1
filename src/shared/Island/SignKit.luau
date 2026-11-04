@@ -264,7 +264,7 @@ local function checkerCap(parent: Instance, cf: CFrame, w: number, h: number)
 				part(
 					parent,
 					"CheckerTile",
-					Vector3.new(tile - 0.04, tile - 0.04, 0.06), -- inset: no edge shared with the backing
+					Vector3.new(tile - 0.1, tile - 0.1, 0.06), -- inset 0.05 a side: no edge near the backing's
 					cf * CFrame.new((col - 0.5) * tile, (row - (n - 1) / 2) * tile, 0.03),
 					INK
 				)
