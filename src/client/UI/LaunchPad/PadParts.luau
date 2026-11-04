@@ -432,7 +432,7 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 			-- look in two parts, with no shared face
 			local slope = face * CFrame.new(0, 0, 6.6) * CFrame.Angles(math.rad(26), 0, 0)
 			k:box("AwningStripe", Vector3.new(17.1, 0.4, 5.8), slope, main)
-			k:box("AwningStripe", Vector3.new(5.7, 0.4, 5.8), slope * CFrame.new(0, 0.04, 0), second)
+			k:box("AwningStripe", Vector3.new(5.7, 0.4, 5.9), slope * CFrame.new(0, 0.04, 0), second) -- ends 0.05 past the slab
 			k:box("AwningEdge", Vector3.new(17.2, 1, 0.3), face * CFrame.new(0, -1.9, 9.3), main)
 		end
 		top += 3.2
