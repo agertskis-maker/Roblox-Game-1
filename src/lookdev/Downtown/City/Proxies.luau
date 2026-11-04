@@ -143,8 +143,9 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		local pad = box(
 			m,
 			"Ground",
-			Vector3.new(w, 0.4, d),
-			CFrame.new(w / 2, 0.2, d / 2),
+			-- Round 5 (P-01): a GAP sits 0.04 lower than a park, so two neighbouring pads never share a top face
+			Vector3.new(w, if spec.name == "GAP" then 0.36 else 0.4, d),
+			CFrame.new(w / 2, if spec.name == "GAP" then 0.18 else 0.2, d / 2),
 			if spec.name == "GAP" then STONE else GREEN,
 			false
 		)
