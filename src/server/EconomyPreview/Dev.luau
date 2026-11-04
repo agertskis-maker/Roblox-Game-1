@@ -12,6 +12,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local Data = require(script.Parent.Data)
 local Economy = require(script.Parent.Economy)
 local LapPay = require(script.Parent.LapPay)
+local Runs = require(script.Parent.Runs)
 local Shop = require(script.Parent.Shop)
 
 local Dev = {}
@@ -63,6 +64,51 @@ end
 
 function Dev.buyParkingSpot(player: Player): boolean
 	return allowed() and Shop.buyParkingSpot(player)
+end
+
+function Dev.unlockWorld(player: Player, worldId: string): boolean
+	return allowed() and Economy.unlockWorld(player, worldId)
+end
+
+function Dev.setLineupSlot(player: Player, slot: number, id: string): boolean
+	return allowed() and Economy.setLineupSlot(player, slot, id)
+end
+
+-- A scripted run through the real run report checks: starts a run, rides spawn `index` for
+-- `seconds`, sends KeysComplete, then ends the run at `endMetres`. `cheat` sends Keys too early.
+function Dev.fakeRun(
+	player: Player,
+	worldId: string,
+	index: number,
+	seconds: number,
+	cheat: boolean?
+): { [string]: any }
+	if not allowed() then
+		return {}
+	end
+	local started = Runs.start(player, worldId)
+	if not started then
+		return { started = false }
+	end
+	local run = Runs.active(player)
+	run.started -= 600 -- pretend the run has been going for 10 minutes, so event times are plausible
+	local spawn = run.sequence:ensure(5_000)[index]
+	local t0 = 5
+	local d0 = run.sequence:alongAt(spawn, t0)
+	local t1 = t0 + (if cheat then 0.5 else seconds)
+	local d1 = run.sequence:alongAt(spawn, t1)
+	Runs.report(player, started.runId, {
+		{ kind = "Hop", t = t0, d = d0, target = index },
+		{ kind = "KeysComplete", t = t1, d = d1, index = index },
+		{ kind = "KeysComplete", t = t1 + 0.1, d = d1, index = index },
+		{ kind = "RunEnd", t = t1 + 30, d = d1 + 1_200, cause = "Meltdown" },
+	})
+	return {
+		started = true,
+		seed = started.seed,
+		rarity = spawn.rarity,
+		car = Runs.carFor(worldId, spawn),
+	}
 end
 
 function Dev.expose()

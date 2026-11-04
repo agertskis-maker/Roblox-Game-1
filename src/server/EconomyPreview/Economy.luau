@@ -35,6 +35,7 @@ function Economy.setup(player: Player, data: Data.SaveData)
 	cash.Parent = stats
 	stats.Parent = player
 	publishCash(player, data)
+	player:SetAttribute("WorldsUnlocked", Economy.worldsText(player))
 end
 
 function Economy.addCash(player: Player, amount: number, reason: string)
@@ -69,32 +70,117 @@ local function lapPayOf(data: Data.SaveData, id: string): number
 	return Catalog.lapPay(rarity, car.Edition, data.RacewayLevel)
 end
 
--- Fills the Lineup with the owned cars that pay most, up to the parking spots owned. The real
--- game lets the player pick (the proposed SetLineupSlot remote); the preview has no picker UI.
+-- Keeps the Lineup valid and full: drops cars that are not owned or do not exist, trims it to the
+-- parking spots owned, then fills empty spots with the best-paying owned cars not already in it.
+-- Cars the player chose (setLineupSlot) stay where they were put.
 function Economy.refreshLineup(player: Player)
 	local data = Data.get(player)
 	if not data then
 		return
 	end
-	local owned: { string } = {}
-	for id in data.Cars do
-		if Cars.exists(id) then
-			table.insert(owned, id)
+	local lineup: { string } = {}
+	local used: { [string]: boolean } = {}
+	for _, id in data.Lineup do
+		if #lineup < data.ParkingSpots and data.Cars[id] and Cars.exists(id) and not used[id] then
+			table.insert(lineup, id)
+			used[id] = true
 		end
 	end
-	table.sort(owned, function(a, b)
+	local spare: { string } = {}
+	for id in data.Cars do
+		if Cars.exists(id) and not used[id] then
+			table.insert(spare, id)
+		end
+	end
+	table.sort(spare, function(a, b)
 		local pa, pb = lapPayOf(data, a), lapPayOf(data, b)
 		if pa ~= pb then
 			return pa > pb
 		end
 		return a < b
 	end)
-	local lineup: { string } = {}
-	for i = 1, math.min(#owned, data.ParkingSpots) do
-		lineup[i] = owned[i]
+	for _, id in spare do
+		if #lineup >= data.ParkingSpots then
+			break
+		end
+		table.insert(lineup, id)
 	end
 	data.Lineup = lineup
 	Economy.PlotChanged:Fire(player)
+end
+
+-- Puts an owned car into Lineup spot `slot` (1 to the parking spots owned). If the car already
+-- drives in another spot, the two swap. Returns whether anything changed.
+function Economy.setLineupSlot(player: Player, slot: number, id: string): boolean
+	local data = Data.get(player)
+	if not data or not data.Cars[id] or not Cars.exists(id) then
+		return false
+	end
+	if slot ~= math.floor(slot) or slot < 1 or slot > math.min(data.ParkingSpots, #data.Lineup + 1) then
+		return false
+	end
+	local current = table.find(data.Lineup, id)
+	if current == slot then
+		return false
+	end
+	if current then
+		data.Lineup[current] = data.Lineup[slot]
+	end
+	data.Lineup[slot] = id
+	Economy.refreshLineup(player)
+	return true
+end
+
+-- How many cars the player owns from one World (unique models, editions do not count extra).
+function Economy.ownedInWorld(player: Player, worldId: string): number
+	local data = Data.get(player)
+	local count = 0
+	if data then
+		for id in data.Cars do
+			if Catalog.CarWorld[id] == worldId then
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
+-- Unlocks the next World: it must exist, be locked, follow an unlocked World, and the player must
+-- own enough cars from the World before it and afford its price.
+function Economy.unlockWorld(player: Player, worldId: string): boolean
+	local data = Data.get(player)
+	local info, index = Catalog.world(worldId)
+	if not data or not info or not index or index == 1 or data.WorldsUnlocked[worldId] then
+		return false
+	end
+	local previous = Catalog.Worlds[index - 1]
+	if not data.WorldsUnlocked[previous.id] then
+		return false
+	end
+	if Economy.ownedInWorld(player, previous.id) < info.carsNeeded then
+		return false
+	end
+	if not Economy.trySpend(player, info.price) then
+		return false
+	end
+	data.WorldsUnlocked[worldId] = true
+	player:SetAttribute("WorldsUnlocked", Economy.worldsText(player))
+	print(string.format("[EconomyPreview] %s unlocked %s", player.Name, worldId))
+	return true
+end
+
+-- Read-only list for the client, for example "Downtown,DustyHighway".
+function Economy.worldsText(player: Player): string
+	local data = Data.get(player)
+	local list: { string } = {}
+	if data then
+		for _, info in Catalog.Worlds do
+			if data.WorldsUnlocked[info.id] then
+				table.insert(list, info.id)
+			end
+		end
+	end
+	return table.concat(list, ",")
 end
 
 function Economy.lineupPayPerLap(player: Player): number

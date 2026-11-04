@@ -4,6 +4,7 @@
 -- ProximityPrompts on the owner's plot gate, so the preview can be bought without client code.
 -- Every purchase checks: profile loaded, not at the maximum, enough Cash, cooldown.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Catalog = require(ReplicatedStorage.Shared.Catalog.EconomyPreview)
@@ -11,6 +12,7 @@ local Net = require(ReplicatedStorage.Shared.Net.EconomyPreviewNet)
 local Data = require(script.Parent.Data)
 local Economy = require(script.Parent.Economy)
 local Plots = require(script.Parent.Plots)
+local Runs = require(script.Parent.Runs)
 
 local COOLDOWN = 0.75
 
@@ -156,6 +158,65 @@ function Shop.createRemotes()
 	spot.OnServerEvent:Connect(function(player: Player)
 		Shop.buyParkingSpot(player)
 	end)
+
+	local function remote(name: string): RemoteEvent
+		local r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = folder
+		return r
+	end
+
+	remote(Net.Remotes.UnlockWorld).OnServerEvent:Connect(function(player: Player, worldId: unknown)
+		if typeof(worldId) == "string" and #worldId <= 40 and cooled(player) then
+			if Economy.unlockWorld(player, worldId) then
+				Shop.publish(player)
+			end
+		end
+	end)
+	remote(Net.Remotes.SetLineupSlot).OnServerEvent:Connect(function(player: Player, slot: unknown, carId: unknown)
+		if typeof(slot) == "number" and typeof(carId) == "string" and #carId <= 60 and cooled(player) then
+			Economy.setLineupSlot(player, slot, carId)
+		end
+	end)
+
+	local startRun = Instance.new("RemoteFunction")
+	startRun.Name = Net.Remotes.StartRun
+	startRun.OnServerInvoke = function(player: Player, worldId: unknown): any
+		return Runs.start(player, worldId)
+	end
+	startRun.Parent = folder
+
+	-- At most BATCH_LIMIT run messages a second per player; the rest are dropped.
+	local BATCH_LIMIT = 12
+	local window: { [Player]: { at: number, count: number } } = {}
+	local function allowRunMessage(player: Player): boolean
+		local now = os.clock()
+		local w = window[player]
+		if not w or now - w.at >= 1 then
+			window[player] = { at = now, count = 1 }
+			return true
+		end
+		w.count += 1
+		return w.count <= BATCH_LIMIT
+	end
+	remote(Net.Remotes.RunEvents).OnServerEvent:Connect(function(player: Player, runId: unknown, events: unknown)
+		if allowRunMessage(player) then
+			Runs.report(player, runId, events)
+		end
+	end)
+	remote(Net.Remotes.KeysComplete).OnServerEvent:Connect(function(player: Player, runId: unknown, event: unknown)
+		if allowRunMessage(player) then
+			Runs.report(player, runId, { event })
+		end
+	end)
+	local granted = remote(Net.Remotes.RunGranted)
+	Runs.Granted:Connect(function(player: Player, result: { [string]: any })
+		granted:FireClient(player, result)
+	end)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		window[player] = nil
+	end)
+
 	folder.Parent = ReplicatedStorage
 end
 

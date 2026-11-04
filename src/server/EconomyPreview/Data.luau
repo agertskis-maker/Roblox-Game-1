@@ -22,6 +22,7 @@ export type SaveData = {
 	Lineup: { string },
 	RacewayLevel: number,
 	ParkingSpots: number,
+	WorldsUnlocked: { [string]: boolean },
 	LastSeen: number,
 }
 
@@ -34,6 +35,7 @@ local TEMPLATE: SaveData = {
 	Lineup = {},
 	RacewayLevel = 1,
 	ParkingSpots = 2,
+	WorldsUnlocked = { Downtown = true },
 	LastSeen = 0,
 }
 

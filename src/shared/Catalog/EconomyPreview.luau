@@ -66,6 +66,68 @@ EconomyPreview.MaxParkingSpots = 15
 EconomyPreview.FirstSpotPrice = 500
 EconomyPreview.SpotGrowth = 3
 
+-- Worlds in unlock order (GDD names). A World is unlocked with Cash plus enough unique cars owned
+-- from the World before it. Milestone pays every MilestoneMetres in a run of that World.
+export type WorldInfo = {
+	id: string,
+	price: number,
+	carsNeeded: number,
+	milestonePay: number,
+}
+
+EconomyPreview.Worlds = {
+	{ id = "Downtown", price = 0, carsNeeded = 0, milestonePay = 100 },
+	{ id = "DustyHighway", price = 5_000_000, carsNeeded = 5, milestonePay = 10_000 },
+	{ id = "SummitPass", price = 1_000_000_000, carsNeeded = 5, milestonePay = 1_000_000 },
+} :: { WorldInfo }
+
+EconomyPreview.MilestoneMetres = 500
+
+-- PROPOSED by Claude (2026-11-03), awaiting Brian L's OK: which showroom car belongs to which
+-- World. Counts follow the ChatGPT review's spread; Polytruck and Sparkster are not built yet.
+EconomyPreview.CarWorld = {
+	Rustbucket = "Downtown",
+	Putter = "Downtown",
+	["Old Faithful"] = "Downtown",
+	Commuter = "Downtown",
+	["Family Hauler"] = "Downtown",
+	["Pizza Runner"] = "Downtown",
+	Minnow = "Downtown",
+	Workhorse = "Downtown",
+	Trailblazer = "Downtown",
+	["Sunny Camper"] = "Downtown",
+	Bolt = "Downtown",
+	["Beach Bug"] = "DustyHighway",
+	["Surf Wagon"] = "DustyHighway",
+	["Rally Dog"] = "DustyHighway",
+	Thunder = "DustyHighway",
+	Brawler = "DustyHighway",
+	["Desert King"] = "DustyHighway",
+	Executive = "DustyHighway",
+	["Night Rider"] = "DustyHighway",
+	Velvet = "DustyHighway",
+	Monarch = "SummitPass",
+	Zip = "SummitPass",
+	["Street Kid"] = "SummitPass",
+	["Viper Strike"] = "SummitPass",
+	Phantom = "SummitPass",
+	Apex = "SummitPass",
+	Cruiser = "SummitPass",
+} :: { [string]: string }
+
+-- Run traffic has no Uncommon tier yet, so this share of a World's Common traffic cars are its
+-- Uncommon cars instead (picked from the traffic car's paint number, the same on every machine).
+EconomyPreview.UncommonShareOfCommons = 4 / 12
+
+function EconomyPreview.world(id: string): (WorldInfo?, number?)
+	for i, info in EconomyPreview.Worlds do
+		if info.id == id then
+			return info, i
+		end
+	end
+	return nil, nil
+end
+
 EconomyPreview.OfflineRate = 0.5
 EconomyPreview.OfflineCapSeconds = 8 * 60 * 60
 
