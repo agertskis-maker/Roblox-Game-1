@@ -10,6 +10,7 @@ if Workspace:GetAttribute("Lane2EconomyPreview") ~= true then
 	return
 end
 
+local BetaCompat = require(script.Parent.BetaCompat)
 local Cars = require(script.Parent.Cars)
 local Data = require(script.Parent.Data)
 local Dev = require(script.Parent.Dev)
@@ -20,6 +21,7 @@ local Shop = require(script.Parent.Shop)
 
 Cars.load()
 Shop.createRemotes()
+BetaCompat.start()
 Dev.expose()
 
 Economy.PlotChanged:Connect(function(player: Player)

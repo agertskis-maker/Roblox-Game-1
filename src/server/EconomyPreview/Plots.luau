@@ -52,7 +52,8 @@ function Plots.assign(player: Player): Model?
 			owners[plot] = player
 			plot:SetAttribute("Owner", player.UserId)
 			plot:SetAttribute("OwnerDisplayName", player.DisplayName)
-			player:SetAttribute("HomePlot", plot.Name)
+			-- the plot number, as the beta's client reads it ("Plot03" -> 3)
+			player:SetAttribute("HomePlot", tonumber(string.match(plot.Name, "%d+")) or plot.Name)
 			return plot
 		end
 	end
