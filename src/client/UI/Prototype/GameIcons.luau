@@ -121,7 +121,8 @@ GameIcons.Alias = {
 	-- cut from R5-IMG-03 (Car-Hop-Art/review/round5/art): a gift with a Rare-gem key, a crown, three parking spots.
 	starterPack = "art_pass_starter",
 	art_starter = "art_pass_starter",
-	art_vip = "art_pass_vip",
+	-- VIP: the game's own transparent crown icon reads cleaner on the gold card than the reference tile's lounge square
+	art_vip = "vip",
 	art_paddock = "art_pass_paddock",
 }
 
