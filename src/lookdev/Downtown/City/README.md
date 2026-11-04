@@ -14,7 +14,7 @@ camera and streaming; every number here is a PREVIEW value for him to accept or 
 | `Catalog.luau` | Districts, palettes, lot modules, landmarks, props, sign family; built-in fallback, merged with the B2 kit manifest when present |
 | `Route.luau` | Pure geometry: segment frames, sockets, per-side arc-length maps |
 | `Sequencer.luau` | Pure deterministic planner: `plan(seed, options)`, `describe(plan)`, `check(plan)`, `boundaries(plan)` |
-| `Assembler.luau` | Builds a plan in a bounded active window with pooling; stats; client-safe |
+| `Assembler.luau` | Builds a plan in a bounded active window with pooling; stats; client-safe. Downtown's shop signs (band and blade) and its welcome banner are `SignKit` "Downtown" plates |
 | `Proxies.luau` | Part-built proxies for every module whose mesh is missing |
 | `Chase.luau` | Deterministic chase harness with two labelled cameras and frame-time sampling |
 | `RoadWidthStudy.luau` | Lane widths 12.5 / 16 / 17 / 18 side by side with fixture car footprints |

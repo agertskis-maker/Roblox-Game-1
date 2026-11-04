@@ -45,6 +45,9 @@ export type WorldDef = {
 	tierB: { string }, -- landmark ids kept as a labelled kit gallery
 	landmarkSpacing: { number },
 	length: number, -- route length asked of the planner (studs)
+	-- a hand-authored landmark plan (Summit Pass): { { id, district, station along its lap, side } } that Sequencer lays down
+	-- instead of sweeping; the hazards bend around it. Side is 1, -1, "outside" or "inside" of the district's first curve.
+	fixedLandmarks: { { id: string, district: string, station: number, side: number | string } }?,
 	v2: any?, -- World build V2 (decision 0026): the table City/WorldPlan.luau reads (scatter rules, gorge, occupancy, poles)
 }
 

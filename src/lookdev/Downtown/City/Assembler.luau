@@ -32,11 +32,14 @@ local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
 local Catalog = require(script.Parent.Catalog)
+local KitBounds = require(script.Parent.Parent.KitBounds)
 local KitMesh = require(script.Parent.Parent.KitMesh)
 local Merge = require(script.Parent.Merge)
 local Proxies = require(script.Parent.Proxies)
 local Route = require(script.Parent.Route)
 local Sequencer = require(script.Parent.Sequencer)
+local SignKit =
+	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("SignKit"))
 
 local Assembler = {}
 Assembler.__index = Assembler
@@ -60,6 +63,20 @@ local GROUND_COLOUR = Color3.fromRGB(150, 146, 134) -- darker paving: the pale t
 local WATER_COLOUR = Color3.fromRGB(46, 132, 190) -- harbour water under the bridge deck
 local WATER_ACROSS = 240 -- studs across the route: the deck, its frontage and a margin, not the skyline
 local WATER_Y = -0.25 -- centre; the ground tiles top out at -0.3
+-- scenery-only: the ground tile's centre lies this far under the run road's surface (below its slab), and the tile is 1 thick
+local SCENERY_GROUND_DROP = 2.2
+local SCENERY_GROUND_TOP = 0.5 - SCENERY_GROUND_DROP
+
+-- The roadside walk of the scenery-only Downtown (walkSpecs): a street tree or a planter every WALK_STEP studs along each side,
+-- trees and planters taking turns, the two sides half a step apart. WALK_*_AT is from the road's edge to the piece's centre; the
+-- kit tree reaches 4.5 studs each way and the kit planter 2.6, so the tree's canopy stays 0.4 outside the road margin.
+local WALK_TREE_MESH = "B2_Street_Tree"
+local WALK_PLANTER_MESH = "B2_Street_Planter"
+local WALK_STEP = 48
+local WALK_FIRST = 20 -- the left side's first piece, the right side's half a step on: both clear of the paving joints (0, 48, ...)
+local WALK_TREE_AT = 5.6
+local WALK_PLANTER_AT = 4.4
+local WALK_CLEAR = 10 -- no piece this close along the walk to a cart, flag or pigeon spot of the street life
 
 -- kit meshes for the midground and skyline masses (were plain blocks: "no crude boxes", §13),
 -- picked deterministically per district and scaled to each planned mass
@@ -155,6 +172,8 @@ export type Options = {
 	textureId: string?, -- an uploaded palette texture ("rbxassetid://...") for kit meshes
 	paletteColumn: string?, -- swatches column for vertex colours (default "B2", then "B")
 	meshIds: { [string]: string }?, -- uploaded mesh ids by name (used before EditableMesh)
+	sceneryOnly: boolean?, -- roadside only: no road, spans, hazards, bridge landmarks or gorge (the run owns all of those);
+	-- Downtown (no World) gets its kerb, paving and street trees in the road's place (walkSpecs)
 	behind: number?,
 	ahead: number?,
 	skyBehind: number?,
@@ -266,6 +285,7 @@ type Fields = {
 	swatches: { Color3 }?,
 	swatchMode: string,
 	meshIds: { [string]: string },
+	sceneryOnly: boolean,
 	labels: boolean,
 	useKit: boolean,
 	ground: boolean,
@@ -549,6 +569,7 @@ function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
 		swatches = swatches,
 		swatchMode = if textureId ~= "" then "texture " .. textureId else swatchMode,
 		meshIds = opts.meshIds or {},
+		sceneryOnly = opts.sceneryOnly == true,
 		labels = if opts.labels == nil then not RunService:IsRunning() else opts.labels,
 		useKit = opts.useKit ~= false,
 		ground = opts.ground ~= false,
@@ -672,6 +693,10 @@ function Assembler.prepare(self: Assembler)
 	for _, name in hazardMeshesOf(self.world) do
 		want(name)
 	end
+	if self.sceneryOnly and not self.world then
+		want(WALK_TREE_MESH)
+		want(WALK_PLANTER_MESH)
+	end
 	for _, e in self.plan.extras do
 		want(e.module)
 	end
@@ -711,6 +736,12 @@ function Assembler.prepare(self: Assembler)
 				template.meta = data.meta
 				template.facing = if type(data.meta.facing) == "string" then data.meta.facing else "-Z"
 			end
+			-- an uploaded mesh with no JSON here (the beta): its generated bounds stand in, enough to place it
+			local known: { number }? = if not data and self.meshIds[name] then (KitBounds :: any)[name] else nil
+			if known then
+				template.lo = Vector3.new(known[1], known[2], known[3])
+				template.hi = Vector3.new(known[4], known[5], known[6])
+			end
 			local uploaded = self.meshIds[name]
 			if uploaded then
 				local ok, part = pcall(function()
@@ -719,7 +750,7 @@ function Assembler.prepare(self: Assembler)
 						RenderFidelity = Enum.RenderFidelity.Automatic,
 					})
 				end)
-				if ok and data then
+				if ok and (data or known) then
 					finishPart(part, name)
 					part.TextureID = self.textureId
 					template.part = part
@@ -835,6 +866,15 @@ local function pivotTo(inst: Instance, cf: CFrame)
 		inst:PivotTo(cf)
 	elseif inst:IsA("BasePart") then
 		inst.CFrame = cf
+	end
+end
+
+-- A pooled SignKit sign is reused for other names: the lettering is the TextLabel "Text" on its SignFace.
+local function setSignText(root: Instance, text: string)
+	for _, d in root:GetDescendants() do
+		if d:IsA("TextLabel") and d.Name == "Text" then
+			d.Text = text
+		end
 	end
 end
 
@@ -995,6 +1035,7 @@ end
 -- World build V2: the folder an extra's instance goes into
 local EXTRA_FOLDER: { [string]: string } = {
 	ground = "Ground",
+	structure = "Landmarks",
 	edge = "Props",
 	berm = "Props",
 	fence = "Props",
@@ -1009,6 +1050,49 @@ local EXTRA_FOLDER: { [string]: string } = {
 local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolean): Spec
 	local kind = EXTRA_FOLDER[e.kind] or "Masses"
 	-- a wayfinding board with words on it is a part-built board (the same route the shop signs take), never merged
+	if e.structure then
+		local id = e.structure :: string
+		return {
+			key = "structure:" .. id,
+			kind = kind,
+			tris = 0,
+			mesh = false,
+			make = function()
+				return (require :: any)(script.Parent.Worlds.DustyStructures).build(id)
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
+	if e.text and e.signStyle then
+		-- a wayfinding sign in the family (big round M5): one model per words, pooled like any other
+		local text = e.text :: string
+		local style = e.signStyle :: string
+		local width, height = e.size.X, e.size.Y
+		return {
+			key = "sign:" .. style .. ":" .. text,
+			kind = "Signs",
+			tris = 0,
+			mesh = false,
+			make = function()
+				local holder = Instance.new("Model")
+				holder.Name = "WaySign"
+				local rise = 4
+				local cf = CFrame.new(0, rise + height / 2, 0)
+				SignKit.sign(
+					holder,
+					cf,
+					{ style = style, text = text, width = width, height = height, mount = "posts", ground = 0 }
+				)
+				holder.WorldPivot = CFrame.identity
+				return holder
+			end,
+			place = function(inst: Instance)
+				(inst :: Model):PivotTo(e.cframe)
+			end,
+		}
+	end
 	if e.text then
 		local text = e.text :: string
 		local width, height = e.size.X, e.size.Y
@@ -1090,6 +1174,95 @@ local function extraSpec(self: Assembler, e: Sequencer.Extra, allowMerge: boolea
 	}
 end
 
+-- Downtown beside Brian R's run road (sceneryOnly, no World, buildings on the Downtown frontage line). His road has no sidewalk
+-- and the ground tile lies 1.7 studs under it, so the strip between his kerb and the building fronts was flat grey, with the
+-- street life's pigeons, carts and flags standing in the air. This lays a kerb and paving there (Proxies.walk: two blocks per
+-- bay, a long kerb, one pooled model per segment length) and, on the walk, a street tree or a planter at a steady rhythm.
+-- The pieces ride in the segment's own window like lots do, so they scroll and pool with the rest of the World. A tree or a
+-- planter goes in the kit mesh when it is there (one part, or merged into the segment in Play) and in a stand-in when not.
+-- Pieces are placed by route station, not by segment, so the rhythm holds across segment joins; none stands on a bridge deck,
+-- in an intersection mouth, or near a street-life spot.
+local function walkSpecs(self: Assembler, index: number): { Spec }
+	local plan = self.plan
+	local seg = plan.segments[index]
+	local g = self.geometry
+	local specs: { Spec } = {
+		{
+			key = string.format("walk:%.2f", seg.length),
+			kind = "Road",
+			tris = 0,
+			mesh = false,
+			make = function()
+				return Proxies.walk(seg.length, g, SCENERY_GROUND_TOP)
+			end,
+			place = function(inst: Instance)
+				pivotTo(inst, seg.start)
+			end,
+		},
+	}
+	if seg.kind == "BridgeDeck" then
+		return specs
+	end
+	local mouth = seg.startS + (seg.crossAt or seg.length / 2)
+	for _, side in { -1, 1 } do
+		local first = WALK_FIRST + (if side > 0 then WALK_STEP / 2 else 0)
+		local i = math.max(0, math.ceil((seg.startS - first) / WALK_STEP))
+		while first + i * WALK_STEP < seg.endS do
+			local station = first + i * WALK_STEP
+			local free = seg.kind ~= "Intersection" or math.abs(station - mouth) >= Route.MOUTH + 4
+			for _, spot in plan.life do
+				if spot.side == side and math.abs(spot.station - station) < WALK_CLEAR then
+					free = false
+					break
+				end
+			end
+			if free then
+				local isTree = (i + (if side > 0 then 1 else 0)) % 2 == 0
+				local lateral = side * (g.halfRoad + (if isTree then WALK_TREE_AT else WALK_PLANTER_AT))
+				-- a quarter turn about the piece's own axis, so the trees along one side are not all the same way round
+				local at = Route.frame(plan.segments, station, lateral, Proxies.SIDEWALK_TOP)
+					* CFrame.Angles(0, math.rad(90) * (math.floor(i / 2) % 4), 0)
+				local spec = meshOrProxy(
+					self,
+					if isTree then WALK_TREE_MESH else WALK_PLANTER_MESH,
+					"Props",
+					if isTree then "walk:tree" else "walk:planter",
+					if isTree then Proxies.streetTree else Proxies.streetPlanter,
+					function(t)
+						return at * centreOffset(t)
+					end,
+					at
+				)
+				local place = spec.place
+				spec.place = function(inst: Instance)
+					place(inst)
+					if inst:IsA("BasePart") then
+						inst.CastShadow = false -- a kit mesh part; the stand-ins are built without shadows
+					end
+					if isTree and inst:IsA("MeshPart") and inst.TextureID == "" then
+						inst.Color = Color3.fromRGB(88, 168, 92) -- the kit tree comes untextured here and would stand white
+					end
+				end
+				table.insert(specs, spec)
+				if isTree then
+					table.insert(specs, {
+						key = "walk:pit",
+						kind = "Props",
+						tris = 0,
+						mesh = false,
+						make = Proxies.treePit,
+						place = function(inst: Instance)
+							pivotTo(inst, at)
+						end,
+					})
+				end
+			end
+			i += 1
+		end
+	end
+	return specs
+end
+
 local function segmentSpecs(self: Assembler, index: number): { Spec }
 	local cached = self.specCache[index]
 	if cached then
@@ -1125,7 +1298,13 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end, function(t)
 		return seg.start * centreOffset(t)
 	end, seg.start)
-	table.insert(specs, spec)
+	if not self.sceneryOnly then
+		table.insert(specs, spec)
+	elseif not self.world and plan.frontage < g.halfRoad + g.sidewalk + 0.5 then
+		for _, walk in walkSpecs(self, index) do
+			table.insert(specs, walk)
+		end
+	end
 
 	-- lots, forecourts and signs
 	for _, lot in b.lots do
@@ -1215,22 +1394,41 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 					* fit(t :: Template, lot.width)
 					* CFrame.new(tonumber(s.x or s[1]) or 0, tonumber(s.y or s[2]) or 0, tonumber(s.z or s[3]) or 0)
 			end
-			local width = math.clamp(lot.width - 6, 8, 18)
+			-- The shop signs are the sign family (big round N14): SignKit "Downtown" plates, one pooled model per shape and
+			-- width with the name set on placement. A band lies flat on the facade. A blade juts out over the street, so its
+			-- one face turns to the traffic coming along the route (lot +X runs with the route on the right of the road and
+			-- against it on the left); the back of a blade is the plain plate.
+			local blade = style == "blade"
+			local signW = if blade then 9 else math.clamp(lot.width - 6, 8, 18)
+			local signH = if blade then 5 else 2.2
+			local turn = if blade then CFrame.Angles(0, lot.side * math.pi / 2, 0) else CFrame.identity
 			table.insert(specs, {
-				key = "sign:" .. style,
+				key = string.format("sign:Downtown:%s:%d", style, math.floor(signW + 0.5)),
 				kind = "Signs",
 				tris = 0,
 				mesh = false,
 				make = function()
-					return Proxies.sign(style)
+					local holder = Instance.new("Model")
+					holder.Name = "ShopSign"
+					SignKit.sign(
+						holder,
+						CFrame.identity,
+						{ style = "Downtown", text = text, width = signW, height = signH }
+					)
+					if blade then
+						-- 24 letters on a 9 stud plate: let long names take two lines
+						for _, d in holder:GetDescendants() do
+							if d:IsA("TextLabel") then
+								d.TextWrapped = true
+							end
+						end
+					end
+					holder.WorldPivot = CFrame.identity
+					return holder
 				end,
 				place = function(inst: Instance)
-					local board = inst:FindFirstChild("Board")
-					if style ~= "blade" and board and board:IsA("BasePart") then
-						board.Size = Vector3.new(width, 2.2, 0.3)
-					end
-					Proxies.setText(inst, text)
-					pivotTo(inst, signCF)
+					setSignText(inst, text)
+					pivotTo(inst, signCF * turn)
 				end,
 			})
 		end
@@ -1238,6 +1436,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 
 	-- landmarks
 	for _, lm in b.landmarks do
+		if self.sceneryOnly and lm.placement == "bridge" then
+			continue
+		end
 		-- World build V2: the glacier gallery is composed of kit bays and portals by WorldFeatures.tunnel (extras), so the
 		-- bridge landmark itself draws nothing (no 384-stud proxy block, no Round 2 monolith)
 		local v2 = if self.world then self.world.v2 else nil
@@ -1300,7 +1501,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- props
-	for _, p in b.props do
+	for _, p in if self.sceneryOnly then {} else b.props do
 		table.insert(
 			specs,
 			meshOrProxy(self, p.module, "Props", "prop:" .. p.kind, function()
@@ -1312,14 +1513,15 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- spans
-	for _, sp in b.spans do
+	for _, sp in if self.sceneryOnly then {} else b.spans do
 		table.insert(specs, {
 			key = string.format("span:%s:%d", sp.kind, math.floor(sp.width + 0.5)),
 			kind = "Spans",
 			tris = 0,
 			mesh = false,
 			make = function()
-				return Proxies.span(sp.kind, sp.text, sp.width, sp.clearance)
+				-- Downtown's welcome banner is the sign family; a World's keeps its own board
+				return Proxies.span(sp.kind, sp.text, sp.width, sp.clearance, if self.world then nil else "Downtown")
 			end,
 			place = function(inst: Instance)
 				pivotTo(inst, sp.cframe)
@@ -1328,7 +1530,7 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 
 	-- hazard previews
-	for _, h in b.hazards do
+	for _, h in if self.sceneryOnly then {} else b.hazards do
 		local kitName = hazardMeshesOf(self.world)[h.kind]
 		local function proxy(): Instance
 			return Proxies.hazard(h.kind, h.length, g.laneWidth, labels)
@@ -1387,6 +1589,9 @@ local function segmentSpecs(self: Assembler, index: number): { Spec }
 	end
 	-- World build V2: backdrop, gorge, ground, edge and prop pieces (far ones ride with the segment in Play, like the sky masses)
 	for _, e in b.extrasNear do
+		if self.sceneryOnly and (e.kind == "gorge" or e.kind == "tunnel" or e.kind == "warning") then
+			continue
+		end
 		table.insert(specs, extraSpec(self, e, true))
 	end
 	if self.merge then
@@ -1599,8 +1804,8 @@ local function gorgeParts(
 				table.insert(parts, {
 					name = if side < 0 then "GorgeLipL" else "GorgeLipR",
 					-- on the rim, its inner edge flush with the wall face, its top `rise` over the ground
-					cframe = centre * CFrame.new(side * (hw + lip.width / 2), -0.3 + lip.rise / 2 - 0.5, 0),
-					size = Vector3.new(lip.width, 1 + lip.rise, 2 * hl),
+					cframe = centre * CFrame.new(side * (hw + lip.width / 2 - 0.1), -0.3 + lip.rise / 2 - 0.5, 0),
+					size = Vector3.new(lip.width + 0.2, 1 + lip.rise, 2 * hl - 0.2), -- proud of the rim: no shared faces
 					colour = lip.colour,
 				})
 			end
@@ -1646,17 +1851,19 @@ end
 
 local function updateGround(self: Assembler, points: { Vector3 })
 	local wanted: { [string]: Vector3 } = {}
+	-- scenery-only: the World's ground lies under the run road's own surfaces, at the road's height
+	local groundY = if self.sceneryOnly then self.plan.segments[1].start.Y - SCENERY_GROUND_DROP else -0.8
 	for _, p in points do
 		local cx, cz = math.floor(p.X / GROUND_CELL + 0.5), math.floor(p.Z / GROUND_CELL + 0.5)
 		for dx = -1, 1 do
 			for dz = -1, 1 do
 				wanted[groundKey(cx + dx, cz + dz)] =
-					Vector3.new((cx + dx) * GROUND_CELL, -0.8, (cz + dz) * GROUND_CELL)
+					Vector3.new((cx + dx) * GROUND_CELL, groundY, (cz + dz) * GROUND_CELL)
 			end
 		end
 	end
 	-- World build V2: a tile that a gorge touches is not built; the gorge's slabs and floor stand in for it
-	local gorges = if self.plan.world then self.plan.world.gorges else {}
+	local gorges = if self.plan.world and not self.sceneryOnly then self.plan.world.gorges else {}
 	local gorgeWanted: { [string]: boolean } = {}
 	if #gorges > 0 then
 		for key, at in wanted do

@@ -1,7 +1,7 @@
 --!strict
 -- WORLD LIFE for Dusty Highway and Summit Pass (Lane 3, Round 2, R2-DH1 / R2-SP1). Bounded, off-road, reduced-motion
 -- aware ambient accents on the same pattern as StreetLife (which stays the Downtown set), driven by the plan:
---   Dusty Highway   tumbleweeds  4 balls rolling along the sidewalk strip beside the road (never on the carriageway)
+--   Dusty Highway   tumbleweeds  2 balls rolling along the sidewalk strip beside the road (never on the carriageway)
 --                   hawks        3 circling high over the midground ahead
 --                   dust devil   1 thin, slow column of sand far off the road, drifting sideways (never near the route)
 --   Summit Pass     snowfall     one light emitter following the camera: small slow flakes, no flashing, no full-screen
@@ -193,16 +193,16 @@ function WorldLife.new(options: Options): WorldLife
 	}
 	local obj = setmetatable(self, WorldLife)
 	if id == "DustyHighway" then
-		for i = 1, 4 do
+		for i = 1, 2 do -- an occasional accent (Adam, big round M6-01: there were too many)
 			local p = Parts.block(
 				folder,
 				"Tumbleweed",
 				Vector3.new(3.6, 3.6, 3.6),
 				CFrame.new(0, -500, 0),
-				Color3.fromRGB(158, 120, 82),
+				Color3.fromRGB(196, 160, 112),
 				Enum.PartType.Ball
 			)
-			p.Material = Enum.Material.Fabric
+			p.Material = Enum.Material.SmoothPlastic
 			p.CastShadow = false
 			table.insert(self.tumbleweeds, {
 				part = p,

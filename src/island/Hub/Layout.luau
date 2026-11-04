@@ -19,6 +19,13 @@ Layout.PlotCount = Data.plotCount -- the only plot count; written to Island.Plot
 Layout.ContractVersion = "0-draft"
 Layout.LayoutVersion = "rev3-hub"
 Layout.SurfaceY = 0
+-- The park's height layers (big round M1). No two surfaces of different colour share a height, so
+-- where they overlap the higher one simply wins and nothing flickers. 0.06 apart at the least.
+Layout.PathTop = Layout.SurfaceY + 0.08 -- avenues, ring, approaches, walks, bridges' path ends
+Layout.PadBorderTop = Layout.SurfaceY + 0.14
+Layout.PromenadeTop = Layout.SurfaceY + 0.16
+Layout.PadTop = Layout.SurfaceY + 0.2
+Layout.PlazaTop = Layout.SurfaceY + 0.24
 Layout.HalfSectorDeg = Data.sectorDeg / 2
 Layout.BufferPerSide = Data.bufferPerSide
 
@@ -243,6 +250,84 @@ function Layout.onPlazaFillet(p: Vector2, margin: number): boolean
 	return false
 end
 
+-- The stage forecourt, between the plaza and the stage walk across the portal row. Its sides run
+-- along the outer edges of the two side portal approaches (Adam's screenshot 10: a square block
+-- used to run out past the approaches and left hard-edged grass shapes in the paving).
+Layout.ForecourtEdgeY = Data.park.portal.frontY + 3 + 5 -- the stage walk's plaza-side edge
+local function forecourtSpan(): (number, number, number)
+	local plazaR = Data.park.plazaRadius
+	for _, path in Data.park.paths do
+		if path.kind == "ApproachDustyHighway" then
+			local a, b = path.points[1], path.points[2]
+			local dir = (b - a).Unit
+			local n = Vector2.new(-dir.Y, dir.X)
+			if n.X < 0 then
+				n = -n
+			end
+			local e = a + n * path.width / 2
+			local bd = e:Dot(dir)
+			local t = -bd - math.sqrt(math.max(0, bd * bd - e:Dot(e) + plazaR * plazaR))
+			local top = e + dir * t
+			local run = (Layout.ForecourtEdgeY - top.Y) / dir.Y
+			return top.X, top.Y, top.X + dir.X * run
+		end
+	end
+	error("no ApproachDustyHighway path")
+end
+Layout.ForecourtTopX, Layout.ForecourtTopY, Layout.ForecourtBottomX = forecourtSpan()
+
+function Layout.onForecourt(p: Vector2, margin: number): boolean
+	if p.Y > Layout.ForecourtTopY + margin or p.Y < Layout.ForecourtEdgeY - margin then
+		return false
+	end
+	local t = (Layout.ForecourtTopY - p.Y) / (Layout.ForecourtTopY - Layout.ForecourtEdgeY)
+	return math.abs(p.X) <= Layout.ForecourtTopX + (Layout.ForecourtBottomX - Layout.ForecourtTopX) * t + margin
+end
+
+local function polylineDistance(points: { Vector2 }, p: Vector2): number
+	local best = math.huge
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local ab = b - a
+		local t = if ab.Magnitude > 1e-6 then math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1) else 0
+		best = math.min(best, (p - (a + ab * t)).Magnitude)
+	end
+	return best
+end
+
+-- True when p lies on any paving (plaza, its fillets, the forecourt, a path, a pad), grown by
+-- `margin`. Everything scattered on the lawns asks this, so nothing grows through the paving.
+function Layout.onPaved(p: Vector2, margin: number): boolean
+	if p.Magnitude <= Data.park.plazaRadius + margin then
+		return true
+	end
+	if Layout.onPlazaFillet(p, margin) or Layout.onForecourt(p, margin) then
+		return true
+	end
+	for _, path in Data.park.paths do
+		if polylineDistance(path.points, p) <= path.width / 2 + margin then
+			return true
+		end
+	end
+	for _, b in Data.park.buildings do
+		if b.id == "Gazebo" then
+			if (p - b.centre).Magnitude <= math.max(b.width, b.depth) / 2 + 4 + margin then
+				return true
+			end
+		elseif b.id == "SnackCornerEast" or b.id == "SnackCornerWest" then
+			local side = Vector2.new(-b.facing.Y, b.facing.X)
+			local d = p - b.centre
+			if
+				math.abs(d:Dot(side)) <= b.width / 2 + 1 + margin
+				and math.abs(d:Dot(b.facing)) <= b.depth / 2 + 1 + margin
+			then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- True when plan point p lies within `margin` of a hub building's box (the Garage and Stunt
 -- boxes run on 14 studs in front for their forecourt and apron) or a leaderboard. Scatter
 -- outside the park (ground cover) keeps off these (Task 4 review N2: tall grass on the apron).
@@ -272,6 +357,280 @@ function Layout.inDestination(p: Vector2, margin: number): boolean
 		end
 	end
 	return false
+end
+
+-- ---------------------------------------------------------------- path ends (big round N1-01, N1-02)
+-- Park lays every path as square-ended strips. A strip used to run on past the path's last point by 15 %
+-- of the path's width whatever it met there. That tucks a path under the paving it arrives at, which
+-- hides the lens at a curved edge, but at a free end it is a rectangular stub (the garden ring's two
+-- tails, the promenade's two tips), and at an oblique join the square end puts a corner out past the
+-- paving it joins (each side approach ran 4.5 studs south of the stage walk, a spike under its portal).
+--
+-- PathEnds[i].run is how far the strip runs past the path's last point (negative: stops short of it);
+-- PathEndRuns[kind] is the same for Park.polyline. Judged against the other paving (the other paths'
+-- segments, the plaza, the buildings with their forecourts, the pads):
+--   nothing at the end point      stops dead on the last point
+--   a narrower path ends there    the tip of the wider path: stops dead
+--   a path as wide ends there     a bend between two paths: tucks as before
+--   anything else                 tucks as before, but is drawn back until no corner of its end shows
+--                                 outside the paving it joins (or as near as it can get)
+export type Cut = { at: Vector2, half: number }
+export type PlanStrip = { a: Vector2, b: Vector2 }
+export type EndRuns = { start: number, finish: number }
+export type Rect = { id: string, a: Vector2, b: Vector2, half: number } -- a-b grown sideways by half, ends flush
+export type Disc = { id: string, centre: Vector2, radius: number }
+export type PathEnd = {
+	kind: string,
+	atStart: boolean,
+	point: Vector2, -- the path's own last point
+	outward: Vector2, -- unit, away from the path
+	width: number,
+	run: number,
+	host: string, -- the paving at the point ("" for none)
+	why: string,
+}
+
+local TUCK = 0.15 -- of the width: how far a square end runs on under the paving it arrives at
+local ON_PAVING = 0.05 -- a point this close to paving is on it
+local END_SAMPLES = 10 -- points along an end line, corners included
+local RUN_STEP = 0.05
+local RUN_TOLERANCE = 0.05 -- a run this close to the best is as good: take the longest
+local MAX_HIDDEN = 3 -- the most an end line may stand out and still count as joined
+local EQUAL_WIDTH = 0.5
+
+-- Studs from q to the rectangle of segment a-b grown sideways by half (0 on it).
+function Layout.rectGap(q: Vector2, a: Vector2, b: Vector2, half: number): number
+	local ab = b - a
+	local length = ab.Magnitude
+	if length < 1e-6 then
+		return (q - a).Magnitude
+	end
+	local dir = ab / length
+	local d = q - a
+	local s = d:Dot(dir)
+	local t = d:Dot(Vector2.new(-dir.Y, dir.X))
+	return Vector2.new(math.max(-s, s - length, 0), math.max(math.abs(t) - half, 0)).Magnitude
+end
+
+-- Studs from q to the nearest of the shapes (0 on one), and which one.
+function Layout.gapTo(q: Vector2, rects: { Rect }, discs: { Disc }): (number, string)
+	local best, id = math.huge, ""
+	for _, r in rects do
+		local g = Layout.rectGap(q, r.a, r.b, r.half)
+		if g < best then
+			best, id = g, r.id
+		end
+	end
+	for _, c in discs do
+		local g = math.max(0, (q - c.centre).Magnitude - c.radius)
+		if g < best then
+			best, id = g, c.id
+		end
+	end
+	return best, id
+end
+
+-- The paving that is not a path: the plaza, the buildings (the Garage and Stunt gate with their
+-- forecourts) and the pads under the snack corners and the gazebo (Park.buildPads).
+local structureRects: { Rect } = {}
+local structureDiscs: { Disc } = { { id = "plaza", centre = Vector2.zero, radius = Data.park.plazaRadius } }
+for _, b in (Data.park :: any).buildings do
+	local f: Vector2 = b.facing.Unit
+	if b.id == "Gazebo" then
+		table.insert(structureDiscs, {
+			id = "GazeboPad",
+			centre = b.centre,
+			radius = (math.max(b.width, b.depth) + 6) / 2 + 1,
+		})
+	elseif b.id == "SnackCornerEast" or b.id == "SnackCornerWest" then
+		table.insert(structureRects, {
+			id = b.id .. "Pad",
+			a = b.centre - f * (b.depth / 2 + 1),
+			b = b.centre + f * (b.depth / 2 + 1),
+			half = b.width / 2 + 1,
+		})
+	else
+		table.insert(structureRects, {
+			id = b.id,
+			a = b.centre - f * (b.depth / 2),
+			b = b.centre + f * (b.depth / 2 + (FORECOURT[b.id] or 0)),
+			half = b.width / 2,
+		})
+	end
+end
+Layout.StructureRects = structureRects
+Layout.StructureDiscs = structureDiscs
+
+local pathRects: { Rect } = {}
+for _, path in Data.park.paths do
+	for i = 1, #path.points - 1 do
+		table.insert(pathRects, { id = path.kind, a = path.points[i], b = path.points[i + 1], half = path.width / 2 })
+	end
+end
+
+local function endRun(path: typeof(Data.park.paths[1]), atStart: boolean): (number, string, string)
+	local pts = path.points
+	local point = if atStart then pts[1] else pts[#pts]
+	local inner = if atStart then pts[2] else pts[#pts - 1]
+	local d = (point - inner).Unit
+	local n = Vector2.new(-d.Y, d.X)
+	local w = path.width
+	local tuck = w * TUCK
+	-- only the paving within reach can matter
+	local reach = w + 30
+	local rects: { Rect } = {}
+	for _, list in { pathRects, structureRects } do
+		for _, r in list do
+			if r.id ~= path.kind and Layout.rectGap(point, r.a, r.b, r.half) < reach then
+				table.insert(rects, r)
+			end
+		end
+	end
+	local g0, host = Layout.gapTo(point, rects, structureDiscs)
+	if g0 > ON_PAVING then
+		return 0, "", "free"
+	end
+	local partner: typeof(path)? = nil
+	for _, other in Data.park.paths do
+		if other.kind ~= path.kind then
+			local op = other.points
+			if (op[1] - point).Magnitude <= ON_PAVING or (op[#op] - point).Magnitude <= ON_PAVING then
+				partner = other
+			end
+		end
+	end
+	if partner then
+		if partner.width < w - EQUAL_WIDTH then
+			return 0, host, "tip"
+		elseif math.abs(partner.width - w) <= EQUAL_WIDTH then
+			return tuck, host, "bend"
+		end
+	end
+	-- how far the end line at `run` stands out of the paving
+	local function standOut(run: number): number
+		local e = point + d * run
+		local worst = 0
+		for k = 0, END_SAMPLES do
+			local q = e + n * (-w / 2 + w * k / END_SAMPLES)
+			worst = math.max(worst, (Layout.gapTo(q, rects, structureDiscs)))
+		end
+		return worst
+	end
+	-- most ends already lie inside the paving they arrive at
+	if standOut(tuck) <= RUN_TOLERANCE then
+		return tuck, host, "tucked"
+	end
+	local runs: { number } = {}
+	local outs: { number } = {}
+	local best = math.huge
+	local run = tuck
+	while run >= -w do
+		local out = standOut(run)
+		table.insert(runs, run)
+		table.insert(outs, out)
+		best = math.min(best, out)
+		run -= RUN_STEP
+	end
+	if best > MAX_HIDDEN then
+		return 0, host, "unhidden"
+	end
+	for i, r in runs do
+		if outs[i] <= best + RUN_TOLERANCE then
+			return r, host, if i == 1 then "tucked" else "drawn back"
+		end
+	end
+	return 0, host, "unhidden"
+end
+
+local pathEnds: { PathEnd } = {}
+local pathEndRuns: { [string]: EndRuns } = {}
+for _, path in Data.park.paths do
+	local runs: EndRuns = { start = 0, finish = 0 }
+	for _, atStart in { true, false } do
+		local pts = path.points
+		local point = if atStart then pts[1] else pts[#pts]
+		local inner = if atStart then pts[2] else pts[#pts - 1]
+		local run, host, why = endRun(path, atStart)
+		if atStart then
+			runs.start = run
+		else
+			runs.finish = run
+		end
+		table.insert(pathEnds, {
+			kind = path.kind,
+			atStart = atStart,
+			point = point,
+			outward = (point - inner).Unit,
+			width = path.width,
+			run = run,
+			host = host,
+			why = why,
+		})
+	end
+	pathEndRuns[path.kind] = runs
+end
+Layout.PathEnds = pathEnds
+Layout.PathEndRuns = pathEndRuns
+
+-- How far a strip runs past a joint so the outer edges meet in a clean mitre (Adam's screenshots
+-- 08 and 09: square strip ends left saw-tooth notches at every bend).
+local function mitre(width: number, u: Vector2, v: Vector2): number
+	local cosT = math.clamp(u:Dot(v), -1, 1)
+	return math.min(width / 2 * math.tan(math.acos(cosT) / 2) + 0.02, width)
+end
+
+-- The strips along a polyline as plan segments a to b; `cuts` leave gaps (where a bridge deck crosses
+-- open water). A joint gets its mitre. A path's free end runs on by ends.start / ends.finish
+-- (PathEndRuns), or by 15 % of the width without them; an end at a bridge cut stops exactly at the deck.
+function Layout.stripsAlong(points: { Vector2 }, width: number, cuts: { Cut }?, ends: EndRuns?): { PlanStrip }
+	local out: { PlanStrip } = {}
+	local cutList: { Cut } = cuts or {}
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local length = (b - a).Magnitude
+		local dir = (b - a) / length
+		-- pieces of [0, length] that stay after the cuts
+		local pieces = { { 0, length } }
+		for _, cut in cutList do
+			local s = (cut.at - a):Dot(dir)
+			local off = math.abs((cut.at - a):Dot(Vector2.new(-dir.Y, dir.X)))
+			if off < 3 then
+				local kept = {}
+				for _, piece in pieces do
+					local c0, c1 = s - cut.half, s + cut.half
+					if c1 <= piece[1] or c0 >= piece[2] then
+						table.insert(kept, piece)
+					else
+						if c0 > piece[1] then
+							table.insert(kept, { piece[1], c0 })
+						end
+						if c1 < piece[2] then
+							table.insert(kept, { c1, piece[2] })
+						end
+					end
+				end
+				pieces = kept
+			end
+		end
+		local before = if i > 1
+			then mitre(width, (a - points[i - 1]).Unit, dir)
+			elseif ends then ends.start
+			else width * 0.15
+		local after = if i < #points - 1
+			then mitre(width, dir, (points[i + 2] - b).Unit)
+			elseif ends then ends.finish
+			else width * 0.15
+		for _, piece in pieces do
+			if piece[2] - piece[1] > 0.05 then
+				local s0 = if piece[1] <= 0 then -before else piece[1]
+				local s1 = if piece[2] >= length then length + after else piece[2]
+				if s1 - s0 > 0.05 then
+					table.insert(out, { a = a + dir * s0, b = a + dir * s1 })
+				end
+			end
+		end
+	end
+	return out
 end
 
 -- Reservations by id (plot frame polygons).
@@ -332,28 +691,27 @@ for i, bay in bays do
 end
 Layout.Bays = bays
 
--- Pit lanes (plot frame, ordered in the direction cars drive). Out leaves the aisle's right end
--- for the right straight; In leaves the left straight for the aisle's left end.
-local uF = plot.frontEnd
+-- Pit lanes (plot frame, ordered in the direction cars drive): the way-points of the road network's
+-- lanes (Shared/Island/Speedway/RoadNet draws them, per client, with the track). Out leaves the aisle's
+-- right end for the right straight; In leaves the left straight for the aisle's left end.
 local laneV = plot.outerClearance + 5.5
 Layout.PitOut = {
 	Vector2.new(33, Layout.AisleMidU),
-	Vector2.new(31, r0 + 58),
-	Vector2.new(laneV, uF + 3),
-	Vector2.new(laneV, uS - 1),
-	Vector2.new(R + 5, uS + 14),
+	Vector2.new(36, Layout.AisleMidU),
+	Vector2.new(43.07, Layout.AisleMidU + 2.93),
+	Vector2.new(46, Layout.AisleMidU + 10),
+	Vector2.new(46, 300),
+	Vector2.new(laneV - 2.75, 317.5),
+	Vector2.new(laneV, 335),
+	Vector2.new(laneV, 345),
+	Vector2.new(44.75, 375),
+	Vector2.new(38, 405),
 }
-Layout.PitIn = {
-	Vector2.new(-R - 5, uS + 14),
-	Vector2.new(-laneV, uS - 1),
-	Vector2.new(-laneV, uF + 3),
-	Vector2.new(-31, r0 + 58),
-	Vector2.new(-33, Layout.AisleMidU),
-}
-Layout.PitLaneWidth = 9
--- The barrier opens where the pit lanes join the straights.
-function Layout.inPitGap(p: Vector2): boolean
-	return math.abs(p.X) > R + 5 and p.Y > uS - 2 and p.Y < uS + 17
+Layout.PitIn = table.create(#Layout.PitOut)
+for i = #Layout.PitOut, 1, -1 do
+	local p = Layout.PitOut[i]
+	table.insert(Layout.PitIn, Vector2.new(-p.X, p.Y))
 end
+Layout.PitLaneWidth = 10
 
 return Layout

@@ -20,9 +20,26 @@ type Ctx = Ctx.Ctx
 
 Parking.StartSpots = 2 -- Adam's decision (2026-10-29)
 Parking.MaxSpots = 15
+-- Round 4 (C-03, decision 0036): the Expanded Paddock pass gives 3 more bays on top of the 15 a plot can buy, so a pass
+-- holder can park up to 18. The server marks such a plot with the attribute ExpandedPaddock = true and counts the 3 bays
+-- in its ParkingSpots attribute (the saved field stays 2 to 15). With the pass, row A becomes 10 evenly spaced bays, five each
+-- side of the plot's centre line and lined up with row B's 8 (every bay edge on the same 9-stud grid), on a short floor
+-- extension past the Paddock's edges at both ends (free ground: the pit lanes start behind row A); the sign moves out.
+Parking.ExpandedSpots = 3
+Parking.ExpandedMax = Parking.MaxSpots + Parking.ExpandedSpots
+Parking.ExpandedAttribute = "ExpandedPaddock"
 
-function Parking.clamp(n: number): number
-	return math.clamp(math.floor(n), Parking.StartSpots, Parking.MaxSpots)
+function Parking.hasExpanded(plot: Instance?): boolean
+	return plot ~= nil and plot:GetAttribute(Parking.ExpandedAttribute) == true
+end
+
+-- The most bays this plot can have: 18 with the pass, 15 without.
+function Parking.maxFor(plot: Instance?): number
+	return if Parking.hasExpanded(plot) then Parking.ExpandedMax else Parking.MaxSpots
+end
+
+function Parking.clamp(n: number, max: number?): number
+	return math.clamp(math.floor(n), Parking.StartSpots, max or Parking.MaxSpots)
 end
 
 -- The 15 bays in the order they are owned, as Island/Hub/Layout builds them (repeated here because
@@ -76,11 +93,43 @@ for i, bay in bays do
 end
 Parking.Bays = bays
 
+-- With the pass: row A as 10 bays from the centre out (x +-4.5 to +-40.5). Bays 1 to 7 take the central seven, 8 to 15 are row
+-- B as before, and 16 to 18 the last three (x 31.5, -40.5, 40.5), so the full 18 is symmetric about the centre line.
+local expanded: { Bay } = {}
+local rowA10 = centreOut(10)
+local function rowABay(k: number): Bay
+	return { index = 0, row = "A", x = k * 9, u = R0 + 24, back = Parking.RowA[1] + 0.3, mouth = Parking.RowA[2] - 0.3 }
+end
+for i = 1, 7 do
+	table.insert(expanded, rowABay(rowA10[i]))
+end
+for i = 8, 15 do
+	table.insert(expanded, table.clone(bays[i]))
+end
+for i = 8, 10 do
+	table.insert(expanded, rowABay(rowA10[i]))
+end
+for i, bay in expanded do
+	bay.index = i
+end
+Parking.ExpandedBays = table.freeze(expanded)
+
+-- Bay `i` of a plot: the 15-bay layout, or the 18-bay one when the plot has the pass.
+function Parking.bay(i: number, expandedLayout: boolean?): Bay
+	return if expandedLayout then Parking.ExpandedBays[i] else Parking.Bays[i]
+end
+
 -- the parking sign: in the Paddock's free left margin beside row A (x -36 to -31.5), facing the park
 Parking.SignAt = Vector2.new(-33.8, 264.2)
+-- with the pass, row A reaches x -45: the sign stands in the same 4.5-stud margin past the end bay (x -49.5 to -45)
+Parking.ExpandedSignAt = Vector2.new(-47.3, 264.2)
+-- the floor extension each side (plot x ranges), row A's depth: exactly under the two end bays, mirror images
+Parking.ExtensionX = table.freeze({ { 36, 49.5 }, { -49.5, -36 } })
+local FLOOR = Color3.fromRGB(206, 200, 190) -- the Paddock floor (Hub/Recipes/Plot)
+local FLOOR_TOP = 0.2
 
 local CREAM = Color3.fromRGB(244, 236, 214)
-local LINE_TOP = 0.17 -- just over the Paddock floor (its top is 0.1 above the surface)
+local LINE_TOP = 0.27 -- just over the Paddock floor (its top is the road's, 0.2 above the surface)
 
 -- The plan direction the bay opens toward (the aisle).
 local function opening(bay: Bay): Vector2
@@ -187,8 +236,7 @@ local function barrier(folder: Folder, ctx: Ctx, bay: Bay, out: Built)
 	end
 end
 
-local function sign(folder: Folder, ctx: Ctx, out: Built)
-	local at = Parking.SignAt
+local function sign(folder: Folder, ctx: Ctx, out: Built, at: Vector2)
 	local base = Ctx.face(ctx, at.X, at.Y, Vector2.new(0, -1))
 	local board = Kit.place("SwParkingSign", base)
 	if not board then
@@ -233,25 +281,53 @@ function Parking.build(plot: Model, ctx: Ctx, spots: number): Built
 	if old then
 		old:Destroy()
 	end
-	local n = Parking.clamp(spots)
+	local max = Parking.maxFor(plot)
+	local n = Parking.clamp(spots, max)
 	local folder = Instance.new("Folder")
 	folder.Name = "ParkingLook"
 	folder:SetAttribute("Spots", n)
+	folder:SetAttribute("MaxSpots", max)
 	local out: Built = { folder = folder, spots = n, lines = {} }
+	-- the pass's layout, floor extension and moved sign, whenever the plot has the pass (the layout never jumps mid-way)
+	local extended = max > Parking.MaxSpots
+	if extended then
+		local ext = Instance.new("Folder")
+		ext.Name = "PaddockExtension"
+		ext.Parent = folder
+		local uMid = (Parking.RowA[1] + Parking.RowA[2]) / 2
+		for _, span in Parking.ExtensionX do
+			Kit.slab(
+				ext,
+				Ctx.at(ctx, span[1], uMid, FLOOR_TOP),
+				Ctx.at(ctx, span[2], uMid, FLOOR_TOP),
+				Vector3.yAxis,
+				Parking.RowA[2] - Parking.RowA[1],
+				0.3,
+				{
+					name = "ExtensionFloor",
+					color = FLOOR,
+					material = Enum.Material.Concrete,
+					collide = true,
+					castShadow = false,
+				},
+				0
+			)
+		end
+	end
 	for i = 1, n do
-		local bay = Parking.Bays[i]
+		local bay = Parking.bay(i, extended)
 		local f = Instance.new("Folder")
 		f.Name = string.format("Bay%02d", i)
 		f.Parent = folder
 		out.lines[i] = Parking.lines(f, ctx, bay)
 	end
-	if n < Parking.MaxSpots then
+	if n < max then
 		local next = Instance.new("Folder")
 		next.Name = "NextBay"
 		next.Parent = folder
-		barrier(next, ctx, Parking.Bays[n + 1], out)
+		barrier(next, ctx, Parking.bay(n + 1, extended), out)
 	end
-	sign(folder, ctx, out)
+	sign(folder, ctx, out, if extended then Parking.ExpandedSignAt else Parking.SignAt)
 	folder.Parent = plot
 	return out
 end

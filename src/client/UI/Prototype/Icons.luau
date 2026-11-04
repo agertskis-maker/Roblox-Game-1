@@ -462,8 +462,39 @@ painters.Touch = function(pen)
 	})
 end
 
+-- M9-03 (2026-11-01): ONE icon family. A name the family module (Icons2, which installs IconsFamily) draws is forwarded
+-- there, so a caller that still says Icons.draw(holder, "Lock", colour) gets the new art with no edit; the colour
+-- becomes the family's main fill (its `tint`). Every name in this file now has family art (Hop is an alias of CarJump,
+-- Touch of Hand, Coin of CashStack), so the painters below are only a safety net: they draw if the family module is
+-- missing or errors. The family is required lazily and defensively (it needs nothing from this file, so there is no
+-- require cycle).
+local family: any = nil
+local familyTried = false
+local function familyModule(): any
+	if not familyTried then
+		familyTried = true
+		local sibling = script.Parent:FindFirstChild("Icons2")
+		if sibling and sibling:IsA("ModuleScript") then
+			local ok, result = pcall(require, sibling)
+			if ok then
+				family = result
+			else
+				warn("[Icons] icon family failed to load: " .. tostring(result))
+			end
+		end
+	end
+	return family
+end
+
 -- Fills `holder` (a square Frame) with the named icon. The art is one child Frame "Art".
 function Icons.draw(holder: Frame, name: Name, colour: Color3?)
+	local fam = familyModule()
+	if fam and fam.has(name) then
+		local ok, drawn = pcall(fam.draw, holder, name, if colour then { tint = colour } else nil)
+		if ok and drawn then
+			return
+		end
+	end
 	local px = holder.Size.X.Offset
 	if px <= 0 then
 		px = holder.AbsoluteSize.X

@@ -7,8 +7,8 @@
 --   start lights: a slow preview countdown on the five Stunt Circuit lights (lights 1 to 5 come
 --     on red one per second, all five hold 1 s, all off, 3 s pause, repeat). It only previews the
 --     look: no race starts. Reduced motion holds all five lit and steady (the brief: steady under reduced motion);
---   "Open Garage": pressing the prompt shows "Not connected yet" in its ObjectText for 3 s, to
---     the pressing player only. Nothing is sent to the server and nothing is saved;
+--   "Open Garage": HomeShell opens the Customize screen for the pressing player; any other prompt here
+--     shows its pressed text in its ObjectText for 3 s. Nothing is sent to the server and nothing is saved;
 --   Play stand-ins: while a destination's meshes are session-only previews (Source "preview"),
 --     they do not reach a playtest, so its colliders and lamp balls show as simple blocks here.
 -- Reduced motion follows GuiService.ReducedMotionEnabled, or the preview-only LocalPlayer
@@ -95,6 +95,9 @@ local function run(trove: Trove.Trove, root: Instance)
 	end
 
 	local function hookPrompt(prompt: ProximityPrompt)
+		if prompt.Name == "OpenGarage" then
+			return -- connected: HomeShell opens the Customize screen
+		end
 		local original = prompt.ObjectText
 		local pressed = prompt:GetAttribute("PressedText")
 		local seconds = prompt:GetAttribute("PressedSeconds")

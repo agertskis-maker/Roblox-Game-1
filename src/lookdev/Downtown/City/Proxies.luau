@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Parts = require(script.Parent.Parent.Parts)
 local Route = require(script.Parent.Route)
 local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("Tokens"))
+local SignKit = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("SignKit"))
 
 local Proxies = {}
 
@@ -142,8 +143,9 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		local pad = box(
 			m,
 			"Ground",
-			Vector3.new(w, 0.4, d),
-			CFrame.new(w / 2, 0.2, d / 2),
+			-- Round 5 (P-01): a GAP sits 0.04 lower than a park, so two neighbouring pads never share a top face
+			Vector3.new(w, if spec.name == "GAP" then 0.36 else 0.4, d),
+			CFrame.new(w / 2, if spec.name == "GAP" then 0.18 else 0.2, d / 2),
 			if spec.name == "GAP" then STONE else GREEN,
 			false
 		)
@@ -154,7 +156,7 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 			tree(m, Vector3.new(w * 0.3, 0.4, d * 0.4), 1)
 			tree(m, Vector3.new(w * 0.72, 0.4, d * 0.7), 1.15)
 			box(m, "Bench", Vector3.new(5, 1.2, 1.6), CFrame.new(w * 0.6, 1, 3), Color3.fromRGB(150, 104, 70))
-			box(m, "Path", Vector3.new(3, 0.45, d), CFrame.new(w * 0.5, 0.22, d / 2), STONE, false)
+			box(m, "Path", Vector3.new(3, 0.45, d - 0.1), CFrame.new(w * 0.5, 0.23, d / 2), STONE, false) -- Round 5: ends inside the pad
 		end
 		if label then
 			Parts.label(pad, spec.name, 4)
@@ -162,7 +164,9 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		return finish(m)
 	end
 	local body = box(m, "Body", Vector3.new(w, h, d), CFrame.new(w / 2, h / 2, d / 2), look.wall)
-	box(m, "Cornice", Vector3.new(w + 0.8, 1.6, 1.4), CFrame.new(w / 2, h - 0.8, -0.3), look.trim)
+	-- Round 5 (P-01): the cornice stands 0.08 above the wall top and stops 0.05 short of each side, so it never shares a face
+	-- with its own wall or with the next lot's cornice (both flickered)
+	box(m, "Cornice", Vector3.new(w - 0.1, 1.6, 1.4), CFrame.new(w / 2, h - 0.72, -0.3), look.trim)
 	box(m, "Roof", Vector3.new(w - 1, 0.4, d - 1), CFrame.new(w / 2, h + 0.2, d / 2), look.roof)
 	local glassy = spec.finish == "glass"
 	if spec.shop then
@@ -180,7 +184,8 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 	if spec.orientation == "corner-L" or spec.orientation == "corner-R" then
 		-- the dressed return on the corner side (left = x 0, right = x width)
 		local x = if spec.orientation == "corner-L" then -0.12 else w + 0.12
-		box(m, "ReturnPilaster", Vector3.new(0.5, h, 1.6), CFrame.new(x, h / 2, 0.8), look.trim)
+		-- Round 5 (P-01): 0.05 proud of the facade and 0.12 under the wall top, so no face is shared with the wall
+		box(m, "ReturnPilaster", Vector3.new(0.5, h - 0.12, 1.6), CFrame.new(x, (h - 0.12) / 2, 0.75), look.trim)
 		local wy = 18
 		while wy + 5 < h - 2 do
 			box(m, "ReturnWindows", Vector3.new(0.3, 4.5, d - 6), CFrame.new(x, wy, d / 2), GLASS)
@@ -189,7 +194,7 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		box(m, "ReturnStorefront", Vector3.new(0.3, 9, d - 6), CFrame.new(x, 5, d / 2), GLASS)
 	end
 	if spec.kind == "courtyard" then
-		box(m, "CourtWall", Vector3.new(w, 2.4, 0.8), CFrame.new(w / 2, 1.2, -0.4), look.trim)
+		box(m, "CourtWall", Vector3.new(w - 0.1, 2.4, 0.8), CFrame.new(w / 2, 1.2, -0.45), look.trim) -- Round 5: off the paving edge
 	end
 	if label then
 		Parts.label(body, spec.name, h / 2 + 3)
@@ -233,7 +238,7 @@ function Proxies.landmark(spec: LandmarkSpec, look: Look, label: boolean, geomet
 	local anchor: BasePart
 	if spec.id == "Theater" then
 		anchor = box(m, "Body", Vector3.new(w, h, d), CFrame.new(w / 2, h / 2, d / 2), look.wall)
-		box(m, "Cornice", Vector3.new(w + 1, 2, 1.6), CFrame.new(w / 2, h - 1, -0.4), look.trim)
+		box(m, "Cornice", Vector3.new(w - 0.1, 2, 1.6), CFrame.new(w / 2, h - 0.92, -0.4), look.trim) -- Round 5: see the lot cornice
 		box(m, "Lobby", Vector3.new(w - 8, 10, 0.3), CFrame.new(w / 2, 5, -0.1), GLASS)
 		local marquee = box(m, "Marquee", Vector3.new(w - 6, 4, 10), CFrame.new(w / 2, 13, -5), CREAM)
 		Proxies.text(marquee, Enum.NormalId.Front, spec.label)
@@ -668,14 +673,26 @@ function Proxies.prop(kind: string): Model
 	return finish(m)
 end
 
--- Spans (WELCOME TO DOWNTOWN, bunting): poles on both sidewalks, the underside at clearance.
-function Proxies.span(kind: string, text: string, width: number, clearance: number): Model
+-- Spans (WELCOME TO DOWNTOWN, bunting): poles on both sidewalks, the underside at clearance. `signStyle` names a SignKit
+-- style for the welcome banner (Downtown passes "Downtown"; a World passes nothing and keeps the plain board). The banner
+-- is two plates back to back, so both ways of the road read the words.
+function Proxies.span(kind: string, text: string, width: number, clearance: number, signStyle: string?): Model
 	local m = model("PROXY_Span_" .. kind, "part-built " .. kind .. " span (preview clearance)")
 	local top = clearance + 7
 	for _, side in { -1, 1 } do
 		box(m, "Pole", Vector3.new(0.8, top, 0.8), CFrame.new(side * width / 2, top / 2, 0), STEEL)
 	end
-	if kind == "welcome" then
+	if kind == "welcome" and signStyle then
+		local at = CFrame.new(0, clearance + 2.5, 0)
+		for _, turn in { 0, math.pi } do
+			-- each plate's face is 0.5 off the middle plane and looks away from it; its 0.5 backing meets the other's there
+			SignKit.sign(
+				m,
+				at * CFrame.Angles(0, turn, 0) * CFrame.new(0, 0, -0.5),
+				{ style = signStyle, text = text, width = width - 4, height = 5 }
+			)
+		end
+	elseif kind == "welcome" then
 		local board = box(m, "Banner", Vector3.new(width - 4, 5, 0.4), CFrame.new(0, clearance + 2.5, 0), NAVY)
 		Proxies.text(board, Enum.NormalId.Front, text, CREAM)
 		Proxies.text(board, Enum.NormalId.Back, text, CREAM)
@@ -718,7 +735,7 @@ function Proxies.hazard(kind: string, length: number, laneWidth: number, label: 
 	if kind == "construction" then
 		local orange = Color3.fromRGB(255, 122, 26)
 		anchor = box(m, "Barrier", Vector3.new(laneWidth - 2, 2.4, 0.5), CFrame.new(0, 1.6, length / 2), orange)
-		box(m, "BarrierStripe", Vector3.new(laneWidth - 2, 0.6, 0.55), CFrame.new(0, 1.8, length / 2), CREAM)
+		box(m, "BarrierStripe", Vector3.new(laneWidth - 1.8, 0.6, 0.7), CFrame.new(0, 1.8, length / 2), CREAM)
 		for i = 0, 5 do
 			local z = length / 2 - 3 - i * (length - 4) / 5
 			for _, x in { -laneWidth / 2 + 1.5, laneWidth / 2 - 1.5 } do
@@ -790,20 +807,8 @@ function Proxies.block(name: string): Part
 	return p
 end
 
--- A sign board (band on a facade, or a blade sticking out from it); text set on placement.
-function Proxies.sign(style: string): Model
-	local m = model("PROXY_Sign_" .. style, "fictional shop sign (no real logos)")
-	if style == "blade" then
-		local board = box(m, "Board", Vector3.new(0.4, 5, 9), CFrame.new(0, 0, 0), CREAM)
-		Proxies.text(board, Enum.NormalId.Left, "")
-		Proxies.text(board, Enum.NormalId.Right, "")
-		box(m, "Bracket", Vector3.new(0.3, 0.3, 9.6), CFrame.new(0, 2.8, 0), STEEL)
-	else
-		local board = box(m, "Board", Vector3.new(16, 2.2, 0.3), CFrame.new(0, 0, 0), CREAM)
-		Proxies.text(board, Enum.NormalId.Front, "")
-	end
-	return finish(m)
-end
+-- (The Downtown shop signs, band and blade, are SignKit "Downtown" plates built in Assembler; the old cream proxy boards
+-- that stood here are gone.)
 
 -- World build V2: a free-standing wayfinding board on two posts (a fictional district plaque, "LOOKOUT", "CANYON BRIDGE
 -- AHEAD"); its front (local -Z) carries the text, set on placement; pivot at the foot of the board's centre.
@@ -815,6 +820,86 @@ function Proxies.board(width: number, height: number): Model
 	for _, x in { -width / 2 + 0.8, width / 2 - 0.8 } do
 		box(m, "Post", Vector3.new(0.7, rise + height, 0.7), CFrame.new(x, (rise + height) / 2, 0.1), STEEL)
 	end
+	return finish(m)
+end
+
+-- Roadside paving for the scenery-only Downtown ------------------------------------------------------------------
+-- Brian R's run road has no sidewalk and the ground tile lies under it (Assembler SCENERY_GROUND_DROP), so the strip
+-- between his kerb and the building fronts was one flat grey. These pieces fill it: a kerb, paving cut into bays and a tree
+-- pit, a street tree or a planter at a steady rhythm. They are built about the start socket of a straight segment (x right,
+-- travel toward -Z, y 0 = the road's level) and keep the look-dev fixture's heights: the paving top is KERB_HEIGHT, which is
+-- where the plan already stands pigeons, carts and flags. Nothing comes within WALK_MARGIN of the road's half width, and
+-- every face sits at least 0.08 from any face it overlaps, so nothing can flicker. Every part is a plain block with no
+-- shadow, collision, query or touch.
+local PAVER = Color3.fromRGB(190, 180, 160) -- warm stone: lighter than the ground tile (150, 146, 134) without blooming white
+local CURB = Color3.fromRGB(224, 220, 210) -- a crisp light edge against the dark asphalt
+local PIT = Color3.fromRGB(100, 90, 78)
+local WALK_MARGIN = 0.7 -- clear of the road: RunScenery's ROAD_MARGIN (0.7) past RunConfig.ROAD_HALF_WIDTH
+local WALK_SINK = 0.2 -- how far the blocks reach into the ground tile, so no ground shows under them
+local WALK_BAY = 48 -- target paving bay length: 96 and 192, the common segment lengths, cut into 2 and 4 equal bays
+local WALK_JOINT = 0.3 -- the gap between bays: the ground tile shows through it as a joint line
+local PIT_LIFT = 0.08 -- a tree pit stands this far over the paving
+
+Proxies.SIDEWALK_TOP = KERB_HEIGHT
+
+-- Both sides of one straight segment: a kerb the length of the segment and paving in bays from the kerb to the frontage line
+-- (the road's half width plus g.sidewalk). `floorY` is the top of the ground tile, relative to the road's level.
+function Proxies.walk(length: number, g: Geometry, floorY: number): Model
+	local m = model("PROXY_Walk", "scenery-only kerb and paving beside the run road (it has none of its own)")
+	local inner = g.halfRoad + WALK_MARGIN
+	local kerbOuter = inner + g.kerb
+	local walkOuter = g.halfRoad + g.sidewalk
+	local bottom = floorY - WALK_SINK
+	local thick = KERB_HEIGHT - bottom
+	local midY = (KERB_HEIGHT + bottom) / 2
+	local bays = math.max(1, math.floor(length / WALK_BAY + 0.5))
+	local bay = length / bays
+	for _, side in { -1, 1 } do
+		box(
+			m,
+			"Kerb",
+			Vector3.new(g.kerb, thick, length),
+			CFrame.new(side * (inner + g.kerb / 2), midY, -length / 2),
+			CURB,
+			false
+		)
+		for k = 1, bays do
+			box(
+				m,
+				"Paving",
+				Vector3.new(walkOuter - kerbOuter, thick, bay - WALK_JOINT),
+				CFrame.new(side * (kerbOuter + walkOuter) / 2, midY, -(k - 0.5) * bay),
+				PAVER,
+				false
+			)
+		end
+	end
+	return finish(m)
+end
+
+-- A dark square set into the paving under a street tree; pivot on the paving surface.
+function Proxies.treePit(): Model
+	local m = model("PROXY_TreePit", "tree pit set into the paving")
+	box(m, "Pit", Vector3.new(3.6, 0.3, 3.6), CFrame.new(0, PIT_LIFT - 0.15, 0), PIT, false)
+	return finish(m)
+end
+
+-- Stand-ins for the kit's B2_Street_Tree (about 9 across, 15 tall) and B2_Street_Planter (5 across); pivot on the paving.
+function Proxies.streetTree(): Model
+	local m = model("PROXY_StreetTree", "street tree stand-in (B2_Street_Tree missing)")
+	tree(m, Vector3.zero, 1.2)
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CastShadow = false
+		end
+	end
+	return finish(m)
+end
+
+function Proxies.streetPlanter(): Model
+	local m = model("PROXY_StreetPlanter", "street planter stand-in (B2_Street_Planter missing)")
+	box(m, "Box", Vector3.new(5, 1.6, 5), CFrame.new(0, 0.8, 0), STEEL, false)
+	box(m, "Hedge", Vector3.new(4.2, 2.2, 4.2), CFrame.new(0, 2.7, 0), GREEN, false)
 	return finish(m)
 end
 

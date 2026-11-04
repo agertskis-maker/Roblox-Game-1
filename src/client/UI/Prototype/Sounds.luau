@@ -79,6 +79,7 @@ export type Hook =
 	| "Milestone"
 	| "ResultsCount"
 	| "ResultsTick"
+	| "StartLight"
 	| "NewBest"
 	| "Warning"
 	| "Bonk"
@@ -157,6 +158,7 @@ local HOOK_VOLUME: { [string]: number } = {
 	NewBest = 0.3,
 	-- Results: the tally loop and any blip stay under the reference
 	ResultsTick = 0.16,
+	StartLight = 0.3,
 	ResultsCount = 0.16,
 }
 
@@ -283,6 +285,7 @@ local ROUTES: { [string]: Route } = {
 	HopLock = { category = "Rise", minInterval = 0.6 },
 	-- repeated high-frequency blips are throttled to about eight a second at the most
 	ResultsTick = { category = "Tick", minInterval = 0.12 },
+	StartLight = { category = "Tick", minInterval = 0.2 },
 	ResultsCount = { category = "Tally", minInterval = 0.3 },
 }
 
@@ -715,6 +718,14 @@ function Sounds.play(hook: Hook, volume: number?)
 	local duckFor = DUCK[hook]
 	if duckFor and duckHandler then
 		duckHandler(hook, duckFor)
+	end
+end
+
+-- The START gantry: one beep per red light, a higher one on green. The pitch is set once, when the note starts.
+function Sounds.startLight(green: boolean)
+	local cfg = ids.StartLight
+	if cfg then
+		spawn("StartLight", cfg, nil, { speed = if green then 1.5 else 1 })
 	end
 end
 

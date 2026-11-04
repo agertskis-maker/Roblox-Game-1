@@ -1,0 +1,351 @@
+--!strict
+-- PREVIEW fixtures for the portal card (big round M12). Every number, name and rule here is made up for review.
+-- Nothing in this file is an unlock rule, a price or an ownership record, and nothing grants anything.
+--
+-- THE SEAM FOR BRIAN L (the M18 message asks him for these fields; until he supplies them the card shows a State):
+--   worldId, worldName            which World the portal leads to
+--   status                        "Checking" while any of the below is unknown, "Ready" once all of it is known
+--   open                          the authoritative lock verdict (the card never works it out from the requirement rows)
+--   requirements[]                { id, label, kind = "cash" | "count", have, need } -- `have` nil = unknown (never zero)
+--   roster[]                      { id, name, rarity, family, owned, loaner? } for the World (Peek and Start In)
+-- In the beta every portal stays open (decision 0030): see PortalFixtures.betaOpen.
+--
+-- The requirement ROWS ("Downtown cars", "$5,000") are a fixture of the reviewed outline and the old PortalCardMock
+-- (cars from the previous World). They are NOT a rule: BRIEF M12-03a keeps them labelled and asks Brian L for the real ones.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local Fixtures = require(script.Parent.Parent.Fixtures)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
+
+local PortalFixtures = {}
+
+PortalFixtures.Source =
+	"PREVIEW fixture (not a rule): the real requirements, owned cars and lock verdict come from Brian L"
+
+export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary"
+export type Status = "Checking" | "Ready" | "Error"
+
+export type RosterCar = {
+	id: string,
+	name: string,
+	rarity: Rarity,
+	family: string,
+	paint: Color3?,
+	owned: boolean,
+	loaner: boolean?,
+}
+
+export type Requirement = {
+	id: string,
+	icon: string,
+	label: string,
+	kind: "cash" | "count",
+	have: number?, -- nil = unknown ("Checking...", never 0)
+	need: number,
+}
+
+export type State = {
+	source: string,
+	worldId: string,
+	worldName: string,
+	worldTag: string,
+	status: Status,
+	open: boolean,
+	requirements: { Requirement },
+	roster: { RosterCar },
+}
+
+-- What the card asks the lead's callback to start: one request per activation.
+export type GoRequest = {
+	worldId: string,
+	carId: string,
+	isLoaner: boolean,
+}
+
+local function rgb(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
+end
+
+-- Round 4 (E-05): each World's nine real cars from the one roster (src/shared/UI/RosterFixtures), Loaner first.
+local ROSTERS: { [string]: { RosterCar } } = {}
+for _, world in RosterFixtures.Worlds do
+	local list: { RosterCar } = {}
+	for _, c in RosterFixtures.inWorld(world) do
+		table.insert(
+			list,
+			{ id = c.id, name = c.name, rarity = c.rarity, family = "Sedan", owned = false, loaner = c.loaner or nil }
+		)
+	end
+	ROSTERS[world] = list
+end
+
+PortalFixtures.Worlds = table.freeze({
+	Downtown = { name = "DOWNTOWN", tag = "World 1" },
+	DustyHighway = { name = "DUSTY HIGHWAY", tag = "World 2" },
+	SummitPass = { name = "SUMMIT PASS", tag = "World 3" },
+})
+
+PortalFixtures.WorldOrder = table.freeze({ "Downtown", "DustyHighway", "SummitPass" })
+
+-- The header band colours of each World (preview identity colours, light -> deep).
+PortalFixtures.Colours = table.freeze({
+	Downtown = { light = rgb(120, 200, 255), mid = rgb(50, 150, 235), deep = rgb(30, 96, 200) },
+	DustyHighway = { light = rgb(255, 200, 110), mid = rgb(246, 150, 60), deep = rgb(214, 96, 28) },
+	SummitPass = { light = rgb(190, 230, 255), mid = rgb(110, 176, 236), deep = rgb(70, 120, 200) },
+})
+
+-- THE ONE lock fixture of each locked World (review fix: one fixture source). The portal card (the presets below), the dialogue
+-- card (DialogueFixtures) and the Home HUD demo's goal pill ("Get 2 more Downtown cars", HudPlayground.homeDemo) all read these
+-- numbers, so a locked Dusty Highway says the same thing everywhere. They are made up for review; the real requirement rows and
+-- the lock verdict come from Brian L.
+--   previous   the World whose cars count; cars / carsNeed   the cars of it owned so far, and the count that opens the road;
+--   cash / cashNeed   the Cash row's progress.
+export type Lock = {
+	previous: string,
+	cars: number,
+	carsNeed: number,
+	cash: number,
+	cashNeed: number,
+}
+
+-- Round 4 (E-08): the requirement numbers are economy v1's (EconomyPreview.WorldUnlock), still PREVIEW; the progress is the
+-- example collection's cars of the World before (capped at the need) and the preview HUD's fixture Cash.
+local function lockFor(world: string): Lock
+	local unlock = EconomyPreview.WorldUnlock[world]
+	local owned = 0
+	for _, c in RosterFixtures.inWorld(unlock.from) do
+		if Fixtures.PreviewCollection[c.id] then
+			owned += 1
+		end
+	end
+	return table.freeze({
+		previous = RosterFixtures.WorldNames[unlock.from],
+		cars = math.min(owned, unlock.cars),
+		carsNeed = unlock.cars,
+		cash = 9450,
+		cashNeed = unlock.cash,
+	} :: Lock)
+end
+PortalFixtures.Locks = table.freeze({
+	DustyHighway = lockFor("DustyHighway"),
+	SummitPass = lockFor("SummitPass"),
+})
+
+-- remaining = max(0, need - have), computed once here for every reader of the lock fixture
+function PortalFixtures.carsToGo(worldId: string): number
+	local lock: Lock? = (PortalFixtures.Locks :: any)[worldId]
+	if lock == nil then
+		return 0
+	end
+	return math.max(0, lock.carsNeed - lock.cars)
+end
+
+-- The previous World's name for the "cars from the previous World" fixture row.
+local PREVIOUS: { [string]: string } = {
+	DustyHighway = PortalFixtures.Locks.DustyHighway.previous,
+	SummitPass = PortalFixtures.Locks.SummitPass.previous,
+}
+
+local function roster(worldId: string, ownedIds: { string }): { RosterCar }
+	local out: { RosterCar } = {}
+	for _, source in ROSTERS[worldId] or ROSTERS.Downtown do
+		local c = table.clone(source)
+		c.owned = table.find(ownedIds, source.id) ~= nil
+		table.insert(out, c)
+	end
+	return out
+end
+
+local function requirements(worldId: string, cash: number?, cars: number?): { Requirement }
+	local previous = PREVIOUS[worldId]
+	local lock: Lock? = (PortalFixtures.Locks :: any)[worldId]
+	if not previous or lock == nil then
+		return {}
+	end
+	return {
+		{
+			id = "cash",
+			icon = "Coin",
+			label = "Cash",
+			kind = "cash",
+			have = cash,
+			need = lock.cashNeed,
+		},
+		{
+			id = "cars",
+			icon = "Car",
+			label = previous .. " cars",
+			kind = "count",
+			have = cars,
+			need = lock.carsNeed,
+		},
+	}
+end
+
+local function build(
+	worldId: string,
+	status: Status,
+	open: boolean,
+	cash: number?,
+	cars: number?,
+	owned: { string }
+): State
+	local info = (PortalFixtures.Worlds :: any)[worldId]
+	return {
+		source = PortalFixtures.Source,
+		worldId = worldId,
+		worldName = info.name,
+		worldTag = info.tag,
+		status = status,
+		open = open,
+		requirements = requirements(worldId, cash, cars),
+		roster = roster(worldId, owned),
+	}
+end
+
+-- A roster id list of cars that count as owned, by World (a few cars, then all of them).
+local FEW: { [string]: { string } } = {}
+for _, world in RosterFixtures.Worlds do
+	local ids = {}
+	for _, c in RosterFixtures.inWorld(world) do
+		if Fixtures.PreviewCollection[c.id] then
+			table.insert(ids, c.id)
+		end
+	end
+	FEW[world] = ids
+end
+
+local function allIds(worldId: string): { string }
+	local ids = {}
+	for _, c in ROSTERS[worldId] do
+		table.insert(ids, c.id)
+	end
+	return ids
+end
+
+local presets: { [string]: () -> State } = {}
+
+-- BETA (decision 0030): every portal is open whatever the rows say. The rows still show their fixture progress.
+for _, worldId in PortalFixtures.WorldOrder do
+	presets["Beta_" .. worldId] = function(): State
+		return build(worldId, "Ready", true, 1200, 1, FEW[worldId])
+	end
+end
+presets.Dusty_Locked_BothUnmet = function(): State
+	local lock = PortalFixtures.Locks.DustyHighway
+	return build("DustyHighway", "Ready", false, lock.cash, lock.cars, FEW.DustyHighway)
+end
+presets.Dusty_Locked_OneMet = function(): State
+	return build("DustyHighway", "Ready", false, 5200, 2, FEW.DustyHighway)
+end
+presets.Dusty_Unlocked_AllMet = function(): State
+	return build("DustyHighway", "Ready", true, 5200, 3, FEW.DustyHighway)
+end
+presets.Summit_Locked_BothUnmet = function(): State
+	local lock = PortalFixtures.Locks.SummitPass
+	return build("SummitPass", "Ready", false, lock.cash, lock.cars, FEW.SummitPass)
+end
+-- data unavailable: never LOCKED, never zero
+presets.Dusty_Checking = function(): State
+	return build("DustyHighway", "Checking", false, nil, nil, {})
+end
+presets.Dusty_Error = function(): State
+	return build("DustyHighway", "Error", false, nil, nil, {})
+end
+-- zero owned cars (only the Loaner is selectable), and the same with a roster the player has not touched
+presets.Dusty_NoCars = function(): State
+	return build("DustyHighway", "Ready", true, 5200, 3, {})
+end
+-- many owned cars: the Start In picker scrolls
+presets.Dusty_ManyCars = function(): State
+	local state = build("DustyHighway", "Ready", true, 5200, 3, allIds("DustyHighway"))
+	for i = 1, 6 do
+		local copy = table.clone(ROSTERS.DustyHighway[1 + (i % 7)])
+		copy.id = copy.id .. "-extra" .. i
+		copy.name = copy.name .. " Mk " .. i
+		copy.owned = true
+		copy.loaner = nil
+		table.insert(state.roster, copy)
+	end
+	return state
+end
+-- text 30 percent longer than the longest names, and a big Cash value
+presets.Dusty_LongStrings = function(): State
+	local state = build("DustyHighway", "Ready", false, 4820000, 2, FEW.DustyHighway)
+	state.worldName = "DUSTY HIGHWAY EXPRESS"
+	state.requirements[1].need = 5000000
+	state.requirements[1].label = "Cash saved up so far"
+	state.requirements[2].label = "Downtown cars you have collected"
+	state.roster[3].name = "Beach Bug Grand Touring Deluxe"
+	return state
+end
+-- a car whose art is missing: an unknown family and no paint
+presets.Dusty_MissingArt = function(): State
+	local state = build("DustyHighway", "Ready", true, 5200, 3, FEW.DustyHighway)
+	state.roster[3].family = "Mystery"
+	state.roster[3].paint = nil
+	state.roster[3].owned = true
+	return state
+end
+
+PortalFixtures.PresetNames = table.freeze({
+	"Beta_Downtown",
+	"Beta_DustyHighway",
+	"Beta_SummitPass",
+	"Dusty_Locked_BothUnmet",
+	"Dusty_Locked_OneMet",
+	"Dusty_Unlocked_AllMet",
+	"Summit_Locked_BothUnmet",
+	"Dusty_Checking",
+	"Dusty_Error",
+	"Dusty_NoCars",
+	"Dusty_ManyCars",
+	"Dusty_LongStrings",
+	"Dusty_MissingArt",
+})
+
+-- A fresh State for a preset name (nil for an unknown name).
+function PortalFixtures.preset(name: string): State?
+	local make = presets[name]
+	if not make then
+		return nil
+	end
+	return make()
+end
+
+-- The beta portal for a World: open, with the Loaner always selectable.
+function PortalFixtures.betaOpen(worldId: string): State
+	return presets["Beta_" .. worldId]()
+end
+
+-- The Start In choices: the Loaner first (always, owned or not), then every other owned car in roster order.
+function PortalFixtures.startChoices(state: State): { RosterCar }
+	local out: { RosterCar } = {}
+	for _, c in state.roster do
+		if c.loaner then
+			table.insert(out, c)
+		end
+	end
+	if #out == 0 then
+		-- a roster that names no Loaner still gets one: the first car stands in
+		local first = state.roster[1]
+		if first then
+			table.insert(out, first)
+		end
+	end
+	for _, c in state.roster do
+		if c.owned and not c.loaner and c ~= out[1] then
+			table.insert(out, c)
+		end
+	end
+	return out
+end
+
+-- Downtown's cars as the full prototype CarRef the Garage uses (the Garage fixtures stay the source of those).
+function PortalFixtures.downtownCarRef(id: string): Fixtures.CarRef?
+	return Fixtures.byId(id)
+end
+
+return PortalFixtures

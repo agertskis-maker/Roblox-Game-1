@@ -16,58 +16,26 @@ local SURFACE = Layout.SurfaceY
 local park = Layout.Data.park
 local W = Layout.planToWorld
 
-local PATH_TOP = SURFACE + 0.08
+local PATH_TOP = Layout.PathTop
 local STREAM_TOP = SURFACE + 0.06
 
-type Cut = { at: Vector2, half: number }
+type Cut = Layout.Cut
 
--- Strips along a polyline; `cuts` leave gaps (where a bridge deck crosses open water).
+-- Strips along a polyline; `cuts` leave gaps (where a bridge deck crosses open water). Layout.stripsAlong
+-- does the geometry: the joint mitres, the cuts, and `ends`, how far each free end runs on. The paths
+-- take Layout.PathEndRuns (a path tucks under what it arrives at, and stops dead at a free end); the
+-- greybox stream passes none and keeps the old 15 % of its width.
 local function polyline(
 	parent: Instance,
 	points: { Vector2 },
 	width: number,
 	topY: number,
 	options: Kit.PartOptions,
-	cuts: { Cut }?
+	cuts: { Cut }?,
+	ends: Layout.EndRuns?
 )
-	for i = 1, #points - 1 do
-		local a, b = points[i], points[i + 1]
-		local length = (b - a).Magnitude
-		local dir = (b - a) / length
-		-- pieces of [0, length] that stay after the cuts
-		local pieces = { { 0, length } }
-		for _, cut in cuts or {} do
-			local s = (cut.at - a):Dot(dir)
-			local off = math.abs((cut.at - a):Dot(Vector2.new(-dir.Y, dir.X)))
-			if off < 3 then
-				local kept = {}
-				for _, piece in pieces do
-					local c0, c1 = s - cut.half, s + cut.half
-					if c1 <= piece[1] or c0 >= piece[2] then
-						table.insert(kept, piece)
-					else
-						if c0 > piece[1] then
-							table.insert(kept, { piece[1], c0 })
-						end
-						if c1 < piece[2] then
-							table.insert(kept, { c1, piece[2] })
-						end
-					end
-				end
-				pieces = kept
-			end
-		end
-		for _, piece in pieces do
-			if piece[2] - piece[1] > 0.05 then
-				-- the segment's own ends run on by 0.15 x width (covering the lens between a square
-				-- end and the curving plaza edge, and the joints between segments); an end at a
-				-- bridge cut stops exactly at the deck. Task 4 review J7: one cut used to drop the
-				-- run-on at every end of that segment, leaving grass crescents at the plaza.
-				local s0 = if piece[1] <= 0 then -width * 0.15 else piece[1]
-				local s1 = if piece[2] >= length then length + width * 0.15 else piece[2]
-				Kit.strip(parent, W(a + dir * s0), W(a + dir * s1), width, 0.1, topY, options, 0)
-			end
-		end
+	for _, strip in Layout.stripsAlong(points, width, cuts, ends) do
+		Kit.strip(parent, W(strip.a), W(strip.b), width, 0.1, topY, options, 0)
 	end
 end
 
@@ -160,70 +128,6 @@ local function triangle(parent: Instance, a: Vector2, b: Vector2, c: Vector2, to
 	end
 end
 
-local function lineIntersect(p: Vector2, u: Vector2, q: Vector2, v: Vector2): Vector2?
-	local den = u.X * v.Y - u.Y * v.X
-	if math.abs(den) < 1e-6 then
-		return nil
-	end
-	local d = q - p
-	local t = (d.X * v.Y - d.Y * v.X) / den
-	return p + u * t
-end
-
-local function nearestOn(points: { Vector2 }, p: Vector2): (number, Vector2)
-	local best, dir = math.huge, Vector2.new(1, 0)
-	for i = 1, #points - 1 do
-		local a, b = points[i], points[i + 1]
-		local ab = b - a
-		if ab.Magnitude > 1e-6 then
-			local t = math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
-			local d = (p - (a + ab * t)).Magnitude
-			if d < best then
-				best, dir = d, ab.Unit
-			end
-		end
-	end
-	return best, dir
-end
-
--- The four corners where straight edges of path P (through J along dirP, half width hP) and
--- path Q (along dirQ, half width hQ) meet get a chamfer fillet of radius r. A corner is filled
--- only where both paths really continue past it (`onP` and `onQ` say whether a point is paved).
-local function filletCorners(
-	parent: Instance,
-	J: Vector2,
-	dirP: Vector2,
-	hP: number,
-	dirQ: Vector2,
-	hQ: number,
-	r: number,
-	onP: (Vector2) -> boolean,
-	onQ: (Vector2) -> boolean,
-	colour: Color3
-): number
-	local nP, nQ = Vector2.new(-dirP.Y, dirP.X), Vector2.new(-dirQ.Y, dirQ.X)
-	local made = 0
-	for _, sP in { 1, -1 } do
-		for _, sQ in { 1, -1 } do
-			local C = lineIntersect(J + nP * sP * hP, dirP, J + nQ * sQ * hQ, dirQ)
-			if C and (C - J).Magnitude < 4 * (hP + hQ + 1) then
-				local u1 = dirP * (if dirP:Dot(nQ) * sQ >= 0 then 1 else -1)
-				local u2 = dirQ * (if dirQ:Dot(nP) * sP >= 0 then 1 else -1)
-				local cosT = math.clamp(u1:Dot(u2), -0.99, 0.99)
-				local theta = math.acos(cosT)
-				local t = math.min(r / math.tan(theta / 2), 3 * r)
-				local T1, T2 = C + u1 * t, C + u2 * t
-				-- the corner must face grass, and each tangent point must sit on its own path edge
-				if onP(T1) and onQ(T2) then
-					triangle(parent, C - (u1 + u2) * 0.05, T1, T2, PATH_TOP, colour)
-					made += 1
-				end
-			end
-		end
-	end
-	return made
-end
-
 -- The round fillets where the paths meet the plaza (Layout.PlazaFillets), each drawn as a
 -- triangle fan from the corner where the path edge crosses the plaza circle. Task 4 review J7:
 -- straight fillets ended on the circle's tangent line and left thin grass crescents between that
@@ -246,79 +150,32 @@ local function plazaFillets(parent: Instance, colour: Color3): number
 	return #Layout.PlazaFillets
 end
 
--- Fills the corners where the paths join each other and the plaza, and the strip between the
--- plaza edge, the three portal approaches and the stage walk (the Task 4 before view showed
--- grass gaps and slivers there).
+-- The round plaza fillets and the stage forecourt: a fan from the plaza edge down to the stage
+-- walk, its sides on the outer edges of the side approaches (Layout.ForecourtTopX). Paths meeting
+-- each other need no fill: their joints are mitred and each kind of path has its own height.
+local FORECOURT_STEPS = 12
 local function buildJoins(model: Model)
 	local folder = Instance.new("Folder")
 	folder.Name = "Joins"
 	folder.Parent = model
-	local made = 0
-	local function onPath(path: any): (Vector2) -> boolean
-		return function(p: Vector2): boolean
-			local d = nearestOn(path.points, p)
-			return d <= path.width / 2 + 0.6
-		end
+	local made = plazaFillets(folder, Palette.Paving)
+	local topX, bottomX = Layout.ForecourtTopX, Layout.ForecourtBottomX
+	local edgeY = Layout.ForecourtEdgeY - 0.4
+	local function rim(x: number): Vector2
+		return Vector2.new(x, -math.sqrt(math.max(0, park.plazaRadius ^ 2 - x ^ 2)) + 0.4)
 	end
-	made += plazaFillets(folder, Palette.Paving)
-	for i, P in park.paths do
-		local pts = P.points
-		-- crossings and T-joins with every later path
-		for k = i + 1, #park.paths do
-			local Q = park.paths[k]
-			local qpts = Q.points
-			for a = 1, #pts - 1 do
-				for b = 1, #qpts - 1 do
-					local p0, p1, q0, q1 = pts[a], pts[a + 1], qpts[b], qpts[b + 1]
-					local u, v = p1 - p0, q1 - q0
-					local den = u.X * v.Y - u.Y * v.X
-					if math.abs(den) > 1e-6 then
-						local d = q0 - p0
-						local t = (d.X * v.Y - d.Y * v.X) / den
-						local s = (d.X * u.Y - d.Y * u.X) / den
-						-- inclusive ends with a little slack, so a path ending on another counts
-						local slackP, slackQ = 1.5 / u.Magnitude, 1.5 / v.Magnitude
-						if t >= -slackP and t <= 1 + slackP and s >= -slackQ and s <= 1 + slackQ then
-							local J = p0 + u * t
-							made += filletCorners(
-								folder,
-								J,
-								u.Unit,
-								P.width / 2,
-								v.Unit,
-								Q.width / 2,
-								math.min(P.width, Q.width) / 2,
-								onPath(P),
-								onPath(Q),
-								if string.find(P.kind, "Promenade") or string.find(Q.kind, "Promenade")
-									then Palette.Promenade
-									else Palette.Paving
-							)
-						end
-					end
-				end
-			end
-		end
-	end
-	-- the stage forecourt: between the plaza edge and the stage walk across the portal row
-	local pr = park.portal
-	local edgeY = pr.frontY + 3 + 5 -- the stage walk's plaza-side edge
-	local xMax = pr.spacing + 7
-	local step = 5
-	local x = -xMax
-	while x < xMax - 1e-6 do
-		local x1 = math.min(x + step, xMax)
-		local y0 = -math.sqrt(math.max(0, park.plazaRadius ^ 2 - x ^ 2)) + 0.4
-		local y1 = -math.sqrt(math.max(0, park.plazaRadius ^ 2 - x1 ^ 2)) + 0.4
-		local a, b = Vector2.new(x, y0), Vector2.new(x1, y1)
-		local c, d = Vector2.new(x1, edgeY - 0.4), Vector2.new(x, edgeY - 0.4)
-		triangle(folder, a, b, c, PATH_TOP - 0.005, Palette.Paving)
-		triangle(folder, a, c, d, PATH_TOP - 0.005, Palette.Paving)
+	for k = 0, FORECOURT_STEPS - 1 do
+		local t0, t1 = -1 + 2 * k / FORECOURT_STEPS, -1 + 2 * (k + 1) / FORECOURT_STEPS
+		local a, b = rim(topX * t0), rim(topX * t1)
+		local c, d = Vector2.new(bottomX * t1, edgeY), Vector2.new(bottomX * t0, edgeY)
+		triangle(folder, a, b, c, PATH_TOP, Palette.Paving)
+		triangle(folder, a, c, d, PATH_TOP, Palette.Paving)
 		made += 2
-		x = x1
 	end
 	folder:SetAttribute("Fillets", made)
 end
+
+local PLAZA_COLLAR = 1 -- studs past the plaza's edge
 
 local function buildPlaza(model: Model)
 	Kit.disc(
@@ -326,9 +183,19 @@ local function buildPlaza(model: Model)
 		Vector3.zero,
 		park.plazaRadius * 2,
 		0.3,
-		SURFACE + 0.12,
+		Layout.PlazaTop,
 		{ name = "Plaza", color = Palette.Paving, collide = true, castShadow = false }
+	) -- A thin paved collar just outside the plaza's edge, under the paths and fillets. Where two path fillets meet, a tip of
+	-- grass reached the rim and left a thin sliver beside it at every join (Adam, Round 2). It stops short of the grass noses.
+	Kit.disc(
+		model,
+		Vector3.zero,
+		(park.plazaRadius + PLAZA_COLLAR) * 2,
+		0.2,
+		PATH_TOP - 0.03,
+		{ name = "PlazaCollar", color = Palette.Paving, castShadow = false }
 	)
+
 	-- Fountain: a low rim (under 3, so it never blocks a view) round a water disc
 	Kit.disc(
 		model,
@@ -377,9 +244,10 @@ local function buildPaths(model: Model)
 			folder,
 			p.points,
 			p.width,
-			PATH_TOP,
+			if p.kind == "Promenade" then Layout.PromenadeTop else PATH_TOP,
 			{ name = p.kind, color = colour, collide = true, castShadow = false },
-			cuts
+			cuts,
+			Layout.PathEndRuns[p.kind]
 		)
 	end
 
@@ -622,7 +490,8 @@ end
 
 -- Paved pads under the snack corners (their whole 30 x 28 box) and a round one under the gazebo,
 -- each with a one-stud border in the promenade tone; spurs in the layout join them to the paths
--- (Task 4 movement review M4: they stood on lawn with no approach). Paving tops sit with the paths.
+-- (Task 4 movement review M4: they stood on lawn with no approach). Pad and border have their own
+-- height layers (Layout.PadTop), so neither fights the spur that runs under them.
 local PADS = { SnackCornerEast = "box", SnackCornerWest = "box", Gazebo = "round" }
 local BORDER = 1
 local function buildPads(model: Model)
@@ -634,13 +503,13 @@ local function buildPads(model: Model)
 		if kind == "round" then
 			local d = math.max(b.width, b.depth) + 6
 			local c = W(b.centre)
-			Kit.disc(folder, c, d + 2 * BORDER, 0.1, PATH_TOP - 0.01, {
+			Kit.disc(folder, c, d + 2 * BORDER, 0.1, Layout.PadBorderTop, {
 				name = b.id .. "PadBorder",
 				color = Palette.Promenade,
 				collide = true,
 				castShadow = false,
 			})
-			Kit.disc(folder, c, d, 0.1, PATH_TOP, {
+			Kit.disc(folder, c, d, 0.1, Layout.PadTop, {
 				name = b.id .. "Pad",
 				color = Palette.Paving,
 				collide = true,
@@ -649,9 +518,14 @@ local function buildPads(model: Model)
 		elseif kind == "box" then
 			local pos = W(b.centre)
 			local face = W(b.facing) - W(Vector2.zero)
-			for _, layer in { { "PadBorder", BORDER, Palette.Promenade, 0.01 }, { "Pad", 0, Palette.Paving, 0 } } do
+			for _, layer in
+				{
+					{ "PadBorder", BORDER, Palette.Promenade, Layout.PadBorderTop },
+					{ "Pad", 0, Palette.Paving, Layout.PadTop },
+				}
+			do
 				local grow = (layer[2] :: number) * 2
-				local top = PATH_TOP - (layer[4] :: number)
+				local top = layer[4] :: number
 				local at = Vector3.new(pos.X, top - 0.05, pos.Z)
 				Kit.part(folder, Vector3.new(b.width + grow, 0.1, b.depth + grow), CFrame.lookAt(at, at + face), {
 					name = b.id .. (layer[1] :: string),

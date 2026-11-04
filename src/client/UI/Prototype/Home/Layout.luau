@@ -50,7 +50,7 @@ local Layout = {}
 Layout.CashWidest = { "$9,999", "$99.9K", "$999K", "$9.99M", "$99.9M", "$999M", "$999B", "$999T", "$1,000T" }
 Layout.EarningHeight = 24
 Layout.BannerTabOverlap = 12 -- the TUTORIAL tab sits this far above the banner body
-Layout.BannerMaxBody = 72
+Layout.BannerMaxBody = 118 -- Round 2 (N8-02): the banner is one pill with the progress row and Skip inside it (FULL = 117)
 Layout.HintHeight = 24
 Layout.HintGap = 4
 Layout.ToastHeight = 44

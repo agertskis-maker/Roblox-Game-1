@@ -1,89 +1,57 @@
 --!strict
--- Home HUD: tutorial objective banner (Lane 3 preview, HUD rebuild 2026-10-22; ledger H-13).
--- The tutorial content is a PLACEHOLDER fixture list, not the real onboarding flow, and the
--- banner grants nothing.
+-- Tutorial banner, rebuilt in Round 3 (Adam: "much too big, it's literally blocking my entire screen"; reference R3-IMG-08). One slim pill:
+-- an icon, a one-line headline, and the green instruction inside the same pill. No step counter. A small Skip sits beside the pill,
+-- and the one delayed hint is a thin chip under it. About half the old height, and it never takes more width than its words need.
 --
--- Look (Arcade kit): a yellow ("Gold" fill) rectangle with limited rounding, the thick dark
--- button boundary and a narrow gloss band, a small yellow "TUTORIAL" tab, an ink status disc
--- (flag while active, tick when done). Text hierarchy — not every line enlarged equally:
---   1. objective   largest: white, Value size (24), heavy dark outline, wraps (never clipped)
---   2. progress    smaller italic counter "1/3" (Label 18) and a segmented-looking strip
---   3. micro-hint  smallest: white Small (16) with a light outline floating under the banner,
---                  no cream pill
--- States from store.tutorial (Store.Tutorial):
---   Active  objective + counter + strip
---   Hint    the same plus the micro-hint (tutorial.hint)
---   Done    tick, green body ("Green" fill), full strip, bounded confetti (16 pieces, none in
---           reduced motion), sound hook TutorialDone. After DONE_SECONDS the optional
---           opts.onDoneShown(step) fires once so the playground can advance the fixture; the
---           banner itself never writes the store.
--- A new step crossfades (and slides 12 px in, not in reduced motion). nil fades it out. Nothing
--- here is interactive: input passes through, no modal, no full-screen layer.
+-- It reads store.tutorial and draws it; the tutorial controller owns the words and the timing.
 --
--- Placement (Home/Layout): top centre, clear of the left menu. The body grows to fit wrapped text.
+-- Placement: "Home" (top centre, from HomeHud's frame when one is attached, else Home/Layout) or "Run" (under the run's distance pill,
+-- clear of the road view).
 --
--- API: TutorialBanner.new(ctx, { onDoneShown: ((step: number) -> ())? }?) -> TutorialBanner
---   :layout()  :setVisible(on)  :destroy()  :getDebugState()
+-- API: TutorialBanner.new(ctx, { onDoneShown: ((step: number) -> ())?, onSkip: (() -> ())? }?) -> TutorialBanner
+--   :layout()  :setVisible(on)  :setPlacement("Home" | "Run")  :wiggle()  :getSkipButton() -> GuiObject
+--   :setSkipHandler(fn?)  :celebrate()  :setPinned(on)  :setHomeFrame(frame?)  :getRect() -> (pos, size)  :destroy()  :getDebugState()
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
-local Arcade = require(script.Parent.Parent.Arcade)
-local Fade = require(script.Parent.Fade)
-local Format = require(ReplicatedStorage.Shared.UI.Format)
-local IconArt = require(script.Parent.IconArt)
+local CarKit = require(script.Parent.Parent.CarKit)
+local GameIcons = require(script.Parent.Parent.GameIcons)
 local Layout = require(script.Parent.Layout)
 local Motion = require(script.Parent.Parent.Motion)
-local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
+local RunLayout = require(script.Parent.Parent.Run.RunLayout)
 local Sounds = require(script.Parent.Parent.Sounds)
-local Store = require(script.Parent.Parent.Store)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Types = require(script.Parent.Types)
 
-local A = PreviewTokens.Arcade
-local B = A.Button
+local make = CarKit.make
 
 local DONE_SECONDS = 1.6
-local CONFETTI = 16
-local CONFETTI_SECONDS = 0.9
-local STATUS = 36
-local PAD = 12
-local STRIP = 8
-local COUNTER_SIZE = A.Text.Label
-local HINT_SIZE = A.Text.Small
-local CONFETTI_COLOURS = {
-	Color3.fromRGB(255, 120, 170),
-	Color3.fromRGB(90, 190, 255),
-	Color3.fromRGB(110, 220, 120),
-	Color3.fromRGB(255, 255, 255),
-	Color3.fromRGB(255, 170, 70),
-	Color3.fromRGB(170, 130, 255),
-}
+local CONFETTI = 14
+local PILL = Color3.fromRGB(14, 20, 40)
 
-export type Options = { onDoneShown: ((step: number) -> ())? }
+type Size = { h: number, icon: number, head: number, chip: number, gap: number }
+local FULL: Size = { h = 46, icon = 36, head = 28, chip = 15, gap = 8 }
+local SMALL: Size = { h = 38, icon = 30, head = 22, chip = 14, gap = 6 }
 
-export type TutorialBanner = {
-	root: Frame,
-	layout: (self: TutorialBanner) -> (),
-	setVisible: (self: TutorialBanner, on: boolean) -> (),
-	destroy: (self: TutorialBanner) -> (),
-	getDebugState: (self: TutorialBanner) -> { [string]: any },
-}
+export type Options = { onDoneShown: ((step: number) -> ())?, onSkip: (() -> ())? }
+export type HomeFrame = { cx: number, y: number, width: number, compact: boolean? }
+export type TutorialBanner = { [string]: any }
 
 local TutorialBanner = {}
 TutorialBanner.__index = TutorialBanner
 
-local function measure(text: string, size: number, width: number?): Vector2
-	return TextService:GetTextSize(text, size, Enum.Font.FredokaOne, Vector2.new(width or 4096, 4096))
-end
-
-local function counterText(t: Store.Tutorial): string
-	local count = math.clamp(t.count, 0, t.goal)
-	if t.state == "Done" then
-		count = t.goal
-	end
-	return string.format("%s/%s", Format.group(count), Format.group(t.goal))
+local function textWidth(text: string, size: number, font: Font): number
+	local p = Instance.new("GetTextBoundsParams")
+	p.Text = text
+	p.Size = size
+	p.Font = font
+	p.Width = 2000
+	local ok, bounds = pcall(function()
+		return TextService:GetTextBoundsAsync(p)
+	end)
+	return if ok then (bounds :: Vector2).X else #text * size * 0.5
 end
 
 function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
@@ -93,449 +61,329 @@ function TutorialBanner.new(ctx: Types.Ctx, opts: Options?): TutorialBanner
 	self._ctx = ctx
 	self._opts = opts or {}
 	self._destroyed = false
-	self._width = 400
-	self._textSize = Tokens.TextSize.Value
-	self._bodyH = 60
-	self._tutorial = nil :: Store.Tutorial?
-	self._doneToken = 0
+	self._placement = "Home"
+	self._homeFrame = nil :: HomeFrame?
+	self._view = nil :: { [string]: any }?
 	self._wanted = true
-	local make = Arcade.make
+	self._pinned = false
+	self._wiggles = 0
+	self._size = FULL
+	self._token = 0
 
 	local root = trove:Add(make("Frame", {
 		Name = "TutorialBanner",
-		AnchorPoint = Vector2.new(0.5, 0),
 		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(400, 120),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Size = UDim2.fromOffset(300, 80),
 		Visible = false,
 		ZIndex = 5,
-		Parent = ctx.layer,
-	}))
-	pcall(function()
-		(root :: any).Interactable = false
-	end)
+	}, ctx.layer))
 	self.root = root
-	self._scale = make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale(), Parent = root })
+	self._scale = make("UIScale", { Name = "HudScale", Scale = ctx.screen:uiScale() }, root)
 
-	local all = make("Frame", {
-		Name = "All",
+	local pill = make("Frame", {
+		Name = "Pill",
+		BackgroundColor3 = PILL,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		ZIndex = 5,
+	}, root)
+	self._pill = pill
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, pill)
+	make("UIStroke", { Thickness = 2.5, Color = CarKit.White, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pill)
+
+	local iconHolder = make("Frame", { Name = "Icon", BackgroundTransparency = 1, ZIndex = 6 }, pill)
+	self._iconHolder = iconHolder
+	self._headline = make("TextLabel", {
+		Name = "Headline",
 		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = 5,
-		Parent = root,
-	})
-	self._all = all
-
-	-- shallow dark lip under the body (kit depth), then the body
-	local lip = make("Frame", {
-		Name = "Lip",
-		Position = UDim2.fromOffset(0, Layout.BannerTabOverlap + B.DepthOffset),
-		Size = UDim2.fromOffset(400, 60),
-		BackgroundColor3 = A.Ink,
-		ZIndex = 5,
-		Parent = all,
-	})
-	Arcade.corner(lip)
-	self._lip = lip
-	local body = make("Frame", {
-		Name = "Body",
-		Position = UDim2.fromOffset(0, Layout.BannerTabOverlap),
-		Size = UDim2.fromOffset(400, 60),
-		BackgroundColor3 = Color3.new(1, 1, 1),
+		FontFace = CarKit.display(),
+		TextColor3 = CarKit.White,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 6,
-		Parent = all,
-	})
-	Arcade.corner(body)
-	Arcade.outline(body, "Button")
-	self._gradient = make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Parent = body })
-	Arcade.gloss(body)
-	self._body = body
-
-	local tab = make("Frame", {
-		Name = "Tab",
-		Position = UDim2.fromOffset(16, 0),
-		Size = UDim2.fromOffset(math.ceil(measure("TUTORIAL", HINT_SIZE).X) + 22, 26),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ZIndex = 9,
-		Parent = all,
-	})
-	Arcade.corner(tab, 5)
-	Arcade.outline(tab, "Button")
-	make("UIGradient", { Color = A.Fill.Gold, Rotation = 90, Parent = tab })
-	local tabText = Arcade.text(tab, { text = "TUTORIAL", role = "Small", name = "Text", z = 10 })
-	tabText.Size = UDim2.fromScale(1, 1)
-
-	-- content that crossfades on a new step
-	local content = make("Frame", {
-		Name = "Content",
+		Text = "",
+	}, pill)
+	local chip = make("Frame", { Name = "Chip", BackgroundColor3 = CarKit.GreenDeep, ZIndex = 6 }, pill)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, chip)
+	self._chip = chip
+	self._line = make("TextLabel", {
+		Name = "Line",
 		BackgroundTransparency = 1,
+		FontFace = CarKit.body(),
+		TextColor3 = CarKit.White,
 		Size = UDim2.fromScale(1, 1),
-		ZIndex = 8,
-		Parent = body,
-	})
-	self._content = content
-	local status = make("Frame", {
-		Name = "Status",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, PAD, 0.5, 0),
-		Size = UDim2.fromOffset(STATUS, STATUS),
-		BackgroundColor3 = A.Ink,
-		ZIndex = 9,
-		Parent = content,
-	})
-	Arcade.corner(status, STATUS)
-	Arcade.outline(status, 2, Color3.new(1, 1, 1))
-	self._statusIcons = {} :: { [string]: Frame }
-	for _, name in { "Flag", "Check" } do
-		local holder = make("Frame", {
-			Name = name,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(24, 24),
-			BackgroundTransparency = 1,
-			Visible = name == "Flag",
-			ZIndex = 10,
-			Parent = status,
-		})
-		IconArt.draw(holder, { name })
-		self._statusIcons[name] = holder
-	end
-	self._status = status
-	self._statusName = "Flag"
+		ZIndex = 7,
+		Text = "",
+	}, chip)
 
-	local objective = Arcade.text(content, {
-		text = "",
-		role = "Button",
-		name = "Objective",
-		size = Tokens.TextSize.Value,
-		xAlign = Enum.TextXAlignment.Left,
-		z = 9,
-	})
-	objective.TextWrapped = true
-	self._objective = objective
-	local counter = Arcade.text(content, {
-		text = "",
-		role = "Label",
-		name = "Counter",
-		size = COUNTER_SIZE,
-		italic = true,
-		xAlign = Enum.TextXAlignment.Right,
-		z = 9,
-	})
-	self._counter = counter
-	local track = make("Frame", {
-		Name = "Strip",
-		BackgroundColor3 = A.Ink,
-		BackgroundTransparency = 0.45,
-		ZIndex = 9,
-		Parent = body,
-	})
-	Arcade.corner(track, STRIP / 2)
-	Arcade.outline(track, "Minor")
-	local fill = make("Frame", {
-		Name = "Fill",
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Size = UDim2.fromScale(0, 1),
-		ZIndex = 10,
-		Parent = track,
-	})
-	Arcade.corner(fill, STRIP / 2)
-	self._fillGradient = make("UIGradient", { Color = A.Fill.Green, Rotation = 90, Parent = fill })
-	self._track = track
-	self._fill = fill
-	self._progress = 0
+	local skip = make("TextButton", {
+		Name = "Skip",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0),
+		FontFace = CarKit.body(),
+		Text = "Skip",
+		TextColor3 = CarKit.White,
+		TextStrokeColor3 = CarKit.Ink,
+		TextStrokeTransparency = 0.2,
+		Size = UDim2.fromOffset(52, Tokens.Touch.Minimum),
+		Visible = false,
+		ZIndex = 6,
+	}, root)
+	self._skip = skip
+	trove:Connect(skip.Activated, function()
+		local h = self._skipHandler
+		if h then
+			h()
+		end
+	end)
 
-	-- micro-hint: floating outlined text under the banner (smallest line, no pill)
 	local hint = make("Frame", {
 		Name = "Hint",
+		BackgroundColor3 = PILL,
+		BackgroundTransparency = 0.15,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Size = UDim2.fromOffset(200, Layout.HintHeight),
-		BackgroundTransparency = 1,
 		Visible = false,
-		ZIndex = 6,
-		Parent = all,
-	})
-	local hintText = Arcade.text(hint, { text = "", role = "Small", name = "Text", size = HINT_SIZE, z = 7 })
-	hintText.Size = UDim2.fromScale(1, 1)
+		ZIndex = 5,
+	}, root)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, hint)
 	self._hint = hint
-	self._hintText = hintText
-	self._hintFade = Fade.capture(hint)
-	self._contentFade = Fade.capture(content)
-	self._allFade = Fade.capture(all)
-	trove:Add(function()
-		self._hintFade:destroy()
-		self._contentFade:destroy()
-		self._allFade:destroy()
-		Motion.cancelAll(content)
-		Motion.cancelAll(fill)
-	end)
+	self._hintText = make("TextLabel", {
+		Name = "Text",
+		BackgroundTransparency = 1,
+		FontFace = CarKit.body(),
+		TextColor3 = CarKit.White,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 6,
+		Text = "",
+	}, hint)
 
-	self._confetti = {} :: { Frame }
-	for i = 1, CONFETTI do
-		local piece = make("Frame", {
-			Name = "Confetti" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = UDim2.fromOffset(if i % 2 == 0 then 8 else 6, if i % 2 == 0 then 5 else 9),
-			BackgroundColor3 = CONFETTI_COLOURS[(i - 1) % #CONFETTI_COLOURS + 1],
-			BorderSizePixel = 0,
-			Visible = false,
-			ZIndex = 12,
-			Parent = root,
-		})
-		Arcade.corner(piece, 2)
-		table.insert(self._confetti, piece)
-	end
-	trove:Add(function()
-		for _, piece in self._confetti do
-			Motion.cancelAll(piece)
-		end
-	end)
-
-	trove:Add(ctx.store:subscribe("tutorial", function(t: Store.Tutorial?)
-		self:_set(t)
+	trove:Add(ctx.store:subscribe("tutorial", function(value: any)
+		self:_set(value)
 	end))
-	trove:Add(Motion.onReducedChanged(function(reduced: boolean)
-		if reduced then
-			self:_stopConfetti()
-			Motion.cancelAll(content)
-			content.Position = UDim2.new()
-		end
-	end))
-	trove:Connect(ctx.screen.Changed, function()
-		self:layout()
-	end)
 	self:layout()
-	self:_set(ctx.store:get().tutorial)
 	return self :: TutorialBanner
 end
 
-function TutorialBanner._setStatusIcon(self: any, name: string)
-	if self._statusName == name then
-		return
-	end
-	self._statusName = name
-	for key, holder in self._statusIcons do
-		holder.Visible = key == name
-	end
-end
-
 function TutorialBanner._arrange(self: any)
-	local width: number = self._width
-	local size: number = self._textSize
-	local counterW = math.ceil(measure(self._counter.Text, COUNTER_SIZE).X * 1.1) + 12
-	local textX = PAD + STATUS + 10
-	local objectiveW = width - textX - counterW - PAD
-	local textH = measure(self._objective.Text, size, objectiveW - 10).Y
-	local bodyH = math.max(60, math.ceil(textH) + 24 + STRIP)
-	self._bodyH = bodyH
-	self._objective.TextSize = size
-	self._objective.Position = UDim2.fromOffset(textX, 6)
-	self._objective.Size = UDim2.fromOffset(objectiveW, bodyH - STRIP - 18)
-	self._counter.Position = UDim2.fromOffset(width - PAD - counterW, 6)
-	self._counter.Size = UDim2.fromOffset(counterW, bodyH - STRIP - 18)
-	self._body.Size = UDim2.fromOffset(width, bodyH)
-	self._lip.Size = self._body.Size
-	self._track.Position = UDim2.fromOffset(textX, bodyH - STRIP - 9)
-	self._track.Size = UDim2.fromOffset(width - textX - PAD, STRIP)
-	local hintW = math.min(width, math.ceil(measure(self._hintText.Text, HINT_SIZE).X) + 24)
-	self._hint.Size = UDim2.fromOffset(hintW, Layout.HintHeight)
-	self._hint.Position = UDim2.fromOffset(width / 2, Layout.BannerTabOverlap + bodyH + B.DepthOffset + Layout.HintGap)
-	self.root.Size =
-		UDim2.fromOffset(width, Layout.BannerTabOverlap + bodyH + B.DepthOffset + Layout.HintGap + Layout.HintHeight)
-end
-
-function TutorialBanner._setProgress(self: any, p: number)
-	local fill: Frame = self._fill
-	self._progress = p
-	if Motion.reduced() then
-		Motion.cancelAll(fill)
-		fill.Size = UDim2.fromScale(p, 1)
-	else
-		Motion.tween(fill, "fill", Motion.info(0.25), { Size = UDim2.fromScale(p, 1) })
+	local s: Size = self._size
+	local head: TextLabel = self._headline
+	local line: TextLabel = self._line
+	head.TextSize = s.head
+	line.TextSize = s.chip
+	local headW = textWidth(head.Text, s.head, head.FontFace) + 4
+	local chipW = if line.Text ~= "" then textWidth(line.Text, s.chip, line.FontFace) + 22 else 0
+	local pad = (s.h - s.icon) / 2
+	local total = pad + s.icon + s.gap + headW + (if chipW > 0 then s.gap + chipW else 0) + pad + 8
+	local room = self._room or 640
+	if total > room then
+		-- on a narrow screen the headline comes down a little before anything is cut
+		local k = math.max((room - pad * 2 - s.icon - s.gap * 2 - chipW) / math.max(headW, 1), 0.7)
+		head.TextSize = math.max(math.floor(s.head * k), 16)
+		headW = textWidth(head.Text, head.TextSize, head.FontFace) + 4
+		total = math.min(room, pad + s.icon + s.gap + headW + s.gap + chipW + pad + 8)
 	end
-end
-
-function TutorialBanner._applyContent(self: any, t: Store.Tutorial)
-	self._objective.Text = t.objective
-	self._counter.Text = counterText(t)
-	local done = t.state == "Done"
-	self._gradient.Color = if done then A.Fill.Green else A.Fill.Gold
-	self._status.BackgroundColor3 = if done then Color3.fromRGB(30, 150, 60) else A.Ink
-	self:_setStatusIcon(if done then "Check" else "Flag")
-	local hintOn = t.state == "Hint" and t.hint ~= nil and t.hint ~= ""
-	if hintOn then
-		self._hintText.Text = t.hint :: string
-	end
-	self:_arrange()
-	local p = if t.goal > 0 then math.clamp(t.count / t.goal, 0, 1) else 0
-	self:_setProgress(if done then 1 else p)
-	if hintOn and not self._hint.Visible then
-		self._hint.Visible = true
-		self._hintFade:set(1)
-		self._hintFade:tween(0, 0.18)
-	elseif not hintOn and self._hint.Visible then
-		local tw = self._hintFade:tween(1, 0.15)
-		if tw then
-			tw.Completed:Connect(function(state)
-				if state == Enum.PlaybackState.Completed then
-					self._hint.Visible = false
-				end
-			end)
-		else
-			self._hint.Visible = false
-		end
-	end
-end
-
-function TutorialBanner._set(self: any, t: Store.Tutorial?)
-	local previous: Store.Tutorial? = self._tutorial
-	self._tutorial = if t then table.clone(t) else nil
-	if t == nil then
-		self._doneToken += 1
-		self:_stopConfetti()
-		if self.root.Visible then
-			local tw = self._allFade:tween(1, 0.2)
-			if tw then
-				tw.Completed:Connect(function(state)
-					if state == Enum.PlaybackState.Completed and self._tutorial == nil then
-						self.root.Visible = false
-					end
-				end)
-			else
-				self.root.Visible = false
-			end
-		end
-		return
-	end
-	local tut = t :: Store.Tutorial
-	if not self.root.Visible or previous == nil then
-		self.root.Visible = self._wanted
-		self._allFade:set(1)
-		self._allFade:tween(0, 0.2)
-	end
-	local newStep = previous ~= nil and previous.step ~= tut.step
-	if newStep then
-		local content: Frame = self._content
-		self._contentFade:set(1)
-		self:_applyContent(tut)
-		if Motion.reduced() then
-			content.Position = UDim2.new()
-			self._contentFade:tween(0, 0.18)
-		else
-			content.Position = UDim2.fromOffset(12, 0)
-			Motion.tween(content, "slide", Motion.info(0.22), { Position = UDim2.new() })
-			self._contentFade:tween(0, 0.22)
-		end
-	else
-		self:_applyContent(tut)
-	end
-	local becameDone = tut.state == "Done" and (previous == nil or previous.state ~= "Done" or newStep)
-	if becameDone then
-		Sounds.play("TutorialDone")
-		Motion.pop(self._status, 1.12)
-		self:_confettiBurst()
-		self._doneToken += 1
-		local token = self._doneToken
-		local step = tut.step
-		task.delay(DONE_SECONDS, function()
-			if self._destroyed or token ~= self._doneToken then
-				return
-			end
-			local cb = self._opts.onDoneShown
-			if cb then
-				cb(step)
-			end
-		end)
-	elseif tut.state ~= "Done" then
-		self._doneToken += 1
-	end
-end
-
-function TutorialBanner._stopConfetti(self: any)
-	for _, piece in self._confetti do
-		Motion.cancelAll(piece)
-		piece.Visible = false
-	end
-end
-
-function TutorialBanner._confettiBurst(self: any)
-	if Motion.reduced() or not self.root.Visible then
-		return
-	end
-	local width: number = self._width
-	local cy = Layout.BannerTabOverlap + self._bodyH / 2
-	local rng = Random.new(self._doneToken + 7)
-	for i, piece in self._confetti do
-		Motion.cancelAll(piece)
-		local sx = width * (0.15 + 0.7 * (i - 1) / (CONFETTI - 1))
-		piece.Position = UDim2.fromOffset(sx, cy)
-		piece.Rotation = rng:NextInteger(0, 90)
-		piece.BackgroundTransparency = 0
-		piece.Visible = true
-		local gx = sx + rng:NextNumber(-40, 40)
-		local gy = cy + rng:NextNumber(-46, 52)
-		Motion.tween(piece, "move", Motion.info(CONFETTI_SECONDS), {
-			Position = UDim2.fromOffset(gx, gy),
-			Rotation = piece.Rotation + rng:NextNumber(-200, 200),
-		})
-		local fadeInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.55)
-		local tw = Motion.tween(piece, "fade", fadeInfo, { BackgroundTransparency = 1 })
-		tw.Completed:Connect(function(state)
-			if state == Enum.PlaybackState.Completed then
-				piece.Visible = false
-			end
-		end)
-	end
+	local pill: Frame = self._pill
+	pill.Size = UDim2.fromOffset(total, s.h)
+	self._iconHolder.Size = UDim2.fromOffset(s.icon, s.icon)
+	self._iconHolder.Position = UDim2.fromOffset(pad + 4, pad)
+	head.Position = UDim2.fromOffset(pad + 4 + s.icon + s.gap, 0)
+	head.Size = UDim2.new(0, headW, 1, 0)
+	local chip: Frame = self._chip
+	chip.Visible = chipW > 0
+	chip.Size = UDim2.fromOffset(chipW, s.h - 14)
+	chip.Position = UDim2.fromOffset(pad + 4 + s.icon + s.gap + headW + s.gap, 7)
+	local skip: TextButton = self._skip
+	skip.TextSize = s.chip
+	skip.Position = UDim2.new(0.5, total / 2 + 4, 0, (s.h - Tokens.Touch.Minimum) / 2)
+	local hint: Frame = self._hint
+	local hintText: TextLabel = self._hintText
+	hintText.TextSize = s.chip
+	hint.Size = UDim2.fromOffset(textWidth(hintText.Text, s.chip, hintText.FontFace) + 24, s.chip + 10)
+	hint.Position = UDim2.new(0.5, 0, 0, s.h + 4)
+	self.root.Size = UDim2.fromOffset(math.max(total + 120, 200), s.h + s.chip + 14)
 end
 
 function TutorialBanner.layout(self: any)
 	local ctx: Types.Ctx = self._ctx
 	local scale = ctx.screen:uiScale()
 	self._scale.Scale = scale
-	local b = Layout.forProfile(ctx.screen:profile(), scale).banner
-	self._width = b.width
-	self._textSize = math.max(b.textSize, Tokens.TextSize.Minimum)
-	self.root.Position = UDim2.fromOffset(b.cx * scale, b.y * scale) -- layer px
+	local home = Layout.forProfile(ctx.screen:profile(), scale)
+	local phone = home.phone
+	self._size = if phone then SMALL else FULL
+	if self._placement == "Run" then
+		local d = RunLayout.design(ctx)
+		self._room = math.min(if phone then 420 else 620, d.X - 24)
+		self.root.Position = UDim2.fromOffset(d.X / 2 * scale, (RunLayout.upperY(ctx) - 4) * scale)
+	else
+		local frame: HomeFrame? = self._homeFrame
+		local cx, y, width = home.banner.cx, home.banner.y, home.banner.width
+		if frame then
+			cx, y, width = frame.cx, frame.y, frame.width
+		end
+		self._room = width
+		self.root.Position = UDim2.fromOffset(cx * scale, y * scale)
+	end
 	self:_arrange()
 end
 
-function TutorialBanner.setVisible(self: any, on: boolean)
-	self._wanted = on
-	self.root.Visible = on and self._tutorial ~= nil
-	if not on then
-		self:_stopConfetti()
+function TutorialBanner.setHomeFrame(self: any, frame: HomeFrame?)
+	self._homeFrame = frame
+	if not self._destroyed then
+		self:layout()
 	end
 end
 
-function TutorialBanner.getDebugState(self: any): { [string]: any }
-	local ctx: Types.Ctx = self._ctx
-	local t: Store.Tutorial? = self._tutorial
-	local confetti = 0
-	for _, piece in self._confetti do
-		if piece.Visible then
-			confetti += 1
+function TutorialBanner.setPlacement(self: any, placement: string)
+	local want = if placement == "Run" then "Run" else "Home"
+	if want ~= self._placement then
+		self._placement = want
+		self:layout()
+	end
+end
+
+function TutorialBanner._drawIcon(self: any, v: { [string]: any }, done: boolean)
+	local holder: Frame = self._iconHolder
+	local names = if done then { "Check" } elseif type(v.icons) == "table" then v.icons else { "Flag" }
+	local key = table.concat(names :: { string }, ",")
+	if key == self._iconKey then
+		return
+	end
+	self._iconKey = key
+	holder:ClearAllChildren()
+	for _, name in names :: { string } do
+		local art = GameIcons.Painter[name]
+		if art and GameIcons.has(art) then
+			CarKit.art(holder, art, { placeholder = false, z = 7 })
+			return
 		end
 	end
-	local pos, size = ctx.screen:rectOf(self._body)
+end
+
+function TutorialBanner._set(self: any, t: any)
+	local previous = self._view
+	self._view = t
+	local root: Frame = self.root
+	if t == nil then
+		root.Visible = false
+		self._token += 1
+		return
+	end
+	root.Visible = self._wanted
+	local done = t.state == "Done"
+	self._headline.Text = string.upper(if type(t.objective) == "string" then t.objective else "")
+	self._line.Text = if type(t.instruction) == "string" then t.instruction else ""
+	self:_drawIcon(t, done)
+	local hintOn = type(t.hint) == "string" and t.hint ~= ""
+	self._hint.Visible = hintOn
+	self._hintText.Text = if hintOn then t.hint else ""
+	self:_arrange()
+	local newStep = previous == nil or previous.step ~= t.step or previous.objective ~= t.objective
+	if newStep and not done then
+		Sounds.play("Toast")
+		Motion.pop(self._pill, 0.92)
+	end
+	if done and (newStep or previous.state ~= "Done") then
+		Sounds.play("TutorialDone")
+		Motion.pop(self._pill, 1.08)
+		if t.big == true then
+			self:celebrate()
+		end
+		self._token += 1
+		local token = self._token
+		local step = if type(t.step) == "number" then t.step else 0
+		task.delay(DONE_SECONDS, function()
+			local cb = self._opts.onDoneShown
+			if cb and not self._destroyed and token == self._token then
+				cb(step)
+			end
+		end)
+	end
+end
+
+-- One "look here" nudge when the hint arrives.
+function TutorialBanner.wiggle(self: any)
+	if self._destroyed or not self.root.Visible then
+		return
+	end
+	self._wiggles += 1
+	if not Motion.reduced() then
+		Motion.pop(self._pill, 1.06)
+	end
+end
+
+function TutorialBanner.celebrate(self: any)
+	if self._destroyed or Motion.reduced() then
+		return
+	end
+	local colours = { CarKit.Yellow, CarKit.Red, CarKit.Green, Color3.fromRGB(70, 170, 255), CarKit.White }
+	for i = 1, CONFETTI do
+		local piece = make("Frame", {
+			Name = "Confetti",
+			BorderSizePixel = 0,
+			BackgroundColor3 = colours[i % #colours + 1],
+			Position = UDim2.fromScale(0.5, 0.3),
+			Size = UDim2.fromOffset(8, 5),
+			Rotation = math.random(0, 360),
+			ZIndex = 8,
+		}, self.root)
+		Motion.tween(piece, "Fly", Motion.info(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, math.random(-220, 220), 0.3, math.random(-10, 110)),
+			BackgroundTransparency = 1,
+			Rotation = piece.Rotation + 180,
+		})
+		task.delay(0.9, function()
+			piece:Destroy()
+		end)
+	end
+end
+
+function TutorialBanner.setPinned(self: any, pinned: boolean)
+	self._pinned = pinned
+	if pinned then
+		self._wanted = true
+		self.root.Visible = self._view ~= nil
+	end
+end
+
+function TutorialBanner.setVisible(self: any, on: boolean)
+	if self._pinned and not on then
+		return
+	end
+	self._wanted = on
+	self.root.Visible = on and self._view ~= nil
+end
+
+function TutorialBanner.getSkipButton(self: any): GuiObject
+	return self._skip
+end
+
+function TutorialBanner.setSkipHandler(self: any, handler: (() -> ())?)
+	self._skipHandler = handler
+	self._skip.Visible = handler ~= nil
+end
+
+function TutorialBanner.getRect(self: any): (Vector2, Vector2)
+	return self._ctx.screen:rectOf(self._pill)
+end
+
+function TutorialBanner.getDebugState(self: any): { [string]: any }
+	local v = self._view
+	local pos, size = self._ctx.screen:rectOf(self._pill)
 	return {
 		visible = self.root.Visible,
-		state = if t then t.state else nil,
-		step = if t then t.step else nil,
-		objective = self._objective.Text,
-		objectiveSize = self._objective.TextSize,
-		counter = self._counter.Text,
-		counterSize = self._counter.TextSize,
-		hintSize = self._hintText.TextSize,
-		progress = self._progress,
-		hintVisible = self._hint.Visible,
+		placement = self._placement,
+		state = if v then v.state else nil,
+		step = if v then v.step else nil,
+		objective = self._headline.Text,
+		instruction = self._line.Text,
 		hint = self._hintText.Text,
-		confettiVisible = confetti,
-		confettiPool = CONFETTI,
-		bodyHeight = self._bodyH,
-		width = self._width,
-		objectiveFits = self._objective.TextFits,
+		hintVisible = self._hint.Visible,
+		wiggles = self._wiggles,
+		skipVisible = self._skip.Visible,
 		devicePos = pos,
 		deviceSize = size,
-		reservedOverlap = ctx.screen:overlapsReserved(pos, size),
+		pillHeight = self._size.h,
+		reservedOverlap = self._ctx.screen:overlapsReserved(pos, size),
 	}
 end
 

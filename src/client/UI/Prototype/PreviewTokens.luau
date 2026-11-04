@@ -205,6 +205,88 @@ PreviewTokens.Arcade = table.freeze({
 	}),
 })
 
+-- SHOP block (BRIEF M9 / M10, 2026-11-01). One shared preview token update for the icon family and the Shop kit
+-- (Prototype/ShopKit.luau, Screens/ShopMock.luau); there is no second palette per screen. Additive only: nothing
+-- above changed. Every value is a PREVIEW choice from the brief's starting numbers (M10-08b motion, M10-01b and
+-- M10-14a layout), to be tuned in Studio.
+PreviewTokens.Shop = table.freeze({
+	-- Card and button fills (top -> bottom, saturated, one family with the arcade fills above).
+	Fill = table.freeze({
+		Hero = seq(rgb(104, 132, 255), rgb(168, 88, 244), rgb(242, 72, 192)), -- blue-violet to magenta
+		Violet = seq(rgb(196, 128, 255), rgb(140, 74, 226), rgb(96, 42, 172)),
+		Teal = seq(rgb(96, 240, 176), rgb(32, 196, 156), rgb(16, 132, 156)),
+		Orange = seq(rgb(255, 200, 74), rgb(255, 142, 32), rgb(240, 82, 32)),
+		Sky = seq(rgb(118, 228, 255), rgb(52, 164, 252), rgb(32, 102, 222)),
+		Pink = seq(rgb(255, 156, 204), rgb(242, 84, 164), rgb(192, 42, 122)),
+		Yellow = seq(rgb(255, 244, 124), rgb(255, 204, 44), rgb(242, 144, 0)),
+		Lime = seq(rgb(190, 255, 120), rgb(96, 222, 70), rgb(38, 168, 70)),
+		Steel = seq(rgb(196, 206, 230), rgb(124, 138, 180), rgb(72, 86, 124)),
+		Locked = seq(rgb(118, 128, 158), rgb(76, 86, 120), rgb(46, 54, 86)),
+		Red = seq(rgb(255, 118, 112), rgb(234, 52, 66), rgb(172, 22, 42)),
+		Owned = seq(rgb(96, 220, 156), rgb(40, 166, 116), rgb(22, 112, 92)),
+		Pending = seq(rgb(200, 236, 132), rgb(118, 196, 78), rgb(64, 146, 62)),
+		Well = seq(rgb(40, 62, 132), rgb(26, 44, 104), rgb(18, 30, 78)),
+	}),
+	-- Chips, wells and text on the dark shop surface.
+	Color = table.freeze({
+		Panel = rgb(22, 38, 98),
+		PanelDeep = rgb(14, 24, 66),
+		TabBar = rgb(16, 28, 76),
+		TextSoft = rgb(214, 226, 252),
+		Grey = rgb(176, 190, 224), -- the grey subtitles
+		Warn = rgb(255, 214, 96),
+		Error = rgb(255, 150, 140),
+		Glow = rgb(255, 255, 255),
+	}),
+	-- Motion starting values, M10-08b (seconds, scales). Reduced motion uses ReducedFade and no scale changes.
+	Motion = table.freeze({
+		OpenFrom = 0.94,
+		OpenSeconds = 0.2,
+		CloseSeconds = 0.14,
+		HoverScale = 1.04,
+		HoverSeconds = 0.11,
+		PressScale = 0.96,
+		PressScaleTouch = 0.94,
+		PressSeconds = 0.07,
+		ReleaseSeconds = 0.12,
+		ShineSeconds = 0.65,
+		ShineEveryMin = 6,
+		ShineEveryMax = 8,
+		SparkleSeconds = 0.6,
+		SparkleCount = 5,
+		CountUpMin = 0.45,
+		CountUpMax = 0.7,
+		PendingSeconds = 0.4,
+		CarouselSeconds = 9, -- dwell before the hero moves on by itself
+		CarouselPause = 14, -- seconds auto-advance rests after any hover, touch, press or manual move
+		BounceSeconds = 0.5,
+		BounceEvery = 3.4,
+		ReducedFade = 0.12,
+		HoverSoundGap = 0.14,
+		Blur = 8,
+		TabScrollSeconds = 0.32,
+	}),
+	-- Layout starting values (M10-01b, M10-14a, M10-14b). Design px; the shop reads them against the safe design size.
+	Layout = table.freeze({
+		DesktopMinW = 1000,
+		DesktopMinH = 560,
+		PhoneMaxH = 420,
+		ContentPct = table.freeze({ Desktop = 0.9, Tablet = 0.94, Phone = 0.96 }),
+		Gap = table.freeze({ Desktop = 20, Tablet = 16, Phone = 12 }),
+		HeroRatio = table.freeze({ Desktop = 2.2, Tablet = 1.9, Phone = 3 }),
+		HeroShare = table.freeze({ Desktop = 0.66, Tablet = 0.62 }),
+		PassRatio = 0.8, -- tall pass card width : height
+		ArtShare = 0.4, -- of a tall card's height (35 to 45 percent)
+		CloseSize = 56,
+		TabHeight = 44,
+		PatternSpacing = 58,
+		PatternMaxTiles = 42,
+	}),
+	-- The currency word on every price label (M10-10c): the word, never a drawn or substituted symbol. The PREVIEW
+	-- prices themselves live in ShopPreviewCatalog.
+	PriceWord = "Robux",
+})
+
 PreviewTokens.FontItalicNumber = function(): Font
 	-- verified in Studio's bundled font families (Nunito: "Black Italic", weight 900 = Enum.FontWeight.Heavy)
 	return Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
