@@ -40,6 +40,9 @@ export type Profile = {
 	steerScale: number, -- times each family's steering speed
 	scenery: Scenery,
 	spawnAhead: number,
+	warmupDistance: number, -- studs at the start of a run with extra space between cars
+	warmupGapScale: number,
+	hopRangeScale: number,
 	keysTime: { [Rarity]: number }, -- seconds aboard to claim, by rarity
 	heatScale: number, -- times each family's Heat Capacity (keeps every claim possible with Heat to spare)
 }
@@ -53,21 +56,28 @@ RunConfig.PROFILES = table.freeze({
 		steerScale = 1,
 		scenery = "Canyon",
 		spawnAhead = 700,
+		warmupDistance = 700,
+		warmupGapScale = 1.6,
+		hopRangeScale = 1,
 		keysTime = table.freeze({ Common = 3, Rare = 4, Epic = 5, Legendary = 6 }), -- same as KEYS_TIME below
 		heatScale = 1,
 	} :: Profile),
 	Circuit = table.freeze({
 		name = "Circuit",
-		speedScale = 1.7,
-		laneSpeed = table.freeze({ 0.4, 0.48, 0.56, 0.64 }),
-		gapScale = 1.35,
+		-- 2026-11-03: eased (was 1.7x speed, traffic 0.40 to 0.64, spacing 1.35x, Heat 1.6x).
+		speedScale = 1.45,
+		laneSpeed = table.freeze({ 0.5, 0.57, 0.64, 0.71 }),
+		gapScale = 1.6,
 		crashEndsRun = true,
 		steerScale = 1.6,
 		scenery = "Circuit",
 		spawnAhead = 1150,
+		warmupDistance = 1400,
+		warmupGapScale = 2.2,
+		hopRangeScale = 1.25,
 		-- Brian R: keeping a car takes 5 seconds or more (the outline's Decided values are 3 to 6).
 		keysTime = table.freeze({ Common = 5, Rare = 6, Epic = 7, Legendary = 8 }),
-		heatScale = 1.6,
+		heatScale = 2,
 	} :: Profile),
 } :: { [string]: Profile })
 
@@ -85,11 +95,28 @@ RunConfig.GAP_RAMP_DISTANCE = 4000
 
 -- The Hop.
 RunConfig.HOP_TIME = 0.6
-RunConfig.HOP_HEIGHT = 9
+RunConfig.HOP_HEIGHT = 11
 RunConfig.HOP_NUDGE = 4.5
 RunConfig.HOP_NUDGE_SPEED = 6
-RunConfig.LAND_TOLERANCE = 1.2
+RunConfig.LAND_TOLERANCE = 2.4
 RunConfig.HOP_BEHIND_ALLOWANCE = 4
+-- Hop feel: the world slows to this fraction of normal speed at the top of the arc (a short
+-- slow-motion beat that also gives a moment to read the landing), and the rider does a flip.
+RunConfig.HOP_SLOWMO = 0.45
+RunConfig.HOP_FLIPS = 1
+-- Car suspension spring for the take-off kick and landing squash (presentation only).
+RunConfig.SUSPENSION_STIFFNESS = 170
+RunConfig.SUSPENSION_DAMPING = 11
+RunConfig.LAUNCH_KICK = -7
+RunConfig.LANDING_SQUASH = -15
+
+-- Forgiveness (Brian R, 2026-11-03: "a little easier"). Only used where contact ends the run.
+RunConfig.HIT_SCALE = 0.82 -- the crash box is this fraction of each car's size; closer is a graze
+RunConfig.LANDING_GRACE = 0.6 -- seconds after landing when contact cannot end the run
+RunConfig.DANGER_TIME = 1.1 -- outline the car you will hit within this many seconds
+-- First-run assist (Adam's big-round note, "yours to build"): Heat runs at this rate until the
+-- player's first claim of the session.
+RunConfig.FIRST_CLAIM_HEAT = 0.5
 
 -- Foot Dash.
 RunConfig.FOOT_DASH_TIME = 2.5

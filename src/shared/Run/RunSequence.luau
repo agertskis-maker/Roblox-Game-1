@@ -220,7 +220,10 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 		table.insert(self._spawns, spawn)
 		-- Herds come in bunches: mostly short gaps, sometimes a long open stretch to steer through.
 		local open = if rng:NextNumber() < 0.15 then rng:NextNumber(1.6, 3) else 1
-		self._nextStart[lane] = start + length + gapAt(start) * self.profile.gapScale * rng:NextNumber(0.6, 1.5) * open
+		local warmup = if start < self.profile.warmupDistance then self.profile.warmupGapScale else 1
+		self._nextStart[lane] = start
+			+ length
+			+ gapAt(start) * self.profile.gapScale * warmup * rng:NextNumber(0.6, 1.5) * open
 	end
 	return self._spawns
 end
