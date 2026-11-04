@@ -64,6 +64,10 @@ ShopPanel.CloseDistance = 15
 ShopPanel.cashOf = nil :: (() -> number?)?
 -- Set by the Launch Pad shell: "Get more spots" on the full parking card opens the Shop on Expanded Paddock.
 ShopPanel.onMoreSpots = nil :: (() -> ())?
+-- Round 5 (L-04), set by the Launch Pad shell: the parking sign's "Park Cars" prompt opens the Lineup panel.
+ShopPanel.onLineup = nil :: (() -> ())?
+-- Round 5, set by SpeedwayLooks: opens the home plot's upgrade or parking panel (false when the player has no plot).
+ShopPanel.openHome = nil :: ((kind: any) -> boolean)?
 
 -- Layout numbers from the specs (design px).
 local CARD_W = 520

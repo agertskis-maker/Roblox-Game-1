@@ -9,8 +9,14 @@
 -- unlock; outside Studio the attributes are ignored. Example (command bar, Play, client):
 --   game.Players.LocalPlayer:SetAttribute("Lane3PortalLocked_DustyHighway", false)
 
+-- Round 5 (L-05): with a live server, the server's unlocked Worlds decide (LiveData.worlds, the agreed WorldsUnlocked field,
+-- replicated read only). The look still grants nothing: the server refuses a run in a locked World on its own.
+
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local LiveData = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("LiveData"))
 
 local PortalPreviewState = {}
 
@@ -20,6 +26,9 @@ local DEFAULT: { [string]: boolean } = { Downtown = false, DustyHighway = true, 
 local PREFIX = "Lane3PortalLocked_"
 
 function PortalPreviewState.isLocked(world: string): boolean
+	if LiveData.hasWorlds() then
+		return not LiveData.worlds()[world]
+	end
 	if RunService:IsStudio() then
 		local v = Players.LocalPlayer:GetAttribute(PREFIX .. world)
 		if type(v) == "boolean" then
@@ -33,7 +42,11 @@ end
 -- Calls back with (world) whenever a Studio test toggle changes; returns the connection.
 function PortalPreviewState.onChanged(callback: (string) -> ()): RBXScriptConnection
 	return Players.LocalPlayer.AttributeChanged:Connect(function(name)
-		if RunService:IsStudio() and string.sub(name, 1, #PREFIX) == PREFIX then
+		if name == LiveData.Attributes.worlds then
+			for _, world in { "Downtown", "DustyHighway", "SummitPass" } do
+				callback(world)
+			end
+		elseif RunService:IsStudio() and string.sub(name, 1, #PREFIX) == PREFIX then
 			callback(string.sub(name, #PREFIX + 1))
 		end
 	end)

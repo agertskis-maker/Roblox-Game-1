@@ -23,6 +23,8 @@ local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island")
 local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Look = require(Speedway:WaitForChild("Look"))
 local Path = require(Speedway:WaitForChild("Path"))
+local LiveData = require(ReplicatedStorage.Shared:WaitForChild("UI"):WaitForChild("LiveData"))
+local RosterFixtures = require(ReplicatedStorage.Shared.UI:WaitForChild("RosterFixtures"))
 
 local Calm = require(script.Parent.Speedway.Calm)
 local Kiosk = require(script.Parent.Speedway.Kiosk)
@@ -186,6 +188,10 @@ local function attach(root: Instance): Trove.Trove
 			if existing then
 				existing:Destroy()
 			end
+			local park = anchor and anchor:FindFirstChild("Lane3LineupPrompt")
+			if park then
+				park:Destroy()
+			end
 			return
 		end
 		if existing then
@@ -205,10 +211,45 @@ local function attach(root: Instance): Trove.Trove
 			end
 		end)
 		prompt.Parent = at
+		-- Round 5 (L-04): with a live server the parking sign also opens YOUR RACEWAY, the Lineup panel (F, beside E)
+		if kind == "parking" and LiveData.active() and not at:FindFirstChild("Lane3LineupPrompt") then
+			local park = Instance.new("ProximityPrompt")
+			park.Name = "Lane3LineupPrompt"
+			park.ActionText = "Park Cars"
+			park.ObjectText = "Your Raceway"
+			park.KeyboardKeyCode = Enum.KeyCode.F
+			park.GamepadKeyCode = Enum.KeyCode.ButtonY
+			park.UIOffset = Vector2.new(0, 76)
+			park.HoldDuration = 0
+			park.MaxActivationDistance = 10
+			park.RequiresLineOfSight = true
+			park.Triggered:Connect(function()
+				local open = ShopPanel.onLineup
+				if info.index == homeIndex() and open then
+					open()
+				end
+			end)
+			park.Parent = at
+		end
 	end
 	local function syncPrompts(info: PlotInfo)
 		placePrompt(info, "upgrade", anchorIn(info.plot:FindFirstChild("SpeedwayLook"), "ShopPromptAnchor"))
 		placePrompt(info, "parking", anchorIn(info.plot:FindFirstChild("ParkingLook"), "ParkingPromptAnchor"))
+	end
+	-- Round 5 (L-04): the Lineup panel's GET MORE SPOTS opens the home plot's own parking panel, as the sign does
+	ShopPanel.openHome = function(kind: ShopPanel.Kind): boolean
+		for _, info in infos do
+			if info.index == homeIndex() then
+				local container = info.plot:FindFirstChild(if kind == "upgrade" then "SpeedwayLook" else "ParkingLook")
+				local anchor =
+					anchorIn(container, if kind == "upgrade" then "ShopPromptAnchor" else "ParkingPromptAnchor")
+				if anchor then
+					ShopPanel.open(sourceFor(info, kind, anchor))
+					return true
+				end
+			end
+		end
+		return false
 	end
 	local function refreshParking(info: PlotInfo, reveal: boolean)
 		ParkingLook.refresh(info.plot, info.index, info.bearing, reveal, Calm(), fx)
@@ -456,8 +497,32 @@ local function attach(root: Instance): Trove.Trove
 		greetOwner()
 	end)
 
+	-- Round 5 (L-02): with a live server, the real Lineup cars drive (RacewayLineup) and the crowd, the flag and the sounds
+	-- answer the server's payouts; the fixture cars stay off. The "+$" pop is RacewayLineup's, so no PREVIEW cue here.
+	task.spawn(function()
+		local t0 = os.clock()
+		while not LiveData.active() and os.clock() - t0 < 10 do
+			task.wait(0.2)
+		end
+		local lapPaid = LiveData.remote(LiveData.Remotes.LapPaid)
+		if not lapPaid then
+			return
+		end
+		LappingPreview.stop()
+		trove:Connect(lapPaid.OnClientEvent, function(plotIndex: any, slot: any, carId: any)
+			for plot, info in infos do
+				if info.index == plotIndex and info.near then
+					local car = if type(carId) == "string" then RosterFixtures.byId(carId) else nil
+					local rarity = if car then car.rarity else "Common"
+					Life.onCrossed(plot, nil, rarity, if type(slot) == "number" then slot else 1)
+					Sound.onCrossed(plot, rarity)
+				end
+			end
+		end)
+	end)
+
 	-- preview Lineup cars (Studio only; a fixture) and their finish crossings
-	if RunService:IsStudio() then
+	if RunService:IsStudio() and not LiveData.active() then
 		task.defer(function()
 			if not LappingPreview.running() and player:GetAttribute("Lane3SpeedwayPreviewCars") ~= 0 then
 				local n = player:GetAttribute("Lane3SpeedwayPreviewCars")
