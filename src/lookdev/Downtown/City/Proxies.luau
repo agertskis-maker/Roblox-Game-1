@@ -155,7 +155,7 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 			tree(m, Vector3.new(w * 0.3, 0.4, d * 0.4), 1)
 			tree(m, Vector3.new(w * 0.72, 0.4, d * 0.7), 1.15)
 			box(m, "Bench", Vector3.new(5, 1.2, 1.6), CFrame.new(w * 0.6, 1, 3), Color3.fromRGB(150, 104, 70))
-			box(m, "Path", Vector3.new(3, 0.45, d), CFrame.new(w * 0.5, 0.22, d / 2), STONE, false)
+			box(m, "Path", Vector3.new(3, 0.45, d - 0.1), CFrame.new(w * 0.5, 0.23, d / 2), STONE, false) -- Round 5: ends inside the pad
 		end
 		if label then
 			Parts.label(pad, spec.name, 4)
@@ -163,7 +163,9 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		return finish(m)
 	end
 	local body = box(m, "Body", Vector3.new(w, h, d), CFrame.new(w / 2, h / 2, d / 2), look.wall)
-	box(m, "Cornice", Vector3.new(w + 0.8, 1.6, 1.4), CFrame.new(w / 2, h - 0.8, -0.3), look.trim)
+	-- Round 5 (P-01): the cornice stands 0.08 above the wall top and stops 0.05 short of each side, so it never shares a face
+	-- with its own wall or with the next lot's cornice (both flickered)
+	box(m, "Cornice", Vector3.new(w - 0.1, 1.6, 1.4), CFrame.new(w / 2, h - 0.72, -0.3), look.trim)
 	box(m, "Roof", Vector3.new(w - 1, 0.4, d - 1), CFrame.new(w / 2, h + 0.2, d / 2), look.roof)
 	local glassy = spec.finish == "glass"
 	if spec.shop then
@@ -181,7 +183,8 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 	if spec.orientation == "corner-L" or spec.orientation == "corner-R" then
 		-- the dressed return on the corner side (left = x 0, right = x width)
 		local x = if spec.orientation == "corner-L" then -0.12 else w + 0.12
-		box(m, "ReturnPilaster", Vector3.new(0.5, h, 1.6), CFrame.new(x, h / 2, 0.8), look.trim)
+		-- Round 5 (P-01): 0.05 proud of the facade and 0.12 under the wall top, so no face is shared with the wall
+		box(m, "ReturnPilaster", Vector3.new(0.5, h - 0.12, 1.6), CFrame.new(x, (h - 0.12) / 2, 0.75), look.trim)
 		local wy = 18
 		while wy + 5 < h - 2 do
 			box(m, "ReturnWindows", Vector3.new(0.3, 4.5, d - 6), CFrame.new(x, wy, d / 2), GLASS)
@@ -190,7 +193,7 @@ function Proxies.lot(spec: LotSpec, look: Look, label: boolean): Model
 		box(m, "ReturnStorefront", Vector3.new(0.3, 9, d - 6), CFrame.new(x, 5, d / 2), GLASS)
 	end
 	if spec.kind == "courtyard" then
-		box(m, "CourtWall", Vector3.new(w, 2.4, 0.8), CFrame.new(w / 2, 1.2, -0.4), look.trim)
+		box(m, "CourtWall", Vector3.new(w - 0.1, 2.4, 0.8), CFrame.new(w / 2, 1.2, -0.45), look.trim) -- Round 5: off the paving edge
 	end
 	if label then
 		Parts.label(body, spec.name, h / 2 + 3)
@@ -234,7 +237,7 @@ function Proxies.landmark(spec: LandmarkSpec, look: Look, label: boolean, geomet
 	local anchor: BasePart
 	if spec.id == "Theater" then
 		anchor = box(m, "Body", Vector3.new(w, h, d), CFrame.new(w / 2, h / 2, d / 2), look.wall)
-		box(m, "Cornice", Vector3.new(w + 1, 2, 1.6), CFrame.new(w / 2, h - 1, -0.4), look.trim)
+		box(m, "Cornice", Vector3.new(w - 0.1, 2, 1.6), CFrame.new(w / 2, h - 0.92, -0.4), look.trim) -- Round 5: see the lot cornice
 		box(m, "Lobby", Vector3.new(w - 8, 10, 0.3), CFrame.new(w / 2, 5, -0.1), GLASS)
 		local marquee = box(m, "Marquee", Vector3.new(w - 6, 4, 10), CFrame.new(w / 2, 13, -5), CREAM)
 		Proxies.text(marquee, Enum.NormalId.Front, spec.label)

@@ -252,26 +252,20 @@ function ICONS.mountain(parent, cf, s, style)
 	end
 end
 
--- The checkered end cap of a Race sign, painted tiles on the plate.
+-- The checkered end cap of a Race sign, painted tiles on the plate. Round 5 (P-01): one ivory backing and the three dark
+-- tiles 0.03 in front of it (was six tiles), the same pattern in four parts with no shared face.
 local function checkerCap(parent: Instance, cf: CFrame, w: number, h: number)
 	local n = 3
 	local tile = h / n
+	part(parent, "CheckerTile", Vector3.new(tile * 2, h, 0.06), cf, IVORY)
 	for row = 0, n - 1 do
 		for col = 0, 1 do
-			if (row + col) % 2 == 0 then
+			if (row + col) % 2 == 1 then
 				part(
 					parent,
 					"CheckerTile",
 					Vector3.new(tile, tile, 0.06),
-					cf * CFrame.new((col - 0.5) * tile, (row - (n - 1) / 2) * tile, 0),
-					IVORY
-				)
-			else
-				part(
-					parent,
-					"CheckerTile",
-					Vector3.new(tile, tile, 0.06),
-					cf * CFrame.new((col - 0.5) * tile, (row - (n - 1) / 2) * tile, 0),
+					cf * CFrame.new((col - 0.5) * tile, (row - (n - 1) / 2) * tile, 0.03),
 					INK
 				)
 			end
