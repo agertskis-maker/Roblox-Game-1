@@ -51,6 +51,7 @@ function LineupPanel.new(ctx: Overlay.Ctx, options: Options?): { [string]: any }
 	local reason: string? = nil
 	local shakeSlot: number? = nil
 	local highlight: string? = nil
+	local builtShort = false -- whether the locked spot was drawn as "can't afford yet"
 	local self: { [string]: any } = {}
 
 	local function plot(): Instance?
@@ -268,8 +269,13 @@ function LineupPanel.new(ctx: Overlay.Ctx, options: Options?): { [string]: any }
 						return
 					end
 					selected = { slot = slot, carId = carId, mode = "menu" }
+					reason = nil
 					self:refresh()
 				end)
+				if selected and selected.slot == slot and selected.mode == "pick" then
+					-- the spot a SWAP will change stays marked while the player picks
+					make("UIStroke", { Thickness = 4, Color = CarKit.Yellow }, b)
+				end
 				if selected and selected.slot == slot and selected.mode == "menu" then
 					make("UIStroke", { Thickness = 4, Color = CarKit.White }, b)
 					local half = math.floor((cellW - 18) / 2)
@@ -367,23 +373,63 @@ function LineupPanel.new(ctx: Overlay.Ctx, options: Options?): { [string]: any }
 			}, row) :: TextButton
 			make("UICorner", { CornerRadius = UDim.new(0, 12) }, lock)
 			make("UIStroke", { Thickness = 3, Color = CarKit.ChromeBottom }, lock)
-			CarKit.slot(lock, "lock", 64, { position = UDim2.fromScale(0.5, 0.36), z = 5, fallback = "Lock" })
-			CarKit.button(lock, {
-				text = "GET MORE SPOTS",
-				tone = "Orange",
-				px = 14,
-				size = UDim2.new(1, -12, 0, 48),
-				position = UDim2.new(0.5, 0, 1, -6),
-				anchor = Vector2.new(0.5, 1),
-				z = 6,
-				name = "MoreSpots",
-				onPress = function()
-					self:close()
-					if opts.onMoreSpots then
-						opts.onMoreSpots()
-					end
-				end,
-			})
+			CarKit.slot(lock, "lock", 64, { position = UDim2.fromScale(0.5, 0.3), z = 5, fallback = "Lock" })
+			-- the next spot is sold right here (BuyParkingSpot: the server prices it and charges Cash); past the 15 that can be
+			-- bought, GET MORE SPOTS opens the Shop's Expanded Paddock pass. The price is the PREVIEW number the server uses.
+			local p = plot()
+			local expanded = p ~= nil and p:GetAttribute("ExpandedPaddock") == true
+			local bought = count - (if expanded then EconomyPreview.ExpandedPaddockSpots else 0)
+			local price = EconomyPreview.spotPrice(bought + 1)
+			local cash = LiveData.cash()
+			if price and live then
+				local short = if cash then math.max(0, price - cash) else 0
+				builtShort = short > 0
+				CarKit.text(lock, if short > 0 then Format.cash(short) .. " more" else "NEXT SPOT", 15, {
+					align = Enum.TextXAlignment.Center,
+					size = UDim2.new(1, -8, 0, 20),
+					position = UDim2.new(0, 4, 0.52, 0),
+					color = if short > 0 then CarKit.Soft else CarKit.White,
+					z = 6,
+					name = "Need",
+				})
+				local buy = CarKit.button(lock, {
+					text = "BUY " .. Format.cash(price),
+					tone = if short > 0 then "Grey" else "Green",
+					px = 15,
+					size = UDim2.new(1, -12, 0, 48),
+					position = UDim2.new(0.5, 0, 1, -6),
+					anchor = Vector2.new(0.5, 1),
+					z = 6,
+					name = "BuySpot",
+					onPress = function()
+						local remote = LiveData.remote(LiveData.Remotes.BuyParkingSpot)
+						if remote and not pending then
+							reason = nil
+							remote:FireServer()
+						end
+					end,
+				})
+				if short > 0 then
+					buy.setEnabled(false)
+				end
+			else
+				CarKit.button(lock, {
+					text = "GET MORE SPOTS",
+					tone = "Orange",
+					px = 14,
+					size = UDim2.new(1, -12, 0, 48),
+					position = UDim2.new(0.5, 0, 1, -6),
+					anchor = Vector2.new(0.5, 1),
+					z = 6,
+					name = "MoreSpots",
+					onPress = function()
+						self:close()
+						if opts.onMoreSpots then
+							opts.onMoreSpots()
+						end
+					end,
+				})
+			end
 		end
 
 		-- the pick list, or what to do
@@ -505,7 +551,30 @@ function LineupPanel.new(ctx: Overlay.Ctx, options: Options?): { [string]: any }
 		liveTrove:Add(LiveData.changed(player, "cars", function()
 			self:refresh()
 		end))
+		-- a bought spot (the plot's count) and Cash change what the locked spot says
+		local p = plot()
+		if p then
+			liveTrove:Add(p:GetAttributeChangedSignal("ParkingSpots"):Connect(function()
+				self:refresh()
+			end))
+		end
+		liveTrove:Add(LiveData.changed(player, "cash", function()
+			local p2 = plot()
+			local count = spots()
+			local expanded = p2 ~= nil and p2:GetAttribute("ExpandedPaddock") == true
+			local price =
+				EconomyPreview.spotPrice(count - (if expanded then EconomyPreview.ExpandedPaddockSpots else 0) + 1)
+			local short = price ~= nil and (LiveData.cash() or 0) < price
+			if short ~= builtShort and not pending then
+				self:refresh()
+			end
+		end))
 		local result = LiveData.onResult(function(what: string, ok: boolean, why: string?)
+			if what == "BuyParkingSpot" and not ok then
+				reason = why or "Not now."
+				self:refresh()
+				return
+			end
 			if what ~= "lineup" then
 				return
 			end
