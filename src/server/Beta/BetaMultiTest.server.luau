@@ -90,8 +90,15 @@ ack.OnServerEvent:Connect(function(player: Player, id: any, json: any)
 end)
 
 local cmdCount = 0
--- sends one command to a client and waits (bounded) for its answer; nil on timeout
+local busyPlayers: { [Player]: boolean } = {}
+-- sends one command to a client and waits (bounded) for its answer; nil on timeout. One command per player at a time: a
+-- client sees only the last value of an attribute changed twice in one frame.
 local function command(player: Player, cmd: string, arg: any?, timeout: number?): any
+	local t0 = os.clock()
+	while busyPlayers[player] and os.clock() - t0 < 90 do
+		task.wait(0.1)
+	end
+	busyPlayers[player] = true
 	cmdCount += 1
 	local id = string.format("%s-%d", nonce, cmdCount)
 	player:SetAttribute("BetaTestCmd", HttpService:JSONEncode({ id = id, cmd = cmd, arg = arg }))
@@ -100,6 +107,7 @@ local function command(player: Player, cmd: string, arg: any?, timeout: number?)
 	end)
 	local reply = replies[id]
 	replies[id] = nil
+	busyPlayers[player] = nil
 	if not got then
 		table.insert(notes, string.format("no answer from %s to %s", player.Name, cmd))
 	end
@@ -382,7 +390,8 @@ suites.rejoin = function()
 	local A = list[1]
 	local key = BetaData.keyOf(A)
 	giveCars(A, { "Putter" }, { "Putter" })
-	task.spawn(command, A, "run", "Downtown", 60)
+	local launched = command(A, "run", "Downtown", 60)
+	check("A's run launched", launched ~= nil and launched.ok == true, if launched then launched.phase else "no answer")
 	-- the run until it has paid something, then the leave (mid-run)
 	local paid = waitFor(110, function()
 		local st = command(A, "state", nil, 3)
