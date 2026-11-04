@@ -115,10 +115,22 @@ GameIcons.Common = {
 -- Keys drawn once and shown under two names.
 GameIcons.Alias = {
 	doubleLapPay = "art_doublelap",
-	starterPack = "art_starter",
 	bundle = "art_bundle",
 	cross = "close",
+	-- Round 5 (S-01): the three pass cards no longer show a car (two reviewers read a car as "included"). Their new art is
+	-- cut from R5-IMG-03 (Car-Hop-Art/review/round5/art): a gift with a Rare-gem key, a crown, three parking spots.
+	starterPack = "art_pass_starter",
+	art_starter = "art_pass_starter",
+	art_vip = "art_pass_vip",
+	art_paddock = "art_pass_paddock",
 }
+
+-- Art not uploaded yet (no id in GameIconIds) shows this uploaded icon instead outside Adam's local test places, never a car.
+GameIcons.Fallback = {
+	art_pass_starter = "art_gift",
+	art_pass_vip = "vip",
+	art_pass_paddock = "parkingSpot",
+} :: { [string]: string }
 
 local missing: { [string]: boolean } = {}
 
@@ -135,6 +147,10 @@ function GameIcons.uri(key: string): string?
 	end
 	if not missing[k] and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
 		return "rbxasset://carhop/" .. k .. ".png"
+	end
+	local fallback = GameIcons.Fallback[k]
+	if fallback then
+		return GameIconIds[fallback]
 	end
 	return nil
 end

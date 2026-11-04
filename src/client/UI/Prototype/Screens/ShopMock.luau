@@ -84,7 +84,10 @@ local SLIDES: { Slide } = {
 local ART_ZOOM = 1.25
 local ART_ZOOM_BY_KEY: { [string]: number } = {
 	art_cash5 = 1.55, -- the Cash Vault
-	art_vip = 1.5,
+	-- Round 5: the pass art is a centred tile now (a crown, a gift, three spots), so it is only nudged past its box
+	art_vip = 1.1,
+	art_starter = 1.1,
+	art_paddock = 1.1,
 	art_doublelap = 1.6,
 }
 
