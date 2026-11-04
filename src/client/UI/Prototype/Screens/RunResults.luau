@@ -312,6 +312,18 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 
 		-- the cars, or the friendly empty slot
 		local bandH = math.round((if good then 214 else 168) * k)
+		-- Round 5 (A-02 found it on a phone): on a short card everything below must fit above the RETRY and HOME row, so the
+		-- tip goes first and then the band shrinks (it used to push the Cash row and RESPAWN under the buttons)
+		local bottomTop = h - math.round(14 * k) - math.round(math.max(84 * k, 54)) - 6
+		local rowNeed = math.round(66 * k) + 4
+		local tipNeed = if good then 0 else math.round(52 * k) + math.round(6 * k)
+		local roomForBand = bottomTop - y - math.round(8 * k) - rowNeed - tipNeed
+		if roomForBand < 64 and not good then
+			tipNeed = 0
+			roomForBand = bottomTop - y - math.round(8 * k) - rowNeed
+		end
+		local showTip = not good and tipNeed > 0
+		bandH = math.max(56, math.min(bandH, roomForBand))
 		local band = CarKit.board(card, {
 			size = UDim2.new(1, -math.round(28 * k), 0, bandH),
 			position = UDim2.fromOffset(math.round(14 * k), y),
@@ -377,8 +389,8 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		end
 		y += bandH + math.round(8 * k)
 
-		-- a tip, on a run with no cars
-		if not good then
+		-- a tip, on a run with no cars (when the card has room for it)
+		if showTip then
 			tipIndex = tipIndex % #RunResults.Tips + 1
 			local tip = if data.outOfBolts
 				then { icon = "stamina", text = "Out of bolts! Each hop uses one." }
@@ -478,8 +490,10 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			end,
 		})
 		-- back into the run: free ones first; only with none left is there a cheap Robux one. No timer, no nagging.
-		local respawnSize = UDim2.new(0.46, 0, 0, math.round(math.max(58 * k, 46)))
-		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, y + rowH / 2)
+		local respawnH = math.round(math.max(58 * k, 46))
+		local respawnSize = UDim2.new(0.46, 0, 0, respawnH)
+		-- Round 5: never over the RETRY and HOME row
+		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, math.min(y + rowH / 2, bottomTop - respawnH / 2 - 2))
 		if data.revives > 0 and options.onRevive then
 			CarKit.button(card, {
 				text = ("RESPAWN FREE (%d)"):format(data.revives),
