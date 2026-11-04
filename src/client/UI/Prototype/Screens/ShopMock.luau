@@ -927,7 +927,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local w = math.floor((p.inner - p.gap * 2) / 3)
 		-- Round 5 (S-02): the three cards fit the page's first view, so every price shows without scrolling (on a phone the
 		-- old 200 px floor pushed the prices under the footer)
-		local avail = math.floor(p.pageH - y - 6)
+		local avail = math.floor(p.pageH - fontPx(p, 58, 36) - p.gap - 10) -- the view under the PASSES heading
 		local h = math.round(math.min(math.clamp(w * 0.78, 200, 340), math.max(avail, 150)))
 		for i, row in ids do
 			local offer = Catalog.get(row[1])
