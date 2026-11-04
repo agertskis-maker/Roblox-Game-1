@@ -137,6 +137,12 @@ handlers.report = function(index: any)
 end
 
 handlers.run = function(world: any)
+	-- a run can only start from the island once the loading screen is gone
+	local t0 = os.clock()
+	while player:GetAttribute("Lane3LoadingDone") ~= true and os.clock() - t0 < 40 do
+		task.wait(0.25)
+	end
+	task.wait(2)
 	local c = control()
 	if not c then
 		return { ok = false }
