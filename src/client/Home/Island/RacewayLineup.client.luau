@@ -44,7 +44,7 @@ local CAR_LENGTH = 12.6
 local CAR_HEIGHT = 5.2
 local WHEELBASE = 8.5
 
-type Car = { rig: any, slot: number, carId: string }
+type Car = { rig: any, slot: number, carId: string, placed: boolean }
 type Lane = {
 	plot: Model,
 	index: number,
@@ -107,7 +107,7 @@ local function rebuild(lane: Lane)
 		lane.trove:Add(function()
 			rig:destroy()
 		end)
-		table.insert(lane.cars, { rig = rig, slot = slot, carId = carId })
+		table.insert(lane.cars, { rig = rig, slot = slot, carId = carId, placed = false })
 	end
 end
 
@@ -172,13 +172,15 @@ RunService.RenderStepped:Connect(function()
 	local eye = if camera then camera.CFrame.Position else Vector3.zero
 	local now = Workspace:GetServerTimeNow()
 	for _, lane in lanes do
-		if #lane.cars == 0 or (lane.centre - eye).Magnitude > ACTIVE_RADIUS then
-			continue
-		end
+		local near = (lane.centre - eye).Magnitude <= ACTIVE_RADIUS
 		for _, car in lane.cars do
-			local cf = carFrame(lane, car.slot, now)
-			if cf then
-				car.rig:pivotTo(cf * CFrame.new(0, CAR_HEIGHT / 2 - 0.4, 0))
+			-- every car gets its place on its first frame (never left at the world origin, the fountain); far plots then rest
+			if near or not car.placed then
+				local cf = carFrame(lane, car.slot, now)
+				if cf then
+					car.rig:pivotTo(cf * CFrame.new(0, CAR_HEIGHT / 2 - 0.4, 0))
+					car.placed = true
+				end
 			end
 		end
 	end
