@@ -88,7 +88,7 @@ local ART_ZOOM_BY_KEY: { [string]: number } = {
 	art_vip = 1.1,
 	art_starter = 1.1,
 	art_paddock = 1.1,
-	art_doublelap = 1.6,
+	art_doublelap = 1.05, -- Round 5: it now sits in its own area left of the price
 }
 
 -- Round 4 (E-07): every Cash amount in the Shop goes through Format.cash ("$12.4K", "$1.2M", up to Qa), the one display rule
@@ -659,8 +659,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			boxArt(card, art, inset, 0, w - buyW - inset * 3, h - inset, 6)
 		else
 			px = fontPx(p, 54, 24)
-			local side = h - inset
-			boxArt(card, art, math.max(inset * 2, w * 0.62 - side / 2), 0, side, side, 6) -- right of the title, so the 2x reads
+			-- Round 5 (S-02): the art has its own area left of the price, under the title, so the price never covers it
+			local top = math.round(px * 1.02)
+			local room = w - buyW - inset * 3
+			local side = math.min(h - top - inset, room)
+			boxArt(card, art, math.max(inset, (room - side) / 2), top, side, side, 6)
 		end
 		CarKit.title(card, title, px, {
 			position = UDim2.fromOffset(math.round(12 * k), math.round(4 * k)),
@@ -919,7 +922,10 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			{ "expanded-paddock", "Paddock", "art_paddock" },
 		}
 		local w = math.floor((p.inner - p.gap * 2) / 3)
-		local h = math.round(math.clamp(w * 0.78, 200, 340))
+		-- Round 5 (S-02): the three cards fit the page's first view, so every price shows without scrolling (on a phone the
+		-- old 200 px floor pushed the prices under the footer)
+		local avail = math.floor(p.pageH - y - 6)
+		local h = math.round(math.min(math.clamp(w * 0.78, 200, 340), math.max(avail, 150)))
 		for i, row in ids do
 			local offer = Catalog.get(row[1])
 			if not offer then
