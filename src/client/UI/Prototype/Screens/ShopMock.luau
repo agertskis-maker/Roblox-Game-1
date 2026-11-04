@@ -363,8 +363,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	-- PIECES ----------------------------------------------------------------------------------------------------
 
+	-- Round 5 (S-02): no Shop text renders under 14 px on any screen: the floor is divided by the screen's UI scale (a phone
+	-- draws the design at about 0.97), so 14 design px never becomes 13.6 real ones
 	local function fontPx(p: Plan, n: number, least: number?): number
-		return math.max(math.round(n * p.k), least or 13)
+		local floor = math.ceil(math.max(least or 14, 14) / math.min(ctx.screen:uiScale(), 1))
+		return math.max(math.round(n * p.k), floor)
 	end
 
 	local function flow(
@@ -794,7 +797,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				Rotation = -6,
 				ZIndex = 16,
 			}, strike)
-			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 11), {
+			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 14), {
 				size = UDim2.fromOffset(100, 16),
 				position = UDim2.new(1, -buyW - 12, 0, math.round(8 * k)),
 				anchor = Vector2.new(1, 0),
@@ -955,18 +958,37 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local bodyPx = fontPx(p, 19, 14)
 			local bodyH = math.round(bodyPx * 2.5)
 			local bottomH = btnH + bodyH + math.round(16 * k) + 6
-			boxArt(card, row[3], 10, artY, w - 20, h - artY - bottomH, 6)
-			CarKit.text(card, offer.body, bodyPx, {
-				wrap = true,
-				align = Enum.TextXAlignment.Center,
-				size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
-				position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
-				anchor = Vector2.new(0.5, 1),
-				alignY = Enum.TextYAlignment.Center,
-				stroke = 1.5,
-				z = 8,
-				name = "Body",
-			})
+			local artH = h - artY - bottomH
+			if artH >= 90 then
+				boxArt(card, row[3], 10, artY, w - 20, artH, 6)
+				CarKit.text(card, offer.body, bodyPx, {
+					wrap = true,
+					align = Enum.TextXAlignment.Center,
+					size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
+					position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
+					anchor = Vector2.new(0.5, 1),
+					alignY = Enum.TextYAlignment.Center,
+					stroke = 1.5,
+					z = 8,
+					name = "Body",
+				})
+			else
+				-- Round 5 (S-02): a short card (a phone) puts the art beside the benefit line, both above the price, so the art
+				-- keeps a readable size and nothing sits under the button
+				local midH = h - artY - btnH - math.round(16 * k) - 4
+				local side = math.min(midH, math.floor(w * 0.42))
+				boxArt(card, row[3], 8, artY, side, side, 6)
+				CarKit.text(card, offer.body, bodyPx, {
+					wrap = true,
+					align = Enum.TextXAlignment.Left,
+					size = UDim2.fromOffset(w - side - 22, midH),
+					position = UDim2.fromOffset(side + 14, artY),
+					alignY = Enum.TextYAlignment.Center,
+					stroke = 1.5,
+					z = 8,
+					name = "Body",
+				})
+			end
 			if offer.price then
 				priceButton(card, offer.id, offer.name, row[3], offer.price, {
 					px = fontPx(p, 34, 22),
@@ -1177,7 +1199,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		panel = shell
 
-		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", 13, {
+		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", fontPx(p, 14, 14), {
 			size = UDim2.new(1, -24, 0, FOOT),
 			position = UDim2.new(0, 12, 1, -FOOT - 3),
 			align = Enum.TextXAlignment.Center,
