@@ -64,6 +64,10 @@ ShopPanel.CloseDistance = 15
 ShopPanel.cashOf = nil :: (() -> number?)?
 -- Set by the Launch Pad shell: "Get more spots" on the full parking card opens the Shop on Expanded Paddock.
 ShopPanel.onMoreSpots = nil :: (() -> ())?
+-- Round 5 (L-04), set by the Launch Pad shell: the parking sign's "Park Cars" prompt opens the Lineup panel.
+ShopPanel.onLineup = nil :: (() -> ())?
+-- Round 5, set by SpeedwayLooks: opens the home plot's upgrade or parking panel (false when the player has no plot).
+ShopPanel.openHome = nil :: ((kind: any) -> boolean)?
 
 -- Layout numbers from the specs (design px).
 local CARD_W = 520
@@ -976,13 +980,13 @@ local function buildFooter(p: Panel, inner: Frame, width: number, y: number)
 			Tokens.Radius.Pill,
 			MINT
 		)
-		-- Car Hop Beta 1 (decision 0030): purchases are free but saved there, so the marker and line say so
+		-- Car Hop Beta (decisions 0030, 0039): purchases cost Cash at PREVIEW prices and are saved, so the marker and line say so
 		local beta = ReplicatedStorage:FindFirstChild("CarHopBeta") ~= nil
 		text(marker, "Text", if beta then "BETA" else "STUDIO PREVIEW", Tokens.TextSize.Minimum, MINT, 0)
 		local line = text(
 			inner,
 			"PreviewLine",
-			if beta then "Free in the beta. Progress is saved." else "No Cash spent. Progress is not saved.",
+			if beta then "PREVIEW prices, paid in Cash. Progress is saved." else "No Cash spent. Progress is not saved.",
 			Tokens.TextSize.Minimum,
 			C.TextSecondary,
 			0
