@@ -16,6 +16,7 @@ if not BetaConfig.enabled() then
 	return
 end
 
+local BetaRunMap = require(ReplicatedStorage.Shared.Beta:WaitForChild("BetaRunMap"))
 local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForChild("RunConfig"))
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
 local PortalPreviewState =
@@ -46,9 +47,15 @@ local function root(): BasePart?
 	return if r and r:IsA("BasePart") then r else nil
 end
 
+local unbridge: (cause: string) -> ()
+
 local function stopRun(again: boolean?)
 	local run = current
 	current = nil
+	if run then
+		local state = run:getDebugState()
+		unbridge(if again then "Retry" else (state.cause or "Quit"))
+	end
 	if run then
 		run.Ended:Fire() -- what his Retry button fires: the tutorial and the scenery are listening
 	end
@@ -65,10 +72,130 @@ local function stopRun(again: boolean?)
 	end
 end
 
+-- Round 5 (L-03, decision 0039): the run report bridge. THE RUN REPORT IS CLIENT-TRUSTED IN THE BETA: Brian R's run is
+-- client-only, so the server accepts what is reported here inside hard caps and logs it; this is scaffolding for a private
+-- playtest, deleted when Lane 1 reports through the server and Lane 2 checks it. The server hands out the seed, so it can
+-- rebuild the run's traffic itself. This bridge listens to the run's own report signals (RunReport.Batch and .Urgent, made
+-- "for whoever wires them") and never changes the run. It sends what happened, never an amount: the events as note 0021
+-- shapes them, plus the beta-only `betaModel` beside a KeysComplete. The server's grants come back and are counted for the
+-- Results card (LaunchPad's runTally); a claim not yet answered counts as pending ("Checking...").
+local live: { runId: string?, world: string, tally: any, conns: { RBXScriptConnection } }? = nil
+
+local function netRemote(name: string): Instance?
+	local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
+	return net and net:FindFirstChild(name)
+end
+
+local function newTally(): any
+	return { cars = {}, claimCash = 0, joyrideCash = 0, milestoneCash = 0, total = 0, pending = 0, waiting = {} }
+end
+
+local function bridge(run: any, world: string, runId: string)
+	local state = { runId = runId, world = world, tally = newTally(), conns = {} }
+	live = state
+	local events = netRemote(BetaConfig.Remotes.RunEvents) :: RemoteEvent?
+	local keys = netRemote(BetaConfig.Remotes.KeysComplete) :: RemoteEvent?
+	local report = run._report
+	if not (report and events and keys) then
+		warn("[CarHopBeta] run report bridge not available: this run is not paid")
+		return
+	end
+	table.insert(
+		state.conns,
+		report.Batch:Connect(function(batch: { any })
+			events:FireServer(runId, batch)
+		end)
+	)
+	table.insert(
+		state.conns,
+		report.Urgent:Connect(function(e: any)
+			if e.kind ~= "KeysComplete" then
+				return
+			end
+			local spawn = run._sequence and run._sequence:get(e.index)
+			local betaModel = if spawn then BetaRunMap.carFor(world, spawn.family, spawn.rarity) else nil
+			local t = state.tally
+			if not t.waiting[e.index] then
+				t.waiting[e.index] = true
+				t.pending += 1
+			end
+			keys:FireServer(runId, e.index, betaModel)
+			-- an answer that never comes is given up after 3 s (the card then shows what is known)
+			task.delay(3, function()
+				if t.waiting[e.index] then
+					t.waiting[e.index] = nil
+					t.pending -= 1
+				end
+			end)
+		end)
+	)
+end
+
+unbridge = function(cause: string)
+	local state = live
+	if not state then
+		return
+	end
+	for _, c in state.conns do
+		c:Disconnect()
+	end
+	state.conns = {}
+	local finish = netRemote(BetaConfig.Remotes.RunEnd) :: RemoteEvent?
+	if finish and state.runId then
+		finish:FireServer(state.runId, cause)
+	end
+end
+
+task.spawn(function()
+	local granted = ReplicatedStorage:WaitForChild(BetaConfig.NetName, 15)
+	local remote = granted and granted:WaitForChild(BetaConfig.Remotes.RunGranted, 5)
+	if remote and remote:IsA("RemoteEvent") then
+		remote.OnClientEvent:Connect(function(runId: any, grant: any)
+			local state = live
+			if not (state and state.runId == runId and type(grant) == "table") then
+				return
+			end
+			local t = state.tally
+			if type(grant.index) == "number" and t.waiting[grant.index] then
+				t.waiting[grant.index] = nil
+				t.pending -= 1
+			end
+			if grant.kind == "claim" then
+				table.insert(t.cars, { carId = grant.carId, parked = grant.parked })
+				t.claimCash += grant.amount
+			elseif grant.kind == "joyride" then
+				t.joyrideCash += grant.amount
+			elseif grant.kind == "milestone" then
+				t.milestoneCash += grant.amount
+			end
+			t.total = t.claimCash + t.joyrideCash + t.milestoneCash
+		end)
+	end
+end)
+
 local function startRun(world: string): RunController.RunController
 	player:SetAttribute("MovementSpeedOwner", OWNER)
-	local run = RunController.new({ session = session, profile = "Circuit" })
+	-- the server's seed and run id (a short wait; with no answer the run still plays, unpaid, and says so in Output)
+	local seed: number? = nil
+	local runId: string? = nil
+	local startFn = netRemote(BetaConfig.Remotes.RunStart)
+	if startFn and startFn:IsA("RemoteFunction") then
+		local ok, reply = pcall(function()
+			return startFn:InvokeServer(world, nil)
+		end)
+		if ok and type(reply) == "table" and type(reply.seed) == "number" and type(reply.runId) == "string" then
+			seed, runId = reply.seed, reply.runId
+		else
+			warn("[CarHopBeta] the server did not start a run for " .. world .. ": this run is not paid")
+		end
+	end
+	local run = RunController.new({ session = session, profile = "Circuit", seed = seed })
 	current = run
+	if runId then
+		bridge(run, world, runId)
+	else
+		live = { runId = nil, world = world, tally = newTally(), conns = {} }
+	end
 	run:start()
 	-- the run's keyboard hint names keys and sits on the Heat panel; phones play too. A label only: nothing else changes.
 	local overlay = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
@@ -90,6 +217,9 @@ end
 LaunchPad.configure({
 	startRun = startRun,
 	stopRun = stopRun,
+	runTally = function(): any
+		return if live then live.tally else newTally()
+	end,
 	revive = function()
 		if current then
 			current:revive()

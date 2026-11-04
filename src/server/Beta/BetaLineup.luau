@@ -64,6 +64,48 @@ function BetaLineup.apply(data: Save, slot: any, carId: any, spots: number?): (b
 	return true, "placed"
 end
 
+-- Round 5 (L-04): the reason lines a player reads when a change is refused (the server's words, short).
+local REASONS = {
+	["slot is not a whole number"] = "That spot can't be used.",
+	["slot outside the owned parking spots"] = "Get more spots first.",
+	["slot leaves a gap"] = "Park in the next free spot.",
+	["slot already empty"] = "That spot is already empty.",
+	["unknown car"] = "That car isn't known.",
+	["car not owned"] = "You don't own that car yet.",
+	["car already in the Lineup"] = "That car is already parked.",
+	["too fast"] = "One moment, try again.",
+	["no save"] = "Your save is still loading.",
+}
+
+-- Round 5 (L-04): a newly claimed car parks itself when a spot is free (appended to the Lineup, so the Lineup stays
+-- dense). Returns "parked", "full", "held" (the tutorial holds the tutorial run's claims for its Park step) or "owned"
+-- (already parked). No yield, so two claims racing for the last spot give one parked car and one Garage car.
+function BetaLineup.autoPark(player: Player, carId: string): string
+	local data = BetaData.get(player) :: any
+	if not data then
+		return "full"
+	end
+	if table.find(data.Lineup, carId) then
+		return "owned"
+	end
+	if player:GetAttribute(BetaConfig.HoldClaimsAttribute) == true or data.TutorialDone ~= true then
+		return "held"
+	end
+	if #data.Lineup >= BetaPlots.spotsOf(player) then
+		return "full"
+	end
+	table.insert(data.Lineup, carId)
+	publish(player, data :: Save)
+	return "parked"
+end
+
+function BetaLineup.publish(player: Player)
+	local data = BetaData.get(player) :: any
+	if data then
+		publish(player, data :: Save)
+	end
+end
+
 function BetaLineup.start(net: Folder)
 	local remote = Instance.new("RemoteEvent")
 	remote.Name = BetaConfig.Remotes.SetLineupSlot
@@ -71,22 +113,31 @@ function BetaLineup.start(net: Folder)
 	BetaData.Loaded:Connect(function(player: Player, data: any)
 		publish(player, data :: Save)
 	end)
+	local function reply(player: Player, ok: boolean, why: string)
+		local result = net:FindFirstChild(BetaConfig.Remotes.Result)
+		if result and result:IsA("RemoteEvent") then
+			result:FireClient(player, "lineup", ok, if ok then nil else (REASONS[why] or why))
+		end
+	end
 	remote.OnServerEvent:Connect(function(player: Player, slot: any, carId: any)
 		local now = os.clock()
 		if now - (lastSet[player] or -math.huge) < COOLDOWN then
+			reply(player, false, "too fast")
 			return
 		end
 		lastSet[player] = now
 		local data = BetaData.get(player) :: any
 		if not data then
+			reply(player, false, "no save")
 			return
 		end
 		local ok, why = BetaLineup.apply(data :: Save, slot, carId, BetaPlots.spotsOf(player))
 		if ok then
 			publish(player, data :: Save)
 		else
-			print(string.format("[CarHopBeta] SetLineupSlot refused for %s: %s", player.Name, why))
+			print(string.format("[CarHopBeta] SetLineupSlot refused for %s (%d): %s", player.Name, player.UserId, why))
 		end
+		reply(player, ok, why)
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		lastSet[player] = nil

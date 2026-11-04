@@ -1,5 +1,7 @@
 --!strict
 -- CAR HOP BETA 1 server bootstrap. Off unless ReplicatedStorage.CarHopBeta exists (beta.project.json).
+-- Round 5 (decision 0039): the loop's stand-ins (Cash, Lap Pay, the run report, purchases) start here too. They all hang off
+-- one remote folder, ReplicatedStorage.CarHopBetaNet, made complete before it is parented so a client never sees half of it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -9,8 +11,14 @@ if not BetaConfig.enabled() then
 end
 
 local BetaData = require(script.Parent.BetaData)
+local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaLapPay = require(script.Parent.BetaLapPay)
+local BetaLineup = require(script.Parent.BetaLineup)
 local BetaPlots = require(script.Parent.BetaPlots)
+local BetaRun = require(script.Parent.BetaRun)
 local BetaShop = require(script.Parent.BetaShop)
+local StudioTestService = game:GetService("StudioTestService")
+local RunService = game:GetService("RunService")
 
 -- With no SpawnLocation a player appears at the world's centre, which is inside the fountain (Adam, 2026-11-02: spawn in
 -- front of it). On the plaza, facing the fountain and the portals beyond it.
@@ -31,6 +39,24 @@ if decal then
 end
 spawnPad.Parent = workspace
 
-BetaShop.start()
+-- A Studio multi-client test (BetaMultiTest) plays on the Mock store, so tests never touch a real beta save.
+if RunService:IsStudio() then
+	local ok, args = pcall(function()
+		return StudioTestService:GetTestArgs()
+	end)
+	if ok and type(args) == "table" and (args :: any).suite ~= nil then
+		BetaData.useMockStore()
+	end
+end
+
+local net = Instance.new("Folder")
+net.Name = BetaConfig.NetName
+BetaShop.start(net)
+BetaLineup.start(net)
+BetaRun.startRemotes(net)
+BetaLapPay.start(net)
+net.Parent = ReplicatedStorage
+
+BetaEconomy.start()
 BetaPlots.start()
 BetaData.start()

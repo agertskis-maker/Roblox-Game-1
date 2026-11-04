@@ -13,8 +13,11 @@ local BetaData = require(script.Parent.BetaData)
 local Ladder = require(ReplicatedStorage.Shared.Island.Speedway.Ladder)
 local Parking = require(ReplicatedStorage.Shared.Island.Speedway.Parking)
 local RunService = game:GetService("RunService")
+local Signal = require(ReplicatedStorage.Packages.Signal)
 
 local BetaPlots = {}
+
+BetaPlots.Assigned = Signal.new() -- (player, plot) once a joining player has a plot (Round 5: the Lap Pay clock starts)
 
 local owners: { [Model]: Player } = {}
 
@@ -91,7 +94,17 @@ local function release(player: Player)
 		return
 	end
 	owners[plot] = nil
-	for _, name in { "Owner", "OwnerDisplayName", "SpeedwayLevel", "ParkingSpots", Parking.ExpandedAttribute } do
+	for _, name in
+		{
+			"Owner",
+			"OwnerDisplayName",
+			"SpeedwayLevel",
+			"ParkingSpots",
+			Parking.ExpandedAttribute,
+			BetaConfig.LapEpochAttribute,
+			BetaConfig.LapSecondsAttribute,
+		}
+	do
 		plot:SetAttribute(name, nil)
 	end
 end
@@ -100,6 +113,9 @@ function BetaPlots.start()
 	BetaData.Loaded:Connect(function(player: Player)
 		local plot = freePlot()
 		if not plot then
+			-- Max Players is 6 (draft 0013); a seventh player in a Studio test plays without a plot and is told so
+			player:SetAttribute("BetaNoPlot", true)
+			print(string.format("[CarHopBeta] no free plot for %s: every plot is taken", player.Name))
 			return
 		end
 		owners[plot] = player
@@ -107,6 +123,7 @@ function BetaPlots.start()
 		plot:SetAttribute("OwnerDisplayName", player.DisplayName)
 		player:SetAttribute(BetaConfig.HomePlotAttribute, plotIndex(plot))
 		BetaPlots.publish(player)
+		BetaPlots.Assigned:Fire(player, plot)
 	end)
 	Players.PlayerRemoving:Connect(release)
 	-- the Studio test switch flips every plot at once
