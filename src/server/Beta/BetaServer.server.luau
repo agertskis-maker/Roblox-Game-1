@@ -60,3 +60,25 @@ net.Parent = ReplicatedStorage
 BetaEconomy.start()
 BetaPlots.start()
 BetaData.start()
+
+-- Studio only: the self-tests run inside the game's OWN module copies (a command-bar require gets fresh copies with no
+-- loaded saves). ServerStorage.CarHopBetaSelfTest:Invoke("economy" | "lappay" | "shop" | "run", player?) -> { lines }.
+if RunService:IsStudio() then
+	local hook = Instance.new("BindableFunction")
+	hook.Name = "CarHopBetaSelfTest"
+	hook.OnInvoke = function(which: string, player: Player?): { string }
+		if which == "economy" then
+			return BetaEconomy.selfTest()
+		elseif which == "lappay" then
+			return BetaLapPay.selfTest()
+		elseif which == "lineup" then
+			return BetaLineup.selfTest()
+		elseif which == "shop" and player then
+			return BetaShop.selfTest(player)
+		elseif which == "run" and player then
+			return BetaRun.selfTest(player)
+		end
+		return { "unknown test " .. tostring(which) }
+	end
+	hook.Parent = game:GetService("ServerStorage")
+end

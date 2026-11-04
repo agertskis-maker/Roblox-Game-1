@@ -283,3 +283,64 @@ RunService.Heartbeat:Connect(function()
 		LaunchPad.lockedAway()
 	end
 end)
+
+-- Studio test driver (Round 5, L-07 and the multi-client suites): PlayerGui.CarHopBetaControl:Invoke(command, arg).
+--   "launch" world   stand on the World's pad and press START (LaunchPad.debug)
+--   "autopilot" on   a simple driver: steer round the car ahead, hop when the Keys are done or Heat is high (the same rule
+--                    as Brian R's playground driver, written here; his files are not touched)
+--   "state"          the run's debug state, the server's tally for this run and the Launch Pad phase
+--   "retry" / "home" press the Results card's buttons
+-- Nothing here exists outside Studio.
+if RunService:IsStudio() then
+	local autopilot = false
+	local lastHop = 0
+	local control = Instance.new("BindableFunction")
+	control.Name = "CarHopBetaControl"
+	control.OnInvoke = function(command: string, arg: any): any
+		if command == "launch" then
+			LaunchPad.debug("enter", arg)
+			task.wait(3.5)
+			return LaunchPad.debug("start")
+		elseif command == "autopilot" then
+			autopilot = arg == true
+			if not autopilot and current then
+				current:setSteerOverride(nil)
+			end
+			return autopilot
+		elseif command == "state" then
+			local s = if current then current:getDebugState() else nil
+			return {
+				phase = LaunchPad.phase(),
+				mode = s and s.mode,
+				metres = s and s.metres,
+				claimed = s and s.claimed,
+				joyrides = s and s.joyrides,
+				runId = live and live.runId,
+				tally = live and live.tally,
+			}
+		elseif command == "retry" or command == "home" then
+			return LaunchPad.debug(command)
+		end
+		return "unknown command " .. tostring(command)
+	end
+	control.Parent = player:WaitForChild("PlayerGui")
+	RunService.Heartbeat:Connect(function()
+		local run = current
+		if not (autopilot and run) then
+			return
+		end
+		local s = run:getDebugState()
+		if s.mode == "Riding" then
+			local blocked = s.aheadGap ~= nil and (s.aheadGap :: number) < 90
+			run:setSteerOverride(if blocked then (if s.lateral > 0 then -1 else 1) else 0)
+			local keysDone = s.keysNeed == nil
+			local wantHop = (keysDone and s.heat > 0.3) or s.heat > 0.8 or (blocked and (s.aheadGap :: number) < 8)
+			if wantHop and s.target and os.clock() - lastHop > 0.8 then
+				lastHop = os.clock()
+				run:requestHop()
+			end
+		elseif s.mode == "FootDash" and s.target then
+			run:requestHop()
+		end
+	end)
+end
