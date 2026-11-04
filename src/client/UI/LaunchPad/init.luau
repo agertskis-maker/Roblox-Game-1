@@ -1017,6 +1017,27 @@ function LaunchPad.reset()
 	phase = "island"
 end
 
+-- Studio test driver (Round 5, L-07 and T): what a player does by walking, without walking. "enter" stands the player on the
+-- World's pad (as the portal does); "start" runs the gantry and the run (as START does); "retry" and "home" press the Results
+-- card's buttons. Nothing here exists outside Studio.
+function LaunchPad.debug(command: string, arg: any): any
+	if not RunService:IsStudio() then
+		return nil
+	end
+	if command == "enter" then
+		local r = root()
+		LaunchPad.enter(arg or "Downtown", if r then r.CFrame else CFrame.new(0, 5, -30))
+	elseif command == "start" then
+		padTrove:Clean()
+		countdown()
+	elseif command == "retry" then
+		panel("runResults"):pressRetry()
+	elseif command == "home" then
+		panel("runResults"):pressHome()
+	end
+	return phase
+end
+
 function LaunchPad.destroy()
 	if unbindKey then
 		unbindKey()
