@@ -6,7 +6,8 @@
 --   TutorialDone   no arguments. Session only: the preview saves to ProfileStore.Mock, so every Studio server is a first
 --                  join anyway; nothing is saved here.
 --   SetLineupSlot  (slot, carId), passed to the preview's own Economy.setLineupSlot, which checks ownership and range. The
---                  Lineup is mirrored read-only into the player attribute BetaLineup, which Lane 3's screens read.
+--                  Lineup is mirrored read-only into the player attribute BetaLineup (refreshed twice a second), which
+--                  Lane 3's screens read.
 -- Nothing here computes a price or an amount.
 
 local Players = game:GetService("Players")
@@ -69,8 +70,16 @@ function BetaEconomyBridge.start()
 
 	Data.Loaded:Connect(function(player: Player)
 		player:SetAttribute(BetaConfig.TutorialDoneAttribute, false)
-		-- after the preview's own Loaded handler has built the Lineup
-		task.defer(publishLineup, player)
+	end)
+	-- The preview also changes the Lineup on its own (a new car fills a free spot) and has no event for it, so the copy is
+	-- refreshed twice a second. SetAttribute with an unchanged value does not replicate.
+	task.spawn(function()
+		while true do
+			for _, player in Players:GetPlayers() do
+				publishLineup(player)
+			end
+			task.wait(0.5)
+		end
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		lastSet[player] = nil

@@ -24,6 +24,8 @@ end)
 
 local player = Players.LocalPlayer
 local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) :: Instance
+-- Beta 3: with Brian L's economy preview on, the Cash shown is his server's (player attribute Cash), not a fixture.
+local realCash = workspace:GetAttribute("Lane2EconomyPreview") == true
 
 local function joinMode(): string
 	local forced = config:GetAttribute("HomeJoinMode")
@@ -39,7 +41,7 @@ end
 
 local shell = HomeShell.start({
 	joinMode = joinMode(),
-	cashPreview = true,
+	cashPreview = not realCash,
 	onTutorialDone = function()
 		local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
 		local remote = net and net:FindFirstChild(BetaConfig.Remotes.TutorialDone)
@@ -53,6 +55,18 @@ local shell = HomeShell.start({
 })
 
 LaunchPad.attachShell(shell)
+
+if realCash then
+	local function showCash()
+		local cash = player:GetAttribute("Cash")
+		if type(cash) == "number" then
+			shell.store:set("cash", cash)
+			shell.store:set("exactCash", cash)
+		end
+	end
+	player:GetAttributeChangedSignal("Cash"):Connect(showCash)
+	showCash()
+end
 
 local OWNER = "CarHopBetaRun"
 local running = false
