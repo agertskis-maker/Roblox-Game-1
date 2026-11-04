@@ -7,7 +7,8 @@
 -- showroom cars (src/shared/UI/RosterFixtures). Until the run spawns real cars, this maps a spawn to one car of the run's
 -- World, by rarity and family, the same way on the client and the server (pure: no services, no randomness).
 --   Brian R's rarities are Common, Rare, Epic and Legendary. Common spawns split between the World's Common and Uncommon
---   cars, so Uncommon cars can be caught; a rarity the World has no car of falls back one step down.
+--   cars, so Uncommon cars can be caught; a rarity the World has no car of falls back one step down. The Loaner is never
+--   a catch (every save starts with it).
 --
 --   BetaRunMap.carFor(world, family, rarity) -> string?   the RosterFixtures id, or nil for an unknown World
 
@@ -27,10 +28,11 @@ local function hash(text: string): number
 	return h
 end
 
+-- The World's Loaner is given, not caught (every save starts with it): it is left out, so a catch is a car to collect.
 local function poolFor(world: string, rarity: string): { RosterFixtures.Car }
 	local pool = {}
 	for _, car in RosterFixtures.inWorld(world :: any) do
-		if car.rarity == rarity then
+		if car.rarity == rarity and not car.loaner then
 			table.insert(pool, car)
 		end
 	end
