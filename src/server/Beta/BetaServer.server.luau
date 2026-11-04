@@ -8,6 +8,13 @@ if not BetaConfig.enabled() then
 	return
 end
 
+-- Beta 3: with Brian L's economy preview on, it owns saves, plots and purchases (one owner), so this server stands down.
+-- This replaces switching this script off by hand in the place.
+if workspace:GetAttribute("Lane2EconomyPreview") == true then
+	require(script.Parent.BetaEconomyBridge).start()
+	return
+end
+
 local BetaData = require(script.Parent.BetaData)
 local BetaPlots = require(script.Parent.BetaPlots)
 local BetaShop = require(script.Parent.BetaShop)
