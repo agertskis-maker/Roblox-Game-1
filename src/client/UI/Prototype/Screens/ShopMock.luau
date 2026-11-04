@@ -508,7 +508,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local tileH = plateH - tileTop - labelPx * 2.1
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
-				local side = math.min(tileW - 2, tileH * 1.2)
+				local side = math.min(tileW - 2, tileH) -- Round 5 (S-02): inside its tile, so the label under it never overlaps the art
 				if part.car then
 					-- the car itself (decision 0038): the real model, still, with a RARE chip so the rarity reads at once
 					local holder = make("Frame", {
@@ -1104,7 +1104,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			y += rowH + p.gap
 			y += dealBanner(body, q, y) + p.gap
 			local halfW = math.floor((q.inner - p.gap) / 2)
-			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = 0, y = y, w = halfW, h = 132 })
+			sideCard(body, "vip", "Vip", "art_vip", "VIP", "Paints + name tag", q, { x = 0, y = y, w = halfW, h = 132 })
 			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
 				x = halfW + p.gap,
 				y = y,
@@ -1113,7 +1113,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			})
 			y += 132 + p.gap * 2
 		else
-			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = heroW + p.gap, y = y, w = sideW, h = sideH })
+			sideCard(
+				body,
+				"vip",
+				"Vip",
+				"art_vip",
+				"VIP",
+				"Paints + name tag",
+				q,
+				{ x = heroW + p.gap, y = y, w = sideW, h = sideH }
+			)
 			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
 				x = heroW + p.gap,
 				y = y + sideH + p.gap,
@@ -1164,6 +1173,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			end
 		end)
 		motion.setViewport(scroll)
+		-- Round 5 (S-02): a rebuilt page (a new screen size) starts at the top; it goes back to the section the lit tab names,
+		-- so the tab and the content never disagree (a reviewer saw FREE lit over Featured)
+		local keep = activeTab
+		task.defer(function()
+			if page == scroll then
+				shop:scrollTo(keep, false)
+			end
+		end)
 	end
 
 	build = function()
