@@ -335,7 +335,7 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			BetaRun.keysComplete(run, e.index, e.d, e.betaModel)
 		elseif e.kind == "RunEnd" then
 			-- a crash pauses the run; it closes on BetaRunEnd (a revive may follow)
-			run.totals.cause = if type(e.cause) == "string" then string.sub(e.cause, 1, 20) else "?"
+			run.totals.cause = if type(e.cause) == "string" then string.sub(e.cause, 1, 60) else "?"
 		end
 	end
 	milestones(run)
@@ -364,7 +364,7 @@ function BetaRun.finish(player: Player, runId: any, cause: any): Totals?
 	if not run or run.id ~= runId then
 		return nil
 	end
-	closeRun(run, if type(cause) == "string" then string.sub(cause, 1, 20) else "Quit")
+	closeRun(run, if type(cause) == "string" then string.sub(cause, 1, 60) else "Quit")
 	return run.totals
 end
 
