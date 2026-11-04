@@ -83,8 +83,8 @@ EconomyPreview.Worlds = {
 
 EconomyPreview.MilestoneMetres = 500
 
--- PROPOSED by Claude (2026-11-03), awaiting Brian L's OK: which showroom car belongs to which
--- World. Counts follow the ChatGPT review's spread; Polytruck and Sparkster are not built yet.
+-- Which showroom car belongs to which World (proposed by Claude, approved by Brian L on
+-- 2026-11-03). Counts follow the ChatGPT review's spread; Polytruck and Sparkster are not built yet.
 EconomyPreview.CarWorld = {
 	Rustbucket = "Downtown",
 	Putter = "Downtown",

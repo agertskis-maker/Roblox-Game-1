@@ -99,7 +99,11 @@ Adam decided the start (2) and the maximum (15). Spot k costs **$500 x 3^(k - 3)
 | 2 | $5M | 5 cars from World 1 | 1.5 to 2 hours |
 | 3 | $1B | 5 cars from World 2 | a further 2 to 3 hours |
 
-Which car belongs to which World is **Open** (section 12, item 1).
+Which car belongs to which World (approved by Brian L on 2026-11-03, for his showroom list):
+- **World 1, Downtown:** Rustbucket, Putter, Old Faithful, Commuter, Family Hauler, Pizza Runner, Minnow, Workhorse, Trailblazer, Sunny Camper, Bolt.
+- **World 2, Dusty Highway:** Beach Bug, Surf Wagon, Rally Dog, Thunder, Brawler, Desert King, Executive, Night Rider, Velvet.
+- **World 3, Summit Pass:** Monarch, Zip, Street Kid, Viper Strike, Phantom, Apex, Cruiser.
+- Polytruck and Sparkster are not built yet. Whether the GDD's 24-car World roster or this showroom list is the game's list is still a team decision (section 12, item 1).
 
 ## 8. Smaller Cash sources (all from runs)
 
