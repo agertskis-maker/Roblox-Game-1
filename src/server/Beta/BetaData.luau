@@ -70,6 +70,16 @@ function BetaData.keyOf(player: Player): string
 	return testKeys[player.UserId] or tostring(player.UserId)
 end
 
+-- T-03 (Studio, Mock only): the NEXT player to join loads this mock key instead of their own. StudioTestService:AddPlayers
+-- takes only a count, so the replacement client's UserId is not known in advance; this is a synthetic same-profile rejoin,
+-- not real-account persistence.
+local nextJoinKey: string? = nil
+function BetaData.setNextJoinKey(key: string?)
+	if RunService:IsStudio() and useMock then
+		nextJoinKey = key
+	end
+end
+
 local function finite(n: any): boolean
 	return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
 end
@@ -144,6 +154,10 @@ end
 
 local function load(player: Player)
 	local source = if useMock then store.Mock else store
+	if nextJoinKey then
+		testKeys[player.UserId] = nextJoinKey
+		nextJoinKey = nil
+	end
 	local profile = source:StartSessionAsync(BetaData.keyOf(player), {
 		Cancel = function()
 			return player.Parent ~= Players
