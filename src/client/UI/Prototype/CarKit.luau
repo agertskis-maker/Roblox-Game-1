@@ -813,7 +813,8 @@ function CarKit.price(parent: Instance, o: PriceOptions): Button
 			LayoutOrder = 3,
 			ZIndex = button.label.ZIndex,
 		}, row)
-		local small = baseLabel(word, o.word, math.max(12, math.round(px * 0.46)), CarKit.body(), {
+		-- Round 5 (S-02): the price word ("Robux") never renders under 14 px
+		local small = baseLabel(word, o.word, math.max(14, math.round(px * 0.46)), CarKit.body(), {
 			size = UDim2.fromScale(0, 1),
 			z = button.label.ZIndex,
 			alignY = Enum.TextYAlignment.Bottom,
