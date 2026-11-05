@@ -19,6 +19,7 @@ local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local CosmeticPreviewCatalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local RobuxSeam = require(script.Parent:WaitForChild("RobuxSeam"))
+local MissionFeed = require(script.Parent:WaitForChild("MissionFeed"))
 
 local Prototype = script.Parent:WaitForChild("Prototype")
 local ModalQueue = require(Prototype:WaitForChild("Home"):WaitForChild("ModalQueue"))
@@ -301,7 +302,35 @@ function HomeShell.start(options: Options?): any
 			userPanel("groupReward")
 		end,
 	})
-	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
+	-- Round 6 (G-01): the live feed (MissionFeed) drives the panel when the server publishes missions; with none, the
+	-- PREVIEW fixtures and their 0.35 s preview claim stay as before
+	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {
+		onClaim = function(id: string)
+			if not MissionFeed.claim(id) then
+				task.delay(0.35, function()
+					local panel = components.missions
+					if panel then
+						panel:resolveClaim(id, "Success")
+					end
+				end)
+			end
+		end,
+	})
+	if components.missions then
+		task.spawn(function()
+			-- the server's folder and the attribute may arrive a moment after the shell is built
+			for _ = 1, 40 do
+				if LiveData.active() and Players.LocalPlayer:GetAttribute(MissionFeed.Attribute) ~= nil then
+					break
+				end
+				task.wait(0.25)
+			end
+			local detach = MissionFeed.attach(components.missions)
+			if detach then
+				trove:Add(detach)
+			end
+		end)
+	end
 	-- nothing joins and nothing is rewarded here yet, so the card must never say "You're in!": until the real join and reward
 	-- exist it answers "try later", and it is never offered by itself
 	mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {
