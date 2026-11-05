@@ -200,6 +200,25 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		return if a == "Unavailable" then "unavailable" elseif a == "Error" then "error" else "idle"
 	end
 
+	-- Round 6 (R-03): a long state word ("Not available") shrinks to fit a narrow pass button instead of spilling out
+	local function fitText(button: CarKit.Button)
+		local label = button.label
+		local base = label:GetAttribute("BaseTextSize")
+		if type(base) ~= "number" then
+			base = label.TextSize
+			label:SetAttribute("BaseTextSize", base)
+		end
+		local size = base :: number
+		label.TextSize = size
+		task.defer(function()
+			local room = button.root.AbsoluteSize.X - 16
+			local need = label.AbsoluteSize.X
+			if room > 0 and need > room then
+				label.TextSize = math.max(10, math.floor(size * room / need))
+			end
+		end)
+	end
+
 	local function paint(id: string, button: CarKit.Button, price: number?)
 		local state = stateOf(id)
 		local wordHost = button.root:FindFirstChild("WordHost", true) :: Frame?
@@ -226,6 +245,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		if wordHost then
 			wordHost.Visible = showWord
 		end
+		fitText(button)
 	end
 
 	local priceOf: { [string]: number } = {}
