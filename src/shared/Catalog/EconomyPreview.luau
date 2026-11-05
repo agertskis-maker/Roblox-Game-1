@@ -22,12 +22,15 @@ local EconomyPreview = {}
 
 EconomyPreview.LapSeconds = 15
 
+-- Pay inside ONE World (World pay factor 1). Brian L chose Adam's candidate pacing on 2026-11-05
+-- ("approved option 1"): a narrow spread inside a World, the claim bonus 10x and the Joyride Bonus
+-- 3x the Lap Pay, and each later World multiplies all three by its payFactor (see Worlds).
 EconomyPreview.Rarities = {
 	COMMON = { keysSeconds = 3, lapPay = 10, claimBonus = 100, joyrideBonus = 30 },
-	UNCOMMON = { keysSeconds = 3.5, lapPay = 50, claimBonus = 500, joyrideBonus = 150 },
-	RARE = { keysSeconds = 4, lapPay = 250, claimBonus = 2_500, joyrideBonus = 750 },
-	EPIC = { keysSeconds = 5, lapPay = 2_000, claimBonus = 20_000, joyrideBonus = 6_000 },
-	LEGENDARY = { keysSeconds = 6, lapPay = 25_000, claimBonus = 250_000, joyrideBonus = 75_000 },
+	UNCOMMON = { keysSeconds = 3.5, lapPay = 25, claimBonus = 250, joyrideBonus = 75 },
+	RARE = { keysSeconds = 4, lapPay = 60, claimBonus = 600, joyrideBonus = 180 },
+	EPIC = { keysSeconds = 5, lapPay = 150, claimBonus = 1_500, joyrideBonus = 450 },
+	LEGENDARY = { keysSeconds = 6, lapPay = 400, claimBonus = 4_000, joyrideBonus = 1_200 },
 } :: { [Rarity]: RarityInfo }
 
 -- Edition 1 is Normal. EditionCopies[e] is the lifetime Joyride copies a car needs to reach
@@ -67,52 +70,56 @@ EconomyPreview.FirstSpotPrice = 500
 EconomyPreview.SpotGrowth = 3
 
 -- Worlds in unlock order (GDD names). A World is unlocked with Cash plus enough unique cars owned
--- from the World before it. Milestone pays every MilestoneMetres in a run of that World.
+-- from the World before it. Milestone pays every MilestoneMetres in a run of that World. A car's
+-- Lap Pay, claim bonus and Joyride Bonus are multiplied by its own World's payFactor.
 export type WorldInfo = {
 	id: string,
 	price: number,
 	carsNeeded: number,
 	milestonePay: number,
+	payFactor: number,
 }
 
 EconomyPreview.Worlds = {
-	{ id = "Downtown", price = 0, carsNeeded = 0, milestonePay = 100 },
-	{ id = "DustyHighway", price = 5_000_000, carsNeeded = 5, milestonePay = 10_000 },
-	{ id = "SummitPass", price = 1_000_000_000, carsNeeded = 5, milestonePay = 1_000_000 },
+	{ id = "Downtown", price = 0, carsNeeded = 0, milestonePay = 100, payFactor = 1 },
+	{ id = "DustyHighway", price = 5_000_000, carsNeeded = 5, milestonePay = 10_000, payFactor = 40 },
+	{ id = "SummitPass", price = 1_000_000_000, carsNeeded = 5, milestonePay = 1_000_000, payFactor = 1_600 },
 } :: { WorldInfo }
 
 EconomyPreview.MilestoneMetres = 500
 
--- Which showroom car belongs to which World (proposed by Claude, approved by Brian L on
--- 2026-11-03). Counts follow the ChatGPT review's spread; Polytruck and Sparkster are not built yet.
+-- Which showroom car belongs to which World: Adam's list (economy-v1-answers-from-adam.md),
+-- chosen by Brian L on 2026-11-05 so every World has its own Commons to Legendaries (two
+-- Legendaries each). The first car of each World is its Loaner. Sparkster (Downtown) and
+-- Polytruck (Dusty Highway) are not built yet.
 EconomyPreview.CarWorld = {
-	Rustbucket = "Downtown",
 	Putter = "Downtown",
-	["Old Faithful"] = "Downtown",
-	Commuter = "Downtown",
-	["Family Hauler"] = "Downtown",
 	["Pizza Runner"] = "Downtown",
 	Minnow = "Downtown",
-	Workhorse = "Downtown",
-	Trailblazer = "Downtown",
-	["Sunny Camper"] = "Downtown",
+	["Surf Wagon"] = "Downtown",
 	Bolt = "Downtown",
+	Brawler = "Downtown",
+	Executive = "Downtown",
+	["Street Kid"] = "Downtown",
+	Cruiser = "Downtown",
+	Rustbucket = "DustyHighway",
+	["Old Faithful"] = "DustyHighway",
 	["Beach Bug"] = "DustyHighway",
-	["Surf Wagon"] = "DustyHighway",
-	["Rally Dog"] = "DustyHighway",
+	Workhorse = "DustyHighway",
 	Thunder = "DustyHighway",
-	Brawler = "DustyHighway",
 	["Desert King"] = "DustyHighway",
-	Executive = "DustyHighway",
 	["Night Rider"] = "DustyHighway",
-	Velvet = "DustyHighway",
+	["Viper Strike"] = "DustyHighway",
+	Apex = "DustyHighway",
+	Commuter = "SummitPass",
+	["Family Hauler"] = "SummitPass",
+	Trailblazer = "SummitPass",
+	["Sunny Camper"] = "SummitPass",
+	["Rally Dog"] = "SummitPass",
 	Monarch = "SummitPass",
+	Velvet = "SummitPass",
 	Zip = "SummitPass",
-	["Street Kid"] = "SummitPass",
-	["Viper Strike"] = "SummitPass",
 	Phantom = "SummitPass",
-	Apex = "SummitPass",
-	Cruiser = "SummitPass",
 } :: { [string]: string }
 
 -- Run traffic has no Uncommon tier yet, so this share of a World's Common traffic cars are its
@@ -192,20 +199,42 @@ function EconomyPreview.addCopies(edition: number, copies: number, added: number
 	return e, total
 end
 
-function EconomyPreview.lapPay(rarity: Rarity, edition: number, racewayLevel: number): number
-	local info = EconomyPreview.Rarities[rarity]
-	if not info then
-		return 0
-	end
-	return info.lapPay * EconomyPreview.editionMultiplier(edition) * EconomyPreview.racewayMultiplier(racewayLevel)
+-- The pay factor of World `worldId`; an unknown or missing World pays like Downtown (1).
+function EconomyPreview.payFactor(worldId: string?): number
+	local info = if worldId then EconomyPreview.world(worldId) else nil
+	return if info then info.payFactor else 1
 end
 
-function EconomyPreview.joyrideBonus(rarity: Rarity, edition: number): number
+-- The pay factor of the World car `id` belongs to (CarWorld).
+function EconomyPreview.carPayFactor(id: string): number
+	return EconomyPreview.payFactor(EconomyPreview.CarWorld[id])
+end
+
+function EconomyPreview.lapPay(rarity: Rarity, edition: number, racewayLevel: number, worldId: string?): number
 	local info = EconomyPreview.Rarities[rarity]
 	if not info then
 		return 0
 	end
-	return info.joyrideBonus * EconomyPreview.editionMultiplier(edition)
+	return info.lapPay
+		* EconomyPreview.editionMultiplier(edition)
+		* EconomyPreview.racewayMultiplier(racewayLevel)
+		* EconomyPreview.payFactor(worldId)
+end
+
+function EconomyPreview.claimBonus(rarity: Rarity, worldId: string?): number
+	local info = EconomyPreview.Rarities[rarity]
+	if not info then
+		return 0
+	end
+	return info.claimBonus * EconomyPreview.payFactor(worldId)
+end
+
+function EconomyPreview.joyrideBonus(rarity: Rarity, edition: number, worldId: string?): number
+	local info = EconomyPreview.Rarities[rarity]
+	if not info then
+		return 0
+	end
+	return info.joyrideBonus * EconomyPreview.editionMultiplier(edition) * EconomyPreview.payFactor(worldId)
 end
 
 -- Offline pay for `seconds` away, given the Lineup's total Lap Pay per lap.

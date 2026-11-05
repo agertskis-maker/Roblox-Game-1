@@ -67,7 +67,7 @@ local function lapPayOf(data: Data.SaveData, id: string): number
 	if not rarity or not car then
 		return 0
 	end
-	return Catalog.lapPay(rarity, car.Edition, data.RacewayLevel)
+	return Catalog.lapPay(rarity, car.Edition, data.RacewayLevel, Catalog.CarWorld[id])
 end
 
 -- Keeps the Lineup valid: drops cars that are not owned or do not exist and trims it to the parking
@@ -205,7 +205,7 @@ function Economy.claimCar(player: Player, id: string): boolean
 		return false
 	end
 	data.Cars[id] = { Edition = 1, Copies = 0 }
-	Economy.addCash(player, Catalog.Rarities[rarity].claimBonus, "Claim " .. id)
+	Economy.addCash(player, Catalog.claimBonus(rarity, Catalog.CarWorld[id]), "Claim " .. id)
 	Economy.refreshLineup(player, id)
 	return true
 end
@@ -220,7 +220,7 @@ function Economy.joyride(player: Player, id: string, copies: number?)
 		return
 	end
 	local count = math.max(1, math.floor(copies or 1))
-	Economy.addCash(player, Catalog.joyrideBonus(rarity, car.Edition) * count, "Joyride " .. id)
+	Economy.addCash(player, Catalog.joyrideBonus(rarity, car.Edition, Catalog.CarWorld[id]) * count, "Joyride " .. id)
 	local before = car.Edition
 	car.Edition, car.Copies = Catalog.addCopies(car.Edition, car.Copies, count)
 	if car.Edition ~= before then

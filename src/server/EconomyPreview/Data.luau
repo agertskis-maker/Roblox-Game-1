@@ -26,8 +26,8 @@ export type SaveData = {
 	LastSeen: number,
 }
 
--- Reversible pick (Claude): the starter car, a Common from Brian L's showroom.
-local STARTER_CAR = "Rustbucket"
+-- The starter car: Downtown's Loaner in Adam's list, which Brian L chose on 2026-11-05.
+local STARTER_CAR = "Putter"
 
 local TEMPLATE: SaveData = {
 	Cash = 0,

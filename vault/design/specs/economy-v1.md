@@ -38,12 +38,14 @@ owner: Brian L (Lane 2)
 | | Common | Uncommon | Rare | Epic | Legendary |
 |---|---|---|---|---|---|
 | Keys time to claim | 3 s | 3.5 s | 4 s | 5 s | 6 s |
-| Lap Pay per lap (Normal edition) | $10 | $50 | $250 | $2,000 | $25,000 |
-| New-claim bonus (first time you get the car) | $100 | $500 | $2,500 | $20,000 | $250,000 |
-| Joyride Bonus (already owned) | $30 | $150 | $750 | $6,000 | $75,000 |
+| Lap Pay per lap (Normal edition, World factor 1) | $10 | $25 | $60 | $150 | $400 |
+| New-claim bonus (first time you get the car) | $100 | $250 | $600 | $1,500 | $4,000 |
+| Joyride Bonus (already owned) | $30 | $75 | $180 | $450 | $1,200 |
+
+**World pay factor** (Brian L, 2026-11-05, "approved option 1", Adam's candidate from `economy-preview-review-for-brian-l.md`): each car's Lap Pay, claim bonus and Joyride Bonus are multiplied by its own World's factor: Downtown x1, Dusty Highway x40, Summit Pass x1,600. Later Worlds always pay more, and every World has its own Legendary moment. Examples: a Dusty Highway Common pays $400 a lap; a Summit Pass Legendary pays $640,000 a lap and $6.4M to claim. Milestones keep their own per-World pay (section 8). The first version (Lap Pay $10 to $25,000, the same in every World) is in Git history.
 
 - Keys times for Common, Rare, Epic and Legendary are the outline's **Decided** "a little longer for rarer cars" values; Uncommon's 3.5 s is from [[rarity-style]].
-- Each tier pays about 5 to 12 times the tier below, so every new rarity feels like a big jump.
+- Inside a World each tier pays about 2.5 times the tier below; the big jumps come from the next World.
 - The Joyride Bonus is multiplied by the car's edition (section 4).
 
 ## 4. Special editions (crafted, like Be Fish)
@@ -99,11 +101,15 @@ Adam decided the start (2) and the maximum (15). Spot k costs **$500 x 3^(k - 3)
 | 2 | $5M | 5 cars from World 1 | 1.5 to 2 hours |
 | 3 | $1B | 5 cars from World 2 | a further 2 to 3 hours |
 
-Which car belongs to which World (approved by Brian L on 2026-11-03, for his showroom list):
-- **World 1, Downtown:** Rustbucket, Putter, Old Faithful, Commuter, Family Hauler, Pizza Runner, Minnow, Workhorse, Trailblazer, Sunny Camper, Bolt.
-- **World 2, Dusty Highway:** Beach Bug, Surf Wagon, Rally Dog, Thunder, Brawler, Desert King, Executive, Night Rider, Velvet.
-- **World 3, Summit Pass:** Monarch, Zip, Street Kid, Viper Strike, Phantom, Apex, Cruiser.
-- Polytruck and Sparkster are not built yet. Whether the GDD's 24-car World roster or this showroom list is the game's list is still a team decision (section 12, item 1).
+Which car belongs to which World: Adam's list from `economy-v1-answers-from-adam.md`, chosen by Brian L on 2026-11-05 so every World has its own cars and two Legendaries (it replaces Brian L's 2026-11-03 list). The first car is the World's Loaner.
+
+| World | Common | Uncommon | Rare | Epic | Legendary |
+|---|---|---|---|---|---|
+| Downtown | Putter (Loaner, the starter car), Pizza Runner | Minnow, Surf Wagon | Bolt, Brawler | Executive | Street Kid, Cruiser |
+| Dusty Highway | Rustbucket (Loaner), Old Faithful | Beach Bug, Workhorse | Thunder | Desert King, Night Rider | Viper Strike, Apex |
+| Summit Pass | Commuter (Loaner), Family Hauler | Trailblazer, Sunny Camper | Rally Dog | Monarch, Velvet | Zip, Phantom |
+
+- Sparkster (Downtown) and Polytruck (Dusty Highway) are not built yet. Whether the GDD's 24-car World roster or this showroom list is the game's list is still a team decision (section 12, item 1).
 
 ## 8. Smaller Cash sources (all from runs)
 
