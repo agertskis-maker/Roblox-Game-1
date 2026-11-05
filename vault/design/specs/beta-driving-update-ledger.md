@@ -51,3 +51,9 @@ Adam with Claude Code, 2026-11-05. Decision [[0040-beta-driving-update-stamina-s
 | Phone landscape and PC size | Lane 3 UI fits; Results card fits when opened at phone size | Studio emulation (Brian R's overlay is not emulated) |
 | Frame rate | 59 to 60 fps in Studio, 24 real cars | Studio runtime (not a phone) |
 | Output | no errors; only the old `203785492` asset-type warning | Studio runtime |
+| Live game after the first publish | **FAIL**: no World scenery beside the road; `BetaMultiTestClient` error on join | Adam played; Roblox player log |
+| Live game after the fix and republish (18:53 UTC) | PASS: city beside the road (Adam), no scenery or helper errors, What's new beta-4.0 | Adam played; Roblox player log |
+
+## Republish, 2026-11-05 18:53 UTC
+
+The run's World scenery (`src/lookdev/Downtown/City`) asserted `RunService:IsStudio()`, so every live run had an empty road; Studio tests could never show it. The embedded preview city (`preview = true`, used by RunScenery) now builds in live games; the command-bar harness stays Studio-only. `BetaMultiTestClient` now asks for `StudioTestService` after its Studio check. What's new shows beta-4.0. Still seen in the live log: the two Shop pass images `rbxasset://carhop/art_pass_starter.png` and `art_pass_paddock.png` are local files, so they are blank in the live game until uploaded (a Round 5 open item).
