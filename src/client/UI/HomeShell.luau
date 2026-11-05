@@ -352,6 +352,34 @@ function HomeShell.start(options: Options?): any
 	else
 		warn("[HomeShell] Stunt Circuit failed: " .. tostring(stuntCleanup))
 	end
+	-- Round 6 (V-03): while a panel or a modal is open, the HUD layer (buttons, Cash, tutorial pill) steps back, so nothing
+	-- shows through or sits on a panel's tabs (two reviewers' first fix). WelcomeCoins is an effect that is always shown.
+	local function syncHud()
+		local open = false
+		for _, front in { layers.Overlay, layers.Modal } do
+			for _, child in front:GetChildren() do
+				if child:IsA("GuiObject") and child.Visible and child.Name ~= "WelcomeCoins" then
+					open = true
+				end
+			end
+		end
+		layers.Hud.Visible = not open
+	end
+	for _, front in { layers.Overlay, layers.Modal } do
+		local function watch(child: Instance)
+			if child:IsA("GuiObject") then
+				trove:Connect(child:GetPropertyChangedSignal("Visible"), syncHud)
+			end
+		end
+		for _, child in front:GetChildren() do
+			watch(child)
+		end
+		trove:Connect(front.ChildAdded, function(child: Instance)
+			watch(child)
+			syncHud()
+		end)
+	end
+	syncHud()
 	-- Round 5 (L-04): YOUR RACEWAY, the Lineup panel (from the parking sign and the Garage's PARK)
 	mount("lineup", { "Screens", "LineupPanel" }, "Overlay", {
 		onMoreSpots = function()

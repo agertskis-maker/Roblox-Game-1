@@ -216,7 +216,7 @@ local function canopy(parent: Instance, ctx: Ctx, showroom: boolean)
 		ROW_B[2] - ROW_B[1] + 3,
 		0.5,
 		-- tinted glass, so the bays under it still read from the run's return view above
-		deco({ name = "CanopyRoof", color = TEAL, material = Enum.Material.Glass, transparency = 0.45 }),
+		deco({ name = "CanopyRoof", color = TEAL, material = Enum.Material.Glass, transparency = 0.7 }),
 		0
 	)
 	-- the front fascia, with the sign facing the aisle
@@ -254,7 +254,7 @@ local function canopy(parent: Instance, ctx: Ctx, showroom: boolean)
 			u,
 			roofY - 0.05,
 			0.35,
-			if showroom then CYAN else WARM,
+			WARM, -- warm under the roof (cyan here read as a grid through the glass, Round 6 review)
 			Enum.Material.Neon,
 			"CanopyLightStrip"
 		)
@@ -323,6 +323,8 @@ function ParkingTiers.dress(
 				deco({ name = "StarPodium", color = Color3.fromRGB(250, 250, 255), shape = Enum.PartType.Cylinder })
 			)
 			disc:SetAttribute("StarPodium", true)
+			-- the cylinder lies on its side: its +X face points up
+			label(disc, Enum.NormalId.Right, "STAR CAR", GOLD, 12)
 			Kit.part(
 				tierFolder,
 				Vector3.new(0.1, 9.2, 9.2),
