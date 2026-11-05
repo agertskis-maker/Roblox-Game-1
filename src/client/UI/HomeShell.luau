@@ -17,6 +17,8 @@ local Workspace = game:GetService("Workspace")
 
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local CosmeticPreviewCatalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
+local RobuxSeam = require(script.Parent:WaitForChild("RobuxSeam"))
 
 local Prototype = script.Parent:WaitForChild("Prototype")
 local ModalQueue = require(Prototype:WaitForChild("Home"):WaitForChild("ModalQueue"))
@@ -24,6 +26,7 @@ local Priority = require(Prototype:WaitForChild("Priority")) :: any
 local Screen = require(Prototype:WaitForChild("Screen")) :: any
 local Store = require(Prototype:WaitForChild("Store")) :: any
 local GroupFixtures = require(Prototype:WaitForChild("SupportFixtures"):WaitForChild("GroupFixtures")) :: any
+local StyleState = require(Prototype:WaitForChild("StyleState")) :: any
 
 local HomeShell = {}
 HomeShell.__index = HomeShell
@@ -204,16 +207,41 @@ function HomeShell.start(options: Options?): any
 		end,
 	})
 	mount("customize", { "Screens", "StuntCustomize" }, "Modal", {
-		onBuy = function(_id: string, title: string, _art: string?)
-			if self.hud then
-				self.hud:notify(title .. ": coming soon!", "Trail")
-			end
+		-- Round 6 (R-03, R-04): a Robux trail goes through RobuxSeam; once the server says it is owned it is the
+		-- player's and equipped (with no provider it says coming soon, as before)
+		onBuy = function(id: string, title: string, _art: string?)
+			RobuxSeam.buy(id, function(r: RobuxSeam.Result)
+				local words = if r.status == "Purchased"
+					then title .. " is yours!"
+					elseif r.status == "Cancelled" then nil
+					elseif r.status == "NotCreated" then title .. ": not set up on Roblox yet"
+					elseif r.status == "Unavailable" then title .. ": not available for your account"
+					elseif r.status == "Error" then title .. ": try later"
+					else title .. ": coming soon!"
+				if r.status == "Purchased" then
+					StyleState.own(id)
+					StyleState.equip("Trails", id)
+				end
+				if words and self.hud then
+					self.hud:notify(words, "Trail")
+				end
+			end)
 		end,
 		onViewShop = function()
 			components.customize:close()
 			self.shopAt("Cash")
 		end,
 	})
+	-- Round 6 (R-04): a Robux trail the server says this player owns (its Game Pass) is owned in the Garage too
+	local function syncOwnedTrails()
+		for _, item in CosmeticPreviewCatalog.itemsFor("Trails") do
+			if item.robux and RobuxSeam.state(item.id) == "Owned" and not StyleState.get().ownership.owned[item.id] then
+				StyleState.own(item.id)
+			end
+		end
+	end
+	RobuxSeam.Changed:Connect(syncOwnedTrails)
+	task.defer(syncOwnedTrails)
 	local function customizeView(tab: string): { [string]: any }
 		return { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels", "Trails" }, tab = tab }
 	end

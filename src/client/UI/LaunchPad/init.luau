@@ -23,6 +23,7 @@ local Workspace = game:GetService("Workspace")
 
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
+local RobuxSeam = require(script.Parent.RobuxSeam)
 local RunStamina = require(script.RunStamina)
 local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
@@ -919,9 +920,35 @@ function LaunchPad.attachShell(s: any)
 				end
 			end
 		end,
-		respawnRobux = Catalog.RespawnRobux,
-		onBuyRespawn = function()
-			print("[LaunchPad] Robux respawn is a PREVIEW: nothing was charged")
+		-- Round 6 (R-03): the price this player pays (regional pricing), else the PREVIEW number
+		respawnRobux = (RobuxSeam.price("respawn", Catalog.RespawnRobux)),
+		onBuyRespawn = function(report: (string, string?) -> ())
+			RobuxSeam.buy("respawn", function(r: RobuxSeam.Result)
+				if r.status == "Purchased" then
+					local summary = r.summary or {}
+					if summary.continued then
+						report("Purchased", "Respawning!")
+						local h = hooks
+						if h and (h :: any).revive then
+							(h :: any).revive()
+							if stamina then
+								stamina:refill(RunStamina.ReviveRefill)
+							end
+						end
+					else
+						-- the run had already ended: the server paid its Results total instead
+						report("Paid", "Run ended: +" .. Format.cash(summary.cash or 0))
+					end
+				elseif r.status == "Cancelled" then
+					report("Cancelled")
+				else
+					report(
+						r.status,
+						RobuxSeam.stateText(r.status :: any)
+							or (if r.status == "NotCreated" then "Not set up yet" else "Coming soon!")
+					)
+				end
+			end)
 		end,
 		onEarnFaster = function()
 			home()

@@ -248,11 +248,12 @@ end
 
 -- Welcome back (outline section 08): the Lineup's Lap Pay per lap x laps in the time away (capped) x the offline rate,
 -- rounded down once at the end. Bad or negative times pay nothing.
-function EconomyPreview.offlineCredit(payPerLap: number, seconds: number): number
+-- `capHours` (Round 6): VIP's longer cap; the default is OfflineCapHours.
+function EconomyPreview.offlineCredit(payPerLap: number, seconds: number, capHours: number?): number
 	if payPerLap ~= payPerLap or seconds ~= seconds or payPerLap <= 0 or seconds <= 0 then
 		return 0
 	end
-	local capped = math.min(seconds, EconomyPreview.OfflineCapHours * 3600)
+	local capped = math.min(seconds, (capHours or EconomyPreview.OfflineCapHours) * 3600)
 	return math.floor(payPerLap * capped / EconomyPreview.LapSeconds * EconomyPreview.OfflineRate)
 end
 
