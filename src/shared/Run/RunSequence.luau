@@ -35,6 +35,7 @@ export type Spawn = {
 export type RunSequence = {
 	seed: number,
 	profile: RunConfig.Profile,
+	luck: number,
 	ensure: (self: RunSequence, distance: number) -> { Spawn },
 	get: (self: RunSequence, index: number) -> Spawn?,
 	alongAt: (self: RunSequence, spawn: Spawn, t: number) -> number,
@@ -53,21 +54,38 @@ local RunSequence = {}
 RunSequence.__index = RunSequence
 RunSequence.PAINTS = PAINTS
 
-local function weightsAt(distance: number): { [string]: number }
+-- Rare, Epic and Legendary weights are doubled (Brian L with Adam, 2026-11-05: rare cars should
+-- show up more, so players have something to work for). Was Legendary 0.006 + 0.024a, Epic
+-- 0.03 + 0.07a, Rare 0.15 + 0.1a.
+local RARE_BOOST = 2
+-- Commons never drop below this share, however much luck stacks on top.
+local MIN_COMMON = 0.2
+
+-- `luck` (1 = none) multiplies the Rare, Epic and Legendary weights on top of the boost. It is
+-- the player's Luck level, handed out with the seed, so the server rebuilds the same traffic.
+local function weightsAt(distance: number, luck: number?): { [string]: number }
 	local a = math.clamp(RunConfig.toMetres(distance) / 3000, 0, 1)
+	local scale = RARE_BOOST * math.max(luck or 1, 1)
 	local w = {
-		Legendary = 0.006 + 0.024 * a,
-		Epic = 0.03 + 0.07 * a,
-		Rare = 0.15 + 0.1 * a,
+		Legendary = (0.006 + 0.024 * a) * scale,
+		Epic = (0.03 + 0.07 * a) * scale,
+		Rare = (0.15 + 0.1 * a) * scale,
 	}
+	local rare = w.Legendary + w.Epic + w.Rare
+	if rare > 1 - MIN_COMMON then
+		local fit = (1 - MIN_COMMON) / rare
+		w.Legendary *= fit
+		w.Epic *= fit
+		w.Rare *= fit
+	end
 	w.Common = 1 - w.Legendary - w.Epic - w.Rare
 	return w
 end
 
 local RARITY_ORDER: { RunConfig.Rarity } = { "Legendary", "Epic", "Rare", "Common" }
 
-local function pickRarity(rng: Random, distance: number): RunConfig.Rarity
-	local w = weightsAt(distance)
+local function pickRarity(rng: Random, distance: number, luck: number): RunConfig.Rarity
+	local w = weightsAt(distance, luck)
 	local roll = rng:NextNumber()
 	local acc = 0
 	for _, rarity: RunConfig.Rarity in RARITY_ORDER do
@@ -146,9 +164,10 @@ function RunSequence.oddsFor(
 	family: Families.Family,
 	rarity: RunConfig.Rarity,
 	size: RunConfig.Size,
-	distance: number
+	distance: number,
+	luck: number?
 ): number
-	local p = weightsAt(distance)[rarity] * (family.weight / allowedWeight(rarity)) * sizeChance(size)
+	local p = weightsAt(distance, luck)[rarity] * (family.weight / allowedWeight(rarity)) * sizeChance(size)
 	return math.max(1, math.round(1 / math.max(p, 1e-9)))
 end
 
@@ -171,7 +190,7 @@ function RunSequence.variantFor(spawn: Spawn, owned: boolean): RunConfig.Variant
 	return "None"
 end
 
-function RunSequence.new(seed: number, profile: RunConfig.Profile?): RunSequence
+function RunSequence.new(seed: number, profile: RunConfig.Profile?, luck: number?): RunSequence
 	local rng = Random.new(seed)
 	local nextStart = {}
 	for lane = 1, RunConfig.LANES do
@@ -180,6 +199,7 @@ function RunSequence.new(seed: number, profile: RunConfig.Profile?): RunSequence
 	local self = setmetatable({
 		seed = seed,
 		profile = profile or RunConfig.profile(nil),
+		luck = math.max(luck or 1, 1),
 		_rng = rng,
 		_spawns = {},
 		_nextStart = nextStart,
@@ -199,7 +219,7 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 			break
 		end
 		local rng = self._rng
-		local rarity: RunConfig.Rarity = pickRarity(rng, start)
+		local rarity: RunConfig.Rarity = pickRarity(rng, start, self.luck)
 		local family = pickFamily(rng, rarity)
 		local size: RunConfig.Size = pickSize(rng)
 		local length = family.length * RunConfig.SIZE_SCALE[size]
@@ -215,7 +235,7 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 			phase = rng:NextNumber(0, 2 * math.pi),
 			variantRoll = rng:NextNumber(),
 			needs = RunConfig.needsFor(rarity, size),
-			odds = RunSequence.oddsFor(family, rarity, size, start),
+			odds = RunSequence.oddsFor(family, rarity, size, start, self.luck),
 		})
 		table.insert(self._spawns, spawn)
 		-- Herds come in bunches: mostly short gaps, sometimes a long open stretch to steer through.

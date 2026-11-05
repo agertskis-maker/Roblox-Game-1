@@ -150,7 +150,10 @@ RunConfig.KEYS_CARD_TIME = 1.2
 -- Sizes (a stampede-style herd mixes small and huge animals; here, cars). Rolled from the seed.
 export type Size = "Tiny" | "Normal" | "Big" | "Giant"
 RunConfig.SIZE_ORDER = table.freeze({ "Giant", "Big", "Tiny", "Normal" } :: { Size })
-RunConfig.SIZE_CHANCE = table.freeze({ Giant = 0.03, Big = 0.12, Tiny = 0.12, Normal = 1 } :: { [Size]: number })
+-- Every traffic car is Normal size (Brian L with Adam, 2026-11-05: big cars were harder to hop
+-- although they should feel better). The size roll stays, so seeds keep using the random stream the
+-- same way; set a chance above 0 to bring a size back. Was Giant 0.03, Big 0.12, Tiny 0.12.
+RunConfig.SIZE_CHANCE = table.freeze({ Giant = 0, Big = 0, Tiny = 0, Normal = 1 } :: { [Size]: number })
 RunConfig.SIZE_SCALE = table.freeze({ Tiny = 0.72, Normal = 1, Big = 1.3, Giant = 1.6 } :: { [Size]: number })
 RunConfig.SIZE_LABEL =
 	table.freeze({ Tiny = "TINY ", Normal = "", Big = "BIG ", Giant = "GIANT " } :: { [Size]: string })
