@@ -43,7 +43,7 @@ function Economy.addCash(player: Player, amount: number, reason: string)
 	if not data or amount ~= amount or amount <= 0 or amount == math.huge then
 		return
 	end
-	data.Cash += math.floor(amount)
+	data.Cash = math.min(data.Cash + math.floor(amount), Catalog.MaxCash)
 	publishCash(player, data)
 	if reason ~= "Lap" then
 		print(string.format("[EconomyPreview] %s +%s (%s)", player.Name, Catalog.formatCash(amount), reason))

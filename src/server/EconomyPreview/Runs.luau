@@ -30,6 +30,11 @@ local CLOCK_TOLERANCE = 3 -- seconds a client clock may run ahead of the server'
 local KEYS_TOLERANCE = 0.25 -- seconds short of the Keys time still accepted
 local HOP_REACH = 90 -- studs between the reported position and the target car
 local MAX_RUN_SECONDS = 60 * 60
+-- Adam's review of 2026-11-05 (F1 to F3); the values match Lane 3's BetaRun.Caps.
+local AHEAD_STUDS = 1_500 -- how far d may lead the run's own travelled distance (a Hop onto a car ahead)
+local BACK_STUDS = 5 -- how far d may go backwards between events
+local MAX_KEYS_PER_RUN = 5 -- claims plus Joyrides in one run: the Stamina bolt count
+local START_COOLDOWN = 0.75 -- seconds between StartRun calls
 
 type Ride = { index: number, since: number }
 
@@ -43,10 +48,12 @@ type Run = {
 	lastD: number,
 	ride: Ride?,
 	paid: { [number]: boolean },
+	keys: number,
 	ended: boolean,
 }
 
 local active: { [Player]: Run } = {}
+local lastStart: { [Player]: number } = {}
 local counter = 0
 
 local function sharedRun(): Instance?
@@ -125,6 +132,12 @@ function Runs.start(player: Player, worldId: unknown): { runId: string, seed: nu
 	if not data.WorldsUnlocked[worldId] or not RunSequence then
 		return nil
 	end
+	local now = os.clock()
+	local last = lastStart[player]
+	if last and now - last < START_COOLDOWN then
+		return nil
+	end
+	lastStart[player] = now
 	counter += 1
 	local seed = Random.new():NextInteger(1, 2_000_000_000)
 	local run: Run = {
@@ -137,6 +150,7 @@ function Runs.start(player: Player, worldId: unknown): { runId: string, seed: nu
 		lastD = 0,
 		ride = nil,
 		paid = {},
+		keys = 0,
 		ended = false,
 	}
 	active[player] = run
@@ -154,6 +168,23 @@ local function grant(player: Player, result: { [string]: any })
 	Runs.Granted:Fire(player, result)
 end
 
+-- The furthest the run's traffic has carried a rider by time `t`. Older copies of Lane 1's
+-- RunSequence have no travelledAt, so the speed at `t` times `t` stands in (an over-estimate,
+-- because the speed only rises).
+local function travelledAt(run: Run, t: number): number
+	local seq = run.sequence
+	if typeof(seq.travelledAt) == "function" then
+		return seq:travelledAt(math.max(t, 0))
+	end
+	return math.max(t, 0) * seq:speedAt(t)
+end
+
+-- F1 and F2: every event's distance must be one the run can have reached by its time, and may
+-- not go backwards. Checked before the distance is used for anything (ensure, Milestones).
+local function distanceOk(run: Run, t: number, d: number): boolean
+	return d >= run.lastD - BACK_STUDS and d <= travelledAt(run, t) + AHEAD_STUDS
+end
+
 local function onKeys(player: Player, run: Run, t: number, index: number)
 	local _, RunConfig = runModules()
 	local ride = run.ride
@@ -162,6 +193,9 @@ local function onKeys(player: Player, run: Run, t: number, index: number)
 	end
 	if run.paid[index] then
 		return reject(player, "Keys already paid for this car")
+	end
+	if run.keys >= MAX_KEYS_PER_RUN then
+		return reject(player, "more Keys than the run's Stamina bolts")
 	end
 	local spawn = run.sequence:get(index)
 	if not spawn or not RunConfig then
@@ -172,6 +206,7 @@ local function onKeys(player: Player, run: Run, t: number, index: number)
 		return reject(player, "Keys filled faster than allowed")
 	end
 	run.paid[index] = true
+	run.keys += 1
 	local id = Runs.carFor(run.worldId, spawn)
 	local data = Data.get(player)
 	if not id or not data then
@@ -211,13 +246,8 @@ local function onEnd(player: Player, run: Run, t: number, d: number)
 	if not RunConfig then
 		return
 	end
-	-- the distance must be reachable from the last checked position at the run's top speeds
-	local maxLane = 1
-	for _, speed in run.sequence.profile.laneSpeed do
-		maxLane = math.max(maxLane, speed)
-	end
-	local reach = run.lastD + math.max(0, t - run.lastT) * run.sequence:speedAt(t) * maxLane * 1.25 + 50
-	local distance = math.min(d, reach)
+	-- `d` already passed distanceOk; Milestones count only what the run itself travelled by `t`
+	local distance = math.min(d, travelledAt(run, t))
 	local info = Catalog.world(run.worldId)
 	local milestones = math.floor(RunConfig.toMetres(distance) / Catalog.MilestoneMetres)
 	if info and milestones > 0 then
@@ -251,6 +281,9 @@ function Runs.report(player: Player, runId: unknown, events: unknown)
 		if not t or not d then
 			return reject(player, "event time or distance out of range")
 		end
+		if not distanceOk(run, t, d) then
+			return reject(player, "distance the run cannot have reached by then")
+		end
 		if kind == "Hop" then
 			local target = number(event.target, 0, 1_000_000)
 			if not target or target ~= math.floor(target) then
@@ -280,6 +313,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player: Player)
 	active[player] = nil
+	lastStart[player] = nil
 end)
 
 return Runs

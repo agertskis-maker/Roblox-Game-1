@@ -128,6 +128,10 @@ function EconomyPreview.world(id: string): (WorldInfo?, number?)
 	return nil, nil
 end
 
+-- Cash never goes above this (Adam's review F4, 2026-11-05): $1Qa, far below 2^53 (about 9Qa),
+-- where Luau numbers stop counting whole dollars exactly.
+EconomyPreview.MaxCash = 1_000_000_000_000_000
+
 EconomyPreview.OfflineRate = 0.5
 EconomyPreview.OfflineCapSeconds = 8 * 60 * 60
 
