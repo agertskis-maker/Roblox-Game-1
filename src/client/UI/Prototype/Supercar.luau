@@ -12,6 +12,7 @@
 -- vents, gloss). Decals are masked off the glass when they are baked, so the shells' draw order does not matter.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Prototype = script.Parent
 local GameIconIds = require(Prototype.GameIconIds)
@@ -42,7 +43,8 @@ local function meshUri(key: string): string?
 	if id then
 		return id
 	end
-	if ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
+	-- Studio only: a published copy of a local test place keeps the marker, and a live game has no local files
+	if RunService:IsStudio() and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
 		return "rbxasset://carhop/" .. key .. ".mesh"
 	end
 	return nil
