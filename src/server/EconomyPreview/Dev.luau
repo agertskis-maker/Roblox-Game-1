@@ -70,7 +70,7 @@ function Dev.unlockWorld(player: Player, worldId: string): boolean
 	return allowed() and Economy.unlockWorld(player, worldId)
 end
 
-function Dev.setLineupSlot(player: Player, slot: number, id: string): boolean
+function Dev.setLineupSlot(player: Player, slot: number, id: string?): boolean
 	return allowed() and Economy.setLineupSlot(player, slot, id)
 end
 

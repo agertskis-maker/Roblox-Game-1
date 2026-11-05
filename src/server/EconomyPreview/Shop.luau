@@ -174,8 +174,10 @@ function Shop.createRemotes()
 		end
 	end)
 	remote(Net.Remotes.SetLineupSlot).OnServerEvent:Connect(function(player: Player, slot: unknown, carId: unknown)
-		if typeof(slot) == "number" and typeof(carId) == "string" and #carId <= 60 and cooled(player) then
-			Economy.setLineupSlot(player, slot, carId)
+		-- carId nil takes the car out of the spot (A3); otherwise it is a car id
+		local valid = carId == nil or (typeof(carId) == "string" and #carId <= 60)
+		if typeof(slot) == "number" and valid and cooled(player) then
+			Economy.setLineupSlot(player, slot, carId :: string?)
 		end
 	end)
 

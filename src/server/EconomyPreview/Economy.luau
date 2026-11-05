@@ -70,10 +70,11 @@ local function lapPayOf(data: Data.SaveData, id: string): number
 	return Catalog.lapPay(rarity, car.Edition, data.RacewayLevel)
 end
 
--- Keeps the Lineup valid and full: drops cars that are not owned or do not exist, trims it to the
--- parking spots owned, then fills empty spots with the best-paying owned cars not already in it.
--- Cars the player chose (setLineupSlot) stay where they were put.
-function Economy.refreshLineup(player: Player)
+-- Keeps the Lineup valid: drops cars that are not owned or do not exist and trims it to the parking
+-- spots owned, with no gaps. The player's choices stay as they are, so a spot the player emptied
+-- stays empty (Adam's review A3, agreed by Brian L on 2026-11-05). Only `newCar`, a car just
+-- claimed, is placed automatically, in the first free spot if there is one.
+function Economy.refreshLineup(player: Player, newCar: string?)
 	local data = Data.get(player)
 	if not data then
 		return
@@ -86,37 +87,33 @@ function Economy.refreshLineup(player: Player)
 			used[id] = true
 		end
 	end
-	local spare: { string } = {}
-	for id in data.Cars do
-		if Cars.exists(id) and not used[id] then
-			table.insert(spare, id)
-		end
-	end
-	table.sort(spare, function(a, b)
-		local pa, pb = lapPayOf(data, a), lapPayOf(data, b)
-		if pa ~= pb then
-			return pa > pb
-		end
-		return a < b
-	end)
-	for _, id in spare do
-		if #lineup >= data.ParkingSpots then
-			break
-		end
-		table.insert(lineup, id)
+	if newCar and #lineup < data.ParkingSpots and data.Cars[newCar] and Cars.exists(newCar) and not used[newCar] then
+		table.insert(lineup, newCar)
 	end
 	data.Lineup = lineup
 	Economy.PlotChanged:Fire(player)
 end
 
 -- Puts an owned car into Lineup spot `slot` (1 to the parking spots owned). If the car already
--- drives in another spot, the two swap. Returns whether anything changed.
-function Economy.setLineupSlot(player: Player, slot: number, id: string): boolean
+-- drives in another spot, the two swap. `id = nil` takes the car in `slot` out and the cars after
+-- it move up. Returns whether anything changed.
+function Economy.setLineupSlot(player: Player, slot: number, id: string?): boolean
 	local data = Data.get(player)
-	if not data or not data.Cars[id] or not Cars.exists(id) then
+	if not data or slot ~= math.floor(slot) or slot < 1 then
 		return false
 	end
-	if slot ~= math.floor(slot) or slot < 1 or slot > math.min(data.ParkingSpots, #data.Lineup + 1) then
+	if id == nil then
+		if slot > #data.Lineup then
+			return false
+		end
+		table.remove(data.Lineup, slot)
+		Economy.refreshLineup(player)
+		return true
+	end
+	if not data.Cars[id] or not Cars.exists(id) then
+		return false
+	end
+	if slot > math.min(data.ParkingSpots, #data.Lineup + 1) then
 		return false
 	end
 	local current = table.find(data.Lineup, id)
@@ -209,7 +206,7 @@ function Economy.claimCar(player: Player, id: string): boolean
 	end
 	data.Cars[id] = { Edition = 1, Copies = 0 }
 	Economy.addCash(player, Catalog.Rarities[rarity].claimBonus, "Claim " .. id)
-	Economy.refreshLineup(player)
+	Economy.refreshLineup(player, id)
 	return true
 end
 

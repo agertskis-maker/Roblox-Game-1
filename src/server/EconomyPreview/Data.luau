@@ -77,6 +77,7 @@ local function onPlayerAdded(player: Player)
 	local data = profile.Data :: SaveData
 	if next(data.Cars) == nil then
 		data.Cars[STARTER_CAR] = { Edition = 1, Copies = 0 }
+		table.insert(data.Lineup, STARTER_CAR)
 	end
 	profiles[player] = profile
 	Data.Loaded:Fire(player, data)
