@@ -24,3 +24,5 @@ Shared notes for the team. The engineering rules live in the repo root `AGENTS.m
 - **decisions/**: one note per non-obvious choice, named `NNNN-short-title`.
 - **tasks/**: the [[BOARD]]. Claim a task before starting it.
 - **log/**: one note per working day, named `YYYY-MM-DD`. Short is fine.
+
+- Official game name: **Catch A Car!** ([[0037-official-name-catch-a-car]]).
