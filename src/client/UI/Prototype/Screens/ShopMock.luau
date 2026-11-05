@@ -31,6 +31,7 @@ local RealCar = require(Prototype.RealCar)
 local ShopKit = require(Prototype.ShopKit)
 local ShopMotion = require(Prototype.ShopMotion)
 local ShopPurchaseAdapter = require(Prototype.ShopPurchaseAdapter)
+local RobuxSeam = require(script.Parent.Parent.Parent.RobuxSeam)
 local Sounds = require(Prototype.Sounds)
 local CashPacks = require(ReplicatedStorage.Shared.UI.CashPackPreview)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
@@ -212,11 +213,12 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			button.setTone("Grey")
 			button.setEnabled(false)
 		elseif state == "unavailable" or state == "error" then
-			button.setText(if state == "error" then "Try later" else "Not here yet")
+			button.setText(if state == "error" then "Try later" else "Not available")
 			button.setTone("Grey")
 			button.setEnabled(false)
 		else
-			button.setText(if price then Format.group(price) else "")
+			-- Round 6 (R-03): the product's own price for this player when Roblox gives one, else the PREVIEW number
+			button.setText(if price then Format.group((RobuxSeam.price(id, price))) else "")
 			button.setTone("Green")
 			button.setEnabled(true)
 			showWord = true
@@ -253,7 +255,8 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		end)
 	end
 
-	local function showSoon(title: string, art: string?)
+	-- Round 6 (R-03): the same card says the other purchase outcomes too (heading and line given)
+	local function showSoon(title: string, art: string?, heading: string?, line: string?)
 		closeSoon()
 		local host = overlay.content
 		local shade = make("TextButton", {
@@ -284,7 +287,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				z = 202,
 			})
 		end
-		CarKit.title(card, "COMING SOON!", 40, {
+		CarKit.title(card, heading or "COMING SOON!", 40, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -24, 0, 44),
 			position = UDim2.fromOffset(12, h * 0.5),
@@ -292,7 +295,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			top = CarKit.White,
 			bottom = CarKit.Gold,
 		})
-		CarKit.text(card, title .. " isn't on sale yet. Nothing was charged.", 17, {
+		CarKit.text(card, line or (title .. " isn't on sale yet. Nothing was charged."), 17, {
 			align = Enum.TextXAlignment.Center,
 			wrap = true,
 			size = UDim2.new(1, -40, 0, 46),
@@ -327,8 +330,19 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			pendingId = nil
 			pendingHandle = nil
 			refresh()
-			if isShopOpen and result.status == "ComingSoon" then
+			if not isShopOpen then
+				return
+			end
+			if result.status == "ComingSoon" then
 				showSoon(title, art)
+			elseif result.status == "Purchased" then
+				local s = result.summary
+				local extra = if s and type(s.cash) == "number" and s.cash > 0 then " +" .. money(s.cash) .. "!" else ""
+				showSoon(title, art, "THANK YOU!", title .. " is yours." .. extra)
+			elseif result.status == "NotCreated" then
+				showSoon(title, art, "NOT SET UP YET", title .. " isn't made on Roblox yet. Nothing was charged.")
+			elseif result.status == "Unavailable" then
+				showSoon(title, art, "NOT AVAILABLE", title .. " is not available for your account.")
 			end
 		end)
 	end
