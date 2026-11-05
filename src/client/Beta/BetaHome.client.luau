@@ -23,6 +23,28 @@ pcall(function()
 end)
 
 local player = Players.LocalPlayer
+
+-- Round 6 (V-03): harness captions (GuiObjects with the attribute PreviewCaption) are review labels, not words for players;
+-- the playground hides them in player-facing captures, so the beta hides them too. Two reviewers found them covering text
+-- (the Garage's World tab and reward). PersistentPreview stamps and the Shop's PREVIEW footer are not captions and stay.
+local function hideCaption(d: Instance)
+	if d:IsA("GuiObject") and d:GetAttribute("PreviewCaption") == true then
+		d.Visible = false
+		d:GetPropertyChangedSignal("Visible"):Connect(function()
+			if d.Visible then
+				d.Visible = false
+			end
+		end)
+	end
+end
+local playerGui = player:WaitForChild("PlayerGui")
+for _, d in playerGui:GetDescendants() do
+	hideCaption(d)
+end
+-- deferred: a screen sets the attribute just after it parents the label
+playerGui.DescendantAdded:Connect(function(d: Instance)
+	task.defer(hideCaption, d)
+end)
 local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) :: Instance
 
 local function joinMode(): string
