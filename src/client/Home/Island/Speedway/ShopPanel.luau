@@ -980,11 +980,13 @@ local function buildFooter(p: Panel, inner: Frame, width: number, y: number)
 			Tokens.Radius.Pill,
 			MINT
 		)
-		text(marker, "Text", "STUDIO PREVIEW", Tokens.TextSize.Minimum, MINT, 0)
+		-- Car Hop Beta (decisions 0030, 0039): purchases cost Cash at PREVIEW prices and are saved, so the marker and line say so
+		local beta = ReplicatedStorage:FindFirstChild("CarHopBeta") ~= nil
+		text(marker, "Text", if beta then "BETA" else "STUDIO PREVIEW", Tokens.TextSize.Minimum, MINT, 0)
 		local line = text(
 			inner,
 			"PreviewLine",
-			"No Cash spent. Progress is not saved.",
+			if beta then "PREVIEW prices, paid in Cash. Progress is saved." else "No Cash spent. Progress is not saved.",
 			Tokens.TextSize.Minimum,
 			C.TextSecondary,
 			0

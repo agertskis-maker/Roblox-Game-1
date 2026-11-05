@@ -23,7 +23,9 @@ local Workspace = game:GetService("Workspace")
 
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
+local RobuxSeam = require(script.Parent.RobuxSeam)
 local RunStamina = require(script.RunStamina)
+local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
@@ -300,6 +302,9 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
+	if StaminaPanel.isOpen() then
+		return true
+	end
 	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
 		local c = panel(key)
 		if c and c.isOpen and c:isOpen() then
@@ -320,6 +325,8 @@ end
 local function openStall(key: string)
 	if key == "Cars" then
 		panel("carStall"):open(world)
+	elseif key == "Stamina" then
+		StaminaPanel.open() -- 2026-11-05: the Stamina Shop
 	elseif key == "Trails" then
 		openCustomize("Trails")
 	else
@@ -705,7 +712,11 @@ begin = function()
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
 		stamina = runTrove:Add(
-			RunStamina.attach(run, { max = if isTutorial() then RunStamina.TutorialMax else nil }),
+			RunStamina.attach(run, {
+				max = if isTutorial()
+					then math.max(RunStamina.TutorialMax, RunStamina.playerMax())
+					else RunStamina.playerMax(),
+			}),
 			"destroy"
 		)
 		attachTrail()
@@ -862,7 +873,7 @@ function LaunchPad.attachShell(s: any)
 				local lineup = LiveData.lineup()
 				for id, save in LiveData.cars() do
 					local car = RosterFixtures.byId(id)
-					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition) else 0
+					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition, 1, car.world) else 0
 					if not table.find(lineup, id) and (pay > bestPay or (pay == bestPay and id < (best or ""))) then
 						best, bestPay = id, pay
 					end
@@ -888,7 +899,7 @@ function LaunchPad.attachShell(s: any)
 			padTrove:Clean()
 			countdown()
 		end,
-		hops = RunStamina.Max,
+		hops = RunStamina.playerMax,
 		onChangeCar = function()
 			panel("carStall"):open(world)
 		end,
@@ -909,9 +920,35 @@ function LaunchPad.attachShell(s: any)
 				end
 			end
 		end,
-		respawnRobux = Catalog.RespawnRobux,
-		onBuyRespawn = function()
-			print("[LaunchPad] Robux respawn is a PREVIEW: nothing was charged")
+		-- Round 6 (R-03): the price this player pays (regional pricing), else the PREVIEW number
+		respawnRobux = (RobuxSeam.price("respawn", Catalog.RespawnRobux)),
+		onBuyRespawn = function(report: (string, string?) -> ())
+			RobuxSeam.buy("respawn", function(r: RobuxSeam.Result)
+				if r.status == "Purchased" then
+					local summary = r.summary or {}
+					if summary.continued then
+						report("Purchased", "Respawning!")
+						local h = hooks
+						if h and (h :: any).revive then
+							(h :: any).revive()
+							if stamina then
+								stamina:refill(RunStamina.ReviveRefill)
+							end
+						end
+					else
+						-- the run had already ended: the server paid its Results total instead
+						report("Paid", "Run ended: +" .. Format.cash(summary.cash or 0))
+					end
+				elseif r.status == "Cancelled" then
+					report("Cancelled")
+				else
+					report(
+						r.status,
+						RobuxSeam.stateText(r.status :: any)
+							or (if r.status == "NotCreated" then "Not set up yet" else "Coming soon!")
+					)
+				end
+			end)
 		end,
 		onEarnFaster = function()
 			home()
@@ -1003,6 +1040,9 @@ function LaunchPad.lockedAway()
 			if spec then
 				Dialogue.clearSuppression(spec.key)
 			end
+			-- the live card too (liveLock's key): without this, GOT IT once kept the card, and its UNLOCK, away all session
+			-- (found 2026-11-05)
+			Dialogue.clearSuppression("portal:live:" .. place)
 		end
 	end)
 end

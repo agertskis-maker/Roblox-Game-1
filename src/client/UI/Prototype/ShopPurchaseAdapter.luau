@@ -27,19 +27,22 @@
 --   * `options.availability`: a function (offerId) -> "Available" | "Unavailable" | "Error". Per BRIEF M10-09b, a
 --     policy or lookup failure is "Error" (unknown), never "Available", and eligibility is never inferred from age
 --     or location.
+-- Round 6 (R-03): with no backend option, the adapter uses RobuxSeam whenever a provider is set (the beta sets one), so
+-- the Shop prompts through the same one module as every other Robux button; with no provider it is the preview backend.
 -- Bundles never grant three passes automatically and never sell a duplicate entitlement; both rules live in the
 -- real backend, not here.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local RobuxSeam = require(script.Parent.Parent.RobuxSeam)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local ShopPurchaseAdapter = {}
 ShopPurchaseAdapter.__index = ShopPurchaseAdapter
 
-export type Status = "ComingSoon" | "Owned" | "Unavailable" | "Error"
-export type Result = { status: Status, offerId: string, message: string? }
+export type Status = "ComingSoon" | "Owned" | "Unavailable" | "Error" | "NotCreated" | "Purchased" | "Cancelled"
+export type Result = { status: Status, offerId: string, message: string?, summary: { [string]: any }? }
 export type Availability = "Available" | "Unavailable" | "Error"
 
 export type Handle = {
@@ -52,8 +55,8 @@ export type Stats = {
 	completed: number,
 	cancelled: number,
 	pending: number,
-	marketplaceCalls: number, -- 0 in this build, always
-	grants: number, -- 0 in this build, always
+	marketplaceCalls: number, -- 0 unless a RobuxSeam provider (the beta) is set
+	grants: number, -- purchases the provider reported as granted (0 without one)
 }
 
 export type Backend = (offerId: string, done: (Result) -> ()) -> (() -> ())?
@@ -83,6 +86,9 @@ function ShopPurchaseAdapter.new(options: Options?)
 	self._live = {} :: { [any]: boolean }
 	self._stats = { requests = 0, completed = 0, cancelled = 0, marketplaceCalls = 0, grants = 0 }
 	self._destroyed = false
+	self._trove:Add(RobuxSeam.Changed:Connect(function()
+		self.Changed:Fire()
+	end))
 	return self
 end
 
@@ -135,6 +141,19 @@ function ShopPurchaseAdapter.request(self: Adapter, offerId: string, onResult: (
 		onResult(result)
 	end
 	local backend = self._backend
+	if backend == nil and RobuxSeam.hasProvider() then
+		backend = function(id: string, finish: (Result) -> ()): (() -> ())?
+			return RobuxSeam.buy(id, function(r: any)
+				if r.status == "Purchased" or r.status == "Cancelled" then
+					self._stats.marketplaceCalls += 1
+				end
+				if r.status == "Purchased" then
+					self._stats.grants += 1
+				end
+				finish(r)
+			end)
+		end
+	end
 	if backend then
 		cancelBackend = backend(offerId, done)
 	else
@@ -148,6 +167,9 @@ function ShopPurchaseAdapter.ownership(self: Adapter, offerId: string): boolean
 	if lookup then
 		return lookup(offerId)
 	end
+	if RobuxSeam.hasProvider() and RobuxSeam.state(offerId) == "Owned" then
+		return true
+	end
 	return self._owned[offerId] == true
 end
 
@@ -155,6 +177,12 @@ function ShopPurchaseAdapter.availability(self: Adapter, offerId: string): Avail
 	local lookup = self._availability
 	if lookup then
 		return lookup(offerId)
+	end
+	if RobuxSeam.hasProvider() then
+		local s = RobuxSeam.state(offerId)
+		if s == "Unavailable" or s == "Error" then
+			return s
+		end
 	end
 	if self._errors[offerId] or self._errors["*"] then
 		return "Error"
