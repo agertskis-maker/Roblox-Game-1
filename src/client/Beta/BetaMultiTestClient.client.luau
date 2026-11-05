@@ -11,12 +11,13 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local StudioTestService = game:GetService("StudioTestService")
 local Workspace = game:GetService("Workspace")
 
 if not RunService:IsStudio() then
 	return
 end
+-- looked up after the Studio check: a live game client cannot get this service (2026-11-05, an error on every live join)
+local StudioTestService = game:GetService("StudioTestService")
 local BetaConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Beta"):WaitForChild("BetaConfig"))
 if not BetaConfig.enabled() then
 	return
