@@ -177,6 +177,8 @@ local function arm(mesh: string, base: CFrame, shoulder: Vector3): MeshPart?
 	local pivot = CFrame.new(shoulder) * (base - base.Position)
 	return Kit.place(mesh, pivot)
 end
+Props.figure = figure
+Props.arm = arm
 
 -- ------------------------------------------------------------------ level 1
 
@@ -399,7 +401,8 @@ end
 
 -- ------------------------------------------------------------------ level 3
 
-function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
+-- `count` (Round 6, V-01): the stand fills up as the Raceway rises (Look builds it again with more fans).
+function Props.bleachers(major: Folder, life: Folder, ctx: Ctx, count: number?)
 	local base = Ctx.face(ctx, A.Bleachers.X, A.Bleachers.Y, EAST)
 	local stand = Kit.place("SwBleachers", base)
 	if stand then
@@ -407,7 +410,7 @@ function Props.bleachers(major: Folder, life: Folder, ctx: Ctx)
 		stand.CanQuery = true
 		stand.Parent = major
 	end
-	seatFans(life, ctx, "SwBleachers", base, 9, 3)
+	seatFans(life, ctx, "SwBleachers", base, count or 9, 3)
 end
 
 function Props.snackCart(folder: Folder, ctx: Ctx)
@@ -742,7 +745,8 @@ end
 
 -- ------------------------------------------------------------------ level 7
 
-function Props.grandstand(major: Folder, life: Folder, ctx: Ctx)
+-- `perBay` (Round 6, V-01): fans per bay, more at the top levels.
+function Props.grandstand(major: Folder, life: Folder, ctx: Ctx, perBay: number?)
 	for k, u in A.GrandstandU do
 		local base = Ctx.face(ctx, A.GrandstandX, u, EAST)
 		local bay = Kit.place("SwGrandstandBay", base)
@@ -751,7 +755,7 @@ function Props.grandstand(major: Folder, life: Folder, ctx: Ctx)
 			bay.CanQuery = true
 			bay.Parent = major
 		end
-		seatFans(life, ctx, "SwGrandstandBay", base, 12, 10 + k)
+		seatFans(life, ctx, "SwGrandstandBay", base, perBay or 12, 10 + k)
 	end
 	-- two mirrored coral end caps on the fascia at the stand's outer ends (Raceway round 2; the
 	-- bay mesh repeats, so the caps are placed once here)
