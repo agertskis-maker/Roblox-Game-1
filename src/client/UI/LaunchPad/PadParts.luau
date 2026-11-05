@@ -428,14 +428,11 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 		k:box("AwningTop", Vector3.new(9, 0.8, 9), at * CFrame.new(0, top + 2.7, 1), second)
 		for side = 0, 3 do
 			local face = at * CFrame.new(0, top + 1.4, 1) * CFrame.Angles(0, side * math.pi / 2, 0)
-			for i = -1, 1 do
-				k:box(
-					"AwningStripe",
-					Vector3.new(5.7, 0.4, 5.8),
-					face * CFrame.new(i * 5.7, 0, 6.6) * CFrame.Angles(math.rad(26), 0, 0),
-					if i == 0 then second else main
-				)
-			end
+			-- Round 5 (P-01): one slab in the main colour and the middle stripe 0.04 proud of it (was three stripes), the same
+			-- look in two parts, with no shared face
+			local slope = face * CFrame.new(0, 0, 6.6) * CFrame.Angles(math.rad(26), 0, 0)
+			k:box("AwningStripe", Vector3.new(17.1, 0.4, 5.8), slope, main)
+			k:box("AwningStripe", Vector3.new(5.7, 0.4, 5.9), slope * CFrame.new(0, 0.04, 0), second) -- ends 0.05 past the slab
 			k:box("AwningEdge", Vector3.new(17.2, 1, 0.3), face * CFrame.new(0, -1.9, 9.3), main)
 		end
 		top += 3.2

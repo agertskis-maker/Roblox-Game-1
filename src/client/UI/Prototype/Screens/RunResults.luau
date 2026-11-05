@@ -14,6 +14,7 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local Sounds = require(Prototype.Sounds)
 local Format = game:GetService("ReplicatedStorage").Shared.UI.Format
 
@@ -23,7 +24,10 @@ local make = CarKit.make
 
 local RunResults = {}
 
-export type Car = { name: string, rarity: string?, isNew: boolean? }
+-- Round 5 (L-03): with a live server, `line` says where a claimed car went ("Parked at your Raceway", "In your Garage. Raceway
+-- full."), `carId` draws the real car, and `breakdown` lists the server's totals by kind. `checking` is true while a claim
+-- still waits for the server's answer: the cash row says "Checking..." and the card is shown again when the answer comes.
+export type Car = { name: string, rarity: string?, isNew: boolean?, line: string?, parked: boolean?, carId: string? }
 export type Data = {
 	metres: number,
 	best: number,
@@ -32,6 +36,8 @@ export type Data = {
 	cash: number,
 	revives: number,
 	outOfBolts: boolean?,
+	breakdown: { { label: string, amount: number } }?,
+	checking: boolean?,
 }
 
 export type Options = {
@@ -127,27 +133,61 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			{ Rotation = 90, Color = ColorSequence.new(CarKit.White, Color3.fromRGB(150, 160, 190)) },
 			holder
 		)
-		CarKit.art(holder, "thumb_car_body", {
-			size = UDim2.new(1, -6, 1, -24),
-			position = UDim2.new(0.5, 0, 0.5, -8),
-			color = rarity:Lerp(CarKit.White, 0.1),
-			z = z + 1,
-			placeholder = false,
-		})
-		CarKit.art(holder, "thumb_car_top", {
-			size = UDim2.new(1, -6, 1, -24),
-			position = UDim2.new(0.5, 0, 0.5, -8),
-			z = z + 3,
-			placeholder = false,
-		})
-		CarKit.title(holder, car.name, math.clamp(math.round(size.X / 9), 13, 20), {
+		local lineH = if car.line then 20 else 0
+		local real = false
+		if car.carId then
+			local box = make("Frame", {
+				Name = "Thumb",
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, -6, 1, -24 - lineH),
+				Position = UDim2.fromOffset(3, 2),
+				ZIndex = z + 1,
+			}, holder) :: Frame
+			real = RealCar.thumb(box, car.carId) ~= nil
+			if not real then
+				box:Destroy()
+			end
+		end
+		if not real then
+			CarKit.art(holder, "thumb_car_body", {
+				size = UDim2.new(1, -6, 1, -24 - lineH),
+				position = UDim2.new(0.5, 0, 0.5, -8 - lineH / 2),
+				color = rarity:Lerp(CarKit.White, 0.1),
+				z = z + 1,
+				placeholder = false,
+			})
+			CarKit.art(holder, "thumb_car_top", {
+				size = UDim2.new(1, -6, 1, -24 - lineH),
+				position = UDim2.new(0.5, 0, 0.5, -8 - lineH / 2),
+				z = z + 3,
+				placeholder = false,
+			})
+		end
+		CarKit.title(holder, car.name, math.clamp(math.round(size.X / 9), 14, 20), {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -6, 0, 22),
-			position = UDim2.new(0, 3, 1, -23),
+			position = UDim2.new(0, 3, 1, -23 - lineH),
 			z = z + 4,
 			shadow = false,
 			stroke = 1.5,
 		})
+		if car.line then
+			local bar = make("Frame", {
+				Name = "Where",
+				BackgroundColor3 = if car.parked then CarKit.Green else Color3.fromRGB(96, 104, 126),
+				Position = UDim2.new(0, 3, 1, -lineH - 2),
+				Size = UDim2.new(1, -6, 0, lineH),
+				ZIndex = z + 4,
+			}, holder)
+			make("UICorner", { CornerRadius = UDim.new(0, 6) }, bar)
+			CarKit.text(bar, car.line, 14, {
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.fromScale(1, 1),
+				color = CarKit.White,
+				z = z + 5,
+				name = "WhereText",
+			})
+		end
 		if car.isNew then
 			local stamp = make("Frame", {
 				Name = "New",
@@ -272,6 +312,18 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 
 		-- the cars, or the friendly empty slot
 		local bandH = math.round((if good then 214 else 168) * k)
+		-- Round 5 (A-02 found it on a phone): on a short card everything below must fit above the RETRY and HOME row, so the
+		-- tip goes first and then the band shrinks (it used to push the Cash row and RESPAWN under the buttons)
+		local bottomTop = h - math.round(14 * k) - math.round(math.max(84 * k, 54)) - 6
+		local rowNeed = math.round(66 * k) + 4
+		local tipNeed = if good then 0 else math.round(52 * k) + math.round(6 * k)
+		local roomForBand = bottomTop - y - math.round(8 * k) - rowNeed - tipNeed
+		if roomForBand < 64 and not good then
+			tipNeed = 0
+			roomForBand = bottomTop - y - math.round(8 * k) - rowNeed
+		end
+		local showTip = not good and tipNeed > 0
+		bandH = math.max(56, math.min(bandH, roomForBand))
 		local band = CarKit.board(card, {
 			size = UDim2.new(1, -math.round(28 * k), 0, bandH),
 			position = UDim2.fromOffset(math.round(14 * k), y),
@@ -337,8 +389,8 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		end
 		y += bandH + math.round(8 * k)
 
-		-- a tip, on a run with no cars
-		if not good then
+		-- a tip, on a run with no cars (when the card has room for it)
+		if showTip then
 			tipIndex = tipIndex % #RunResults.Tips + 1
 			local tip = if data.outOfBolts
 				then { icon = "stamina", text = "Out of bolts! Each hop uses one." }
@@ -380,13 +432,30 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			placeholder = false,
 		})
 		local cashPx = math.round(54 * k)
-		local cashLabel = CarKit.title(row, "+$0", cashPx, {
+		local cashLabel = CarKit.title(row, if data.checking then "Checking..." else "+$0", cashPx, {
 			position = UDim2.fromOffset(rowH * 1.5, 0),
 			size = UDim2.new(0.5, -rowH * 1.5, 1, 0),
 			color = CarKit.CashText,
 			z = 7,
 			name = "Cash",
 		})
+		-- Round 5: what the server paid, by kind, and that every number is still a PREVIEW
+		if data.breakdown then
+			local parts = {}
+			for _, b in data.breakdown do
+				if b.amount > 0 then
+					table.insert(parts, b.label .. " $" .. Formatter.group(math.floor(b.amount)))
+				end
+			end
+			table.insert(parts, "PREVIEW")
+			CarKit.text(row, table.concat(parts, "  ·  "), 14, {
+				position = UDim2.new(0, rowH * 1.5, 1, -2),
+				size = UDim2.new(0.5, -rowH * 1.5, 0, 16),
+				color = CarKit.Soft,
+				z = 7,
+				name = "Breakdown",
+			})
+		end
 
 		-- the buttons
 		local bh = math.round(math.max(84 * k, 54))
@@ -421,8 +490,10 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			end,
 		})
 		-- back into the run: free ones first; only with none left is there a cheap Robux one. No timer, no nagging.
-		local respawnSize = UDim2.new(0.46, 0, 0, math.round(math.max(58 * k, 46)))
-		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, y + rowH / 2)
+		local respawnH = math.round(math.max(58 * k, 46))
+		local respawnSize = UDim2.new(0.46, 0, 0, respawnH)
+		-- Round 5: never over the RETRY and HOME row
+		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, math.min(y + rowH / 2, bottomTop - respawnH / 2 - 2))
 		if data.revives > 0 and options.onRevive then
 			CarKit.button(card, {
 				text = ("RESPAWN FREE (%d)"):format(data.revives),
@@ -509,9 +580,11 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				end)
 				task.wait(if Motion.reduced() then 0 else 0.16)
 			end
-			countUp(cashLabel, data.cash, 0.5, function(n: number): string
-				return "+$" .. Formatter.group(math.floor(n))
-			end, me)
+			if not data.checking then
+				countUp(cashLabel, data.cash, 0.5, function(n: number): string
+					return "+$" .. Formatter.group(math.floor(n))
+				end, me)
+			end
 			if me ~= token then
 				return
 			end

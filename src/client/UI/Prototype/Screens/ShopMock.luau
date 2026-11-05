@@ -84,8 +84,11 @@ local SLIDES: { Slide } = {
 local ART_ZOOM = 1.25
 local ART_ZOOM_BY_KEY: { [string]: number } = {
 	art_cash5 = 1.55, -- the Cash Vault
-	art_vip = 1.5,
-	art_doublelap = 1.6,
+	-- Round 5: the pass art is a centred tile now (a crown, a gift, three spots), so it is only nudged past its box
+	art_vip = 1.1,
+	art_starter = 1.1,
+	art_paddock = 1.1,
+	art_doublelap = 1.05, -- Round 5: it now sits in its own area left of the price
 }
 
 -- Round 4 (E-07): every Cash amount in the Shop goes through Format.cash ("$12.4K", "$1.2M", up to Qa), the one display rule
@@ -360,8 +363,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 
 	-- PIECES ----------------------------------------------------------------------------------------------------
 
+	-- Round 5 (S-02): no Shop text renders under 14 px on any screen: the floor is divided by the screen's UI scale (a phone
+	-- draws the design at about 0.97), so 14 design px never becomes 13.6 real ones
 	local function fontPx(p: Plan, n: number, least: number?): number
-		return math.max(math.round(n * p.k), least or 13)
+		local floor = math.ceil(math.max(least or 14, 14) / math.min(ctx.screen:uiScale(), 1))
+		return math.max(math.round(n * p.k), floor)
 	end
 
 	local function flow(
@@ -502,7 +508,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local tileH = plateH - tileTop - labelPx * 2.1
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
-				local side = math.min(tileW - 2, tileH * 1.2)
+				local side = math.min(tileW - 2, tileH) -- Round 5 (S-02): inside its tile, so the label under it never overlaps the art
 				if part.car then
 					-- the car itself (decision 0038): the real model, still, with a RARE chip so the rarity reads at once
 					local holder = make("Frame", {
@@ -656,8 +662,11 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			boxArt(card, art, inset, 0, w - buyW - inset * 3, h - inset, 6)
 		else
 			px = fontPx(p, 54, 24)
-			local side = h - inset
-			boxArt(card, art, math.max(inset * 2, w * 0.62 - side / 2), 0, side, side, 6) -- right of the title, so the 2x reads
+			-- Round 5 (S-02): the art has its own area left of the price, under the title, so the price never covers it
+			local top = math.round(px * 1.02)
+			local room = w - buyW - inset * 3
+			local side = math.min(h - top - inset, room)
+			boxArt(card, art, math.max(inset, (room - side) / 2), top, side, side, 6)
 		end
 		CarKit.title(card, title, px, {
 			position = UDim2.fromOffset(math.round(12 * k), math.round(4 * k)),
@@ -788,7 +797,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				Rotation = -6,
 				ZIndex = 16,
 			}, strike)
-			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 11), {
+			CarKit.text(card, Catalog.PreviewValueTag, fontPx(p, 13, 14), {
 				size = UDim2.fromOffset(100, 16),
 				position = UDim2.new(1, -buyW - 12, 0, math.round(8 * k)),
 				anchor = Vector2.new(1, 0),
@@ -916,7 +925,10 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			{ "expanded-paddock", "Paddock", "art_paddock" },
 		}
 		local w = math.floor((p.inner - p.gap * 2) / 3)
-		local h = math.round(math.clamp(w * 0.78, 200, 340))
+		-- Round 5 (S-02): the three cards fit the page's first view, so every price shows without scrolling (on a phone the
+		-- old 200 px floor pushed the prices under the footer)
+		local avail = math.floor(p.pageH - fontPx(p, 58, 36) - p.gap - 10) -- the view under the PASSES heading
+		local h = math.round(math.min(math.clamp(w * 0.78, 200, 340), math.max(avail, 150)))
 		for i, row in ids do
 			local offer = Catalog.get(row[1])
 			if not offer then
@@ -946,18 +958,37 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			local bodyPx = fontPx(p, 19, 14)
 			local bodyH = math.round(bodyPx * 2.5)
 			local bottomH = btnH + bodyH + math.round(16 * k) + 6
-			boxArt(card, row[3], 10, artY, w - 20, h - artY - bottomH, 6)
-			CarKit.text(card, offer.body, bodyPx, {
-				wrap = true,
-				align = Enum.TextXAlignment.Center,
-				size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
-				position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
-				anchor = Vector2.new(0.5, 1),
-				alignY = Enum.TextYAlignment.Center,
-				stroke = 1.5,
-				z = 8,
-				name = "Body",
-			})
+			local artH = h - artY - bottomH
+			if artH >= 90 then
+				boxArt(card, row[3], 10, artY, w - 20, artH, 6)
+				CarKit.text(card, offer.body, bodyPx, {
+					wrap = true,
+					align = Enum.TextXAlignment.Center,
+					size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
+					position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
+					anchor = Vector2.new(0.5, 1),
+					alignY = Enum.TextYAlignment.Center,
+					stroke = 1.5,
+					z = 8,
+					name = "Body",
+				})
+			else
+				-- Round 5 (S-02): a short card (a phone) puts the art beside the benefit line, both above the price, so the art
+				-- keeps a readable size and nothing sits under the button
+				local midH = h - artY - btnH - math.round(16 * k) - 4
+				local side = math.min(midH, math.floor(w * 0.42))
+				boxArt(card, row[3], 8, artY, side, side, 6)
+				CarKit.text(card, offer.body, bodyPx, {
+					wrap = true,
+					align = Enum.TextXAlignment.Left,
+					size = UDim2.fromOffset(w - side - 22, midH),
+					position = UDim2.fromOffset(side + 14, artY),
+					alignY = Enum.TextYAlignment.Center,
+					stroke = 1.5,
+					z = 8,
+					name = "Body",
+				})
+			end
 			if offer.price then
 				priceButton(card, offer.id, offer.name, row[3], offer.price, {
 					px = fontPx(p, 34, 22),
@@ -1073,7 +1104,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			y += rowH + p.gap
 			y += dealBanner(body, q, y) + p.gap
 			local halfW = math.floor((q.inner - p.gap) / 2)
-			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = 0, y = y, w = halfW, h = 132 })
+			sideCard(body, "vip", "Vip", "art_vip", "VIP", "Paints + name tag", q, { x = 0, y = y, w = halfW, h = 132 })
 			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
 				x = halfW + p.gap,
 				y = y,
@@ -1082,7 +1113,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			})
 			y += 132 + p.gap * 2
 		else
-			sideCard(body, "vip", "Vip", "art_vip", "VIP", nil, q, { x = heroW + p.gap, y = y, w = sideW, h = sideH })
+			sideCard(
+				body,
+				"vip",
+				"Vip",
+				"art_vip",
+				"VIP",
+				"Paints + name tag",
+				q,
+				{ x = heroW + p.gap, y = y, w = sideW, h = sideH }
+			)
 			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
 				x = heroW + p.gap,
 				y = y + sideH + p.gap,
@@ -1133,6 +1173,14 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			end
 		end)
 		motion.setViewport(scroll)
+		-- Round 5 (S-02): a rebuilt page (a new screen size) starts at the top; it goes back to the section the lit tab names,
+		-- so the tab and the content never disagree (a reviewer saw FREE lit over Featured)
+		local keep = activeTab
+		task.defer(function()
+			if page == scroll then
+				shop:scrollTo(keep, false)
+			end
+		end)
 	end
 
 	build = function()
@@ -1168,7 +1216,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		})
 		panel = shell
 
-		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", 13, {
+		CarKit.text(shell, "PREVIEW prices. Nothing can be bought yet.", fontPx(p, 14, 14), {
 			size = UDim2.new(1, -24, 0, FOOT),
 			position = UDim2.new(0, 12, 1, -FOOT - 3),
 			align = Enum.TextXAlignment.Center,

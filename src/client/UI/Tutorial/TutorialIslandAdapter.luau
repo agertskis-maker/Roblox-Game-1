@@ -39,6 +39,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Waypoints = require(script.Parent.TutorialWaypoints)
@@ -187,6 +188,27 @@ end
 
 function IslandAdapter._startReal(self: IslandAdapter)
 	local trove: any = self._trove
+	-- Round 5 (L-04): with a live server, the Lineup panel is the Park control. CarParked is the server's Lineup attribute
+	-- gaining a car (never a timer or a tap), and LapCue is a real payout on the home plot (BetaLapPaid).
+	if LiveData.active() then
+		local last = #LiveData.lineup()
+		trove:Add(LiveData.changed(player(), "lineup", function()
+			local now = #LiveData.lineup()
+			if now > last then
+				fire(self, "CarParked", { count = now })
+			end
+			last = now
+		end))
+		local lapPaid = LiveData.remote(LiveData.Remotes.LapPaid)
+		if lapPaid then
+			trove:Add(lapPaid.OnClientEvent:Connect(function(plotIndex: any)
+				local _, index = homePlot()
+				if index ~= nil and plotIndex == index then
+					fire(self, "LapCue", { real = true })
+				end
+			end))
+		end
+	end
 	-- Lap cue (the Studio preview fixture), optional
 	local client = script.Parent.Parent.Parent
 	local home = client:FindFirstChild("Home")
@@ -302,8 +324,8 @@ function IslandAdapter.capabilities(self: IslandAdapter): { [string]: boolean }
 	return {
 		portal = true, -- the Downtown field when it exists, else the planned portal position from the path graph
 		home = ReplicatedStorage:FindFirstChild("CarHopBeta") ~= nil,
-		lineup = self._options.lineup == true,
-		lapCue = lapRunning,
+		lineup = self._options.lineup == true or LiveData.active(),
+		lapCue = lapRunning or LiveData.active(),
 		upgrade = levelOf(plot, index) ~= nil,
 		shop = self._options.isShopOpen ~= nil,
 		real = true,

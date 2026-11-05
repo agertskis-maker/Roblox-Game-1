@@ -15,6 +15,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Prototype = script.Parent:WaitForChild("Prototype")
@@ -39,12 +40,12 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{ icon = "Raceway", title = "A cleaner Raceway", text = "Roads join up. Real loop!" },
-	{ icon = "Shop", title = "A brighter Shop", text = "Nothing to buy yet." },
-	{ icon = "Garage", title = "Your Garage", text = "All your cars, by World." },
-	{ icon = "Portal", title = "Worlds", text = "Beside your run now." },
+	{ icon = "Raceway", title = "Cars pay you", text = "Park cars. Every lap pays!" },
+	{ icon = "Garage", title = "Keep your catches", text = "Cars you catch are saved." },
+	{ icon = "Shop", title = "Spend your Cash", text = "Level up, buy spots." },
+	{ icon = "Portal", title = "Open new Worlds", text = "Catch 5 cars, then unlock." },
 }
-HomeShell.UpdateVersion = "beta-2.2"
+HomeShell.UpdateVersion = "beta-2.3"
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
@@ -67,6 +68,22 @@ function HomeShell.start(options: Options?): any
 
 	local screen = Screen.new(gui, "Live")
 	local store = Store.new()
+	-- Round 5 (L-01): with a live server, the Cash every home screen reads is the server's (LiveData), never a fixture and
+	-- never client arithmetic. Without one, the Store's labelled fixture stays.
+	trove:Add(task.spawn(function()
+		local t0 = os.clock()
+		while not LiveData.active() and os.clock() - t0 < 10 do
+			task.wait(0.2)
+		end
+		if not LiveData.active() then
+			return
+		end
+		local function sync()
+			store:set("cash", LiveData.cash(player) or 0)
+		end
+		trove:Add(LiveData.changed(player, "cash", sync))
+		sync()
+	end))
 	local priority = Priority.new()
 	trove:Add(function()
 		priority:destroy()
@@ -207,7 +224,44 @@ function HomeShell.start(options: Options?): any
 		onCustomize = function()
 			components.customize:open(nil, customizeView("Paint"))
 		end,
+		-- Round 5 (L-04): PARK opens YOUR RACEWAY with the car picked out (live server only; the preview keeps it disabled)
+		onDrive = function(car: any)
+			components.garage:close()
+			self.openLineup(car.id)
+		end,
+		canPutOnRaceway = function(car: any): (boolean, string?)
+			if not LiveData.hasCars(player) then
+				return false, "Parking works in the beta place."
+			elseif table.find(LiveData.lineup(player), car.id) then
+				return false, "Already parked at your Raceway."
+			end
+			return true, nil
+		end,
 	})
+	-- Round 5: with a live server the Garage lists the save's own cars, editions and copies (the server's attribute)
+	trove:Add(task.spawn(function()
+		local t0 = os.clock()
+		while not LiveData.hasCars(player) and os.clock() - t0 < 15 do
+			task.wait(0.25)
+		end
+		local garage = components.garage
+		if not (garage and LiveData.hasCars(player)) then
+			return
+		end
+		local Fixtures = (require :: any)(Prototype.Fixtures)
+		local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
+		local function sync()
+			local owned = LiveData.cars(player)
+			local cars = {}
+			for _, car in RosterFixtures.Cars do
+				table.insert(cars, Fixtures.carRef(car, owned))
+			end
+			garage:setSource(cars, nil, nil)
+		end
+		trove:Add(LiveData.changed(player, "cars", sync))
+		trove:Add(LiveData.changed(player, "lineup", sync))
+		sync()
+	end))
 	-- the Garage building on the island
 	trove:Connect(ProximityPromptService.PromptTriggered, function(prompt: ProximityPrompt, who: Player)
 		if prompt.Name == "OpenGarage" and who == player then
@@ -233,6 +287,22 @@ function HomeShell.start(options: Options?): any
 		end,
 	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+	-- Round 5 (L-04): YOUR RACEWAY, the Lineup panel (from the parking sign and the Garage's PARK)
+	mount("lineup", { "Screens", "LineupPanel" }, "Overlay", {
+		onMoreSpots = function()
+			-- the Raceway's own parking panel while spots are for sale; at the top, the Shop's Expanded Paddock
+			local ShopPanel = (require :: any)(Prototype.Parent.Parent.Home.Island.Speedway.ShopPanel)
+			if ShopPanel.openHome and ShopPanel.openHome("parking") then
+				return
+			end
+			if ShopPanel.onMoreSpots then
+				ShopPanel.onMoreSpots()
+			end
+		end,
+	})
+	self.openLineup = function(highlight: string?)
+		userPanel("lineup", { highlight = highlight })
+	end
 
 	local function shopAt(section: string?)
 		userPanel("shop")
@@ -343,6 +413,43 @@ function HomeShell._join(self: any, o: Options)
 			key = "WelcomeBack",
 			class = "info",
 			open = function(done)
+				-- Round 5 (L-06): with a live server the card shows the credit the server ALREADY added on load (and the time it
+				-- covers); COLLECT only acknowledges it. Nothing earned (under a minute, or a rejoin in the same server): no card.
+				local player = Players.LocalPlayer
+				if LiveData.active() then
+					local t0 = os.clock()
+					while player:GetAttribute(LiveData.Attributes.welcomeAmount) == nil and os.clock() - t0 < 3 do
+						task.wait(0.1)
+					end
+					local amount = player:GetAttribute(LiveData.Attributes.welcomeAmount)
+					local away = player:GetAttribute(LiveData.Attributes.welcomeSeconds)
+					local welcome = self.components.welcome
+					if type(amount) ~= "number" or amount <= 0 or not welcome then
+						done()
+						return
+					end
+					local cars = {}
+					for i, id in LiveData.lineup(player) do
+						if i > 3 then
+							break
+						end
+						table.insert(cars, {
+							id = id,
+							name = id,
+							family = "Compact",
+							paint = Color3.fromHSV((i * 0.27) % 1, 0.6, 0.9),
+						})
+					end
+					local seconds = if type(away) == "number" then away else 0
+					welcome:setData({
+						source = "server (PREVIEW rate)",
+						status = "Ready",
+						earned = amount,
+						awaySeconds = seconds,
+						cappedSeconds = math.min(seconds, 8 * 3600),
+						lineup = cars,
+					})
+				end
 				self.openPanel("welcome", done)
 			end,
 		})
@@ -364,6 +471,49 @@ function HomeShell._join(self: any, o: Options)
 		self:_updateLog(o)
 	end))
 	local c = self.components
+	-- Round 5 (L-04): the Park step with a live server. Its ground arrows lead to the parking sign, whose Park Cars prompt opens
+	-- YOUR RACEWAY with the tutorial run's car picked out. A save whose only car (the Loaner) is already parked has nothing to
+	-- park: the step is told so at once. After parking, the first REAL payout on the home plot says "Cars pay you every lap!".
+	if LiveData.active() then
+		local player = Players.LocalPlayer
+		local parkSeen, lapToldAt = false, nil :: number?
+		self.trove:Connect(self.store.Changed, function(key: string)
+			if key ~= "tutorial" then
+				return
+			end
+			local controller = Tutorial.getController()
+			local step = controller and controller._step
+			if step and step.key == "Park" and controller._phase == "Active" and not parkSeen then
+				parkSeen = true
+				local free = false
+				for id in LiveData.cars(player) do
+					if not table.find(LiveData.lineup(player), id) then
+						free = true
+					end
+				end
+				if not free then
+					task.delay(1.5, function()
+						Tutorial.emitIsland("CarParked", { already = true })
+					end)
+				end
+			end
+		end)
+		self.trove:Add(LiveData.changed(player, "lineup", function()
+			if parkSeen and lapToldAt == nil then
+				lapToldAt = os.clock()
+			end
+		end))
+		local lapPaid = LiveData.remote(LiveData.Remotes.LapPaid)
+		if lapPaid then
+			self.trove:Connect(lapPaid.OnClientEvent, function(plotIndex: any)
+				if lapToldAt and plotIndex == player:GetAttribute(LiveData.Attributes.homePlot) and self.hud then
+					lapToldAt = nil
+					parkSeen = false
+					self.hud:notify("Cars pay you every lap!", "Cash")
+				end
+			end)
+		end
+	end
 	Tutorial.start({
 		store = self.store,
 		screen = self.screen,

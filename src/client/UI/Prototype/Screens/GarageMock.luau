@@ -686,7 +686,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	local actionBar: Frame = make("Frame", { Name = "Actions", BackgroundTransparency = 1, ZIndex = 8, Parent = panel })
 	local driveButton = Arcade.button(actionBar, {
 		name = "Drive",
-		label = "PUT ON RACEWAY",
+		label = "PARK", -- Round 5 (L-04): opens YOUR RACEWAY with this car picked out
 		fill = "Green",
 		size = "Custom",
 		width = DRIVE_W,

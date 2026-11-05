@@ -31,6 +31,9 @@ local RealCar = require(Prototype.RealCar)
 local Sounds = require(Prototype.Sounds)
 local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local Format = require(ReplicatedStorage.Shared.UI.Format)
+local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -40,6 +43,9 @@ export type Hooks = {
 	startRun: (world: string) -> any,
 	stopRun: (again: boolean) -> (),
 	onPhase: ((phase: string) -> ())?,
+	-- Round 5: with a live server, what it granted this run: { cars = { { carId, parked } }, claimCash, joyrideCash,
+	-- milestoneCash, total, pending } (pending = claims sent and not yet answered)
+	runTally: (() -> any)?,
 }
 
 local WORLD_TITLE: { [string]: string } =
@@ -501,6 +507,8 @@ end
 
 local begin: () -> ()
 local stamina: any = nil
+local showLive: (tally: () -> any, metres: number, isBest: boolean, revives: number) -> ()
+local liveLock: (name: string) -> any
 
 local function finishRun(again: boolean?)
 	runTrove:Clean()
@@ -539,6 +547,93 @@ local function hideHisResults()
 	end
 end
 
+-- Round 5 (L-03): the Results card from a live server's grants. `tally()` is the beta glue's count of what the server granted
+-- this run (never a client figure). While a claim is still unanswered the card says "Checking..." and is drawn again when the
+-- answer arrives (or after 3 s, with what is known). The claimed cars say where they went, and are told again at home.
+local lastTally: any = nil
+local queuedCars: { any } = {} -- claims from runs left by RETRY, told when the player goes home
+showLive = function(tally: () -> any, metres: number, isBest: boolean, revives: number)
+	local function data(t: any, checking: boolean): any
+		local cars = {}
+		for _, c in t.cars do
+			local car = RosterFixtures.byId(c.carId)
+			table.insert(cars, {
+				name = if car then string.upper(car.name) else c.carId,
+				rarity = if car then car.rarity else "Common",
+				isNew = true,
+				carId = c.carId,
+				parked = c.parked == "parked",
+				line = if c.parked == "parked"
+					then "Parked at your Raceway"
+					elseif c.parked == "full" then "In your Garage. Raceway full."
+					else "In your Garage",
+			})
+		end
+		return {
+			metres = metres,
+			best = bestMetres,
+			isBest = isBest,
+			cars = cars,
+			cash = t.total,
+			revives = revives,
+			outOfBolts = stamina ~= nil and stamina:isOut(),
+			breakdown = {
+				{ label = "Cars", amount = t.claimCash },
+				{ label = "Joyrides", amount = t.joyrideCash },
+				{ label = "Distance", amount = t.milestoneCash },
+			},
+			checking = checking,
+		}
+	end
+	local t = tally()
+	lastTally = t
+	local waiting = t.pending > 0
+	panel("runResults"):show(data(t, waiting))
+	if waiting then
+		runTrove:Add(task.spawn(function()
+			local t0 = os.clock()
+			while os.clock() - t0 < 3 and tally().pending > 0 do
+				task.wait(0.1)
+			end
+			local r = panel("runResults")
+			if r:isOpen() then
+				lastTally = tally()
+				r:show(data(lastTally, false))
+			end
+		end))
+	end
+end
+
+-- Back home after a live run: one toast per claimed car, after the Results card is gone (L-04 auto-park).
+local function homeToasts()
+	local cars = queuedCars
+	queuedCars = {}
+	if lastTally then
+		for _, c in lastTally.cars do
+			table.insert(cars, c)
+		end
+		lastTally = nil
+	end
+	local hud = shell and shell.hud
+	if #cars == 0 or not (hud and hud.notify) then
+		return
+	end
+	task.delay(1.2, function()
+		for _, c in cars do
+			local car = RosterFixtures.byId(c.carId)
+			local name = if car then car.name else c.carId
+			if c.parked == "parked" then
+				hud:notify(name .. " joined your Raceway!", "Raceway")
+			elseif c.parked == "full" then
+				hud:notify(name .. ": in your Garage. Raceway full.", "Garage")
+			else
+				hud:notify(name .. " is in your Garage!", "Garage")
+			end
+			task.wait(1.6)
+		end
+	end)
+end
+
 local function watchRun(run: any)
 	hideHisResults()
 	local shown = false
@@ -559,13 +654,19 @@ local function watchRun(run: any)
 				local metres = m.metres
 				local isBest = metres > bestMetres
 				bestMetres = math.max(bestMetres, metres)
+				if shell.gui then
+					shell.gui.DisplayOrder = 20
+				end
+				local h = hooks
+				if h and h.runTally then
+					-- Round 5 (L-03): a live server paid this run as it happened; the card shows only its numbers
+					showLive(h.runTally, metres, isBest, m.revives)
+					return
+				end
 				-- PREVIEW: the real payout is Lane 2's
 				local cash = math.floor((metres * 1.5 + m.hops * 10 + #cars * 250) / 10) * 10
 				local store = shell.store
 				store:set("cash", (store:get().cash or 0) + cash)
-				if shell.gui then
-					shell.gui.DisplayOrder = 20
-				end
 				panel("runResults"):show({
 					metres = metres,
 					best = bestMetres,
@@ -656,6 +757,12 @@ end
 
 -- RETRY goes straight back into a run: the point of retry is speed, and the pad has been seen.
 local function retry()
+	if lastTally then
+		for _, c in lastTally.cars do
+			table.insert(queuedCars, c)
+		end
+		lastTally = nil
+	end
 	finishRun(true)
 	begin()
 end
@@ -693,6 +800,7 @@ end
 
 local function home()
 	finishRun()
+	homeToasts()
 	setPhase("leaving")
 	padTrove:Clean()
 	task.spawn(function()
@@ -715,9 +823,54 @@ end
 function LaunchPad.attachShell(s: any)
 	shell = s
 	unbindKey = RunCamera.bindKey()
+	-- Round 5 (L-05): a purchase or unlock the server refused says why, with the server's missing amount; an unlock says so
+	task.spawn(function()
+		local t0 = os.clock()
+		while not LiveData.active() and os.clock() - t0 < 10 do
+			task.wait(0.2)
+		end
+		LiveData.onResult(function(what: string, ok: boolean, reason: string?, missing: number?)
+			local hud = s.hud
+			if not hud or what == "lineup" then
+				return
+			end
+			if ok and what == "UnlockWorld" then
+				hud:notify("A new World is open!", "Portal")
+			elseif not ok then
+				local text = reason or "Not now."
+				if missing and missing > 0 then
+					text ..= " " .. Format.cash(missing) .. " more."
+				end
+				hud:notify(text, "Cash")
+			end
+		end)
+	end)
 	-- "Get more spots" on the Raceway's full parking panel opens the Shop on the Expanded Paddock pass (Round 4, C-03)
 	pcall(function()
 		local ShopPanel = (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel)
+		-- Round 5 (L-05): the Raceway panels compare prices with the server's Cash (nil without a live server: no compare)
+		ShopPanel.cashOf = function(): number?
+			return LiveData.cash()
+		end
+		ShopPanel.onLineup = function()
+			-- during the tutorial's Park step, the car to park is picked out: the best unparked car (the tutorial run's claim)
+			local highlight: string? = nil
+			local Tutorial = (require :: any)(script.Parent.Tutorial)
+			local controller = Tutorial.getController()
+			if controller and controller._step and controller._step.key == "Park" then
+				local best, bestPay = nil, -1
+				local lineup = LiveData.lineup()
+				for id, save in LiveData.cars() do
+					local car = RosterFixtures.byId(id)
+					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition) else 0
+					if not table.find(lineup, id) and (pay > bestPay or (pay == bestPay and id < (best or ""))) then
+						best, bestPay = id, pay
+					end
+				end
+				highlight = best
+			end
+			s.openLineup(highlight)
+		end
 		ShopPanel.onMoreSpots = function()
 			local shop = s.components.shop
 			if shop and shop.isOpen and shop:isOpen() then
@@ -771,13 +924,70 @@ end
 local lockedOpen: any = nil
 local LOCK_PRESET: { [string]: string } = { DustyHighway = "DustyLocked", SummitPass = "SummitLocked" }
 
+-- Round 5 (L-05): Coach Roxy with the live numbers. The cars and Cash come from the server's attributes and the rule from
+-- EconomyPreview (PREVIEW); with both met, UNLOCK asks the server (UnlockWorld), which checks them again and decides.
+liveLock = function(name: string): any
+	local rule = EconomyPreview.WorldUnlock[name]
+	local title = WORLD_TITLE[name] or string.upper(name)
+	if not rule then
+		return nil
+	end
+	local from = RosterFixtures.WorldNames[rule.from] or rule.from
+	local have = 0
+	for id in LiveData.cars() do
+		local car = RosterFixtures.byId(id)
+		if car and car.world == rule.from then
+			have += 1
+		end
+	end
+	local cash = LiveData.cash() or 0
+	local spec: any = {
+		key = "portal:live:" .. name,
+		title = title,
+		icon = "Lock",
+		portraitName = "Coach Roxy",
+		primary = { label = "GOT IT!" },
+	}
+	if not LiveData.worlds()[rule.from] then
+		spec.text = "Open " .. from .. " first."
+	elseif have < rule.cars then
+		spec.text = function(remaining: number): string
+			return string.format(
+				"Catch %d more %s %s to unlock %s.",
+				remaining,
+				from,
+				if remaining == 1 then "car" else "cars",
+				RosterFixtures.WorldNames[name]
+			)
+		end
+		spec.progress = { label = string.upper(from) .. " CARS", current = have, target = rule.cars }
+	elseif cash < rule.cash then
+		spec.text = function(remaining: number): string
+			return string.format("Save up %s more Cash to unlock %s. (PREVIEW)", Format.cash(remaining), title)
+		end
+		spec.progress = { label = "CASH", current = cash, target = rule.cash, cash = true }
+	else
+		spec.text = string.format("You're ready! Unlock %s for %s? (PREVIEW)", title, Format.cash(rule.cash))
+		spec.primary = {
+			label = "UNLOCK",
+			onActivate = function()
+				local remote = LiveData.remote(LiveData.Remotes.UnlockWorld)
+				if remote then
+					remote:FireServer(name)
+				end
+			end,
+		}
+	end
+	return spec
+end
+
 function LaunchPad.lockedPortal(name: string)
 	if lockedOpen and lockedOpen:isOpen() then
 		return
 	end
 	local Dialogue = (require :: any)(Prototype.Screens.DialogueCard)
 	local Fixtures = (require :: any)(Prototype.SupportFixtures.DialogueFixtures)
-	local spec = Fixtures.preset(LOCK_PRESET[name] or "Unknown")
+	local spec = if LiveData.hasWorlds() then liveLock(name) else Fixtures.preset(LOCK_PRESET[name] or "Unknown")
 	local layer = shell and shell.screen.safe:FindFirstChild("ModalLayer")
 	if spec and layer and not Dialogue.isSuppressed(spec.key) then
 		lockedOpen = Dialogue.show(layer, spec)
@@ -805,6 +1015,27 @@ function LaunchPad.reset()
 	setLight(nil)
 	capZoom(false)
 	phase = "island"
+end
+
+-- Studio test driver (Round 5, L-07 and T): what a player does by walking, without walking. "enter" stands the player on the
+-- World's pad (as the portal does); "start" runs the gantry and the run (as START does); "retry" and "home" press the Results
+-- card's buttons. Nothing here exists outside Studio.
+function LaunchPad.debug(command: string, arg: any): any
+	if not RunService:IsStudio() then
+		return nil
+	end
+	if command == "enter" then
+		local r = root()
+		LaunchPad.enter(arg or "Downtown", if r then r.CFrame else CFrame.new(0, 5, -30))
+	elseif command == "start" then
+		padTrove:Clean()
+		countdown()
+	elseif command == "retry" then
+		panel("runResults"):pressRetry()
+	elseif command == "home" then
+		panel("runResults"):pressHome()
+	end
+	return phase
 end
 
 function LaunchPad.destroy()
