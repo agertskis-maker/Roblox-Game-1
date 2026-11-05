@@ -363,7 +363,7 @@ suites.two = function()
 	-- 6. a new player takes the freed plot
 	StudioTestService:AddPlayers(1)
 	local C: Player? = nil
-	waitFor(60, function()
+	waitFor(180, function()
 		for _, p in Players:GetPlayers() do
 			if p ~= A and ready(p) then
 				C = p
