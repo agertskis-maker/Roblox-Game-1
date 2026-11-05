@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
+local BetaOwnership = require(script.Parent.BetaOwnership)
 local Ladder = require(ReplicatedStorage.Shared.Island.Speedway.Ladder)
 local Parking = require(ReplicatedStorage.Shared.Island.Speedway.Parking)
 local RunService = game:GetService("RunService")
@@ -61,7 +62,12 @@ end
 -- nobody owns it, except in Studio when ReplicatedStorage.CarHopBeta has the attribute PreviewExpandedPaddock = true (a test
 -- switch, so the pass's 3 bays can be seen). The pass's bays are never saved: the saved ParkingSpots stays 2 to 15 and the 3
 -- are added on top when the plot is published.
-function BetaPlots.hasExpandedPaddock(_player: Player): boolean
+-- Round 6 (R-04): real ownership now (BetaOwnership: the Game Pass, or the All Passes Bundle in the save's Owned list); the
+-- Studio test switch still works on top.
+function BetaPlots.hasExpandedPaddock(player: Player): boolean
+	if BetaOwnership.owns(player, "expanded-paddock") then
+		return true
+	end
 	local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName)
 	return RunService:IsStudio() and config ~= nil and config:GetAttribute("PreviewExpandedPaddock") == true
 end

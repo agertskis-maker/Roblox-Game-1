@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaOwnership = require(script.Parent.BetaOwnership)
 local BetaPlots = require(script.Parent.BetaPlots)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local LapClock = require(ReplicatedStorage.Shared.UI.LapClock)
@@ -76,7 +77,9 @@ function BetaLapPay.tick(t: number): number
 			if carId == nil then
 				continue
 			end
+			-- Round 6 (R-04): Double Lap Pay doubles every Lap Pay on the server
 			local amount = BetaEconomy.lapPayOf(data, carId)
+				* (if BetaOwnership.owns(player, "double-lap-pay") then 2 else 1)
 			if amount <= 0 then
 				continue
 			end

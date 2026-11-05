@@ -15,9 +15,12 @@ local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaLapPay = require(script.Parent.BetaLapPay)
 local BetaLineup = require(script.Parent.BetaLineup)
+local BetaOwnership = require(script.Parent.BetaOwnership)
+local BetaPurchases = require(script.Parent.BetaPurchases)
 local BetaPlots = require(script.Parent.BetaPlots)
 local BetaRun = require(script.Parent.BetaRun)
 local BetaShop = require(script.Parent.BetaShop)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local StudioTestService = game:GetService("StudioTestService")
 local RunService = game:GetService("RunService")
 
@@ -59,11 +62,13 @@ BetaShop.start(net)
 BetaLineup.start(net)
 BetaRun.startRemotes(net, runNet)
 BetaLapPay.start(net)
+BetaPurchases.start(net) -- Round 6 (R-02): the one ProcessReceipt handler
 runNet.Parent = ReplicatedStorage
 net.Parent = ReplicatedStorage
 
 BetaEconomy.start()
 BetaPlots.start()
+BetaOwnership.start()
 BetaData.start()
 
 -- Studio only: the self-tests run inside the game's OWN module copies (a command-bar require gets fresh copies with no
@@ -71,8 +76,10 @@ BetaData.start()
 if RunService:IsStudio() then
 	local hook = Instance.new("BindableFunction")
 	hook.Name = "CarHopBetaSelfTest"
-	hook.OnInvoke = function(which: string, player: Player?): { string }
-		if which == "economy" then
+	local function selfTest(which: string, player: Player?): { string }
+		if which == "preview" then
+			return EconomyPreview.selfTest() -- failures only: an empty list is a pass
+		elseif which == "economy" then
 			return BetaEconomy.selfTest()
 		elseif which == "lappay" then
 			return BetaLapPay.selfTest()
@@ -82,8 +89,36 @@ if RunService:IsStudio() then
 			return BetaShop.selfTest(player)
 		elseif which == "run" and player then
 			return BetaRun.selfTest(player)
+		elseif which == "purchases" and player then
+			return BetaPurchases.selfTest(player)
 		end
 		return { "unknown test " .. tostring(which) }
 	end
+	hook.OnInvoke = selfTest
 	hook.Parent = game:GetService("ServerStorage")
+
+	-- Round 6: the Studio MCP in Adam's Studio cannot call the hook above (it lacks the capability), so in a Studio Play
+	-- server every self-test also runs once by itself, a few seconds after the first save loads, on a test save only
+	-- (the Mock store, or Studio with no DataStore access). Lines go to Output as "[CarHopBeta selftest] PASS ...".
+	local ran = false
+	BetaData.Loaded:Connect(function(player: Player)
+		if ran or not BetaData.isTestSave() then
+			return
+		end
+		ran = true
+		task.delay(6, function()
+			for _, which in { "preview", "economy", "lineup", "lappay", "run", "shop", "purchases" } do
+				local ok, lines = pcall(selfTest, which, player)
+				local list = if ok and type(lines) == "table" then lines else { "FAIL error: " .. tostring(lines) }
+				local failed = 0
+				for _, line in list do
+					print("[CarHopBeta selftest] " .. which .. ": " .. tostring(line))
+					if not string.find(tostring(line), "^PASS") then
+						failed += 1
+					end
+				end
+				print(string.format("[CarHopBeta selftest] %s done: %d lines, %d not PASS", which, #list, failed))
+			end
+		end)
+	end)
 end

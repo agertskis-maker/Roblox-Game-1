@@ -35,6 +35,8 @@ export type Data = {
 	WorldsUnlocked: { [string]: boolean }, -- agreed field (Round 5)
 	LastSeen: number, -- agreed field (Round 5): Unix time, 0 = never stamped
 	StaminaLevel: number, -- beta-only (Adam, 2026-11-05): Stamina Shop upgrades bought, not an agreed field
+	Purchases: { string }, -- beta-only (Round 6, R-02): processed receipt ids, newest last, at most 200
+	Owned: { [string]: boolean }, -- beta-only (Round 6, R-02): bundle passes, the Starter Pack and its cosmetics
 }
 
 local BetaData = {}
@@ -60,6 +62,12 @@ end
 
 function BetaData.isMock(): boolean
 	return useMock
+end
+
+-- Round 6: a save that never reaches a real beta save (the Mock store, or Studio with no DataStore access, where
+-- ProfileStore keeps everything in memory). Self-tests that change a save run only on one of these.
+function BetaData.isTestSave(): boolean
+	return useMock or (RunService:IsStudio() and ProfileStore.DataStoreState ~= "Access")
 end
 
 function BetaData.setTestKey(userId: number, key: string?)
@@ -115,6 +123,31 @@ function BetaData.sanitize(data: any): { string }
 		fix("StaminaLevel", t.StaminaLevel)
 	else
 		data.StaminaLevel = math.clamp(math.floor(data.StaminaLevel), 0, EconomyPreview.StaminaMaxLevel)
+	end
+	-- Round 6 (R-02): receipt ids are strings, newest last, at most PurchasesKept; Owned is { [string]: true }
+	if type(data.Purchases) ~= "table" then
+		fix("Purchases", {})
+	else
+		local ids = {}
+		for _, id in data.Purchases do
+			if type(id) == "string" then
+				table.insert(ids, id)
+			end
+		end
+		while #ids > BetaConfig.PurchasesKept do
+			table.remove(ids, 1)
+		end
+		data.Purchases = ids
+	end
+	if type(data.Owned) ~= "table" then
+		fix("Owned", {})
+	else
+		for id, on in data.Owned do
+			if type(id) ~= "string" or on ~= true then
+				data.Owned[id] = nil
+				table.insert(fixed, "Owned." .. tostring(id))
+			end
+		end
 	end
 	if type(data.WorldsUnlocked) ~= "table" then
 		fix("WorldsUnlocked", { Downtown = true })
@@ -218,6 +251,29 @@ local function load(player: Player)
 	end
 	profiles[player] = profile
 	BetaData.Loaded:Fire(player, profile.Data, priorLastSeen)
+end
+
+-- Round 6 (R-02): saves the player's profile now and waits until a finished save contains `receiptId` (ProfileStore's
+-- OnAfterSave hands over the data that was saved). Returns false when the profile is gone or no such save came within
+-- `timeout` seconds; the caller then answers NotProcessedYet, and the retry finds the receipt id and grants nothing twice.
+function BetaData.saveReceipt(player: Player, receiptId: string, timeout: number): boolean
+	local profile = profiles[player]
+	if not (profile and profile:IsActive()) then
+		return false
+	end
+	local saved = false
+	local conn = profile.OnAfterSave:Connect(function(last: any)
+		if type(last) == "table" and type(last.Purchases) == "table" and table.find(last.Purchases, receiptId) then
+			saved = true
+		end
+	end)
+	profile:Save()
+	local t0 = os.clock()
+	while not saved and profile:IsActive() and os.clock() - t0 < timeout do
+		task.wait(0.1)
+	end
+	conn:Disconnect()
+	return saved
 end
 
 -- Ends a player's session now (on leave). Stamps LastSeen first.

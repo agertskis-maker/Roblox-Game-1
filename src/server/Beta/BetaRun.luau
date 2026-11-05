@@ -115,6 +115,7 @@ local function deprecated(oldName: string, newName: string)
 end
 
 local runs: { [Player]: Run } = {}
+local lastClosed: { [Player]: Totals } = {} -- each player's last closed run (a paid respawn that arrives too late)
 local closedRuns: { [string]: Totals } = {} -- a short record so a late RunEnd retry gets the same reply
 local closedOrder: { string } = {}
 local remotes: { [string]: any } = {}
@@ -308,6 +309,7 @@ local function closeRun(run: Run, cause: string)
 		runs[run.player] = nil
 	end
 	closedRuns[run.id] = run.totals
+	lastClosed[run.player] = run.totals
 	table.insert(closedOrder, run.id)
 	if #closedOrder > 64 then
 		closedRuns[table.remove(closedOrder, 1) :: string] = nil
@@ -446,6 +448,22 @@ function BetaRun.keysNow(player: Player, runId: any, eventOrIndex: any, betaMode
 	return BetaRun.keysComplete(run, eventOrIndex, run.lastD, betaModel, os.clock() - run.started)
 end
 
+-- Round 6 (R-02): a granted Robux respawn. When the player's run is still open (crashed, waiting on the Results card), it
+-- continues: the client is told through RunGranted { kind = "respawn" } and revives the run. When it already closed, the
+-- caller pays that run's Results total as Cash instead (Claude Code's call), so a payment is never for nothing.
+function BetaRun.paidRespawn(player: Player): (string, number?)
+	local run = runs[player]
+	if run and not run.closed then
+		run.totals.cause = ""
+		local data = BetaData.get(player)
+		grantTo(run, { kind = "respawn", amount = 0, newCash = if data then data.Cash else 0 })
+		log(player, "paid respawn: run " .. run.id .. " continues")
+		return "continued", nil
+	end
+	local totals = lastClosed[player]
+	return "ended", if totals then totals.total else 0
+end
+
 function BetaRun.finish(player: Player, runId: any, cause: any): Totals?
 	if type(runId) ~= "string" then
 		return nil
@@ -519,6 +537,7 @@ function BetaRun.startRemotes(net: Folder, runNet: Folder)
 		if run then
 			closeRun(run, "Left")
 		end
+		lastClosed[player] = nil
 	end)
 end
 

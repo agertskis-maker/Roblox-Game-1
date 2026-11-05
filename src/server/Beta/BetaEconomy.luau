@@ -14,6 +14,8 @@ local RunService = game:GetService("RunService")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
+local BetaOwnership = require(script.Parent.BetaOwnership)
+local BetaProducts = require(ReplicatedStorage.Shared.Beta.BetaProducts)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 
@@ -150,7 +152,13 @@ function BetaEconomy.keysOutcome(data: BetaData.Data, carId: string): Grant?
 end
 
 -- The Welcome back credit for a save loaded with `priorLastSeen` at Unix time `now` (pure; L-06).
-function BetaEconomy.welcomeCredit(data: BetaData.Data, priorLastSeen: number, now: number): (number, number)
+-- Round 6 (R-04): `perks` carries VIP's 12-hour cap and Double Lap Pay's x2 (the credit is Lap Pay earned while away).
+function BetaEconomy.welcomeCredit(
+	data: BetaData.Data,
+	priorLastSeen: number,
+	now: number,
+	perks: { capHours: number?, multiplier: number? }?
+): (number, number)
 	if priorLastSeen <= 0 then
 		return 0, 0 -- never stamped (a new or pre-Round 5 save): no invented absence
 	end
@@ -158,7 +166,9 @@ function BetaEconomy.welcomeCredit(data: BetaData.Data, priorLastSeen: number, n
 	if away < WELCOME_MIN_SECONDS then
 		return 0, math.max(away, 0) -- also covers a clock in the future (negative)
 	end
-	return EconomyPreview.offlineCredit(BetaEconomy.lineupPayOf(data), away), away
+	local p = perks or {}
+	local pay = BetaEconomy.lineupPayOf(data) * (p.multiplier or 1)
+	return EconomyPreview.offlineCredit(pay, away, p.capHours), away
 end
 
 -- On load: pays the Welcome back credit and stamps LastSeen in one step (no yield), BEFORE the card can show.
@@ -167,7 +177,12 @@ function BetaEconomy.payOffline(player: Player, data: BetaData.Data, priorLastSe
 	local key = BetaData.keyOf(player)
 	local amount, away = 0, 0
 	if not seenThisServer[key] then
-		amount, away = BetaEconomy.welcomeCredit(data, priorLastSeen, now)
+		BetaOwnership.waitResolved(player, 5) -- the join-time pass checks (VIP, Double Lap Pay)
+		local perks = {
+			capHours = if BetaOwnership.owns(player, "vip") then BetaProducts.VipOfflineHours else nil,
+			multiplier = if BetaOwnership.owns(player, "double-lap-pay") then 2 else 1,
+		}
+		amount, away = BetaEconomy.welcomeCredit(data, priorLastSeen, now, perks)
 	end
 	seenThisServer[key] = true
 	amount = BetaEconomy.capped(data.Cash, amount)
@@ -280,6 +295,12 @@ function BetaEconomy.selfTest(): { string }
 	expect("future LastSeen pays nothing", (BetaEconomy.welcomeCredit(d, 1e9 + 500, 1e9)), 0)
 	expect("1 h away", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 55200)
 	expect("over 8 h is capped", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9)), 441600)
+	expect("R-04 VIP: 12 h cap", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9, { capHours = 12 })), 662400)
+	expect(
+		"R-04 Double Lap Pay doubles it",
+		(BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9, { multiplier = 2 })),
+		110400
+	)
 	d.Lineup = {}
 	expect("empty Lineup earns nothing", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 0)
 	-- sanitize

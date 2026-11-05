@@ -31,6 +31,8 @@ BetaConfig.Remotes = {
 	-- one round. These two stay beta-only (his contract has no close-and-total remote yet):
 	RunEnd = "BetaRunEnd", -- (runId: string, cause: string)
 	RunResults = "BetaRunResults", -- server -> client: (runId, totals)
+	-- Round 6 (R-02): server -> client after a receipt is granted and saved: (itemId: string, summary: { [string]: any })
+	PurchaseGranted = "BetaPurchaseGranted",
 	LapPaid = "BetaLapPaid", -- server -> client: (plotIndex, slot, carId, amount, newCash?) newCash only to the owner
 }
 
@@ -51,7 +53,18 @@ BetaConfig.Template = {
 	-- Stamina Shop upgrades bought, 0 to EconomyPreview.StaminaMaxLevel. NOT an agreed field: Adam approved it for the beta on
 	-- 2026-11-05; Brian L decides whether his save takes it (vault/design/specs/stamina-shop-for-brian-l.md).
 	StaminaLevel = 0,
+	-- Round 6 (R-02, Adam's decision of 2026-11-05, brief section 0 item 6): the two beta-only Robux fields, proposed to all
+	-- three lanes in vault/design/specs/robux-fields-for-brian-l.md. No other field is added.
+	Purchases = {}, -- processed Developer Product receipt ids (PurchaseId strings), newest last, at most 200
+	Owned = {}, -- { [id]: true }: passes the All Passes Bundle granted, the Starter Pack (once per player) and its cosmetics
 }
+BetaConfig.PurchasesKept = 200
+
+-- Round 6 (R-03): false in the published beta, so every Robux button says "Coming soon" and no prompt opens. In Studio,
+-- prompts are free test purchases and open whatever this says. Adam turns it on only after Brian L's server owns the
+-- grants (brief section 0 item 6). The CarHopBeta attribute of the same name overrides it (beta.project.json).
+BetaConfig.RealPurchases = false
+BetaConfig.OwnedAttribute = "BetaOwned" -- Player: "vip,double-lap-pay" (read only; the server writes it)
 BetaConfig.StaminaAttribute = "BetaStaminaLevel" -- Player: the saved StaminaLevel (read only; the server writes it)
 BetaConfig.LineupAttribute = "BetaLineup" -- Player: the Lineup as "Putter,Minnow" (read only; the server writes it)
 BetaConfig.CashAttribute = "BetaCash" -- Player: the saved Cash (read only; the server writes it)
@@ -80,6 +93,13 @@ BetaConfig.TutorialDoneAttribute = "TutorialDone" -- Player: nil until the save 
 
 function BetaConfig.enabled(): boolean
 	return ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) ~= nil
+end
+
+-- Whether Robux buttons may prompt outside Studio (R-03): the CarHopBeta attribute RealPurchases, else the default above.
+function BetaConfig.realPurchases(): boolean
+	local marker = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName)
+	local value = marker and marker:GetAttribute("RealPurchases")
+	return if type(value) == "boolean" then value else BetaConfig.RealPurchases
 end
 
 -- "Putter:1:0,Minnow:2:12" <-> { [id]: { Edition, Copies } }. Ids never contain ":" or "," (RosterFixtures model names).
