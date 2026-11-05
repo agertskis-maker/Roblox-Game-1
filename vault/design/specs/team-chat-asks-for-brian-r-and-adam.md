@@ -17,7 +17,9 @@ From Brian L (Lane 2), written by Claude Code on 2026-11-05, from the requests i
 - **Every World has its own cars and two Legendaries:** `Catalog.CarWorld` now uses Adam's list (Downtown: Street Kid, Cruiser; Dusty Highway: Viper Strike, Apex; Summit Pass: Zip, Phantom). The starter car is Putter.
 - **Later Worlds make more money:** World pay factor x1 / x40 / x1,600 on Lap Pay, claim bonus and Joyride Bonus, with Lap Pay $10 / $25 / $60 / $150 / $400 inside a World (`economy-v1.md` section 3). This is the candidate Lane 3 already uses in the beta's PREVIEW module.
 
-## Asks for Brian R (your run code, nothing changed by Lane 2)
+## Asks for Brian R (your run code)
+
+**Update 2026-11-05:** Brian L built items 1, 2 and 4 and the `luck` argument of item 3 himself, on branch `feature/lane2-run-tweaks` (from your `feature/lane1-run-prototype`), as a pull request into your branch for you to review. Adam wrote the luck idea; you were told in chat. Nothing was pushed to your branch.
 
 1. **Cars all the same size in a run.** The traffic size is random now (`sizeChance` in `RunSequence`), and big cars are harder to hop even though they should feel better. Could every spawn use one size, or the size depend only on rarity?
 2. **Rare cars spawn more often.** Could the Rare, Epic and Legendary weights in `weightsAt` go up? Please tell Lane 2 the new odds so the pacing can be checked.
