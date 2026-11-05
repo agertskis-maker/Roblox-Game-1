@@ -5,7 +5,7 @@
 --   tier 2 (5 to 8)          asphalt, bright white bay lines, a dashed yellow aisle line and a number in every bay
 --   tier 3 (9 to 12)         tier 2 under a covered paddock over the back row: a teal canopy on posts, warm light strips
 --                            and lamps under it, and a PADDOCK sign on its front edge
---   tier 4 (13 to 15)        the showroom: a glossy pale floor, cyan light strips along both rows, more canopy light and a
+--   tier 4 (13 to 15)        the showroom: a glossy navy floor, cyan light strips along both rows, more canopy light and a
 --                            glowing STAR CAR podium under bay 1 (the Lineup's first car parks there)
 --   Expanded Paddock (pass)  the extension floors get gold trim and a gold EXPANDED PADDOCK plaque
 -- Breakpoints are Adam's brief (section V-02); Claude Code kept them (the reference images were not delivered).
@@ -35,7 +35,7 @@ local TIER_TOP = 0.235 -- over the Paddock floor (0.2), under the bay lines (0.2
 
 local GRAVEL = Color3.fromRGB(214, 196, 160)
 local ASPHALT = Color3.fromRGB(58, 61, 68)
-local GLOSS = Color3.fromRGB(234, 237, 242)
+local GLOSS = Color3.fromRGB(36, 44, 72) -- a deep glossy navy, so the white lines and the cyan strips read on it
 local WHITE = Color3.fromRGB(250, 250, 244)
 local YELLOW = Color3.fromRGB(255, 205, 52)
 local CONE = Color3.fromRGB(255, 120, 40)
@@ -215,7 +215,8 @@ local function canopy(parent: Instance, ctx: Ctx, showroom: boolean)
 		Vector3.yAxis,
 		ROW_B[2] - ROW_B[1] + 3,
 		0.5,
-		deco({ name = "CanopyRoof", color = TEAL, material = Enum.Material.Metal, castShadow = true }),
+		-- tinted glass, so the bays under it still read from the run's return view above
+		deco({ name = "CanopyRoof", color = TEAL, material = Enum.Material.Glass, transparency = 0.45 }),
 		0
 	)
 	-- the front fascia, with the sign facing the aisle
@@ -303,7 +304,7 @@ function ParkingTiers.dress(
 			strip(tierFolder, ctx, x, x + 3, AISLE_U, 0.28, 0.3, YELLOW, Enum.Material.SmoothPlastic, "AisleDash")
 		end
 		for i = 1, spots do
-			bayNumber(tierFolder, ctx, bayOf(i), if showroom then INK else WHITE)
+			bayNumber(tierFolder, ctx, bayOf(i), WHITE)
 		end
 		if tier >= 3 then
 			canopy(tierFolder, ctx, showroom)
