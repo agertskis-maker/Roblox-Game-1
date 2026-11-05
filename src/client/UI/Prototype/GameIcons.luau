@@ -128,7 +128,7 @@ GameIcons.Alias = {
 
 -- Art not uploaded yet (no id in GameIconIds) shows this uploaded icon instead outside Adam's local test places, never a car.
 GameIcons.Fallback = {
-	art_pass_starter = "art_gift",
+	art_pass_starter = "art_cash3", -- never the free gift: its art says FREE (Round 6)
 	art_pass_vip = "vip",
 	art_pass_paddock = "parkingSpot",
 } :: { [string]: string }
