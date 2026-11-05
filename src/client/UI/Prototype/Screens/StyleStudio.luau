@@ -297,7 +297,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if item.robux then
 			return Format.group(item.robux) .. " Robux"
 		end
-		return "$" .. Format.group(item.price)
+		return Format.cash(item.price)
 	end
 
 	local function paintCard(item: Catalog.Item, refs: any)

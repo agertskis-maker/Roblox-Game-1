@@ -62,7 +62,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	PadParts.ramp(k, theme)
 	local lights = PadParts.gantry(k, theme, name)
 	local home = PadParts.homePortal(k, theme, life)
-	local stalls, syncCars = PadParts.kiosks(k, theme, life)
+	local stalls, syncCars = PadParts.kiosks(k, theme, life, world)
 	PadParts.touches(k, theme, world, life)
 
 	local chevronsOn = false

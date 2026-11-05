@@ -44,6 +44,7 @@ local Overlay = require(script.Parent.Overlay)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local Sounds = require(Prototype.Sounds)
 local SupportKit = require(script.Parent.SupportKit)
+local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -65,7 +66,7 @@ local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
-export type Progress = { label: string, current: number, target: number }
+export type Progress = { label: string, current: number, target: number, cash: boolean? } -- cash: numbers drawn with Format.cash
 export type Action = { label: string?, onActivate: (() -> ())? }
 
 export type Spec = {
@@ -660,9 +661,14 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		local fraction = SupportKit.fraction(p.current, p.target, "dialogue:" .. (spec.key or spec.title))
 		local shownFraction = fraction or 0
 		progressLabel.Text = p.label
-		togoLabel.Text = if remaining == 0 then "READY!" else string.format("%d TO GO", remaining)
 		local current = math.min(math.max(math.floor(p.current), 0), math.max(math.floor(p.target), 0))
-		countLabel.Text = string.format("%d / %d", current, math.floor(p.target))
+		if p.cash then
+			togoLabel.Text = if remaining == 0 then "READY!" else Format.cash(remaining) .. " TO GO"
+			countLabel.Text = Format.cash(current) .. " / " .. Format.cash(p.target)
+		else
+			togoLabel.Text = if remaining == 0 then "READY!" else string.format("%d TO GO", remaining)
+			countLabel.Text = string.format("%d / %d", current, math.floor(p.target))
+		end
 		fill.Size = UDim2.fromScale(shownFraction, 1)
 		fill.Visible = shownFraction > 0
 		fillGradient.Color = if remaining == 0 then A.Fill.Green else A.Fill.Garage

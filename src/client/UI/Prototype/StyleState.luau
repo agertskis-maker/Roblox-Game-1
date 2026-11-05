@@ -20,7 +20,7 @@ export type State = { ownership: Catalog.Ownership, equipped: Catalog.Equipped, 
 local state: State = {
 	ownership = Catalog.defaultOwnership(),
 	equipped = Catalog.defaultEquipped(),
-	car = "Commuter",
+	car = "Putter", -- Round 4: the Downtown Loaner (the first World's starting car)
 }
 
 StyleState.Changed = Signal.new()

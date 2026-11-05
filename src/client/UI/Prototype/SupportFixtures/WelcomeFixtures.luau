@@ -41,12 +41,12 @@ local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
--- FIXTURE cars drawn from UI shapes (no art): a red sports car, a blue compact and a yellow pickup, like the concept board
+-- FIXTURE Lineup (Round 4: real roster cars from the example collection; the icons are UI shapes, no art)
 local CARS: { LineupCar } = {
-	{ id = "hurrikan", name = "Hurrikan", family = "Sports", paint = rgb(226, 60, 64) },
-	{ id = "puglet", name = "Puglet", family = "Compact", paint = rgb(40, 120, 232) },
-	{ id = "rangy", name = "Rangy", family = "Pickup", paint = rgb(232, 179, 58) },
-	{ id = "waffle", name = "Citrine Waffle Van", family = "Van", paint = rgb(194, 24, 91) },
+	{ id = "Executive", name = "Executive", family = "Sports", paint = rgb(40, 44, 58) },
+	{ id = "Putter", name = "Putter", family = "Compact", paint = rgb(150, 220, 200) },
+	{ id = "Minnow", name = "Minnow", family = "Compact", paint = rgb(40, 120, 232) },
+	{ id = "Surf Wagon", name = "Surf Wagon", family = "Van", paint = rgb(194, 140, 80) },
 }
 
 local HOUR = 3600

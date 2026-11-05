@@ -1,5 +1,5 @@
 --!strict
--- LoadingScreen: the branded Car Hop loading screen's VIEW (big round M15-01). SELF-CONTAINED: it requires no module of the
+-- LoadingScreen: the branded Catch A Car! loading screen's VIEW (big round M15-01). SELF-CONTAINED: it requires no module of the
 -- game, uses no image or asset id and no new font (Fredoka One, the project's font, which ships with Roblox), and builds
 -- itself only from local shapes, so it never waits for its own art. Everything it needs it creates here; everything it
 -- creates it removes in destroy().
@@ -10,7 +10,7 @@
 --   view.setAction("Rejoin", fn)  view.fadeOut(0.4, onGone)  view.destroy()  view.getDebugState()
 --
 -- LOOK. A warm sky with a sun and drifting clouds, mesas on the horizon, a road with a row of parked cars and three cars
--- hopping across their roofs; the CAR HOP wordmark; a progress track under a numeric status row (stage on the left, the
+-- hopping across their roofs; the CATCH A CAR! wordmark (decision 0037); a progress track under a numeric status row (stage on the left, the
 -- real count on the right); one icon-led tip below it, rotating about every five seconds. Tips live OUTSIDE the numeric row.
 -- LAYOUT. It reflows live from the ScreenGui's actual size (and again whenever that changes): the approved short-side
 -- scale (short side / 390, kept between 1.0 and 1.5) sizes the content, text is never below 16, buttons are at least 48
@@ -315,7 +315,8 @@ function LoadingScreen.new(playerGui: Instance, options: Options?): View
 		Parent = wordmark,
 	})
 	local words: { TextLabel } = {}
-	for i, spec in { { "CAR", WHITE }, { "HOP", YELLOW } } :: { { any } } do
+	-- the official name (decision 0037): CATCH A CAR!
+	for i, spec in { { "CATCH", WHITE }, { "A", YELLOW }, { "CAR!", WHITE } } :: { { any } } do
 		local w: TextLabel = make("TextLabel", {
 			Name = spec[1],
 			LayoutOrder = i,
@@ -502,11 +503,12 @@ function LoadingScreen.new(playerGui: Instance, options: Options?): View
 		stage.Size = UDim2.fromOffset(design.X, design.Y)
 		local W, H = design.X, design.Y
 		-- wordmark
-		local wordSize = math.clamp(math.floor(H * 0.2), 56, 110)
+		-- three words now (CATCH A CAR!): about 7 font sizes wide, so a narrow screen takes a smaller size
+		local wordSize = math.min(math.clamp(math.floor(H * 0.2), 56, 110), math.floor((W - 24) / 7))
 		for _, w in words do
 			w.TextSize = wordSize
 		end
-		wordmark.Size = UDim2.fromOffset(math.min(W - 24, wordSize * 6), wordSize + 10)
+		wordmark.Size = UDim2.fromOffset(math.min(W - 24, wordSize * 7), wordSize + 10)
 		wordmark.Position = UDim2.fromOffset(W / 2, H * 0.24)
 		-- progress block
 		local blockW = math.min(560, W * 0.82)

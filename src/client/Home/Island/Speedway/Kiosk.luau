@@ -2,9 +2,9 @@
 -- The Raceway shop's stats board and the big screen (Lane 3, client presentation only; Raceway
 -- round 2, approved by Adam on 2026-10-29: vault/design/ui/speedway-upgrade-board.md R1 and R3).
 -- The board beside the shop shows what the next level gives, not a picture: "RACEWAY LEVEL n",
--- "LAP PAY x1.35 -> x1.50" (the proposed Lap Pay table, Ladder.LapPay, Brian L's to replace),
--- "NEXT: LEVEL n+1", the "New:" line and "PRICE: SET BY ECONOMY" with a PREVIEW tag (no amount: prices
--- are Lane 2's). At level 12 it shows MAX LEVEL. Visitors see the same board (it is a sign; nothing
+-- "LAP PAY x6.5 -> x12" (Ladder.LapPay), "NEXT: LEVEL n+1", the "New:" line and "PRICE: $150K" with a PREVIEW
+-- tag. Round 4 (E-08): the multipliers and prices are Brian L's economy v1 proposal, from the one PREVIEW module
+-- (src/shared/UI/EconomyPreview), so his real values replace them there. At level 12 it shows MAX LEVEL. Visitors see the same board (it is a sign; nothing
 -- to press). The big screen (levels 8 to 12) shows "RACEWAY LEVEL n" near and a plain bar far.
 
 local Players = game:GetService("Players")
@@ -13,7 +13,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("Speedway")
 local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Look = require(Speedway:WaitForChild("Look"))
-local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("Tokens"))
+local SharedUI = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI")
+local EconomyPreview = require(SharedUI:WaitForChild("EconomyPreview"))
+local Format = require(SharedUI:WaitForChild("Format"))
+local Tokens = require(SharedUI:WaitForChild("Tokens"))
 
 local Kiosk = {}
 
@@ -201,8 +204,9 @@ function Kiosk.fill(plot: Model, level: number, _options: Look.Options?)
 	text(bg, "NEXT: LEVEL " .. (current + 1), { 8, 100, 199, 22 }, 18, CREAM)
 	text(bg, Ladder.newText(current + 1) or "", { 14, 126, 187, 40 }, 16, CREAM)
 	dashed(bg, { 12, 172, 191, 24 }, MINT)
-	local price = text(bg, "PRICE: SET BY ECONOMY", { 18, 174, 179, 20 }, 14, MINT)
-	price.Name = "PricePlaceholder"
+	local cost = EconomyPreview.racewayPrice(current + 1)
+	local price = text(bg, "PRICE: " .. (if cost then Format.cash(cost) else "?"), { 18, 174, 179, 20 }, 16, MINT)
+	price.Name = "Price"
 	local pill = box(bg, { 78, 202, 59, 18 }, NAVY, 9)
 	local ring = Instance.new("UIStroke")
 	ring.Color = MINT

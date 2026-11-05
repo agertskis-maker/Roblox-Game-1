@@ -5,13 +5,15 @@
 -- Rules:
 --   Cash      below 10,000: "$950", "$9,999" (whole dollars, comma groups).
 --             from 10,000:  at most three significant digits with a suffix
---             K, M, B or T: "$12.4K", "$116K", "$1.2M", "$3.45B". Trailing
+--             K, M, B, T or Qa (quadrillion): "$12.4K", "$116K", "$1.2M",
+--             "$3.45B", "$1.23Qa". Trailing
 --             decimal zeros are dropped ("$1M", not "$1.00M"). Digits are
 --             truncated, never rounded up (the established contract), so the
 --             display never shows more than the player has, and a value just
 --             under a suffix boundary stays in the lower suffix: $999,999 shows
---             "$999K", never "$1000K" or "$1M". From 1,000T, whole trillions
---             with commas.
+--             "$999K", never "$1000K" or "$1M". From 1,000Qa, whole quadrillions
+--             with commas (above Luau's exact-integer range, about 9Qa, the
+--             value itself is no longer exact; the economy stays far below it).
 --   Distance  below 10,000 m: "1,240 m" (whole metres).
 --             from 10,000 m:  kilometres, one decimal truncated below 1,000 km
 --             ("12.4 km"), whole kilometres with commas after that
@@ -38,6 +40,7 @@ function Format.group(whole: number): string
 end
 
 local SUFFIXES = {
+	{ size = 1e15, letter = "Qa" },
 	{ size = 1e12, letter = "T" },
 	{ size = 1e9, letter = "B" },
 	{ size = 1e6, letter = "M" },
@@ -75,8 +78,8 @@ function Format.cash(amount: number): string
 	end
 	for _, suffix in SUFFIXES do
 		if value >= suffix.size then
-			if suffix.letter == "T" and value >= 1000 * suffix.size then
-				return "$" .. Format.group(value // suffix.size) .. "T"
+			if suffix.letter == "Qa" and value >= 1000 * suffix.size then
+				return "$" .. Format.group(value // suffix.size) .. "Qa"
 			end
 			return "$" .. threeSignificant(value, suffix.size) .. suffix.letter
 		end

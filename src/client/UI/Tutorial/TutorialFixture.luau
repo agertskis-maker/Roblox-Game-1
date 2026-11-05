@@ -34,7 +34,7 @@ local EVENTS: { [number]: { Event } } = {
 	},
 	[2] = {
 		{ source = "run", name = "KeysStarted" },
-		{ source = "run", name = "ClaimConfirmed", data = { isNew = true, name = "Puglet" } },
+		{ source = "run", name = "ClaimConfirmed", data = { isNew = true, name = "Putter" } },
 	},
 	[3] = {
 		{ source = "run", name = "RunEnded", data = { cause = "Overheated" } },

@@ -12,6 +12,8 @@
 -- about 15 s at every level, so the multiplier is the only earning stat. Specs:
 -- vault/design/ui/raceway-upgrade-panel.md, raceway-level-banner.md.
 
+local EconomyPreview = require(script.Parent.Parent.Parent.UI.EconomyPreview)
+
 local Ladder = {}
 
 export type Level = {
@@ -68,9 +70,9 @@ do
 	Ladder.Levels[level].new = line
 end
 
--- Lap Pay multiplier per level: a PROPOSAL for Brian L (Lane 2), not an agreed economy value.
--- Shown only as "LAP PAY x1.35 -> x1.50"; nothing here pays anything.
-Ladder.LapPay = { 1.00, 1.10, 1.20, 1.35, 1.50, 1.70, 1.90, 2.15, 2.40, 2.70, 3.00, 3.50 } :: { number }
+-- Lap Pay multiplier per level: Brian L's economy v1 proposal (Round 4, E-08), read from the one PREVIEW economy module
+-- (src/shared/UI/EconomyPreview) so his real values replace it there. Shown as "LAP PAY x6.5 -> x12"; nothing here pays.
+Ladder.LapPay = EconomyPreview.RacewayMultiplier
 
 Ladder.MaxLevel = #Ladder.Levels
 Ladder.MinLevel = 1
@@ -95,9 +97,14 @@ function Ladder.banner(level: number): string
 	return string.format("RACEWAY LEVEL %d!", Ladder.clamp(level))
 end
 
--- "x1.35": a level's Lap Pay multiplier, always two decimals.
+-- "x1.9", "x12", "x1,000": a level's Lap Pay multiplier, no trailing zeros.
 function Ladder.lapPayText(level: number): string
-	return string.format("x%.2f", Ladder.LapPay[Ladder.clamp(level)])
+	local value = Ladder.LapPay[Ladder.clamp(level)]
+	if value >= 1000 then
+		return "x" .. string.format("%d,%03d", value // 1000, value % 1000)
+	end
+	local text = string.format("%.1f", value):gsub("%.0$", "")
+	return "x" .. text
 end
 
 -- "New: pit garage": what the level adds (nil for level 1).

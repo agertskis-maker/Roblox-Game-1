@@ -31,22 +31,70 @@ local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local TeleportService = game:GetService("TeleportService")
 
--- Edit these three to wire the beta ------------------------------------------------------------------------------------
+-- Edit these to wire the beta ---------------------------------------------------------------------------------------
 local REQUIRE_READY_FLAG = false
 local READY_ATTRIBUTE = "Lane3GameReady"
 local DONE_ATTRIBUTE = "Lane3LoadingDone"
--- The preload manifest: ONLY what the first playable view and its immediate controls need, short and deduplicated. These two
--- ids already exist in the project (the UI click and the Cash tick of Prototype/Sounds.luau); the lead adds the first view's
--- art here. Never Workspace, never every World, never every shop item.
-local MANIFEST = {
+-- The two sounds of the first view (the UI click and the Cash tick of Prototype/Sounds.luau).
+local SOUNDS = {
 	"rbxassetid://15675032796",
 	"rbxassetid://127645268874265",
 }
+-- Round 4 (C-06): the art budget. The screen waits for the manifest at most this long from the start, then lets the player in
+-- as soon as the game is ready and keeps fetching the rest in the background (the controller's "ReadyBackground").
+local OPTIONAL_SECONDS = 8
+-- How long to wait for Lane 3's icon table (Client.UI.Prototype.GameIconIds) to replicate before going on without it.
+local ICON_TABLE_WAIT = 4
 local FADE_SECONDS = 0.45
 ---------------------------------------------------------------------------------------------------------------------------
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- THE MANIFEST (Round 4, C-06): the two sounds plus every uploaded image and mesh in GameIconIds (the HUD icons, the Shop art,
+-- the kiosk and Garage art, the car kit meshes): known ids, deduplicated, so the count on screen is a real one. Images are
+-- fetched through ImageLabels and meshes through SpecialMeshes (a bare rbxassetid string has no asset type, and an uploaded
+-- image fails that way). Never Workspace and never every World. The showroom cars are warmed after the screen, uncounted.
+local KIND: { [string]: string } = {}
+local function iconTable(): { [string]: string }?
+	local ok, result = pcall(function()
+		local t0 = os.clock()
+		local node: Instance? = player:WaitForChild("PlayerScripts", ICON_TABLE_WAIT)
+		for _, step in { "Client", "UI", "Prototype", "GameIconIds" } do
+			local left = math.max(0.1, ICON_TABLE_WAIT - (os.clock() - t0))
+			node = if node then node:WaitForChild(step, left) else nil
+		end
+		return if node and node:IsA("ModuleScript") then require(node) :: any else nil
+	end)
+	return if ok and type(result) == "table" then result else nil
+end
+
+local function buildManifest(): { string }
+	local ids: { string } = {}
+	for _, id in SOUNDS do
+		KIND[id] = "Sound"
+		table.insert(ids, id)
+	end
+	local icons = iconTable()
+	if not icons then
+		warn("[LoadingBoot] GameIconIds did not arrive in time; preloading the sounds only")
+		return ids
+	end
+	local keys: { string } = {}
+	for key in icons do
+		table.insert(keys, key)
+	end
+	table.sort(keys)
+	for _, key in keys do
+		local id = icons[key]
+		if type(id) == "string" and KIND[id] == nil then
+			-- the car kit's meshes are car_<part>; car_detail is the Supercar's texture sheet, an image
+			KIND[id] = if string.sub(key, 1, 4) == "car_" and key ~= "car_detail" then "Mesh" else "Image"
+			table.insert(ids, id)
+		end
+	end
+	return ids
+end
 
 local loading = script.Parent:WaitForChild("Loading", 5)
 if not loading then
@@ -103,9 +151,28 @@ local env = {
 		return nil
 	end,
 	preload = function(ids: { string }, onItem: (string, string) -> ())
-		-- PreloadAsync has no timeout argument: the controller's own watchdog decides when to stop waiting for it
+		-- PreloadAsync has no timeout argument: the controller's own watchdog decides when to stop waiting for it. Each id goes
+		-- in as an instance of its kind, so the engine knows what it is fetching.
+		local holders: { Instance } = {}
+		for _, id in ids do
+			local kind = KIND[id]
+			if kind == "Sound" then
+				local s = Instance.new("Sound")
+				s.SoundId = id
+				table.insert(holders, s)
+			elseif kind == "Mesh" then
+				local m = Instance.new("SpecialMesh")
+				m.MeshType = Enum.MeshType.FileMesh
+				m.MeshId = id
+				table.insert(holders, m)
+			else
+				local l = Instance.new("ImageLabel")
+				l.Image = id
+				table.insert(holders, l)
+			end
+		end
 		local ok, err = pcall(function()
-			ContentProvider:PreloadAsync(ids, function(assetId: string, status: Enum.AssetFetchStatus)
+			ContentProvider:PreloadAsync(holders, function(assetId: string, status: Enum.AssetFetchStatus)
 				onItem(assetId, status.Name)
 			end)
 		end)
@@ -130,10 +197,47 @@ local env = {
 	end,
 }
 
-local sink = LoadingScreen.sinkFor(view, FADE_SECONDS, markDone)
+local handle: any = nil
+local function finished()
+	markDone()
+	if handle then
+		local s = handle.summary()
+		print(
+			string.format(
+				"[LoadingBoot] playable after %.2f s (%s): %d / %d art items loaded, %d failed",
+				s.elapsed,
+				s.reason,
+				s.succeeded,
+				s.assetsTotal,
+				s.failed
+			)
+		)
+	end
+	-- the showroom cars, warmed in the background for the Garage and the Launch Pad (not counted on the screen)
+	task.spawn(function()
+		local cars = game:GetService("ReplicatedStorage"):WaitForChild("Cars", 10)
+		if cars then
+			local normal = {}
+			for _, model in cars:GetChildren() do
+				if model:GetAttribute("Variant") == "Normal" then
+					table.insert(normal, model)
+				end
+			end
+			pcall(function()
+				ContentProvider:PreloadAsync(normal)
+			end)
+		end
+	end)
+end
+
+local sink = LoadingScreen.sinkFor(view, FADE_SECONDS, finished)
 
 local started, startError = pcall(function()
-	LoadingController.start(env, { manifest = MANIFEST, requireReadyFlag = REQUIRE_READY_FLAG }, sink)
+	handle = LoadingController.start(
+		env,
+		{ manifest = buildManifest(), optionalSeconds = OPTIONAL_SECONDS, requireReadyFlag = REQUIRE_READY_FLAG },
+		sink
+	)
 end)
 if not started then
 	-- the controller itself failed: never leave a frozen splash over a working game

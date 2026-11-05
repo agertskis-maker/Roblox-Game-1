@@ -2,7 +2,9 @@
 -- The Raceway shop cards (Lane 3, client presentation only; Raceway round 2, Adam 2026-10-29): the
 -- RACEWAY UPGRADES card and the PARKING SPOTS card, one ScreenGui "Lane3RacewayPanel" with one card
 -- open at a time. Each card shows the level (or parking count) the world shows now, what the next
--- one gives, a fixed "PRICE: SET BY ECONOMY" strip and a BUY button.
+-- one gives, its PREVIEW price (Round 4: Brian L's economy v1 numbers from src/shared/UI/EconomyPreview) and a BUY button.
+-- When ShopPanel.cashOf is set and returns a number, the price is compared with it (numbers, never text): short of Cash,
+-- BUY reads NEED $X MORE and does nothing. With no Cash source (the beta today: purchases are free) nothing is compared.
 --
 -- Purchases exist only in the Studio preview: the owner of the prompt passes a `buy` function that
 -- raises a LocalPlayer preview attribute. Outside the preview `buy` is nil, so BUY is drawn Disabled
@@ -34,6 +36,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Speedway = Shared:WaitForChild("Island"):WaitForChild("Speedway")
 local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Parking = require(Speedway:WaitForChild("Parking"))
+local EconomyPreview = require(Shared:WaitForChild("UI"):WaitForChild("EconomyPreview"))
+local Format = require(Shared:WaitForChild("UI"):WaitForChild("Format"))
 local Tokens = require(Shared:WaitForChild("UI"):WaitForChild("Tokens"))
 local Trove = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("Trove"))
 local Calm = require(script.Parent.Calm)
@@ -56,6 +60,10 @@ export type Source = {
 }
 
 ShopPanel.CloseDistance = 15
+-- Optional: the player's Cash as a number, for the can-afford check (nil = nothing to compare, see the header).
+ShopPanel.cashOf = nil :: (() -> number?)?
+-- Set by the Launch Pad shell: "Get more spots" on the full parking card opens the Shop on Expanded Paddock.
+ShopPanel.onMoreSpots = nil :: (() -> ())?
 
 -- Layout numbers from the specs (design px).
 local CARD_W = 520
@@ -138,6 +146,9 @@ type Panel = {
 	scrolls: boolean,
 	destroyed: boolean,
 }
+
+local priceText: (Panel) -> string
+local shortBy: (Panel) -> number?
 
 local active: Panel? = nil -- the open card
 local leaving: Panel? = nil -- a card fading out (at most one)
@@ -529,6 +540,10 @@ local function onBuy(p: Panel)
 	if p.shown ~= current or current >= p.max or safeBusy(p) then
 		return
 	end
+	local short = shortBy(p)
+	if short and short > 0 then
+		return
+	end
 	local target = p.shown + 1
 	-- Locked before the request runs, so a second click in the same frame can never get through
 	lock(p, target)
@@ -547,6 +562,35 @@ end
 type UpgradeTexts = { current: string, nextTile: string, lapNow: string, lapNext: string, newLine: string }
 type ParkingTexts = { owned: string, nextSpot: string }
 
+-- The PREVIEW price of the next step: Raceway level `shown + 1`, or the next BOUGHT parking spot. With the Expanded Paddock
+-- pass the shown count includes the pass's 3 bays, so the spot being bought is `shown - 3 + 1` (the same price ladder).
+local function nextPrice(p: Panel): number?
+	if p.kind == "upgrade" then
+		return EconomyPreview.racewayPrice(p.shown + 1)
+	end
+	local extra = if Parking.hasExpanded(p.source.plot) then Parking.ExpandedSpots else 0
+	return EconomyPreview.spotPrice(p.shown - extra + 1)
+end
+
+priceText = function(p: Panel): string
+	local price = nextPrice(p)
+	return "PRICE: " .. (if price then Format.cash(price) else "?")
+end
+
+-- How much Cash is missing for the next step, from the numbers (0 = can afford; nil = no Cash source to compare with).
+shortBy = function(p: Panel): number?
+	local cashOf = ShopPanel.cashOf
+	local price = nextPrice(p)
+	if not (cashOf and price) then
+		return nil
+	end
+	local ok, cash = pcall(cashOf)
+	if not ok or type(cash) ~= "number" then
+		return nil
+	end
+	return math.max(0, price - cash)
+end
+
 local function upgradeTexts(level: number): UpgradeTexts
 	return {
 		current = string.format("CURRENT LEVEL %d", level),
@@ -557,9 +601,9 @@ local function upgradeTexts(level: number): UpgradeTexts
 	}
 end
 
-local function parkingTexts(owned: number): ParkingTexts
+local function parkingTexts(owned: number, max: number): ParkingTexts
 	return {
-		owned = string.format("%d / %d", owned, Parking.MaxSpots),
+		owned = string.format("%d / %d", owned, max),
 		nextSpot = tostring(owned + 1),
 	}
 end
@@ -579,10 +623,12 @@ local function applyTexts(p: Panel)
 		setText(p, "lapNow", t.lapNow)
 		setText(p, "lapNext", t.lapNext)
 		setText(p, "newLine", t.newLine)
+		setText(p, "price", priceText(p))
 	else
-		local t = parkingTexts(p.shown)
+		local t = parkingTexts(p.shown, p.max)
 		setText(p, "owned", t.owned)
 		setText(p, "nextSpot", t.nextSpot)
+		setText(p, "price", priceText(p))
 	end
 end
 
@@ -652,10 +698,15 @@ local function buildHeader(p: Panel, inner: Frame, width: number)
 	end)
 end
 
-local function buildPriceStrip(parent: Instance, y: number, width: number)
+local function buildPriceStrip(p: Panel, parent: Instance, y: number, width: number)
 	local strip = frame(parent, "PriceStrip", 0, y, width, 32, nil)
 	dashedOutline(strip, width, 32)
-	text(strip, "Text", "PRICE: SET BY ECONOMY", Tokens.TextSize.Label, C.Text, 0)
+	local label = text(strip, "Text", priceText(p), Tokens.TextSize.Label, C.Text, 0)
+	label.Size = UDim2.new(1, -96, 1, 0)
+	local tag = box(strip, "PreviewTag", width - 88, 4, 80, 24, C.Stroke, Tokens.Stroke.Thin, Tokens.Radius.Pill, MINT)
+	text(tag, "Text", "PREVIEW", Tokens.TextSize.Minimum, MINT, 0)
+	p.refs.price = label
+	fadable(p, label)
 end
 
 local function buildUpgradeRows(p: Panel, body: Frame, width: number)
@@ -720,7 +771,7 @@ local function buildUpgradeRows(p: Panel, body: Frame, width: number)
 	newLine.Size = UDim2.fromOffset(width, 24)
 
 	-- row 5: the fixed price label
-	buildPriceStrip(body, UPGRADE_ROWS.price, width)
+	buildPriceStrip(p, body, UPGRADE_ROWS.price, width)
 
 	p.refs.current, p.refs.nextTile = currentText, nextText
 	p.refs.lapNow, p.refs.lapNext, p.refs.newLine = lapNow, lapNext, newLine
@@ -730,7 +781,7 @@ local function buildUpgradeRows(p: Panel, body: Frame, width: number)
 end
 
 local function buildParkingRows(p: Panel, body: Frame, width: number)
-	local texts = parkingTexts(p.shown)
+	local texts = parkingTexts(p.shown, p.max)
 	local x0 = math.floor((width - TILE_ROW_W) / 2)
 
 	-- row 2: OWNED tile, arrow, NEXT SPOT tile (two lines each: a label, then a 36 value)
@@ -755,17 +806,22 @@ local function buildParkingRows(p: Panel, body: Frame, width: number)
 	scaled(nextValue, Tokens.TextSize.Minimum, Tokens.TextSize.Display)
 
 	-- row 3: the fixed price label
-	buildPriceStrip(body, PARKING_ROWS.price, width)
+	buildPriceStrip(p, body, PARKING_ROWS.price, width)
 
 	p.refs.owned, p.refs.nextSpot = ownedValue, nextValue
 	fadable(p, ownedValue)
 	fadable(p, nextValue)
 end
 
--- The top state: two tiles centred in the body under the header; no price, no BUY.
+-- The top state: no price, no BUY. The Raceway's is two tiles (MAX LEVEL, the level). The Paddock's reads as an achievement
+-- (Round 4 C-03, reference R4-IMG-04): "RACEWAY FULL!" with "15 / 15", a row of 15 bays for the bays OWNED (capacity, never a
+-- claim about which bays have a car in them), then the one way to more: the Expanded Paddock pass in the Shop.
 local function buildMaxBody(p: Panel, inner: Frame, width: number, height: number)
 	local viewH = height - HEADER_H
-	local contentH = 84 + 12 + 56
+	local parking = p.kind ~= "upgrade"
+	-- the pass is the one way past 15; a plot that has it is at its true top and is offered nothing
+	local more = if Parking.hasExpanded(p.source.plot) then nil else ShopPanel.onMoreSpots
+	local contentH = if parking then 84 + 8 + 26 + 8 + (if more then 60 else 0) else 84 + 12 + 56
 	local body = scrollBody(inner, HEADER_H, width, viewH, contentH)
 	p.scrolls = contentH > viewH + 0.5
 	local top = math.max(0, math.floor((viewH - contentH) / 2))
@@ -774,46 +830,74 @@ local function buildMaxBody(p: Panel, inner: Frame, width: number, height: numbe
 	local big = text(
 		bigTile,
 		"Text",
-		if p.kind == "upgrade" then "MAX LEVEL" else "ALL SPOTS OWNED",
+		if parking then string.format("RACEWAY FULL!  %d / %d", p.shown, p.max) else "MAX LEVEL",
 		Tokens.TextSize.Display,
 		C.Card,
 		3
 	)
-	local infoTile = box(body, "InfoTile", x, top + 96, 440, 56, C.CardInset, Tokens.Stroke.Thin, Tokens.Radius.Card)
-	local info = text(
-		infoTile,
+	scaled(big, Tokens.TextSize.Value, Tokens.TextSize.Display)
+	fadable(p, big)
+	if not parking then
+		local infoTile =
+			box(body, "InfoTile", x, top + 96, 440, 56, C.CardInset, Tokens.Stroke.Thin, Tokens.Radius.Card)
+		local info =
+			text(infoTile, "Text", string.format("RACEWAY LEVEL %d", p.shown), Tokens.TextSize.Value, C.Text, 0)
+		fadable(p, info)
+		return
+	end
+	-- the bays: one small lit bay per spot owned
+	local bays = frame(body, "Bays", x, top + 92, 440, 26, nil)
+	local step = math.floor(440 / p.max)
+	for i = 1, p.max do
+		local bay =
+			box(bays, "Bay" .. i, (i - 1) * step + 2, 0, step - 4, 26, C.Teal, Tokens.Stroke.Thin, Tokens.Radius.Small)
+		bay.BackgroundColor3 = if i <= p.shown then C.Teal else C.CardInset
+	end
+	if not more then
+		return
+	end
+	local offer = box(body, "Offer", x, top + 126, 440, 60, C.CardInset, Tokens.Stroke.Thin, Tokens.Radius.Card)
+	local line = text(
+		offer,
 		"Text",
-		if p.kind == "upgrade"
-			then string.format("RACEWAY LEVEL %d", p.shown)
-			else string.format("OWNED %d / %d", p.shown, Parking.MaxSpots),
-		Tokens.TextSize.Value,
+		string.format(
+			"+%d spots: up to %d",
+			EconomyPreview.ExpandedPaddockSpots,
+			p.max + EconomyPreview.ExpandedPaddockSpots
+		),
+		Tokens.TextSize.Label,
 		C.Text,
 		0
 	)
-	fadable(p, big)
-	fadable(p, info)
-	-- every spot bought: the one way to more is in the Shop (Round 3 N3-07)
-	local more = ShopPanel.onMoreSpots
-	if p.kind ~= "upgrade" and more then
-		info.Position = UDim2.fromOffset(-90, 0)
-		local link: TextButton = make("TextButton", {
-			Name = "GetMoreSpots",
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -6, 0.5, 0),
-			Size = UDim2.fromOffset(170, 44),
-			BackgroundColor3 = C.Primary,
-			Text = "Get more spots",
-			FontFace = Tokens.font(),
-			TextSize = Tokens.TextSize.Label,
-			TextColor3 = C.Text,
-			Parent = infoTile,
-		})
-		make("UICorner", { CornerRadius = UDim.new(0, 10), Parent = link })
-		link.Activated:Connect(function()
-			ShopPanel.close(true)
-			more()
-		end)
-	end
+	line.Position = UDim2.fromOffset(10, 0)
+	line.Size = UDim2.new(1, -206, 1, 0)
+	line.TextXAlignment = Enum.TextXAlignment.Left
+	scaled(line, Tokens.TextSize.Minimum, Tokens.TextSize.Label)
+	local link: TextButton = make("TextButton", {
+		Name = "GetMoreSpots",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -6, 0.5, 0),
+		Size = UDim2.fromOffset(186, Tokens.Touch.Minimum),
+		BackgroundColor3 = C.Primary,
+		AutoButtonColor = true,
+		Text = "GET MORE SPOTS",
+		FontFace = Tokens.font(),
+		TextSize = Tokens.TextSize.Label,
+		TextColor3 = C.Text,
+		Parent = offer,
+	})
+	make("UICorner", { CornerRadius = UDim.new(0, 10), Parent = link })
+	stroke(link, Tokens.Stroke.Regular, C.Stroke, Enum.ApplyStrokeMode.Border)
+	-- one press opens one Shop: the card closes first, so a second tap has nothing to press
+	local pressed = false
+	p.content:Connect(link.Activated, function()
+		if pressed then
+			return
+		end
+		pressed = true
+		ShopPanel.close(true)
+		more()
+	end)
 end
 
 -- The BUY row (a 56 high button, left of the STUDIO PREVIEW marker) and the preview line.
@@ -864,7 +948,15 @@ local function buildFooter(p: Panel, inner: Frame, width: number, y: number)
 	else
 		p.buyFace, p.buyGloss = nil, nil
 	end
-	local label = text(base, "Label", "BUY", Tokens.TextSize.Display, if previewing then C.Text else C.TextSecondary, 0)
+	local short = shortBy(p)
+	local label = text(
+		base,
+		"Label",
+		if short and short > 0 then "NEED " .. Format.cash(short) .. " MORE" else "BUY",
+		if short and short > 0 then Tokens.TextSize.Label else Tokens.TextSize.Display,
+		if previewing then C.Text else C.TextSecondary,
+		0
+	)
 	label.ZIndex = 3
 	p.buyGroup, p.buyButton, p.buyLabel = group, button, label
 	p.content:Connect(button.Activated, function()
@@ -908,6 +1000,11 @@ local function buildContent(p: Panel)
 	p.buyEnabled = false
 	p.scrolls = false
 
+	-- the Paddock's maximum follows the plot (15, or 18 with the Expanded Paddock pass), so a pass bought while the card is
+	-- open counts at once
+	if p.kind ~= "upgrade" then
+		p.max = Parking.maxFor(p.source.plot)
+	end
 	local layout = p.layout
 	local width = layout.cardW - 2 * layout.pad
 	local height = layout.cardH - 2 * layout.pad
@@ -1134,16 +1231,16 @@ end
 -- Public interface
 ----------------------------------------------------------------------------------------------------
 
-local function rangeOf(kind: Kind): (number, number)
-	if kind == "upgrade" then
+local function rangeOf(source: Source): (number, number)
+	if source.kind == "upgrade" then
 		return Ladder.MinLevel, Ladder.MaxLevel
 	end
-	return Parking.StartSpots, Parking.MaxSpots
+	return Parking.StartSpots, Parking.maxFor(source.plot)
 end
 
 local function createPanel(source: Source, playerGui: PlayerGui): Panel
 	local root = Trove.new()
-	local minValue, maxValue = rangeOf(source.kind)
+	local minValue, maxValue = rangeOf(source)
 	local gui: ScreenGui = make("ScreenGui", {
 		Name = "Lane3RacewayPanel",
 		ResetOnSpawn = false,
@@ -1336,6 +1433,12 @@ function ShopPanel.refresh()
 		return
 	end
 	local latest = safeCurrent(p)
+	-- the Expanded Paddock pass changes the maximum (and the count jumps by 3): rebuild the card for both at once
+	if p.kind ~= "upgrade" and Parking.maxFor(p.source.plot) ~= p.max then
+		p.shown = latest
+		buildContent(p)
+		return
+	end
 	if latest ~= p.shown then
 		showValue(p, latest, true)
 	end

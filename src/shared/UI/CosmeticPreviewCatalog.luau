@@ -173,7 +173,7 @@ local paints: { Item } = {
 	paint("Dusk Runner", "twotone", 4000, "gradient", { rgb(255, 150, 70), rgb(92, 52, 156) }, FADE, "approx"),
 	paint("Peach Skyline", "twotone", 4500, "gradient", { rgb(255, 196, 150), rgb(255, 104, 136) }, FADE, "approx"),
 	-- ANIMATED (5): a slow colour cycle, body only
-	paint("Rainbow Flow", "animated", 7500, "animated", {
+	paint("Prism Flow", "animated", 7500, "animated", {
 		rgb(255, 72, 72),
 		rgb(255, 170, 40),
 		rgb(255, 230, 60),
@@ -181,7 +181,7 @@ local paints: { Item } = {
 		rgb(60, 170, 255),
 		rgb(170, 90, 255),
 	}, FLOW, "approx", { cycle = 6 }),
-	paint("Galaxy Drift", "animated", 9000, "animated", {
+	paint("Nebula Drift", "animated", 9000, "animated", {
 		rgb(30, 22, 92),
 		rgb(96, 52, 190),
 		rgb(214, 70, 190),
@@ -419,6 +419,9 @@ local wheels: { Item } = {
 	),
 }
 
+-- Round 4: no Robux trail shares a word with an EARNED edition (Gold, Diamond, Rainbow, Galaxy), so a paid trail never looks
+-- like an edition; "Rainbow Road" (also a well-known track name) became Prism Ribbon and "Galaxy Tail" Comet Tail, and the paints
+-- "Rainbow Flow" and "Galaxy Drift" became Prism Flow and Nebula Drift.
 -- TRAILS (9 plus "No trail"). Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. Cheaper ones cost PREVIEW Cash,
 -- flashy ones PREVIEW Robux (`robux`); both are proposals for Brian L. In a run they are a plain Trail behind the car.
 
@@ -496,7 +499,7 @@ local trails: { Item } = {
 		{ rgb(255, 80, 150), rgb(70, 220, 255), rgb(255, 214, 40) },
 		"Every run is a party."
 	),
-	trail("Rainbow Road", "showpiece", 0, 199, "rainbow", {
+	trail("Prism Ribbon", "showpiece", 0, 199, "rainbow", {
 		rgb(255, 60, 70),
 		rgb(255, 170, 30),
 		rgb(255, 236, 60),
@@ -505,7 +508,7 @@ local trails: { Item } = {
 		rgb(170, 90, 255),
 	}, "The full rainbow behind you."),
 	trail(
-		"Galaxy Tail",
+		"Comet Tail",
 		"showpiece",
 		0,
 		249,
