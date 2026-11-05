@@ -1,6 +1,6 @@
 --!strict
 -- PadParts: the things that stand on a Launch Pad (Lane 3, Launch Pad redesign): the round platform and its rail, the ramp and START
--- gantry, the HOME portal, the three kiosks and each World's small touches. One measured layout; the theme changes the look only.
+-- gantry, the HOME portal, the four kiosks (STAMINA since 2026-11-05) and each World's small touches. One measured layout; the theme changes the look only.
 -- Every function places through a PadKit and registers its motion with `life`, which runs only while the pad is on show.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -325,7 +325,9 @@ local SWIRL_B = "rbxassetid://121384250907605"
 local CORE = "rbxassetid://131487211688936"
 
 function PadParts.homePortal(k: any, theme: any, life: any): Vector3
-	local at = CFrame.new(-33, 0, 15) * CFrame.Angles(0, math.rad(-114), 0)
+	-- its face (the HOME sign and the pool) looks at the middle of the floor, as the kiosks do (2026-11-05, Adam: it was
+	-- turned about 45 degrees away)
+	local at = CFrame.lookAt(Vector3.new(-33, 0, 15), Vector3.new(0, 0, 2))
 	local cream = rgb(232, 214, 178)
 	k:box("HomeStep", Vector3.new(19, 0.6, 9), at * CFrame.new(0, 0.3, 0), theme.trim)
 	k:box("HomeStep", Vector3.new(16, 0.4, 7), at * CFrame.new(0, 0.8, 0), cream)
@@ -514,6 +516,106 @@ local function bobbing(model: Model, life: any, spin: number)
 	end)
 end
 
+-- One flat triangle, `depth` thick, from two wedges (pad space points). The longest edge is found first so both wedges are right
+-- angled on it.
+local function triangle(
+	k: any,
+	name: string,
+	a: Vector3,
+	b: Vector3,
+	c: Vector3,
+	depth: number,
+	colour: Color3,
+	material: Enum.Material?
+)
+	local ab, ac, bc = b - a, c - a, c - b
+	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
+	if abd > acd and abd > bcd then
+		c, a = a, c
+	elseif acd > bcd and acd > abd then
+		a, b = b, a
+	end
+	ab, ac, bc = b - a, c - a, c - b
+	local right = ac:Cross(ab).Unit
+	local up = bc:Cross(right).Unit
+	local back = bc.Unit
+	local height = math.abs(ab:Dot(up))
+	k:wedge(
+		name,
+		Vector3.new(depth, height, math.abs(ab:Dot(back))),
+		CFrame.fromMatrix((a + b) / 2, right, up, back),
+		colour,
+		material
+	)
+	k:wedge(
+		name,
+		Vector3.new(depth, height, math.abs(ac:Dot(back))),
+		CFrame.fromMatrix((a + c) / 2, -right, up, -back),
+		colour,
+		material
+	)
+end
+
+-- The Stamina bolt as a real zigzag (Adam, 2026-11-05: the first one "doesn't look like a real lightning bolt"): the game's own bolt
+-- outline (Prototype.Run.StaminaBolt: a leaning top slab and a long tip), in five triangles, neon yellow round a thinner dark copy
+-- 10% bigger, so the dark edge shows from both sides as it turns. `at` is its centre, the bolt in at's XY plane, `size` its height.
+local BOLT = {
+	A = Vector2.new(0.29, 0),
+	B = Vector2.new(0.69, 0),
+	C = Vector2.new(0.49, 0.40),
+	D = Vector2.new(0.78, 0.40),
+	E = Vector2.new(0.26, 1.00),
+	F = Vector2.new(0.26, 0.58),
+	G = Vector2.new(0.00, 0.58),
+}
+local BOLT_TRIANGLES = { { "A", "B", "C" }, { "A", "C", "F" }, { "A", "F", "G" }, { "C", "D", "E" }, { "C", "E", "F" } }
+local BOLT_MIDDLE = Vector2.new(0.4, 0.5)
+
+function PadParts.lightningBolt(k: any, at: CFrame, size: number, colour: Color3): Model
+	local bk, model = k:model("StaminaBolt")
+	local function point(key: string, grow: number): Vector3
+		local p = BOLT_MIDDLE + (BOLT[key] - BOLT_MIDDLE) * grow
+		return (at * CFrame.new((p.X - BOLT_MIDDLE.X) * size, (BOLT_MIDDLE.Y - p.Y) * size, 0)).Position
+	end
+	for _, t in BOLT_TRIANGLES do
+		triangle(
+			bk,
+			"BoltFace",
+			point(t[1], 1),
+			point(t[2], 1),
+			point(t[3], 1),
+			size * 0.14,
+			colour,
+			Enum.Material.Neon
+		)
+		triangle(bk, "BoltEdge", point(t[1], 1.1), point(t[2], 1.1), point(t[3], 1.1), size * 0.07, INK)
+	end
+	local core = bk:box("BoltCore", Vector3.one * 0.4, at, INK)
+	core.Transparency = 1
+	model.PrimaryPart = core
+	local light = Instance.new("PointLight")
+	light.Color = colour
+	light.Range = 20
+	light.Brightness = 2
+	light.Parent = core
+	local sparks = Instance.new("ParticleEmitter")
+	sparks.Name = "Sparks"
+	sparks.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparks.Rate = 16
+	sparks.Lifetime = NumberRange.new(0.7, 1.3)
+	sparks.Speed = NumberRange.new(2, 5)
+	sparks.SpreadAngle = Vector2.new(180, 180)
+	sparks.LightEmission = 1
+	sparks.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	sparks.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, rgb(255, 216, 50)),
+		ColorSequenceKeypoint.new(0.5, rgb(255, 64, 70)),
+		ColorSequenceKeypoint.new(1, rgb(176, 84, 255)),
+	})
+	sparks.Parent = core
+	return model
+end
+
 function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [string]: BasePart }, () -> ())
 	local centre = Vector3.new(0, 0, 2)
 	local function placed(x: number, z: number): CFrame
@@ -523,7 +625,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 	local rigs: { any } = {}
 
 	-- CARS: a real car on a turntable, a little one floating over the roof
-	local carsAt = placed(-29, -19)
+	local carsAt = placed(-27.2, -21.2) -- 2026-11-05: was (-29, -19), mirrors PAINT
 	local carTop: number
 	stands.Cars, carTop = kioskShell(k, theme, "Cars", "CARS", carsAt)
 	local shown = RealCar.mount(k.parent, { length = 9.5, height = 6 })
@@ -553,7 +655,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 	mini:pivotTo(miniAt)
 
 	-- TRAILS: the car circles its pedestal with a real trail behind it; a rainbow knot floats over the roof
-	local trailAt = placed(33, 13)
+	local trailAt = placed(28.6, 19.3) -- 2026-11-05: was (33, 13); PAINT, STAMINA and TRAILS now stand 36 degrees apart
 	local trailTop: number
 	stands.Trails, trailTop = kioskShell(k, theme, "Trails", "TRAILS", trailAt)
 	k:cyl("Pedestal", 12.6, 0.8, trailAt * CFrame.new(0, 1.2, 1), theme.kiosk.Trails[1])
@@ -606,7 +708,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 	bobbing(knotModel, life, 0)
 
 	-- PAINT: a spray booth with shelves of cans; a chunky can floats over the roof
-	local paintAt = placed(29, -19)
+	local paintAt = placed(27.2, -21.2) -- 2026-11-05: was (29, -19), see TRAILS
 	local paintTop: number
 	stands.Paint, paintTop = kioskShell(k, theme, "Paint", "PAINT", paintAt)
 	k:box("BoothWall", Vector3.new(14, 8.4, 0.8), paintAt * CFrame.new(0, 4.9, 6.4), rgb(216, 224, 236))
@@ -663,6 +765,58 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 		end
 		trailArt()
 	end
+	-- STAMINA (Adam, 2026-11-05: the Stamina Shop goes in the hubs before a run): a battery tower of the three bolt colours under the
+	-- roof, crackling up to a big zigzag bolt that floats and turns over it. Its circle opens the STAMINA SHOP card (StaminaPanel).
+	local stamAt = placed(34.5, -1.2)
+	local stamTop: number
+	stands.Stamina, stamTop = kioskShell(k, theme, "Stamina", "STAMINA", stamAt)
+	local cellColours = { rgb(255, 216, 50), rgb(255, 64, 70), rgb(176, 84, 255) }
+	k:cyl("BatteryBase", 6, 0.9, stamAt * CFrame.new(0, 1.3, 1), INK)
+	local cells: { BasePart } = {}
+	for i, colour in cellColours do
+		local y = 1.75 + (i - 0.5) * 1.9
+		table.insert(cells, k:cyl("BatteryCell", 3.8, 1.6, stamAt * CFrame.new(0, y, 1), colour, Enum.Material.Neon))
+		k:cyl("BatteryCap", 4.1, 0.3, stamAt * CFrame.new(0, y + 0.95, 1), INK)
+	end
+	local terminal = k:cyl("BatteryTerminal", 1.4, 0.8, stamAt * CFrame.new(0, 7.9, 1), CHROME, Enum.Material.Metal)
+	local bolt = PadParts.lightningBolt(k, stamAt * CFrame.new(0, stamTop + 6.2, 1), 8, cellColours[1])
+	bobbing(bolt, life, 0.9)
+	-- two arcs from the terminal up to the bolt, re-bent several times a second
+	local from = Instance.new("Attachment")
+	from.Parent = terminal
+	local to = Instance.new("Attachment")
+	to.Parent = bolt.PrimaryPart
+	local arcs: { Beam } = {}
+	for i = 1, 2 do
+		local beam = Instance.new("Beam")
+		beam.Attachment0 = from
+		beam.Attachment1 = to
+		beam.Width0 = 0.45
+		beam.Width1 = 0.2
+		beam.Segments = 14
+		beam.LightEmission = 1
+		beam.FaceCamera = true
+		beam.Color = ColorSequence.new(cellColours[i * 2 - 1], rgb(255, 255, 255))
+		beam.Parent = terminal
+		table.insert(arcs, beam)
+	end
+	local nextArc = 0
+	life(function(t: number, _dt: number)
+		local still = Motion.reduced()
+		for i, cell in cells do
+			local wave = if still then 1 else (math.sin(t * 3 - i * 1.1) + 1) / 2
+			cell.Color = cellColours[i]:Lerp(rgb(255, 255, 255), 0.35 * wave)
+		end
+		if t >= nextArc then
+			nextArc = t + 0.09 + math.random() * 0.1
+			for _, arc in arcs do
+				arc.Enabled = not still and math.random() > 0.15
+				arc.CurveSize0 = math.random(-5, 5)
+				arc.CurveSize1 = math.random(-5, 5)
+			end
+		end
+	end)
+
 	sync()
 	shown:setCar(line[1] and line[1].name)
 	return stands, sync

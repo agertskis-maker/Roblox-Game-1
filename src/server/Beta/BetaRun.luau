@@ -12,8 +12,8 @@
 -- to an event; it must match the server's own lookup, or the claim is dropped and logged. The client never sends a car
 -- to grant, an amount or a result.
 --
--- Hard caps (beta sanity, not security; Tunable, ledger L-03): claims per run at most the bolt count (5, 8 in the tutorial
--- run); 30 events per batch and 3 batches per second (0021: "a maximum number of events per batch and batches per second");
+-- Hard caps (beta sanity, not security; Tunable, ledger L-03): claims per run at most the Stamina count (5, plus one per
+-- Stamina Shop level bought, since 2026-11-05); 30 events per batch and 3 batches per second (0021: "a maximum number of events per batch and batches per second");
 -- `d` (studs) never ahead of the run's own speed curve plus 1,500 studs, never backwards; `t` (seconds) never ahead of the
 -- server's clock for the run by more than 3 s; one active run per player; unknown runId ignored. Over a cap: dropped and
 -- logged with the UserId; the run keeps going.
@@ -35,7 +35,7 @@ local BetaRun = {}
 
 BetaRun.Caps = table.freeze({
 	claims = 5, -- the bolt count (RunStamina.Max)
-	tutorialClaims = 8, -- RunStamina.TutorialMax
+	tutorialClaims = 5, -- RunStamina.TutorialMax (5 since 2026-11-05, Adam)
 	eventsPerBatch = 30,
 	batchesPerSecond = 3,
 	aheadStuds = 1500, -- d may lead the run's speed curve by this much (a hop onto a car far ahead)
@@ -182,7 +182,11 @@ function BetaRun.keysComplete(run: Run, index: any, d: number, betaModel: any): 
 	if not data then
 		return nil
 	end
-	local cap = if run.tutorial then BetaRun.Caps.tutorialClaims else BetaRun.Caps.claims
+	-- the bolt count follows the Stamina Shop level the save has (5 to 15 Stamina, one per hop)
+	local cap = math.max(
+		if run.tutorial then BetaRun.Caps.tutorialClaims else BetaRun.Caps.claims,
+		EconomyPreview.staminaFor(data.StaminaLevel)
+	)
 	if run.totals.claims + run.totals.joyrides >= cap then
 		log(player, "claims over the bolt cap (" .. cap .. "): dropped")
 		return nil

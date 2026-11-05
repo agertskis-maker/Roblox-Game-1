@@ -164,7 +164,9 @@ local function carFrame(lane: Lane, slot: number, now: number): CFrame?
 	local s = Path.distanceAt(path, f)
 	local pos, look, up = Path.sample(path, s)
 	local wp = lane.frame * (pos + up * Path.carLift(path, s, WHEELBASE))
-	return CFrame.lookAt(wp, wp - lane.frame:VectorToWorldSpace(look), lane.frame:VectorToWorldSpace(up))
+	-- a RealCar's front is its -Z (its LookVector), so it looks along the way it drives (2026-11-05: it was turned the
+	-- LappingPreview stand-in's way, +Z forward, and drove backwards)
+	return CFrame.lookAt(wp, wp + lane.frame:VectorToWorldSpace(look), lane.frame:VectorToWorldSpace(up))
 end
 
 RunService.RenderStepped:Connect(function()
@@ -178,7 +180,9 @@ RunService.RenderStepped:Connect(function()
 			if near or not car.placed then
 				local cf = carFrame(lane, car.slot, now)
 				if cf then
-					car.rig:pivotTo(cf * CFrame.new(0, CAR_HEIGHT / 2 - 0.4, 0))
+					-- a RealCar's pivot is the bottom centre between its wheels, so it sits on the track as it is
+					-- (2026-11-05: it was lifted half a car, as for a pivot at the middle, and floated)
+					car.rig:pivotTo(cf)
 					car.placed = true
 				end
 			end

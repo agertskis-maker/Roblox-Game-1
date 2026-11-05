@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local ProfileStore = require(ServerScriptService.Server.vendor.ProfileStore) :: any
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Signal = require(ReplicatedStorage.Packages.Signal)
@@ -33,6 +34,7 @@ export type Data = {
 	Cash: number, -- agreed field (Round 5)
 	WorldsUnlocked: { [string]: boolean }, -- agreed field (Round 5)
 	LastSeen: number, -- agreed field (Round 5): Unix time, 0 = never stamped
+	StaminaLevel: number, -- beta-only (Adam, 2026-11-05): Stamina Shop upgrades bought, not an agreed field
 }
 
 local BetaData = {}
@@ -108,6 +110,11 @@ function BetaData.sanitize(data: any): { string }
 	end
 	if not finite(data.LastSeen) or data.LastSeen < 0 then
 		fix("LastSeen", 0)
+	end
+	if not finite(data.StaminaLevel) then
+		fix("StaminaLevel", t.StaminaLevel)
+	else
+		data.StaminaLevel = math.clamp(math.floor(data.StaminaLevel), 0, EconomyPreview.StaminaMaxLevel)
 	end
 	if type(data.WorldsUnlocked) ~= "table" then
 		fix("WorldsUnlocked", { Downtown = true })

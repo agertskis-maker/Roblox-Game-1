@@ -3,7 +3,7 @@
 -- Client.UI.LaunchPad), and START on the pad's ramp comes back here to start Brian R's run (Client.Run.RunController, the "Circuit"
 -- profile he plays). LaunchPad owns everything between runs, including the results card. While a run is on, the takeover
 -- attribute MovementSpeedOwner = "CarHopBetaRun" tells the island walking speed to stand aside (vault/design/specs/walk-boost.md).
--- Nothing from a run is saved, and the cars are his placeholder families.
+-- The run is paid through the Round 5 bridge below, and his placeholder cars are dressed as Brian L's cars (startRun).
 -- Off unless ReplicatedStorage.CarHopBeta exists.
 
 local Players = game:GetService("Players")
@@ -18,10 +18,15 @@ end
 
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta:WaitForChild("BetaRunMap"))
 local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForChild("RunConfig"))
+local Families = require(ReplicatedStorage.Shared.Run:WaitForChild("Families"))
+local RosterFixtures = require(ReplicatedStorage.Shared:WaitForChild("UI"):WaitForChild("RosterFixtures"))
+local LiveData = require(ReplicatedStorage.Shared.UI:WaitForChild("LiveData"))
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
 local UI = script.Parent.Parent:WaitForChild("UI")
+local RealCar = require(UI:WaitForChild("Prototype"):WaitForChild("RealCar"))
+local StyleState = require(UI.Prototype:WaitForChild("StyleState"))
 local RunScenery = require(UI:WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
 local Tutorial = require(UI:WaitForChild("Tutorial"))
 local LaunchPad = require(UI:WaitForChild("LaunchPad"))
@@ -31,10 +36,29 @@ local OWNER = "CarHopBetaRun"
 local ENTER = 3 -- studs from a field's plane
 local BACK = 14 -- studs in front of the portal where the player comes back
 
--- one play session's run state (what was claimed, Rider Level, free revives); not saved
+-- The Rider Level "Needs" gate is not at launch (Adam, 2026-10-28, note 0022 section 0 of the forwardable messages). Brian R's
+-- run still has it, so the beta switches it off from outside his files: the session level sits above every car's need (his
+-- largest is NEEDS_BASE.Legendary 80 x NEEDS_SIZE.Giant 2.6 = 208), and his "Needs N" car tags and the "Rider Level" corner
+-- label are hidden. Delete this when his run drops the gate (vault/design/specs/beta-driving-update-for-brian-r.md).
+local GATE_OFF_LEVEL = 999
+
+-- Brian R's family and rarity names (src/shared/Run/Families, RunConfig), for naming his cars as Brian L's (startRun)
+local FAMILIES = table.freeze({
+	Compact = true,
+	Sedan = true,
+	Pickup = true,
+	Van = true,
+	Sports = true,
+	Motorcycle = true,
+	Truck = true,
+	Special = true,
+})
+local RARITIES = table.freeze({ Common = true, Rare = true, Epic = true, Legendary = true })
+
+-- one play session's run state (what was claimed, free revives); not saved
 local session: RunController.Session = {
 	owned = {},
-	level = RunConfig.START_RIDER_LEVEL,
+	level = GATE_OFF_LEVEL,
 	revives = RunConfig.FREE_REVIVES,
 }
 
@@ -189,6 +213,29 @@ local function startRun(world: string): RunController.RunController
 			warn("[CarHopBeta] the server did not start a run for " .. world .. ": this run is not paid")
 		end
 	end
+	-- his "owned" list follows the save: a family and rarity counts as owned when the car BetaRunMap names for it is in
+	-- the Garage, so his NEW and JOYRIDE and his tags' "owned" agree with what the server pays (2026-11-05)
+	local garage = LiveData.cars()
+	-- his start marks his loaner's family as owned, but in the beta that family and rarity is a car to catch (the
+	-- World's Loaner is never a catch): only that one mark, made inside run:start(), is ignored; his claims still count
+	local starting = true
+	local loanerKey = Families.LOANER .. "_Common"
+	local owned = setmetatable({}, {
+		__newindex = function(t: any, key: string, value: boolean)
+			if not (starting and key == loanerKey) then
+				rawset(t, key, value)
+			end
+		end,
+	}) :: { [string]: boolean }
+	for family in FAMILIES do
+		for rarity in RARITIES do
+			local carId = BetaRunMap.carFor(world, family, rarity)
+			if carId and garage[carId] then
+				rawset(owned, family .. "_" .. rarity, true)
+			end
+		end
+	end
+	session.owned = owned
 	local run = RunController.new({ session = session, profile = "Circuit", seed = seed })
 	current = run
 	if runId then
@@ -197,14 +244,111 @@ local function startRun(world: string): RunController.RunController
 		live = { runId = nil, world = world, tally = newTally(), conns = {} }
 	end
 	run:start()
+	starting = false
 	-- the run's keyboard hint names keys and sits on the Heat panel; phones play too. A label only: nothing else changes.
 	local overlay = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
 	if overlay then
+		-- the Rider Level corner label is filled in after start, so each label is checked again when its text changes
+		local function hideLabel(d: TextLabel)
+			if string.find(d.Text, "Cut lanes", 1, true) or string.find(d.Text, "Rider Level", 1, true) == 1 then
+				d.Visible = false
+			end
+			-- his banner and tray name the family ("You got the Keys! BIG Common Motorcycle"): they name the real car,
+			-- as the road tags do (one family and rarity is always one car, BetaRunMap)
+			local rarity, family = string.match(d.Text, "(%a+) (%a+)$")
+			if rarity and family and RARITIES[rarity] and FAMILIES[family] then
+				local car = RosterFixtures.byId(BetaRunMap.carFor(world, family, rarity) or "")
+				if car then
+					d.Text = string.sub(d.Text, 1, #d.Text - #rarity - #family - 1) .. car.rarity .. " " .. car.name
+				end
+			end
+		end
+		local function watchLabel(d: Instance)
+			if d:IsA("TextLabel") then
+				hideLabel(d)
+				d:GetPropertyChangedSignal("Text"):Connect(function()
+					hideLabel(d)
+				end)
+			end
+		end
 		for _, d in overlay:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Cut lanes", 1, true) then
+			watchLabel(d)
+		end
+		overlay.DescendantAdded:Connect(watchLabel) -- goes with his overlay, which each run replaces
+	end
+	-- the gate is off (GATE_OFF_LEVEL): his "Needs N" line on each car tag would only read "(you 999)", so it is hidden
+	local zone = Workspace:FindFirstChild("Lane1_RunZone")
+	if zone then
+		local function hideNeeds(d: Instance)
+			if d:IsA("TextLabel") and d.Name == "Needs" and d.Parent and d.Parent.Name == "Tag" then
 				d.Visible = false
 			end
 		end
+		for _, d in zone:GetDescendants() do
+			hideNeeds(d)
+		end
+		zone.DescendantAdded:Connect(hideNeeds) -- goes with the zone, which his run destroys
+		-- Brian L's cars on the road (2026-11-05, Adam): each of his placeholder cars shows the showroom car that BetaRunMap
+		-- names for it, the same car the server pays for when it is claimed. His model stays and keeps moving (the real car
+		-- rides inside it); its parts are only hidden, so his run is unchanged. The rarity underglow stays visible. A
+		-- motorcycle shows a car too, sized to the bike (there is no real bike, and a catch is always a car). The car the
+		-- player starts on (no tag) is the car picked on the launch card.
+		local function dress(model: Instance)
+			if not (model:IsA("Model") and string.sub(model.Name, 1, 6) == "Proxy_") then
+				return
+			end
+			local family = model:GetAttribute("Family")
+			local rarity = model:GetAttribute("Rarity")
+			if type(family) ~= "string" or type(rarity) ~= "string" then
+				return
+			end
+			local carId = if model:FindFirstChild("Tag", true)
+				then BetaRunMap.carFor(world, family, rarity)
+				else StyleState.car()
+			if not carId then
+				return
+			end
+			local size = model:GetExtentsSize()
+			-- Transparency, not LocalTransparencyModifier: his in-car view and fade set the modifier back
+			local hidden: { [BasePart]: number } = {}
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") and d.Name ~= "Underglow" then
+					hidden[d] = d.Transparency
+					d.Transparency = 1
+				end
+			end
+			local rig = RealCar.mount(model, { length = size.Z, height = size.Y })
+			rig:pivotTo(model:GetPivot())
+			rig:setCar(carId)
+			if rig.source ~= carId then
+				-- no model for this car: the placeholder shows again rather than the stand-in supercar
+				rig:destroy()
+				for p, was in hidden do
+					p.Transparency = was
+				end
+				return
+			end
+			model.Destroying:Connect(function()
+				rig:destroy()
+			end)
+			-- his tag names the family ("Common Van"): it names the real car instead, keeping his size and variant words
+			local title = model:FindFirstChild("Tag") and (model :: any).Tag:FindFirstChild("Title")
+			local car = RosterFixtures.byId(carId)
+			if title and title:IsA("TextLabel") and car then
+				local sizeWord = model:GetAttribute("Size")
+				local variant = model:GetAttribute("Variant")
+				title.Text = (if type(sizeWord) == "string" then RunConfig.SIZE_LABEL[sizeWord :: any] or "" else "")
+					.. (if type(variant) == "string" and variant ~= "None" then string.upper(variant) .. " " else "")
+					.. car.rarity
+					.. " "
+					.. car.name
+			end
+		end
+		local traffic = zone:FindFirstChild("Traffic") or zone
+		for _, d in traffic:GetDescendants() do
+			dress(d)
+		end
+		traffic.ChildAdded:Connect(dress)
 	end
 	Tutorial.attachRun(run) -- the tutorial's run steps read the run, they never change it
 	if RunScenery.enabled() then
@@ -239,13 +383,25 @@ player.CharacterAdded:Connect(function()
 	LaunchPad.reset()
 end)
 
--- where a portal puts the player back: the island side of its field, facing it
+-- where a portal puts the player back: the island side of its field, facing it, standing on the real floor there
+-- (2026-11-05: the height came from the field's bottom edge, which sits about 3 studs under the plaza, so the player
+-- came back inside the floor)
 local function backTo(field: BasePart, r: BasePart): CFrame
 	local front = field.CFrame * CFrame.new(0, 0, -BACK)
 	local side = if (front.Position - field.Position):Dot(r.Position - field.Position) >= 0
 		then front
 		else field.CFrame * CFrame.new(0, 0, BACK)
 	local ground = side.Position - Vector3.new(0, field.Size.Y / 2 - 3, 0)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { field.Parent :: Instance, r.Parent :: Instance }
+	params.RespectCanCollide = true
+	local hit = Workspace:Raycast(side.Position + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), params)
+	if hit then
+		local humanoid = (r.Parent :: Instance):FindFirstChildOfClass("Humanoid")
+		local lift = r.Size.Y / 2 + (if humanoid then humanoid.HipHeight else 2) + 0.3
+		ground = Vector3.new(side.Position.X, hit.Position.Y + lift, side.Position.Z)
+	end
 	return CFrame.lookAt(ground, Vector3.new(field.Position.X, ground.Y, field.Position.Z))
 end
 

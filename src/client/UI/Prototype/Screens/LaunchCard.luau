@@ -24,7 +24,7 @@ export type Options = {
 	onChangeCar: (() -> ())?,
 	onChangeTrail: (() -> ())?,
 	onClose: (() -> ())?,
-	hops: number?, -- the bolts in a run, for the line under the title
+	hops: (number | () -> number)?, -- the Stamina in a run, for the line under the title (a function is read on each open)
 }
 
 function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
@@ -69,7 +69,9 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			position = UDim2.new(0.5, -math.round(58 * k), 0, stageY + boltPx * 0.4),
 			z = 7,
 		})
-		CarKit.text(card, string.format("%d hops this run", options.hops or 5), math.max(math.round(18 * k), 14), {
+		local hops = options.hops
+		local count = if type(hops) == "function" then hops() elseif type(hops) == "number" then hops else 5
+		CarKit.text(card, string.format("%d hops this run", count), math.max(math.round(18 * k), 14), {
 			position = UDim2.new(0.5, -math.round(38 * k), 0, stageY - 4),
 			size = UDim2.fromOffset(180, boltPx),
 			stroke = 1.5,

@@ -91,6 +91,33 @@ function BetaShop.buyParkingSpot(player: Player): (boolean, string?, number?)
 	return true, nil, nil
 end
 
+-- Stamina Shop (Adam, 2026-11-05): the server reads the level the save has, prices the next one and raises it by one.
+function BetaShop.publishStamina(player: Player, data: BetaData.Data)
+	player:SetAttribute(BetaConfig.StaminaAttribute, data.StaminaLevel)
+end
+
+function BetaShop.buyStaminaLevel(player: Player): (boolean, string?, number?)
+	local data = BetaData.get(player)
+	if not data then
+		return false, "Your save is still loading.", nil
+	end
+	if data.StaminaLevel >= EconomyPreview.StaminaMaxLevel then
+		return false, "Your Stamina is at the top level.", nil
+	end
+	local price = EconomyPreview.staminaPrice(data.StaminaLevel + 1)
+	if not price then
+		return false, "Not for sale.", nil
+	end
+	local paid, missing = BetaEconomy.trySpend(player, price)
+	if not paid then
+		return false, "Not enough Cash.", missing
+	end
+	data.StaminaLevel = math.min(data.StaminaLevel + 1, EconomyPreview.StaminaMaxLevel)
+	BetaShop.publishStamina(player, data)
+	print(string.format("[CarHopBeta] %s bought Stamina level %d", player.Name, data.StaminaLevel))
+	return true, nil, nil
+end
+
 -- Base models the save owns from a World (any edition counts once).
 function BetaShop.carsFrom(data: BetaData.Data, world: string): number
 	local n = 0
@@ -146,11 +173,13 @@ function BetaShop.start(net: Folder)
 	local buySpot = remote(BetaConfig.Remotes.BuyParkingSpot)
 	local unlock = remote(BetaConfig.Remotes.UnlockWorld)
 	local tutorialDone = remote(BetaConfig.Remotes.TutorialDone)
+	local buyStamina = remote(BetaConfig.Remotes.BuyStaminaLevel)
 
 	-- the tutorial is for first-time players: the client reads this attribute, and says when it is over. No arguments,
 	-- and it can only ever set the caller's own flag to true. The PREVIEW bonus is paid on the change only.
 	BetaData.Loaded:Connect(function(player: Player, data: BetaData.Data)
 		player:SetAttribute(BetaConfig.TutorialDoneAttribute, data.TutorialDone == true)
+		BetaShop.publishStamina(player, data)
 	end)
 	tutorialDone.OnServerEvent:Connect(function(player: Player)
 		local data = BetaData.get(player)
@@ -174,6 +203,7 @@ function BetaShop.start(net: Folder)
 	end
 	buyLevel.OnServerEvent:Connect(handle("BuyRacewayLevel", BetaShop.buyRacewayLevel))
 	buySpot.OnServerEvent:Connect(handle("BuyParkingSpot", BetaShop.buyParkingSpot))
+	buyStamina.OnServerEvent:Connect(handle("BuyStaminaLevel", BetaShop.buyStaminaLevel))
 	unlock.OnServerEvent:Connect(function(player: Player, world: any)
 		handle("UnlockWorld", function(p: Player)
 			return BetaShop.unlockWorld(p, world)
@@ -203,8 +233,13 @@ function BetaShop.selfTest(player: Player): { string }
 	if not data then
 		return { "FAIL no save loaded" }
 	end
-	local saved =
-		{ Cash = data.Cash, Spots = data.ParkingSpots, Level = data.RacewayLevel, Worlds = data.WorldsUnlocked }
+	local saved = {
+		Cash = data.Cash,
+		Spots = data.ParkingSpots,
+		Level = data.RacewayLevel,
+		Worlds = data.WorldsUnlocked,
+		Stamina = data.StaminaLevel,
+	}
 	local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) :: Instance
 	local free = config:GetAttribute(BetaConfig.FreePurchasesAttribute)
 	config:SetAttribute(BetaConfig.FreePurchasesAttribute, false)
@@ -240,15 +275,33 @@ function BetaShop.selfTest(player: Player): { string }
 		ok = BetaShop.unlockWorld(player, "DustyHighway")
 		expect("an unlock retry is not charged again", ok and data.Cash == before, true)
 	end
+	-- Stamina Shop
+	data.StaminaLevel = 0
+	data.Cash = 999
+	ok, why, missing = BetaShop.buyStaminaLevel(player)
+	expect("stamina 1 at $999 is refused", ok, false)
+	expect("stamina refusal names the missing $1", missing, 1)
+	data.Cash = 1000
+	ok = BetaShop.buyStaminaLevel(player)
+	expect("stamina 1 at $1,000 is bought", ok and data.StaminaLevel == 1 and data.Cash == 0, true)
+	expect("stamina attribute follows", player:GetAttribute(BetaConfig.StaminaAttribute), 1)
+	ok = BetaShop.buyStaminaLevel(player)
+	expect("a stamina repeat with $0 is refused", ok == false and data.StaminaLevel == 1 and data.Cash == 0, true)
+	data.StaminaLevel = EconomyPreview.StaminaMaxLevel
+	data.Cash = 1e15
+	ok, why = BetaShop.buyStaminaLevel(player)
+	expect("past the top stamina level is refused", why, "Your Stamina is at the top level.")
+	expect("a refused top buy charges nothing", data.Cash, 1e15)
 	config:SetAttribute(BetaConfig.FreePurchasesAttribute, true)
 	data.Cash = 0
 	data.ParkingSpots = 2
 	ok = BetaShop.buyParkingSpot(player)
 	expect("FreePurchases buys with $0", ok and data.Cash == 0, true)
 	config:SetAttribute(BetaConfig.FreePurchasesAttribute, free)
-	data.Cash, data.ParkingSpots, data.RacewayLevel, data.WorldsUnlocked =
-		saved.Cash, saved.Spots, saved.Level, saved.Worlds
+	data.Cash, data.ParkingSpots, data.RacewayLevel, data.WorldsUnlocked, data.StaminaLevel =
+		saved.Cash, saved.Spots, saved.Level, saved.Worlds, saved.Stamina
 	BetaEconomy.publishCash(player, data)
+	BetaShop.publishStamina(player, data)
 	BetaEconomy.publishWorlds(player, data)
 	BetaPlots.publish(player)
 	return lines

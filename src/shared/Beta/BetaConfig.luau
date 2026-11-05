@@ -20,6 +20,9 @@ BetaConfig.Remotes = {
 	SetLineupSlot = "SetLineupSlot",
 	-- Round 5 (decision 0039). Agreed name and argument: (worldId: string). The server checks Cash and cars owned.
 	UnlockWorld = "UnlockWorld",
+	-- Stamina Shop (Adam, 2026-11-05; beta-only, a proposal for Brian L): no arguments. The server raises the caller's own
+	-- StaminaLevel by one, for Cash at EconomyPreview.staminaPrice.
+	BuyStaminaLevel = "BuyStaminaLevel",
 	-- Server -> client: (what: string, ok: boolean, reason: string?, missing: number?) after every purchase or Lineup
 	-- request, so a refusal shows the server's reason and the server's missing amount. The client never computes either.
 	Result = "BetaResult",
@@ -47,7 +50,11 @@ BetaConfig.Template = {
 	Cash = 0,
 	WorldsUnlocked = { Downtown = true },
 	LastSeen = 0, -- Unix time; 0 means "never stamped" and never pays offline credit
+	-- Stamina Shop upgrades bought, 0 to EconomyPreview.StaminaMaxLevel. NOT an agreed field: Adam approved it for the beta on
+	-- 2026-11-05; Brian L decides whether his save takes it (vault/design/specs/stamina-shop-for-brian-l.md).
+	StaminaLevel = 0,
 }
+BetaConfig.StaminaAttribute = "BetaStaminaLevel" -- Player: the saved StaminaLevel (read only; the server writes it)
 BetaConfig.LineupAttribute = "BetaLineup" -- Player: the Lineup as "Putter,Minnow" (read only; the server writes it)
 BetaConfig.CashAttribute = "BetaCash" -- Player: the saved Cash (read only; the server writes it)
 BetaConfig.WorldsAttribute = "BetaWorldsUnlocked" -- Player: "Downtown,DustyHighway" (read only)
