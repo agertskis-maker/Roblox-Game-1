@@ -6,6 +6,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
@@ -25,6 +26,7 @@ export type RunFx = {
 	dust: (self: RunFx, at: CFrame, size: number) -> (),
 	sparks: (self: RunFx, at: CFrame) -> (),
 	burst: (self: RunFx, at: CFrame, colour: Color3) -> (),
+	shockwave: (self: RunFx, at: CFrame, size: number) -> (),
 	sound: (self: RunFx, name: string, volume: number?, pitch: number?) -> (),
 	setSteam: (self: RunFx, model: Model?, heat: number) -> (),
 	setSpeedLines: (self: RunFx, camera: CFrame, amount: number) -> (),
@@ -158,6 +160,29 @@ function RunFx.burst(self: RunFx, at: CFrame, colour: Color3)
 	}, 40)
 end
 
+-- A flat glowing ring that races outward from a landing and fades.
+function RunFx.shockwave(self: RunFx, at: CFrame, size: number)
+	local ring = Instance.new("Part")
+	ring.Name = "Shockwave"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Material = Enum.Material.Neon
+	ring.Color = Color3.fromRGB(255, 226, 120)
+	ring.Transparency = 0.15
+	ring.Size = Vector3.new(0.15, 2, 2)
+	ring.CFrame = at * CFrame.Angles(0, 0, math.pi / 2)
+	ring.Parent = self.folder
+	local info = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(ring, info, { Size = Vector3.new(0.15, size, size), Transparency = 1 }):Play()
+	task.delay(0.45, function()
+		ring:Destroy()
+	end)
+end
+
 function RunFx.sound(_self: RunFx, name: string, volume: number?, pitch: number?)
 	local id = (SOUNDS :: any)[name]
 	if not id then
@@ -220,18 +245,28 @@ end
 function RunFx.setTrail(self: RunFx, root: BasePart?, on: boolean)
 	if root and not self._trail then
 		local a0 = Instance.new("Attachment")
-		a0.Position = Vector3.new(0, 1, 0)
+		a0.Position = Vector3.new(-1.8, 0.5, 0)
 		a0.Parent = root
 		local a1 = Instance.new("Attachment")
-		a1.Position = Vector3.new(0, -1, 0)
+		a1.Position = Vector3.new(1.8, 0.5, 0)
 		a1.Parent = root
 		local trail = Instance.new("Trail")
 		trail.Attachment0 = a0
 		trail.Attachment1 = a1
-		trail.Lifetime = 0.35
+		trail.Lifetime = 0.5
 		trail.LightEmission = 1
-		trail.Color = ColorSequence.new(Color3.fromRGB(255, 220, 110))
-		trail.Transparency = NumberSequence.new(0.3, 1)
+		trail.FaceCamera = true
+		trail.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 160)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 160, 80)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 90, 170)),
+		})
+		trail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.1),
+			NumberSequenceKeypoint.new(0.6, 0.6),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		trail.WidthScale = NumberSequence.new(1, 0.2)
 		trail.Parent = root
 		self._trail = trail
 		self._trove:Add(a0)
