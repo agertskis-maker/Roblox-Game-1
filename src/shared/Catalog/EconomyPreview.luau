@@ -135,6 +135,38 @@ function EconomyPreview.world(id: string): (WorldInfo?, number?)
 	return nil, nil
 end
 
+-- Luck levels for the Luck Station (vault/design/specs/luck-station-proposal.md; Brian L,
+-- 2026-11-05, Adam's idea). Bought with Cash only, never Robux. LuckMultiplier[level] multiplies
+-- the run's Rare, Epic and Legendary weights (Lane 1's RunSequence.new luck argument);
+-- LuckPrice[level] is the cost to reach that level (level 1 is the start).
+EconomyPreview.LuckMultiplier = { 1, 1.1, 1.2, 1.3, 1.45, 1.6, 1.75, 1.9, 2.05, 2.25 }
+EconomyPreview.LuckPrice = {
+	0,
+	5_000,
+	40_000,
+	300_000,
+	2_500_000,
+	20_000_000,
+	150_000_000,
+	1_200_000_000,
+	10_000_000_000,
+	80_000_000_000,
+}
+EconomyPreview.MaxLuckLevel = 10
+
+-- Price of reaching Luck `level` (2 to 10); nil when the level cannot be bought.
+function EconomyPreview.luckPrice(level: number): number?
+	if level < 2 or level > EconomyPreview.MaxLuckLevel or level ~= math.floor(level) then
+		return nil
+	end
+	return EconomyPreview.LuckPrice[level]
+end
+
+function EconomyPreview.luckMultiplier(level: number): number
+	local clamped = math.clamp(math.floor(level), 1, EconomyPreview.MaxLuckLevel)
+	return EconomyPreview.LuckMultiplier[clamped]
+end
+
 -- Cash never goes above this (Adam's review F4, 2026-11-05): $1Qa, far below 2^53 (about 9Qa),
 -- where Luau numbers stop counting whole dollars exactly.
 EconomyPreview.MaxCash = 1_000_000_000_000_000

@@ -66,6 +66,10 @@ function Dev.buyParkingSpot(player: Player): boolean
 	return allowed() and Shop.buyParkingSpot(player)
 end
 
+function Dev.buyLuckLevel(player: Player): boolean
+	return allowed() and Shop.buyLuckLevel(player)
+end
+
 function Dev.unlockWorld(player: Player, worldId: string): boolean
 	return allowed() and Economy.unlockWorld(player, worldId)
 end

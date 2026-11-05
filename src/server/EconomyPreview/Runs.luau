@@ -122,8 +122,9 @@ function Runs.carFor(worldId: string, spawn: any): string?
 	return nil
 end
 
--- Starts a run. Returns { runId, seed } or nil when the World is unknown or locked.
-function Runs.start(player: Player, worldId: unknown): { runId: string, seed: number }?
+-- Starts a run. Returns { runId, seed, luck } or nil when the World is unknown or locked. `luck`
+-- is the player's Luck multiplier; the client builds the same traffic with it.
+function Runs.start(player: Player, worldId: unknown): { runId: string, seed: number, luck: number }?
 	local data = Data.get(player)
 	local RunSequence = runModules()
 	if not data or typeof(worldId) ~= "string" or not Catalog.world(worldId) then
@@ -140,11 +141,12 @@ function Runs.start(player: Player, worldId: unknown): { runId: string, seed: nu
 	lastStart[player] = now
 	counter += 1
 	local seed = Random.new():NextInteger(1, 2_000_000_000)
+	local luck = Catalog.luckMultiplier(data.LuckLevel)
 	local run: Run = {
 		id = tostring(player.UserId) .. "-" .. counter,
 		worldId = worldId,
 		seed = seed,
-		sequence = RunSequence.new(seed),
+		sequence = RunSequence.new(seed, nil, luck),
 		started = os.clock(),
 		lastT = 0,
 		lastD = 0,
@@ -154,7 +156,7 @@ function Runs.start(player: Player, worldId: unknown): { runId: string, seed: nu
 		ended = false,
 	}
 	active[player] = run
-	return { runId = run.id, seed = seed }
+	return { runId = run.id, seed = seed, luck = luck }
 end
 
 local function number(value: unknown, low: number, high: number): number?

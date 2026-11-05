@@ -28,7 +28,7 @@ Your traffic cars are placeholders (`Family_Rarity`). The server turns each spaw
 
 ## What we need from you (about four lines in `src/client/Run`)
 
-1. When a run starts, call `ReplicatedStorage.EconomyPreviewNet.StartRun:InvokeServer(worldId)` (`"Downtown"`, `"DustyHighway"` or `"SummitPass"`). It returns `{ runId, seed }`, or nil if the World is locked. Build `RunSequence.new(seed)` and `RunReport.new(seed)` from that seed.
+1. When a run starts, call `ReplicatedStorage.EconomyPreviewNet.StartRun:InvokeServer(worldId)` (`"Downtown"`, `"DustyHighway"` or `"SummitPass"`). It returns `{ runId, seed, luck }`, or nil if the World is locked. Build `RunSequence.new(seed, profile, luck)` and `RunReport.new(seed)` from it. `luck` is the player's Luck Station multiplier (1 to 2.25), added on 2026-11-05; the `luck` argument is on branch `feature/lane2-run-tweaks`.
 2. `report.Batch:Connect(function(events) RunEvents:FireServer(runId, events) end)`
 3. `report.Urgent:Connect(function(event) KeysComplete:FireServer(runId, event) end)`
 4. Optional: `RunGranted.OnClientEvent` tells the client what was paid (`kind` = Claim, Joyride or Milestone, plus `car` and amounts) for the "You got the Keys!" card and Results.

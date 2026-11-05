@@ -60,6 +60,11 @@ function Shop.publish(player: Player)
 	local data = Data.get(player)
 	if data then
 		Plots.publish(player, data.RacewayLevel, data.ParkingSpots)
+		-- Read-only for screens: the Luck level and the next level's price (0 when maxed).
+		local next = Catalog.luckPrice(data.LuckLevel + 1)
+		player:SetAttribute("LuckLevel", data.LuckLevel)
+		player:SetAttribute("LuckNextPrice", next or 0)
+		player:SetAttribute("LuckNextPriceText", if next then Catalog.formatCash(next) else "MAX")
 	end
 	Shop.refreshPrompts(player)
 end
@@ -91,6 +96,21 @@ function Shop.buyParkingSpot(player: Player): boolean
 	data.ParkingSpots += 1
 	print(string.format("[EconomyPreview] %s bought parking spot %d", player.Name, data.ParkingSpots))
 	Economy.refreshLineup(player)
+	Shop.publish(player)
+	return true
+end
+
+function Shop.buyLuckLevel(player: Player): boolean
+	local data = Data.get(player)
+	if not data or not cooled(player) then
+		return false
+	end
+	local price = Catalog.luckPrice(data.LuckLevel + 1)
+	if not price or not Economy.trySpend(player, price) then
+		return false
+	end
+	data.LuckLevel += 1
+	print(string.format("[EconomyPreview] %s bought Luck level %d", player.Name, data.LuckLevel))
 	Shop.publish(player)
 	return true
 end
@@ -151,7 +171,13 @@ function Shop.createRemotes()
 	local spot = Instance.new("RemoteEvent")
 	spot.Name = Net.Remotes.BuyParkingSpot
 	spot.Parent = folder
-	-- Both remotes take no arguments; anything a client sends is ignored.
+	local luck = Instance.new("RemoteEvent")
+	luck.Name = Net.Remotes.BuyLuckLevel
+	luck.Parent = folder
+	luck.OnServerEvent:Connect(function(player: Player)
+		Shop.buyLuckLevel(player)
+	end)
+	-- The buy remotes take no arguments; anything a client sends is ignored.
 	level.OnServerEvent:Connect(function(player: Player)
 		Shop.buyRacewayLevel(player)
 	end)

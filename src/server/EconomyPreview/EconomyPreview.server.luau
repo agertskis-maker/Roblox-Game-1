@@ -16,11 +16,13 @@ local Data = require(script.Parent.Data)
 local Dev = require(script.Parent.Dev)
 local Economy = require(script.Parent.Economy)
 local LapPay = require(script.Parent.LapPay)
+local LuckStation = require(script.Parent.LuckStation)
 local Plots = require(script.Parent.Plots)
 local Shop = require(script.Parent.Shop)
 
 Cars.load()
 Shop.createRemotes()
+LuckStation.build()
 BetaCompat.start()
 Dev.expose()
 

@@ -165,6 +165,7 @@ A spreadsheet model (early, typical and extreme players) comes before tuning. Th
 | `Lineup` | `{ carId }`, length at most `ParkingSpots` | the Loaner |
 | `RacewayLevel` | integer 1 to 12 | 1 |
 | `ParkingSpots` | integer 2 to 15 | 2 |
+| `LuckLevel` (proposed 2026-11-05, not agreed) | integer 1 to 10 | 1 |
 | `WorldsUnlocked` | `{ [worldId]: true }` | World 1 |
 | `LastSeen` | number (Unix time) | join time |
 

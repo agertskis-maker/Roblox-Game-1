@@ -6,10 +6,12 @@ tags:
   - lane1
   - lane3
   - economy
-status: proposed
+status: preview built
 ---
 
-# Luck Station: proposal (propose first, nothing built)
+# Luck Station: proposal
+
+**2026-11-05 update:** Adam wrote the idea in the team chat and Brian L approved building it as a PREVIEW ("Approved, go ahead"). Built: the `luck` argument in Lane 1's `RunSequence` (branch `feature/lane2-run-tweaks`, for Brian R to review) and the Lane 2 side on `feature/lane2-economy-preview` (Mock save field `LuckLevel`, remote `BuyLuckLevel`, `StartRun` returns `luck`, a stand-in station in the hub, player attributes `LuckLevel`, `LuckNextPrice`, `LuckNextPriceText`). The real save field and remote still need "Agreed" from all three lanes.
 
 From Brian L (Lane 2), written by Claude Code on 2026-11-05. The team chat asked for rare cars to show up more often "so people have something to work for", and suggested an upgrade that raises your luck. This note proposes one, as `AGENTS.md` asks for anything touching the economy or luck. Nothing is built until Brian L, Adam and Brian R agree.
 
