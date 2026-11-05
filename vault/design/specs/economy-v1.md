@@ -135,9 +135,10 @@ A spreadsheet model (early, typical and extreme players) comes before tuning. Th
 ## 11. Fair for kids (`CLAUDE.md`)
 
 - No daily streaks, no "limited time" offers, no countdown pressure, no paid random rolls.
-- Editions and cars are never sold for Robux. Game passes (Double Lap Pay, Expanded Paddock, VIP) stay **Proposed** with prices **Open**, never change runs, and need the team's design plus a current Roblox policy check before anything is built.
+- Editions and cars are never sold for Robux, and luck is never sold. Robux purchases are **in** (Adam's decision of 2026-11-02, decision 0038; Brian L accepted on 2026-11-05): the 19 Robux respawn, the Starter Pack (with Brawler), VIP, Double Lap Pay and Expanded Paddock (3 bays on top of what was bought, up to 18). Prices and the exact save fields still need the team's design and a current Roblox policy check (`PolicyService`) before selling is switched on.
+- No pushy sale tactics: no crossed-out "was" prices, "Best deal" or "Save %" badges, timers or limited stock.
 - Nothing is ever lost: no Cash penalty for a failed run, no car or edition can be taken away.
-- Lane 3's PREVIEW 19 Robux respawn (decision 0033) conflicts with the GDD ("Passes never change Heat, Keys or race performance", "no Developer Products at launch"). Recommendation: leave it out at launch. Brian L and Adam decide.
+- The 19 Robux respawn (decision 0033) is in, by Adam's decision. It conflicts with two GDD lines ("Passes never change Heat, Keys or race performance", "no Developer Products at launch"), so the GDD needs updating too.
 
 ## 12. Open items (need an answer before building)
 
