@@ -49,6 +49,7 @@ export type Summary = {
 }
 
 local grantedRemote: RemoteEvent? = nil
+local quiet = false -- the self-test: its fake receipts never show a thank-you on the player's screen
 
 local function log(player: Player?, what: string)
 	print(string.format("[CarHopBeta purchase] %s: %s", if player then player.Name else "?", what))
@@ -158,7 +159,7 @@ function BetaPurchases.processReceipt(receipt: any): Enum.ProductPurchaseDecisio
 	end
 	BetaEvents.fire(player, "purchase", { item = item.id })
 	local remote = grantedRemote
-	if remote and summary then
+	if remote and summary and not quiet then
 		remote:FireClient(player, item.id, summary)
 	end
 	return Enum.ProductPurchaseDecision.PurchaseGranted
@@ -194,6 +195,7 @@ end
 -- R-05 on the Mock store (a Studio Play server, a real test player with a loaded Mock save). Returns PASS/FAIL lines and
 -- leaves the save as it was. The restricted-player case is a client fixture (BetaPurchaseClient.selfTest).
 function BetaPurchases.selfTest(player: Player): { string }
+	quiet = true
 	local lines: { string } = {}
 	local function expect(name: string, got: any, want: any)
 		table.insert(
@@ -292,6 +294,7 @@ function BetaPurchases.selfTest(player: Player): { string }
 	BetaLineup.publish(player)
 	BetaOwnership.publish(player)
 	BetaPlots.publish(player)
+	quiet = false
 	return lines
 end
 

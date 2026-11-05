@@ -34,6 +34,7 @@ local bests: { [Player]: number } = {}
 local lastEvent: { [Player]: number } = {}
 local net: Folder? = nil
 local resultRemote: RemoteEvent? = nil
+local quiet = false -- the self-test: its fake laps never reach the player's screen
 
 local function log(player: Player, what: string)
 	print(string.format("[CarHopBeta circuit] %s (%d): %s", player.Name, player.UserId, what))
@@ -96,15 +97,17 @@ function BetaCircuit.event(player: Player, kind: any, index: any, now: number): 
 		local before = bests[player]
 		if before == nil or time < before then
 			bests[player] = time
-			BetaCircuit.publish()
+			if not quiet then
+				BetaCircuit.publish()
+			end
 		end
-		if resultRemote then
+		if resultRemote and not quiet then
 			resultRemote:FireClient(player, true, time, before)
 		end
 		return string.format("finished %.2f", time)
 	elseif kind == "CircuitEnd" then
 		laps[player] = nil
-		if resultRemote then
+		if resultRemote and not quiet then
 			resultRemote:FireClient(player, false, nil, bests[player])
 		end
 		return "ended"
@@ -158,6 +161,7 @@ function BetaCircuit.selfTest(player: Player): { string }
 	end
 	local savedBest = bests[player]
 	bests[player] = nil
+	quiet = true
 	expect("a finish with no start is refused", BetaCircuit.event(player, "CircuitFinish", nil, 0), "no lap")
 	BetaCircuit.event(player, "CircuitStart", nil, 100)
 	expect(
@@ -189,6 +193,7 @@ function BetaCircuit.selfTest(player: Player): { string }
 	expect("a crash ends the lap", BetaCircuit.event(player, "CircuitEnd", nil, 301), "ended")
 	expect("a wrong kind is refused", BetaCircuit.event(player, { 1 }, nil, 302), "bad kind")
 	bests[player] = savedBest
+	quiet = false
 	BetaCircuit.publish()
 	return lines
 end

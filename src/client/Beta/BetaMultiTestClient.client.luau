@@ -165,6 +165,11 @@ handlers.state = function()
 	}
 end
 
+handlers.home = function()
+	local c = control()
+	return { ok = c ~= nil, result = if c then tostring(c:Invoke("home")) else nil }
+end
+
 handlers.leave = function()
 	task.delay(0.3, function()
 		pcall(function()

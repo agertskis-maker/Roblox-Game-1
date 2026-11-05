@@ -326,6 +326,7 @@ function BetaEconomy.selfTest(): { string }
 	expect("old save gets Cash 0 and LastSeen 0", string.format("%d/%d", missing.Cash, missing.LastSeen), "0/0")
 	-- E-02: the one-time Copies conversion (a fresh save and a Round 5 save)
 	local fresh: any = save()
+	fresh.Cars = { Putter = { Edition = 1, Copies = 0 } } -- a new player: only a Normal car, nothing to convert
 	local freshMeta = {}
 	expect("fresh save: nothing to convert", BetaData.migrateCopies(fresh, freshMeta), 0)
 	expect("fresh save: marker set", freshMeta[BetaData.CopiesMarker], true)

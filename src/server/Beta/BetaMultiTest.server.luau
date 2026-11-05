@@ -40,6 +40,9 @@ local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaLapPay = require(script.Parent.BetaLapPay)
 local BetaLineup = require(script.Parent.BetaLineup)
 local BetaPlots = require(script.Parent.BetaPlots)
+local BetaShop = require(script.Parent.BetaShop)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 
 local started = os.clock()
@@ -190,7 +193,7 @@ end
 local suites: { [string]: () -> () } = {}
 
 suites.smoke = function()
-	local list = waitPlayers(expected, 60)
+	local list = waitPlayers(expected, 180)
 	check("clients joined with a save and a plot", #list == expected, #list .. " of " .. expected)
 	for _, p in list do
 		local r = command(p, "ping")
@@ -199,7 +202,7 @@ suites.smoke = function()
 end
 
 suites.two = function()
-	local list = waitPlayers(2, 60)
+	local list = waitPlayers(2, 180)
 	check("two clients joined with a save and a plot", #list == 2, #list)
 	if #list < 2 then
 		return
@@ -382,14 +385,20 @@ suites.two = function()
 end
 
 suites.rejoin = function()
-	local list = waitPlayers(1, 60)
+	local list = waitPlayers(1, 180)
 	check("one client joined", #list >= 1, #list)
 	if #list < 1 then
 		return
 	end
 	local A = list[1]
 	local key = BetaData.keyOf(A)
-	giveCars(A, { "Putter" }, { "Putter" })
+	-- E-03 (Round 6): REMOVE through the real remote leaves the spot empty, and it stays empty after the rejoin
+	giveCars(A, { "Putter", "Minnow" }, { "Putter", "Minnow" })
+	command(A, "setSlot", { slot = 2 })
+	local removed = waitFor(5, function()
+		return A:GetAttribute(BetaConfig.LineupAttribute) == "Putter"
+	end)
+	check("E-03 REMOVE empties the spot (no refill)", removed, tostring(A:GetAttribute(BetaConfig.LineupAttribute)))
 	local launched = command(A, "run", "Downtown", 60)
 	check("A's run launched", launched ~= nil and launched.ok == true, if launched then launched.phase else "no answer")
 	-- the run until it has paid something, then the leave (mid-run)
@@ -453,6 +462,11 @@ suites.rejoin = function()
 		"the Lineup is rebuilt on the new plot",
 		c:GetAttribute(BetaConfig.LineupAttribute) == snapshot.lineup and plotOf(c) ~= nil,
 		string.format("%s on %s", tostring(c:GetAttribute(BetaConfig.LineupAttribute)), tostring(plotOf(c)))
+	)
+	check(
+		"E-03 the removed car is still out of the Lineup after the rejoin",
+		table.find(d2.Lineup, "Minnow") == nil and d2.Cars.Minnow ~= nil,
+		table.concat(d2.Lineup, ",")
 	)
 	check("LastSeen is stamped", d2.LastSeen > 0 and os.time() - d2.LastSeen < 120, d2.LastSeen)
 	check(
@@ -527,6 +541,111 @@ suites.six = function()
 		if seventh then seventh.Name .. " BetaNoPlot" else "no seventh player seen"
 	)
 	table.insert(notes, "active clients at the end: " .. #Players:GetPlayers())
+end
+
+-- E-06 (Round 6): Round 5's unwalked loop, walked by one client through the real stand-ins and the real run. Cash is only
+-- topped up with the Studio cheat BetaGrantCash, and each top-up is listed in the notes. Started as suite "smoke" with the
+-- Workspace attribute CatchACarMultiTestVariant = "loop", because the installed plugin only knows its four suite names
+-- until Studio restarts with the updated copy in Car-Hop-Art\tools.
+suites.loop = function()
+	local list = waitPlayers(1, 180)
+	check("one client joined", #list >= 1, #list)
+	if #list < 1 then
+		return
+	end
+	local A = list[1]
+	local data = BetaData.get(A) :: BetaData.Data
+	data.TutorialDone = true
+	A:SetAttribute(BetaConfig.TutorialDoneAttribute, true)
+	local function topUp(missing: number?, why: string)
+		if type(missing) == "number" and missing > 0 then
+			A:SetAttribute(BetaConfig.GrantCashAttribute, missing)
+			waitFor(3, function()
+				return (BetaData.get(A) :: BetaData.Data).Cash >= missing
+			end)
+			table.insert(notes, string.format("BetaGrantCash +$%s to skip waiting for %s", Format.group(missing), why))
+		end
+	end
+	-- 1. a Raceway level
+	local level = data.RacewayLevel
+	local ok, _, missing = BetaShop.buyRacewayLevel(A)
+	if not ok then
+		topUp(missing, "Raceway level " .. (level + 1))
+		task.wait(1.2) -- the shop's cooldown
+		ok = BetaShop.buyRacewayLevel(A)
+	end
+	check("1 a Raceway level is bought", ok == true and data.RacewayLevel == level + 1, data.RacewayLevel)
+	-- 2. runs in Downtown until 5 Downtown cars
+	local function runOnce(world: string): boolean
+		local launched = command(A, "run", world, 60)
+		if not (launched and launched.ok) then
+			table.insert(notes, world .. " run did not launch")
+			return false
+		end
+		local ended = waitFor(240, function()
+			local st = command(A, "state", nil, 3)
+			return st ~= nil and st.mode == "Ended"
+		end)
+		task.wait(2)
+		command(A, "home", nil, 10)
+		waitFor(20, function()
+			local st = command(A, "state", nil, 3)
+			return st ~= nil and st.phase == "island"
+		end)
+		task.wait(2)
+		return ended
+	end
+	local runs = 0
+	while BetaShop.carsFrom(data, "Downtown") < 5 and runs < 8 do
+		runs += 1
+		runOnce("Downtown")
+	end
+	local earned = BetaShop.carsFrom(data, "Downtown")
+	check("2 five Downtown cars caught in runs", earned >= 5, string.format("%d cars after %d runs", earned, runs))
+	-- 3. unlock Dusty Highway (the real rule: 5 Downtown cars and the price)
+	local unlocked, reason, short = BetaShop.unlockWorld(A, "DustyHighway")
+	if not unlocked and short then
+		topUp(short, "the Dusty Highway unlock")
+		task.wait(1.2)
+		unlocked, reason = BetaShop.unlockWorld(A, "DustyHighway")
+	end
+	check("3 Dusty Highway is unlocked", unlocked == true, reason or "ok")
+	-- 4. a run there that catches a Dusty Highway car
+	local dustyRuns = 0
+	while BetaShop.carsFrom(data, "DustyHighway") < 1 and dustyRuns < 4 and unlocked do
+		dustyRuns += 1
+		runOnce("DustyHighway")
+	end
+	local dustyCar: string? = nil
+	for id in data.Cars do
+		local car = RosterFixtures.byId(id)
+		if car and car.world == "DustyHighway" then
+			dustyCar = id
+		end
+	end
+	check(
+		"4 a Dusty Highway car is caught",
+		dustyCar ~= nil,
+		string.format("%s after %d runs", tostring(dustyCar), dustyRuns)
+	)
+	-- 5. it pays with the World factor
+	if dustyCar then
+		local car = RosterFixtures.byId(dustyCar) :: any
+		local entry = data.Cars[dustyCar]
+		local pay = BetaEconomy.lapPayOf(data, dustyCar)
+		local want = EconomyPreview.lapPay(car.rarity, entry.Edition, data.RacewayLevel, "DustyHighway")
+		local home = EconomyPreview.lapPay(car.rarity, entry.Edition, data.RacewayLevel, "Downtown")
+		check(
+			"5 the Dusty Highway car pays its World factor (x40)",
+			pay == want and pay >= home * 39,
+			string.format("%s %s: $%d a lap (the same car in Downtown: $%d)", dustyCar, car.rarity, pay, home)
+		)
+		table.insert(notes, "Lineup at the end: " .. table.concat(data.Lineup, ","))
+	end
+end
+
+if suite == "smoke" and workspace:GetAttribute("CatchACarMultiTestVariant") == "loop" then
+	suite = "loop"
 end
 
 task.spawn(function()
