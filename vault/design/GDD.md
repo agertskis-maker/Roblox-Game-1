@@ -3,12 +3,14 @@ title: Game Design Document
 tags:
   - design
 status: selected
-concept: Car Hop
+concept: Catch A Car!
 ---
 
 # Game Design Document
 
-> [!info] Concept selected: Car Hop (working title)
+**Official game name: Catch A Car!** Adam finalized this name on 2026-11-03. Former working title: Car Hop. See [[0037-official-name-catch-a-car]].
+
+> [!info] Concept selected: Catch A Car! (official title)
 > The team selected Car Hop at the 18 October 2026 meeting. Record: [[0007-concept-car-hop-and-lanes]]. Full detail is in [[car-hop-outline-v2]], the approved v2 outline; [[car-hopping-game-outline]] is the older v1, kept as history. This file is the live summary. If it disagrees with the outline, this file wins and the outline is refreshed.
 >
 > **Labels.** Every rule keeps the label it has in the outline:
@@ -109,7 +111,7 @@ Stages, not dates: there is no deadline (**Decided**). Each stage ends with the 
 
 ## Open questions
 Full list: outline section 17. Still open:
-- Final title (Car Hop is a working title) and whether it is available on Roblox.
+- Roblox name availability has not been checked. The official title Catch A Car! is decided by Adam; see [[0037-official-name-catch-a-car]].
 - The one integration person ([[0007-concept-car-hop-and-lanes]]). Lane owners are named: Brian R (Lane 1), Brian L (Lane 2), Adam (Lane 3).
 - Approval of the proposed car names and silhouettes before modeling.
 - Game pass prices; whether Developer Products or a daily bonus are ever added.

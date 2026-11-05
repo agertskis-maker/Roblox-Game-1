@@ -143,6 +143,7 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [ ] Re-measure the runtime cost of 10-bone creatures on a phone or other low-end device; 800 copies held 60 fps on one desktop ([[0005-animation-pipeline]])
 
 ## Done
+- [x] Official name Catch A Car! and Round 4 reference update - Adam, with Codex, 2026-11-03. Documentation and art task; decision 0037.
 - [x] Car modeling handed over from Lane 3 to Brian L: handover pack `vault/design/cars/`, [[0015-car-modeling-to-brian-l]], `assets/cars/` mapped to `ReplicatedStorage.Cars`, `AGENTS.md` updated - Adam, with Claude Code ([[2026-10-21]])
 - [x] Hands-free Rojo syncing and background Studio MCP access on Adam's PC - Adam, with Claude Code. Rojo 7.7.1 (plugin matches); Studio MCP at user scope only; Adam's island test place published as a private place (Team Create off) so Rojo auto-reconnect works; Auto Reconnect on, Confirmation Behavior "Unlisted PlaceId" with the place ID only in Adam's own project file outside Git; zero-click reconnect and live sync tested 2026-10-21. Teammate steps in [[2026-10-21]] ([[0006-studio-mcp-rules]])
 - [x] Studio MCP rules: approved by Adam on 2026-10-21 with changes (publishing exception for a private personal test place, auto-reconnect note); now the "Studio MCP" section of `AGENTS.md` ([[0006-studio-mcp-rules]])
