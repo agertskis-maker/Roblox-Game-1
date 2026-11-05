@@ -862,7 +862,7 @@ function LaunchPad.attachShell(s: any)
 				local lineup = LiveData.lineup()
 				for id, save in LiveData.cars() do
 					local car = RosterFixtures.byId(id)
-					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition) else 0
+					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition, 1, car.world) else 0
 					if not table.find(lineup, id) and (pay > bestPay or (pay == bestPay and id < (best or ""))) then
 						best, bestPay = id, pay
 					end
