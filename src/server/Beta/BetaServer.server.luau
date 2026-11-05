@@ -11,6 +11,7 @@ if not BetaConfig.enabled() then
 	return
 end
 
+local BetaCircuit = require(script.Parent.BetaCircuit)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaLapPay = require(script.Parent.BetaLapPay)
@@ -65,6 +66,7 @@ BetaRun.startRemotes(net, runNet)
 BetaLapPay.start(net)
 BetaPurchases.start(net) -- Round 6 (R-02): the one ProcessReceipt handler
 BetaMissions.start(net) -- Round 6 (G-01): Missions on real events (after BetaShop, which makes BetaResult)
+BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
 runNet.Parent = ReplicatedStorage
 net.Parent = ReplicatedStorage
 
@@ -95,6 +97,8 @@ if RunService:IsStudio() then
 			return BetaPurchases.selfTest(player)
 		elseif which == "missions" and player then
 			return BetaMissions.selfTest(player)
+		elseif which == "circuit" and player then
+			return BetaCircuit.selfTest(player)
 		end
 		return { "unknown test " .. tostring(which) }
 	end
@@ -111,7 +115,9 @@ if RunService:IsStudio() then
 		end
 		ran = true
 		task.delay(6, function()
-			for _, which in { "preview", "economy", "lineup", "lappay", "run", "shop", "missions", "purchases" } do
+			for _, which in
+				{ "preview", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases" }
+			do
 				local ok, lines = pcall(selfTest, which, player)
 				local list = if ok and type(lines) == "table" then lines else { "FAIL error: " .. tostring(lines) }
 				local failed = 0
