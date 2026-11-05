@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("Speedway")
 local Ctx = require(Speedway:WaitForChild("Ctx"))
 local Parking = require(Speedway:WaitForChild("Parking"))
+local ParkingTiers = require(Speedway:WaitForChild("ParkingTiers"))
 local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("Tokens"))
 
 local ParkingLook = {}
@@ -245,6 +246,11 @@ local function apply(
 	end
 	local fresh = built.lines[spots] or {}
 	local nextParts = partsOf(built.folder:FindFirstChild("NextBay"))
+	-- Round 6 (V-02): a purchase that reaches a new tier (5, 9 or 13 spots) also fades the new Paddock in (0.1 to 0.7 s;
+	-- Reduce Motion: the same short fade as the lines)
+	local tierUp = old ~= nil and ParkingTiers.tierOf(spots) > ParkingTiers.tierOf(old.spots)
+	local tierParts = if tierUp then partsOf(built.folder:FindFirstChild("Tier")) else {}
+	fade(tierParts, 1)
 	local temp: { Instance } = {}
 	local arm = liftArm :: BasePart
 	arm.Parent = fx
@@ -307,6 +313,7 @@ local function apply(
 			local x = math.clamp(t / total, 0, 1)
 			fade(faders, 1 - x)
 			fade(nextParts, 1 - x)
+			fade(tierParts, 1 - x)
 		else
 			-- lift about 80 degrees (0 to 0.25 s), fade the lifted arm (0.25 to 0.45), lines grow (0.25 to
 			-- 0.55), the next barrier fades in at the next bay (0.9 to 1.05)
@@ -329,6 +336,7 @@ local function apply(
 			end
 			fade(faders, 1 - g)
 			fade(nextParts, 1 - math.clamp((t - 0.9) / 0.15, 0, 1))
+			fade(tierParts, 1 - math.clamp((t - 0.1) / 0.6, 0, 1))
 		end
 		if t >= total then
 			finish(state)

@@ -5,8 +5,9 @@
 --
 -- Where an image comes from, best first:
 --   1. its uploaded asset id (GameIconIds, filled in after the one group upload);
---   2. a local file: only where ReplicatedStorage.Lane3_LocalArt exists (Adam's local test places, never the game), Studio
---      reads rbxasset://carhop/<key>.png from its own content folder (Car-Hop-Art/review/round3/art/install-local-art.ps1).
+--   2. a local file: only in Studio where ReplicatedStorage.Lane3_LocalArt exists (Adam's local test places), Studio reads
+--      rbxasset://carhop/<key>.png from its own content folder (Car-Hop-Art/review/round3/art/install-local-art.ps1).
+--      A published copy of such a place keeps the marker, so a live game ignores it (2026-11-05: blank pass art live);
 --      These load and mip like real uploads, unlike the 96 px EditableImage previews of Round 2, which were the blur;
 --   3. nothing here: the caller falls back to the code-drawn art (Icons2), so a screen never shows a hole.
 --
@@ -15,6 +16,7 @@
 
 local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local GameIconIds = require(script.Parent.GameIconIds)
 
@@ -128,7 +130,7 @@ GameIcons.Alias = {
 
 -- Art not uploaded yet (no id in GameIconIds) shows this uploaded icon instead outside Adam's local test places, never a car.
 GameIcons.Fallback = {
-	art_pass_starter = "art_gift",
+	art_pass_starter = "art_cash3", -- never the free gift: its art says FREE (Round 6)
 	art_pass_vip = "vip",
 	art_pass_paddock = "parkingSpot",
 } :: { [string]: string }
@@ -146,7 +148,7 @@ function GameIcons.uri(key: string): string?
 	if id then
 		return id
 	end
-	if not missing[k] and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
+	if not missing[k] and RunService:IsStudio() and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") then
 		return "rbxasset://carhop/" .. k .. ".png"
 	end
 	local fallback = GameIcons.Fallback[k]

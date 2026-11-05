@@ -57,14 +57,14 @@ for level, line in
 		[2] = "rope fence, pennants",
 		[3] = "bleachers, snack cart",
 		[4] = "asphalt, tyre wall",
-		[5] = "flag official, start lights",
-		[6] = "pit garage",
+		[5] = "flag official, more fans",
+		[6] = "pit garage, marshals",
 		[7] = "grandstand, announcer booth",
-		[8] = "floodlights, big screen",
+		[8] = "floodlights, light strips",
 		[9] = "banked turns",
-		[10] = "raised far turn",
+		[10] = "raised turn, packed stands",
 		[11] = "hump, blimp",
-		[12] = "loop, champion statue",
+		[12] = "loop, statue, sky beams",
 	} :: { [number]: string }
 do
 	Ladder.Levels[level].new = line

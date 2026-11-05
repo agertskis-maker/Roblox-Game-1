@@ -27,18 +27,18 @@ export type CarRef = {
 	edition: number?, -- 1 Normal .. 5 Galaxy; 0 = not owned (the card's five edition dots stay empty)
 }
 
--- The example collection (agreed field shape: Edition 1..5, Copies at that edition). Downtown 6 / 9, Dusty Highway 3 / 9,
+-- The example collection (agreed field shape: Edition 1..5, Copies the lifetime total since Round 6). Downtown 6 / 9, Dusty Highway 3 / 9,
 -- Summit Pass 1 / 9: Unlocked 10 / 27. Chosen so every edition-ladder case has a car: Normal with 0 copies (Putter), one copy
 -- short of a merge (Pizza Runner), just merged (Minnow), Gold towards Diamond (Executive), Diamond (Bolt), Rainbow
 -- (Surf Wagon) and the top edition (Rustbucket, Galaxy).
 Fixtures.PreviewCollection = table.freeze({
 	Putter = { Edition = 1, Copies = 0 },
 	["Pizza Runner"] = { Edition = 1, Copies = 24 },
-	Minnow = { Edition = 2, Copies = 0 },
-	["Surf Wagon"] = { Edition = 4, Copies = 7 },
-	Bolt = { Edition = 3, Copies = 3 },
-	Executive = { Edition = 2, Copies = 12 },
-	Rustbucket = { Edition = 5, Copies = 0 },
+	Minnow = { Edition = 2, Copies = 25 },
+	["Surf Wagon"] = { Edition = 4, Copies = 2507 },
+	Bolt = { Edition = 3, Copies = 253 },
+	Executive = { Edition = 2, Copies = 37 },
+	Rustbucket = { Edition = 5, Copies = 25000 },
 	["Old Faithful"] = { Edition = 1, Copies = 5 },
 	["Beach Bug"] = { Edition = 1, Copies = 1 },
 	Commuter = { Edition = 1, Copies = 0 },
@@ -155,7 +155,7 @@ export type CardInfo = {
 	quirkLine: string?,
 	variants: { Gold: boolean?, Chrome: boolean?, Rainbow: boolean? }?,
 	edition: number?, -- 1..5, the best edition reached (nil = not owned)
-	copies: number?, -- copies held at that edition (the agreed Copies field, read as 0..24)
+	copies: number?, -- the agreed Copies field: lifetime copies (Round 6, E-02)
 	flavour: string?,
 	collectionNo: number?,
 	collectionTotal: number?,
@@ -174,7 +174,7 @@ function Fixtures.cardInfo(id: string): CardInfo?
 	local index = table.find(RosterFixtures.inWorld(car.world), car)
 	return {
 		world = car.world,
-		lapPay = EconomyPreview.lapPay(car.rarity, if entry then entry.Edition else 1, 1),
+		lapPay = EconomyPreview.lapPay(car.rarity, if entry then entry.Edition else 1, 1, car.world),
 		lapSeconds = EconomyPreview.LapSeconds,
 		edition = if entry then entry.Edition else nil,
 		copies = if entry then entry.Copies else nil,
