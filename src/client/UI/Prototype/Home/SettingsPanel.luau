@@ -859,19 +859,16 @@ function SettingsPanel._build(self: any, cardWidth: number, compact: boolean)
 	self._replayButton = nil :: GuiObject?
 	local onReplay = self._opts.onReplayTutorial
 	if onReplay then
-		-- Centred in the free part of the band: across, between the end of the title word and the X; up and down, on the
-		-- band's own middle. The button is a face with a 4 px lip under it, so its box (hit box plus lip) is centred, not
+		-- Round 4 (C-04): centred on the band itself when that clears the title and the X, else in the free part between them;
+		-- up and down, on the band's own middle. The button is a face with a 4 px lip under it, so its box (hit box plus lip) is centred, not
 		-- its top edge (the old top-left placement sat 6 px low and its lip crossed the dark rule under the band).
 		local replayW = 196
 		local replayH = 40
 		local titleEnd = header.title.Position.X.Offset + math.ceil(measure(TITLE, A.Text.Display)) + 6
 		local closeLeft = cardWidth - 8 - Tokens.Touch.Minimum
 		local halfW = replayW / 2
-		local centreX = math.clamp(
-			(titleEnd + closeLeft) / 2,
-			titleEnd + 8 + halfW,
-			math.max(closeLeft - 8 - halfW, titleEnd + 8 + halfW)
-		)
+		local centreX =
+			math.clamp(cardWidth / 2, titleEnd + 8 + halfW, math.max(closeLeft - 8 - halfW, titleEnd + 8 + halfW))
 		local replay = Arcade.button(card, {
 			name = "ReplayTutorial",
 			label = TutorialStrings.get("replay.button"),

@@ -27,6 +27,7 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
+local RealCar = require(Prototype.RealCar)
 local ShopKit = require(Prototype.ShopKit)
 local ShopMotion = require(Prototype.ShopMotion)
 local ShopPurchaseAdapter = require(Prototype.ShopPurchaseAdapter)
@@ -87,8 +88,9 @@ local ART_ZOOM_BY_KEY: { [string]: number } = {
 	art_doublelap = 1.6,
 }
 
+-- Round 4 (E-07): every Cash amount in the Shop goes through Format.cash ("$12.4K", "$1.2M", up to Qa), the one display rule
 local function money(n: number): string
-	return "$" .. Format.group(math.floor(n))
+	return Format.cash(n)
 end
 
 local function edgeTint(name: string): Color3
@@ -469,12 +471,13 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		local offer = s.offer and Catalog.get(s.offer)
 		if offer and offer.parts then
 			local buyW = if phone then 132 else 0
-			local tileW = math.floor((right - 20 * k - buyW) / 3)
+			local count = #offer.parts
+			local tileW = math.floor((right - 20 * k - buyW) / count)
 			local plateH = if phone
 				then h - titlePx * 1.04 - inset * 2
 				else h - titlePx * 0.5 - math.max(84 * k, 52) - math.round(30 * k)
 			local plate = CarKit.board(card, {
-				size = UDim2.fromOffset(tileW * 3 + 16 * k, plateH),
+				size = UDim2.fromOffset(tileW * count + 16 * k, plateH),
 				position = if phone
 					then UDim2.fromOffset(artW + inset * 2, titlePx * 1.04 + inset)
 					else UDim2.new(1, -math.round(10 * k), 0, titlePx * 0.5),
@@ -500,11 +503,41 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			for i, part in offer.parts do
 				local x = (i - 1) * tileW + 8 * k
 				local side = math.min(tileW - 2, tileH * 1.2)
-				CarKit.art(plate, part.art, {
-					size = UDim2.fromOffset(side, side),
-					position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
-					z = 12,
-				})
+				if part.car then
+					-- the car itself (decision 0038): the real model, still, with a RARE chip so the rarity reads at once
+					local holder = make("Frame", {
+						Name = "CarTile",
+						BackgroundTransparency = 1,
+						AnchorPoint = Vector2.new(0.5, 0.5),
+						Size = UDim2.fromOffset(side * 1.25, side),
+						Position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
+						ZIndex = 12,
+					}, plate) :: Frame
+					RealCar.thumb(holder, part.car)
+					local chipPx = fontPx(p, 16, 11)
+					local chip = make("Frame", {
+						Name = "RareChip",
+						BackgroundColor3 = CarKit.Rarity.Rare,
+						AnchorPoint = Vector2.new(0.5, 0),
+						Position = UDim2.fromOffset(x + tileW / 2, tileTop - 2),
+						Size = UDim2.fromOffset(chipPx * 3.6, chipPx * 1.3),
+						ZIndex = 14,
+					}, plate) :: Frame
+					make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, chip)
+					CarKit.text(chip, "RARE", chipPx, {
+						align = Enum.TextXAlignment.Center,
+						size = UDim2.fromScale(1, 1),
+						z = 15,
+						stroke = 1.5,
+						name = "Rare",
+					})
+				else
+					CarKit.art(plate, part.art :: string, {
+						size = UDim2.fromOffset(side, side),
+						position = UDim2.fromOffset(x + tileW / 2, tileTop + tileH / 2),
+						z = 12,
+					})
+				end
 				CarKit.text(plate, part.label, labelPx, {
 					align = Enum.TextXAlignment.Center,
 					alignY = Enum.TextYAlignment.Top,
@@ -907,13 +940,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				bottom = edgeTint(row[2]),
 			})
 			local artY = px * 1.14
-			boxArt(card, row[3], 10, artY, w - 20, h - artY - fontPx(p, 60, 50), 6)
-			CarKit.text(card, offer.body, fontPx(p, 19, 13), {
+			-- Round 4 (C-05): what the pass does sits on its own full-width line above the price, so the price button can
+			-- never cover it (on a phone it used to hide half the line)
+			local btnH = math.round(math.max(54 * k, 46))
+			local bodyPx = fontPx(p, 19, 14)
+			local bodyH = math.round(bodyPx * 2.5)
+			local bottomH = btnH + bodyH + math.round(16 * k) + 6
+			boxArt(card, row[3], 10, artY, w - 20, h - artY - bottomH, 6)
+			CarKit.text(card, offer.body, bodyPx, {
 				wrap = true,
-				size = UDim2.new(1, -math.round(170 * k), 0, fontPx(p, 54, 34)),
-				position = UDim2.new(0, math.round(12 * k), 1, -math.round(8 * k)),
-				anchor = Vector2.new(0, 1),
-				alignY = Enum.TextYAlignment.Bottom,
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(1, -math.round(16 * k), 0, bodyH),
+				position = UDim2.new(0.5, 0, 1, -(btnH + math.round(14 * k))),
+				anchor = Vector2.new(0.5, 1),
+				alignY = Enum.TextYAlignment.Center,
 				stroke = 1.5,
 				z = 8,
 				name = "Body",
@@ -921,9 +961,9 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			if offer.price then
 				priceButton(card, offer.id, offer.name, row[3], offer.price, {
 					px = fontPx(p, 34, 22),
-					size = UDim2.fromOffset(math.round(math.max(142 * k, 112)), math.round(math.max(54 * k, 46))),
-					position = UDim2.new(1, -math.round(10 * k), 1, -math.round(10 * k)),
-					anchor = Vector2.new(1, 1),
+					size = UDim2.fromOffset(math.round(math.max(142 * k, 112)), btnH),
+					position = UDim2.new(0.5, 0, 1, -math.round(10 * k)),
+					anchor = Vector2.new(0.5, 1),
 					z = 12,
 				})
 			end
@@ -1065,20 +1105,20 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 		y += sectionHeader(body, q, y, "freeGift", "FREE", nil) + p.gap
 		y += freeBlock(body, q, y) + p.gap
 
-		CarKit.text(body, "PREVIEW: prices and contents are proposals. Nothing can be bought yet.", 14, {
-			size = UDim2.new(1, 0, 0, 22),
-			position = UDim2.fromOffset(0, y),
-			align = Enum.TextXAlignment.Center,
-			color = CarKit.Soft,
-			z = 3,
-			name = "PreviewFooter",
-		})
-		y += 30
+		-- Round 4 (C-05): one PREVIEW line only, the panel's own note under the page (this second one repeated it)
+		y += 12
 		body.Size = UDim2.new(1, 0, 0, y)
 		scroll.CanvasSize = UDim2.fromOffset(0, y)
 		buildTrove:Connect(scroll:GetPropertyChangedSignal("CanvasPosition"), function()
 			local canvasH = scroll.CanvasSize.Y.Offset
-			local at = scroll.CanvasPosition.Y / (if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1) + 40
+			local k = if canvasH > 0 then scroll.AbsoluteCanvasSize.Y / canvasH else 1
+			local at = scroll.CanvasPosition.Y / k + 40
+			-- Round 4 (C-05): at the bottom of the page the last section cannot reach the top, so the deepest section that is
+			-- in view wins (pressing FREE used to leave PASSES lit)
+			local bottom = scroll.CanvasPosition.Y >= scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y - 2
+			if bottom then
+				at = (scroll.CanvasPosition.Y + scroll.AbsoluteWindowSize.Y) / k - 60
+			end
 			local best = "featured"
 			for _, id in { "featured", "cash", "passes", "free" } do
 				if at >= (sectionY[id] or 0) then

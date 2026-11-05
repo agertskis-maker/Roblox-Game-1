@@ -40,7 +40,12 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local Format = require(ReplicatedStorage.Shared.UI.Format)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local Fixtures =
+	require(script.Parent.Parent.Parent:WaitForChild("UI"):WaitForChild("Prototype"):WaitForChild("Fixtures"))
 local PortalPreviewState = require(script.Parent.PortalPreviewState)
 
 local ROOT_NAME = "Lane3_IslandEnvironment"
@@ -569,21 +574,37 @@ local function run(trove: Trove.Trove, rig: Instance)
 		{ Downtown = "DOWNTOWN", DustyHighway = "DUSTY HIGHWAY", SummitPass = "SUMMIT PASS" }
 	local TITLE_STRIP: { [string]: Color3 } =
 		{ DustyHighway = Color3.fromRGB(255, 150, 60), SummitPass = Color3.fromRGB(110, 210, 255) }
-	type Row = { label: string, have: number, need: number, icon: string, fill: Color3 }
+	type Row = { label: string, have: number, need: number, icon: string, fill: Color3, count: boolean? }
 	local COIN = Color3.fromRGB(255, 200, 61)
 	local CARS = Color3.fromRGB(110, 210, 255)
-	-- PREVIEW rows (sign spec 2b): Summit Pass shows the same numbers, because no Summit values
-	-- exist and none are invented
-	local ROWS: { [string]: { Row } } = {
-		DustyHighway = {
-			{ label = "CASH", have = 1200, need = 5000, icon = "IconCoin", fill = COIN },
-			{ label = "DOWNTOWN CARS", have = 2, need = 3, icon = "IconGarage", fill = CARS },
-		},
-		SummitPass = {
-			{ label = "CASH", have = 1200, need = 5000, icon = "IconCoin", fill = COIN },
-			{ label = "DUSTY HIGHWAY CARS", have = 2, need = 3, icon = "IconGarage", fill = CARS },
-		},
-	}
+	-- PREVIEW rows (Round 4, E-05 and E-08): economy v1's World unlocks (EconomyPreview.WorldUnlock: $5M and 5 Downtown
+	-- cars for Dusty Highway, $1B and 5 Dusty Highway cars for Summit Pass). The cars counted are the example collection's
+	-- (Fixtures.PreviewCollection) cars of the World before, from the one roster; the Cash is the preview HUD's fixture Cash.
+	-- The real numbers and the lock verdict come from Brian L.
+	local function ownedIn(world: string): number
+		local n = 0
+		for _, car in RosterFixtures.inWorld(world) do
+			if Fixtures.PreviewCollection[car.id] then
+				n += 1
+			end
+		end
+		return n
+	end
+	local PREVIEW_CASH = 9450 -- the preview HUD's fixture Cash (Store)
+	local ROWS: { [string]: { Row } } = {}
+	for world, unlock in EconomyPreview.WorldUnlock do
+		ROWS[world] = {
+			{ label = "CASH", have = PREVIEW_CASH, need = unlock.cash, icon = "IconCoin", fill = COIN },
+			{
+				label = string.upper(RosterFixtures.WorldNames[unlock.from]) .. " CARS",
+				have = math.min(ownedIn(unlock.from), unlock.cars),
+				need = unlock.cars,
+				icon = "IconGarage",
+				fill = CARS,
+				count = true,
+			},
+		}
+	end
 	local function text(parent: Instance, t: string, size: number, stroke: number, colour: Color3?): TextLabel
 		local l = Instance.new("TextLabel")
 		l.BackgroundTransparency = 1
@@ -632,11 +653,6 @@ local function run(trove: Trove.Trove, rig: Instance)
 		i.ZIndex = 2
 		i.Parent = parent
 		return i
-	end
-	local function comma(n: number): string
-		local s0 = tostring(math.floor(n))
-		local out = s0:reverse():gsub("(%d%d%d)", "%1,"):reverse()
-		return (out:gsub("^,", ""))
 	end
 
 	-- the requirement plaque's face: a 700 x 275 px canvas at 100 px per stud on the plaque's
@@ -708,7 +724,14 @@ local function run(trove: Trove.Trove, rig: Instance)
 			tt.AutomaticSize = Enum.AutomaticSize.X
 			tt.Size = UDim2.fromOffset(0, 20)
 			tag:SetAttribute("Placeholder", "made-up value; real values need the agreed unlock contract")
-			local numbers = text(group, comma(row.have) .. " / " .. comma(row.need), 21, 2)
+			local numbers = text(
+				group,
+				if row.count
+					then Format.group(row.have) .. " / " .. Format.group(row.need)
+					else Format.cash(row.have) .. " / " .. Format.cash(row.need),
+				21,
+				2
+			)
 			numbers.AutomaticSize = Enum.AutomaticSize.X
 			numbers.Size = UDim2.fromOffset(0, 28)
 			numbers.LayoutOrder = 2

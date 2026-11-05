@@ -6,7 +6,8 @@
 -- fade in over 0.30 s, 8 to 12 small confetti pieces gone within 0.6 s, then the barrier appears at
 -- the next bay). Reduce Motion: a short fade, no confetti. A count comes from, in order:
 --   in Studio only, the LocalPlayer attribute "Lane3ParkingPreviewSpots_PlotNN" (the preview),
---   the plot's "ParkingSpots" attribute (the proposed Lane 2 contract: the server sets it),
+--   the plot's "ParkingSpots" attribute (the proposed Lane 2 contract: the server sets it; with the Expanded Paddock pass,
+--   the plot's ExpandedPaddock attribute, it counts the pass's 3 bays and may reach 18),
 --   else the 2 every plot starts with (Adam's decision).
 -- Nothing here prices, pays, saves or sends anything to the server. The Raceway level never
 -- changes the spot count and the spot count never changes the level.
@@ -38,12 +39,12 @@ function ParkingLook.resolve(plot: Model, index: number): number
 	if RunService:IsStudio() then
 		local own = Players.LocalPlayer:GetAttribute(string.format("Lane3ParkingPreviewSpots_Plot%02d", index))
 		if type(own) == "number" then
-			return Parking.clamp(own)
+			return Parking.clamp(own, Parking.maxFor(plot))
 		end
 	end
 	local real = plot:GetAttribute("ParkingSpots")
 	if type(real) == "number" then
-		return Parking.clamp(real)
+		return Parking.clamp(real, Parking.maxFor(plot))
 	end
 	return Parking.StartSpots
 end
@@ -180,7 +181,13 @@ local function decorate(built: Parking.Built)
 			bar.Parent = plus
 		end
 		signText(g, "PARKING", { 50, 8, 86, 32 }, 17, 1.5)
-		local count = signText(g, string.format("%d / %d", built.spots, Parking.MaxSpots), { 0, 46, 140, 44 }, 34, 1.5)
+		local count = signText(
+			g,
+			string.format("%d / %d", built.spots, built.folder:GetAttribute("MaxSpots") or Parking.MaxSpots),
+			{ 0, 46, 140, 44 },
+			34,
+			1.5
+		)
 		count.Name = "OwnedCount"
 	end
 	local plaque = built.plaque
@@ -208,7 +215,12 @@ local function apply(
 	end
 	finish(state)
 	local old = state.built
-	if old and old.folder.Parent and old.spots == spots then
+	if
+		old
+		and old.folder.Parent
+		and old.spots == spots
+		and old.folder:GetAttribute("MaxSpots") == Parking.maxFor(plot)
+	then
 		return
 	end
 	local oldArm = old and old.arm

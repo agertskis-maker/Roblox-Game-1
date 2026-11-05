@@ -14,6 +14,8 @@
 --   screen:showReserved(on)     -- diagnostics: draw the reserved thumbstick and jump zones
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -136,6 +138,19 @@ local function liveProfile(viewport: Vector2): Profile
 	}
 end
 
+-- STUDIO TEST HOOK (Round 4): in Studio only, the LocalPlayer attribute Lane3ScreenProfile ("Tablet", "PhoneLandscape", ...)
+-- draws a live screen in that device frame, fitted inside the window like the HUD playground, so a real place can be checked
+-- at the three sizes. Outside Studio the attribute is ignored.
+local PROFILE_ATTRIBUTE = "Lane3ScreenProfile"
+local function studioProfile(): Profile?
+	if not RunService:IsStudio() then
+		return nil
+	end
+	local player = Players.LocalPlayer
+	local name = player and player:GetAttribute(PROFILE_ATTRIBUTE)
+	return if type(name) == "string" then Screen.Profiles[name] else nil
+end
+
 function Screen.new(parent: Instance, profileName: string?)
 	local self = setmetatable({}, Screen)
 	self._trove = Trove.new()
@@ -175,6 +190,14 @@ function Screen.new(parent: Instance, profileName: string?)
 	self._live = profileName == "Live"
 	if self._live then
 		border.Enabled = false
+		local player = Players.LocalPlayer
+		if player and RunService:IsStudio() then
+			self._trove:Connect(player:GetAttributeChangedSignal(PROFILE_ATTRIBUTE), function()
+				border.Enabled = studioProfile() ~= nil
+				self:_layout()
+				self.Changed:Fire(self._profile)
+			end)
+		end
 	end
 	local camera = Workspace.CurrentCamera
 	if camera then
@@ -191,7 +214,11 @@ export type ScreenObject = typeof(Screen.new(Instance.new("Folder")))
 function Screen._layout(self: ScreenObject)
 	local camera = Workspace.CurrentCamera
 	local live = (self :: any)._live == true
-	if live and camera then
+	local forced = if live then studioProfile() else nil
+	if forced then
+		self._profile = forced
+		live = false
+	elseif live and camera then
 		self._profile = liveProfile(camera.ViewportSize)
 	end
 	local p = self._profile
@@ -243,7 +270,7 @@ end
 local LIVE_BASE = 800
 function Screen.uiScale(self: ScreenObject): number
 	local p = self._profile
-	if (self :: any)._live and p.kind ~= "Phone" then
+	if (self :: any)._live and p.name == "Live" and p.kind ~= "Phone" then
 		return math.clamp(math.min(p.size.X, p.size.Y) / LIVE_BASE, if p.touch then 0.9 else 0.7, 1.15)
 	end
 	return Tokens.uiScaleFor(p.size)

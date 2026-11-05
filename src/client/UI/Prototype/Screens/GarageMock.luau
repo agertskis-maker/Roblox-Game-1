@@ -228,26 +228,27 @@ local NO_SORT_STATUS = "Collection order"
 -- SYNTHETIC preview acquisition numbers (larger = newer), for NEWEST in the playground. The real number is the player's own
 -- collection data; NEWEST never reads the array position or an asset time. Cars without an entry have no date.
 GarageMock.PreviewAcquired = table.freeze({
-	fishbowl = 1,
-	puglet = 2,
-	waffle = 3,
-	["puglet-gold"] = 4,
-	["rev6-chrome"] = 6,
+	Putter = 1,
+	["Pizza Runner"] = 2,
+	Rustbucket = 3,
+	Minnow = 4,
+	Bolt = 5,
+	["Old Faithful"] = 6,
+	["Surf Wagon"] = 7,
+	Executive = 8,
+	["Beach Bug"] = 9,
+	Commuter = 10,
 }) :: { [string]: number }
 
--- The Downtown list for the mock (synthetic; one Variant marked unseen for the NEW tag).
+-- The collection the Garage lists by default (Round 4): all 27 real cars from the one roster, nine per World, each at its best
+-- edition from the example collection (Fixtures.PreviewCollection). One car is marked unseen for the NEW tag.
 function GarageMock.downtownCars(): { CarRef }
 	local list: { CarRef } = {}
 	for _, c in Fixtures.Cars do
-		table.insert(list, c)
+		local copy = table.clone(c)
+		copy.unseen = copy.id == "Executive"
+		table.insert(list, copy)
 	end
-	local chrome = table.clone(Fixtures.Variants.Chrome)
-	chrome.unseen = true
-	table.insert(list, Fixtures.Variants.Gold)
-	table.insert(list, chrome)
-	table.insert(list, Fixtures.Variants.Rainbow)
-	table.insert(list, Fixtures.LongName)
-	table.insert(list, Fixtures.Missing)
 	return list
 end
 

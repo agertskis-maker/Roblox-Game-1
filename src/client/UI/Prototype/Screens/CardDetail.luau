@@ -1,30 +1,32 @@
 --!strict
--- CardDetail: the landscape detail view of one collectible card (Lane 3 preview, Round 3). Presentation only: it shows
--- the supplied car and card data and never grants, buys or equips anything.
+-- CardDetail: the landscape detail view of one collectible card (Lane 3 preview, Round 3, edition ladder Round 4).
+-- Presentation only: it shows the supplied car and card data and never grants, buys or equips anything.
 --
 --   local detail = CardDetail.new(ctx, { onDrive = function(car) end? })
 --   detail:open(car, info?, returnTo?)   detail:close()   detail:isOpen()
 --   detail:layout()   detail:setVisible(on)   detail:destroy()   detail:getDebugState()
 --
---   local facts = CardDetail.Facts.new(parent, name?)       -- the six facts as a reusable panel (the Garage uses it)
+--   local facts = CardDetail.Facts.new(parent, name?)       -- the facts as a reusable panel (the Garage uses it)
 --   facts:setCar(car, info?)   facts:layout(width, cardSize) -> contentHeight   facts:setSpinning(on)   facts:setVisible(on)
 --   facts:card()   facts:getDebugState()   facts:destroy()
 --
--- ROUND 3: THE SIX FACTS. The detail shows these and nothing else: (1) the car image, (2) its full name, (3) its full
--- rarity word (name and word are on the card, with the rarity pips), (4) the World where it is found, (5) its Lap Pay
--- per lap, (6) Gold, Chrome and Rainbow finishes, each clearly OWNED or NOT OWNED. No per-second figure, no Heat
--- capacity, no family or quirk words, no race stats, no flavour line, no number or date. The facts come from
--- TradingCard.detailFacts, so the same data gives the same words everywhere. An unowned car keeps its silhouette,
--- shows "?" for Lap Pay and NOT OWNED for every finish (nothing leaks). A finish whose state was not supplied shows "?".
--- A finish chip is a label and an icon, not a button: nothing here offers a purchase or an unlock.
+-- THE FACTS. (1) the car image, (2) its full name, (3) its full rarity word (name and word are on the card), (4) the World
+-- where it is found, (5) its Lap Pay per lap, (6) the EDITION LADDER (Round 4, E-06; reference R4-IMG-01 and -02): the five
+-- editions Normal, Gold, Diamond, Rainbow and Galaxy as badges in order, each with its word and a state word (reached ones lit
+-- with a tick, the next one outlined with NEXT, later ones locked), a progress bar "12 / 25 copies to GOLD", one plain line on
+-- how copies are earned, and the Lap Pay multiplier of the best edition reached ("x3 Lap Pay"). Rarity and edition stay
+-- separate facts: an Epic car is Epic at every edition. The numbers are Brian L's economy v1 proposal (EconomyPreview,
+-- PREVIEW); Galaxy's look is his to approve, so its badge is a placeholder marked PREVIEW. At Galaxy the bar reads "Top edition
+-- reached!" (no invented sixth tier, no 0 / 25). An unowned car keeps its silhouette, shows "?" for Lap Pay and every edition
+-- locked with "Claim this car first" (nothing leaks). A badge is a label, never a button: editions are earned, never sold.
 --
 -- Look (Round 2 N7-02): the one panel family (Screens/PanelKit): a light card, the Garage-blue header with the icon and the
--- outlined title, a red square X, light rows with navy captions. The car card and the finish chips keep their own colours.
+-- outlined title, a red square X, light rows with navy captions. The car card and the edition badges keep their own colours.
 --
--- Layout: the plain card (image, name, rarity word) on the left and the three rows on the right when the width allows
--- (stacked below the card otherwise), inside a SCROLLING area; a FIXED action bar underneath (BACK, DRIVE). The scrolling
--- area ends above the bar and clips its content, so nothing can scroll behind the buttons; the debug state reports the
--- gap. Back (Escape or gamepad B) and CLOSE close it; the gamepad selection starts on BACK and returns to where it was.
+-- Layout: the plain card (image, name, rarity word) on the left and the rows on the right when the width allows (stacked
+-- below the card otherwise), inside a SCROLLING area; a FIXED action bar underneath (BACK, DRIVE). The five badges sit in one
+-- row in a column of LADDER_ACROSS or more and in two rows (three, then two) in a narrower one, so a phone keeps readable
+-- 16 px words instead of five squeezed ones. Back (Escape or gamepad B) and CLOSE close it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -35,6 +37,7 @@ local Overlay = require(script.Parent.Overlay)
 local PanelKit = require(script.Parent.PanelKit)
 local Style = require(script.Parent.Style)
 local TradingCard = require(Prototype.Cards.TradingCard)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 
 local make = Arcade.make
@@ -44,51 +47,77 @@ local CardDetail = {}
 export type Options = { onDrive: ((TradingCard.CarRef) -> ())? }
 
 -- TOKEN CANDIDATE: the facts rows (design px).
-local FINISH_LABEL_H = 24
+local LADDER_LABEL_H = 24
 local CAPTION_W = 84 -- the row captions (WORLD, LAP PAY) at 16 px
 local WORLD_TAG_LEFT = 8 + CAPTION_W + 8 + 8 -- caption column, gaps and the right margin; the World tag takes the rest of the row
-local STACK_CHIP_H = 36 -- a chip when the three are stacked: the name left, the state right
 local COLUMN_GAP = 16 -- card to rows when side by side
 local STACK_GAP = 12 -- card to rows when stacked
 local SIDE_COLUMN = 300 -- the least width the rows need beside the card
-local MIN_COLUMN = 318 -- three chips side by side need about 100 px each for NOT OWNED at 16 px; narrower, they stack
+local LADDER_ACROSS = 440 -- five badges in one row need about 86 px each for RAINBOW at 16 px; narrower, three then two
+local BAR_H = 28
+local EARN_H = 22
 
--- row height, chip height and the gap between rows (design px); `compact` is for a short phone frame
+-- row height, badge height and the gap between rows (design px); `compact` is for a short phone frame
 local function metrics(compact: boolean): (number, number, number)
 	if compact then
-		return 42, 50, 4
+		return 36, 44, 4
 	end
-	return 46, 54, 6
+	return 46, 52, 6
 end
--- TOKEN CANDIDATE: finish chip fills (OWNED), the dark NOT OWNED fill and the "?" fill.
-local FINISH_FILL: { [string]: ColorSequence } = {
-	Gold = ColorSequence.new(Color3.fromRGB(255, 226, 120), Color3.fromRGB(214, 150, 20)),
-	Chrome = ColorSequence.new(Color3.fromRGB(236, 241, 248), Color3.fromRGB(122, 136, 158)),
-	Rainbow = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 96, 96)),
-		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 200, 60)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(96, 214, 120)),
-		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(80, 156, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(186, 110, 255)),
-	}),
-}
-local NOT_OWNED_FILL = Color3.fromRGB(26, 36, 78)
-local UNKNOWN_FILL = Color3.fromRGB(52, 66, 116)
+-- a short phone frame: WORLD and LAP PAY share one row when the column is this wide, so the copies bar shows without scrolling
+local PAIR_MIN = 480
+local function paired(colW: number, compact: boolean?): boolean
+	return compact == true and colW >= PAIR_MIN
+end
+local LOCKED_FILL = Color3.fromRGB(26, 36, 78)
 local WORLD_UNKNOWN_FILL = Color3.fromRGB(70, 82, 120)
+local BAR_TRACK = Color3.fromRGB(26, 36, 78)
+local INK = Color3.fromRGB(20, 27, 51)
 
-CardDetail.FactKeys = table.freeze({ "Image", "Name", "Rarity", "World", "LapPay", "Finishes" })
-CardDetail.RowLabels = table.freeze({ "WORLD", "LAP PAY", "FINISHES" })
+CardDetail.FactKeys = table.freeze({ "Image", "Name", "Rarity", "World", "LapPay", "Editions" })
+CardDetail.RowLabels = table.freeze({ "WORLD", "LAP PAY", "EDITIONS" })
 
-local STATE_WORD: { [string]: string } = { Owned = "OWNED", NotOwned = "NOT OWNED", Unknown = "?" }
+local STATE_WORD: { [string]: string } = { Reached = "GOT IT", Next = "NEXT", Locked = "LOCKED" }
 
 ----------------------------------------------------------------------------------------------
--- The six-fact panel
+-- The facts panel
 
 local Facts = {}
 Facts.__index = Facts
 CardDetail.Facts = Facts
 
-type Chip = { frame: Frame, fill: UIGradient, finish: TextLabel, state: TextLabel, check: Frame }
+type Badge = { frame: Frame, stroke: UIStroke, word: TextLabel, state: TextLabel, check: Frame }
+
+local function starry(frame: Frame)
+	-- Galaxy's placeholder look: small stars on deep purple, and a small PREVIEW tag (Brian L approves the real one)
+	for i, at in { Vector2.new(0.14, 0.3), Vector2.new(0.86, 0.3), Vector2.new(0.8, 0.78), Vector2.new(0.2, 0.82) } do
+		make("Frame", {
+			Name = "Star" .. i,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(at.X, at.Y),
+			Size = UDim2.fromOffset(4, 4),
+			Rotation = 45,
+			BackgroundColor3 = Color3.fromRGB(236, 224, 255),
+			BorderSizePixel = 0,
+			ZIndex = 8,
+			Parent = frame,
+		})
+	end
+	local tag: Frame = make("Frame", {
+		Name = "PreviewTag",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 2, 0, 0),
+		Size = UDim2.fromOffset(58, 16),
+		BackgroundColor3 = INK,
+		BorderSizePixel = 0,
+		ZIndex = 10,
+		Parent = frame,
+	})
+	Arcade.corner(tag, 8)
+	local text = Arcade.text(tag, { text = "PREVIEW", role = "Small", name = "Text", z = 11 })
+	text.TextSize = 11
+	text.Size = UDim2.fromScale(1, 1)
+end
 
 function Facts.new(parent: Instance, name: string?)
 	local self = setmetatable({}, Facts)
@@ -129,7 +158,6 @@ function Facts.new(parent: Instance, name: string?)
 		Name = "WorldTag",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -8, 0.5, 0),
-		-- fills the room right of the caption (never an AutomaticSize tag: its width came out a few px short of the text)
 		Size = UDim2.new(1, -WORLD_TAG_LEFT, 0, 30),
 		BackgroundColor3 = WORLD_UNKNOWN_FILL,
 		BorderSizePixel = 0,
@@ -142,7 +170,7 @@ function Facts.new(parent: Instance, name: string?)
 	worldValue.Size = UDim2.fromScale(1, 1)
 	self._worldTag, self._worldValue, self._worldCaption = worldTag, worldValue, worldCaption
 
-	-- LAP PAY: a label on the left, "$220 / lap" (or "?") on the right
+	-- LAP PAY: a label on the left, "$6,000 / lap" (or "?") on the right
 	local payRow = PanelKit.row(rows, "LapPayRow", 6)
 	self._payRow = payRow
 	local payCaption = Arcade.text(payRow, {
@@ -170,66 +198,100 @@ function Facts.new(parent: Instance, name: string?)
 	payValue.Position = UDim2.new(1, -6, 0.5, 0)
 	self._payValue, self._payCaption = payValue, payCaption
 
-	-- FINISHES: a label, then Gold, Chrome and Rainbow chips side by side
-	local finishRow: Frame =
-		make("Frame", { Name = "FinishRow", BackgroundTransparency = 1, ZIndex = 6, Parent = rows })
-	self._finishRow = finishRow
-	local finishCaption = Arcade.text(finishRow, {
+	-- EDITIONS: a caption with the best edition's multiplier, five badges, the bar, the earn line
+	local ladder: Frame =
+		make("Frame", { Name = "EditionLadder", BackgroundTransparency = 1, ZIndex = 6, Parent = rows })
+	self._ladder = ladder
+	local caption = Arcade.text(ladder, {
 		text = CardDetail.RowLabels[3],
 		role = "Small",
 		name = "Label",
 		xAlign = Enum.TextXAlignment.Left,
 		z = 8,
 	})
-	PanelKit.ink(finishCaption, true)
-	finishCaption.Position = UDim2.fromOffset(4, 0)
-	finishCaption.Size = UDim2.new(1, -8, 0, FINISH_LABEL_H)
-	self._finishCaption = finishCaption
-	local chips: { Chip } = {}
-	for _, finish in TradingCard.Finishes do
+	PanelKit.ink(caption, true)
+	caption.Position = UDim2.fromOffset(4, 0)
+	caption.Size = UDim2.fromOffset(96, LADDER_LABEL_H)
+	self._ladderCaption = caption
+	local boost = Arcade.text(ladder, {
+		text = "",
+		role = "Small",
+		name = "Boost",
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	PanelKit.ink(boost)
+	-- beside the caption, left: the right end of this line is where Galaxy's PREVIEW tag sits
+	boost.Position = UDim2.fromOffset(104, 0)
+	boost.Size = UDim2.new(0.5, -104, 0, LADDER_LABEL_H)
+	self._boost = boost
+	local badges: { Badge } = {}
+	for _, edition in EconomyPreview.Editions do
 		local frame: Frame = make("Frame", {
-			Name = "Chip_" .. finish,
-			BackgroundColor3 = Color3.new(1, 1, 1),
+			Name = "Badge_" .. edition.key,
+			BackgroundColor3 = LOCKED_FILL,
 			BorderSizePixel = 0,
 			ZIndex = 7,
-			Parent = finishRow,
+			Parent = ladder,
 		})
-		Arcade.corner(frame, 6)
-		Arcade.outline(frame, "Minor")
-		local fill: UIGradient = make("UIGradient", { Rotation = 90, Parent = frame })
-		local finishLabel = Arcade.text(frame, {
-			text = string.upper(finish),
-			role = "Small",
-			name = "Finish",
-			xAlign = Enum.TextXAlignment.Left,
-			z = 8,
-		})
-		finishLabel.Position = UDim2.fromOffset(4, 3)
-		finishLabel.Size = UDim2.new(1, -8, 0, 22)
-		local stateLabel = Arcade.text(frame, {
-			text = "?",
-			role = "Small",
-			name = "State",
-			xAlign = Enum.TextXAlignment.Left,
-			z = 8,
-		})
-		stateLabel.Position = UDim2.fromOffset(4, 28)
-		stateLabel.Size = UDim2.new(1, -8, 0, 22)
+		Arcade.corner(frame, 8)
+		local stroke = Arcade.outline(frame, "Minor")
+		local word =
+			Arcade.text(frame, { text = edition.label, role = "Small", name = "Word", z = 8, outline = "Minor" })
+		word.Position = UDim2.fromOffset(4, 3)
+		word.Size = UDim2.new(1, -8, 0, 22)
+		local state = Arcade.text(frame, { text = "LOCKED", role = "Small", name = "State", z = 8 })
+		state.Size = UDim2.new(1, -8, 0, 20)
 		local check: Frame = make("Frame", {
 			Name = "Check",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -5, 0, 29),
-			Size = UDim2.fromOffset(20, 20),
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, -3, 1, -3),
+			Size = UDim2.fromOffset(16, 16),
 			BackgroundTransparency = 1,
 			Visible = false,
 			ZIndex = 9,
 			Parent = frame,
 		})
 		Arcade.icon(check, "Check")
-		table.insert(chips, { frame = frame, fill = fill, finish = finishLabel, state = stateLabel, check = check })
+		if edition.preview then
+			starry(frame)
+		end
+		table.insert(badges, { frame = frame, stroke = stroke, word = word, state = state, check = check })
 	end
-	self._chips = chips
-	self._states = { "Unknown", "Unknown", "Unknown" } :: { string }
+	self._badges = badges
+	self._states = { "Locked", "Locked", "Locked", "Locked", "Locked" } :: { string }
+	-- the progress bar toward the next edition
+	local track: Frame = make("Frame", {
+		Name = "CopiesBar",
+		BackgroundColor3 = BAR_TRACK,
+		BorderSizePixel = 0,
+		ZIndex = 7,
+		ClipsDescendants = true,
+		Parent = ladder,
+	})
+	Arcade.corner(track, 8)
+	Arcade.outline(track, "Minor")
+	local fill: Frame = make("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Color3.fromRGB(246, 190, 40),
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Parent = track,
+	})
+	Arcade.corner(fill, 8)
+	local barText = Arcade.text(track, { text = "", role = "Small", name = "Text", z = 9, outline = "Minor" })
+	barText.Size = UDim2.fromScale(1, 1)
+	self._track, self._fill, self._barText = track, fill, barText
+	local earn = Arcade.text(ladder, {
+		text = EconomyPreview.EarnLine,
+		role = "Small",
+		name = "EarnLine",
+		xAlign = Enum.TextXAlignment.Left,
+		z = 8,
+	})
+	PanelKit.ink(earn, true)
+	self._earn = earn
 	return self
 end
 
@@ -252,39 +314,61 @@ function Facts.setCar(self: FactsPanel, car: TradingCard.CarRef, info: TradingCa
 		self._card =
 			CarCard.new(self.root, car, { plain = true, size = size, spinning = self._spinning, name = "DetailCar" })
 	end
-	local facts = TradingCard.detailFacts(car, self._info)
+	local data = self._info :: any
+	local facts = TradingCard.detailFacts(car, data)
 	-- World
-	local world = TradingCard.Worlds[(self._info :: TradingCard.Info).world or ""]
+	local world = TradingCard.Worlds[data.world or ""]
 	self._worldValue.Text = facts.world
 	self._worldTag.BackgroundColor3 = if world then world.tag else WORLD_UNKNOWN_FILL
 	-- Lap Pay
 	self._payValue.Text = facts.lapPay
-	-- Finishes
-	for i, entry in facts.finishes do
-		local chip = self._chips[i]
-		local state: string = entry.state
+	-- Editions: reached, the next one, locked; all locked for a car the player does not own
+	local owned = not facts.hidden and data.edition ~= nil
+	local progress = EconomyPreview.editionProgress(data.edition, data.copies)
+	for i, badge in self._badges do
+		local edition = EconomyPreview.Editions[i]
+		local nextIndex = if progress.nextEdition then progress.nextEdition.index else 0
+		local state = if not owned
+			then "Locked"
+			elseif i <= progress.edition.index then "Reached"
+			elseif i == nextIndex then "Next"
+			else "Locked"
 		self._states[i] = state
-		chip.state.Text = STATE_WORD[state]
-		chip.check.Visible = state == "Owned"
-		if state == "Owned" then
-			chip.fill.Color = FINISH_FILL[entry.finish]
-			chip.frame.BackgroundColor3 = Color3.new(1, 1, 1)
-			chip.state.TextColor3 = Color3.new(1, 1, 1)
-			chip.finish.TextColor3 = Color3.new(1, 1, 1)
-		else
-			local flat = if state == "NotOwned" then NOT_OWNED_FILL else UNKNOWN_FILL
-			chip.fill.Color = ColorSequence.new(flat, flat)
-			chip.state.TextColor3 = Style.TextSoft
-			chip.finish.TextColor3 = Style.TextSoft
-		end
+		badge.state.Text = STATE_WORD[state]
+		badge.check.Visible = state == "Reached"
+		badge.frame.BackgroundColor3 = if state == "Reached" then edition.colour else LOCKED_FILL
+		badge.stroke.Color = if state == "Next" then edition.colour else INK
+		badge.stroke.Thickness = if state == "Next" then 3 else 2
+		badge.word.TextColor3 = if state == "Locked" then Style.TextSoft else Color3.new(1, 1, 1)
+		badge.state.TextColor3 = if state == "Locked"
+			then Style.TextSoft
+			elseif state == "Next" then edition.colour
+			else Color3.new(1, 1, 1)
+	end
+	if owned then
+		self._boost.Text = "x" .. progress.edition.multiplier .. " Lap Pay"
+		self._fill.Size = UDim2.fromScale(progress.fraction, 1)
+		self._fill.BackgroundColor3 = if progress.nextEdition
+			then progress.nextEdition.colour
+			else progress.edition.colour
+		self._barText.Text = progress.text
+		self._earn.Text = if progress.nextEdition
+			then EconomyPreview.EarnLine
+			else "This car has every edition. Amazing!"
+	else
+		self._boost.Text = ""
+		self._fill.Size = UDim2.fromScale(0, 1)
+		self._barText.Text = "Claim this car first"
+		self._earn.Text = "Fill the Keys on this car in a run to claim it."
 	end
 end
 
--- The height of the three rows for a rows column `colW` wide (the caller sizes the card from what is left).
+-- The height of the rows for a rows column `colW` wide (the caller sizes the card from what is left).
 function Facts.rowsHeight(colW: number, compact: boolean?): number
-	local rowH, chipH, gap = metrics(compact == true)
-	local chipsH = if colW >= MIN_COLUMN then chipH else 3 * STACK_CHIP_H + 2 * gap
-	return rowH + gap + rowH + gap + FINISH_LABEL_H + chipsH
+	local rowH, badgeH, gap = metrics(compact == true)
+	local badgesH = if colW >= LADDER_ACROSS then badgeH else 2 * badgeH + gap
+	local infoH = if paired(colW, compact) then rowH + gap else rowH + gap + rowH + gap
+	return infoH + LADDER_LABEL_H + badgesH + gap + BAR_H + gap + EARN_H
 end
 
 -- The card size and the row density for a scrolling area `innerW` wide and `scrollH` tall (design px): beside the card
@@ -301,16 +385,14 @@ function Facts.fit(innerW: number, scrollH: number): (Vector2, boolean)
 	return Vector2.new(math.max(CarCard.MinSize.X, math.floor(stackH * 200 / 280)), stackH), compact
 end
 
--- Places the card and the three rows for `width` (design px) and a card of `cardSize`; returns the content height.
--- Side by side when the rows keep SIDE_COLUMN beside the card, stacked (card centred, rows below) otherwise. The three
--- finish chips sit side by side in a column of MIN_COLUMN or more, stacked one above the other in a narrower one.
+-- Places the card and the rows for `width` (design px) and a card of `cardSize`; returns the content height.
 function Facts.layout(self: FactsPanel, width: number, cardSize: Vector2, compact: boolean?): number
 	self._cardSize = cardSize
 	self._width = width
 	local card = self._card :: CarCard.Card?
 	local side = width >= cardSize.X + COLUMN_GAP + SIDE_COLUMN
 	self._side = side
-	local rowH, chipH, gap = metrics(compact == true)
+	local rowH, badgeH, gap = metrics(compact == true)
 	local colX, colW
 	if side then
 		colX = cardSize.X + COLUMN_GAP
@@ -328,42 +410,42 @@ function Facts.layout(self: FactsPanel, width: number, cardSize: Vector2, compac
 	local rows = self._rows :: Frame
 	rows.Position = UDim2.fromOffset(colX, colY)
 	rows.Size = UDim2.fromOffset(colW, rowsH)
-	local worldRow, payRow, finishRow = self._worldRow :: Frame, self._payRow :: Frame, self._finishRow :: Frame
+	local worldRow, payRow, ladder = self._worldRow :: Frame, self._payRow :: Frame, self._ladder :: Frame
 	local y = 0
-	worldRow.Position = UDim2.fromOffset(0, y)
-	worldRow.Size = UDim2.fromOffset(colW, rowH)
-	y += rowH + gap
-	payRow.Position = UDim2.fromOffset(0, y)
-	payRow.Size = UDim2.fromOffset(colW, rowH)
-	y += rowH + gap
-	finishRow.Position = UDim2.fromOffset(0, y)
-	finishRow.Size = UDim2.fromOffset(colW, rowsH - y)
-	local across = colW >= MIN_COLUMN
-	self._across = across
-	local chipW = math.floor((colW - 12) / 3)
-	for i, chip in self._chips do
-		if across then
-			chip.frame.Position = UDim2.fromOffset((i - 1) * (chipW + 6), FINISH_LABEL_H)
-			chip.frame.Size = UDim2.fromOffset(chipW, chipH)
-			chip.finish.Position = UDim2.fromOffset(4, 3)
-			chip.finish.Size = UDim2.new(1, -8, 0, 22)
-			chip.state.AnchorPoint = Vector2.zero
-			chip.state.Position = UDim2.fromOffset(4, chipH - 26)
-			chip.state.Size = UDim2.new(1, -8, 0, 22)
-			chip.state.TextXAlignment = Enum.TextXAlignment.Left
-			chip.check.Position = UDim2.new(1, -5, 0, chipH - 25)
-		else
-			chip.frame.Position = UDim2.fromOffset(0, FINISH_LABEL_H + (i - 1) * (STACK_CHIP_H + gap))
-			chip.frame.Size = UDim2.fromOffset(colW, STACK_CHIP_H)
-			chip.finish.Position = UDim2.fromOffset(8, 7)
-			chip.finish.Size = UDim2.new(0.5, -8, 0, 22)
-			chip.state.AnchorPoint = Vector2.new(1, 0)
-			chip.state.Position = UDim2.new(1, -30, 0, 7)
-			chip.state.Size = UDim2.new(0.5, -30, 0, 22)
-			chip.state.TextXAlignment = Enum.TextXAlignment.Right
-			chip.check.Position = UDim2.new(1, -5, 0, 8)
-		end
+	if paired(colW, compact) then
+		local half = math.floor((colW - 6) / 2)
+		worldRow.Position = UDim2.fromOffset(0, y)
+		worldRow.Size = UDim2.fromOffset(half, rowH)
+		payRow.Position = UDim2.fromOffset(colW - half, y)
+		payRow.Size = UDim2.fromOffset(half, rowH)
+	else
+		worldRow.Position = UDim2.fromOffset(0, y)
+		worldRow.Size = UDim2.fromOffset(colW, rowH)
+		y += rowH + gap
+		payRow.Position = UDim2.fromOffset(0, y)
+		payRow.Size = UDim2.fromOffset(colW, rowH)
 	end
+	y += rowH + gap
+	ladder.Position = UDim2.fromOffset(0, y)
+	ladder.Size = UDim2.fromOffset(colW, rowsH - y)
+	local across = colW >= LADDER_ACROSS
+	self._across = across
+	local perRow = if across then 5 else 3
+	local badgeW = math.floor((colW - (perRow - 1) * 6) / perRow)
+	for i, badge in self._badges do
+		local slot = (i - 1) % perRow
+		local line = (i - 1) // perRow
+		badge.frame.Position = UDim2.fromOffset(slot * (badgeW + 6), LADDER_LABEL_H + line * (badgeH + gap))
+		badge.frame.Size = UDim2.fromOffset(badgeW, badgeH)
+		badge.state.Position = UDim2.fromOffset(4, badgeH - 23)
+	end
+	local below = LADDER_LABEL_H + (if across then badgeH else 2 * badgeH + gap) + gap
+	local track = self._track :: Frame
+	track.Position = UDim2.fromOffset(0, below)
+	track.Size = UDim2.fromOffset(colW, BAR_H)
+	local earn = self._earn :: TextLabel
+	earn.Position = UDim2.fromOffset(4, below + BAR_H + gap)
+	earn.Size = UDim2.fromOffset(colW - 8, EARN_H)
 	local height = if side then math.max(cardSize.Y, colY + rowsH) else colY + rowsH
 	self._height = height
 	self.root.Size = UDim2.fromOffset(width, height)
@@ -396,9 +478,9 @@ end
 
 function Facts.getDebugState(self: FactsPanel): { [string]: any }
 	local cardState = if self._card then self._card:getDebugState() else nil
-	local finishes = {}
-	for i, chip in self._chips do
-		table.insert(finishes, { finish = chip.finish.Text, state = chip.state.Text, kind = self._states[i] })
+	local editions = {}
+	for i, badge in self._badges do
+		table.insert(editions, { edition = badge.word.Text, state = badge.state.Text, kind = self._states[i] })
 	end
 	return {
 		carId = if self._car then self._car.id else nil,
@@ -406,19 +488,21 @@ function Facts.getDebugState(self: FactsPanel): { [string]: any }
 		across = self._across,
 		width = self._width,
 		height = self._height,
-		-- the six facts, as the screen really shows them
 		facts = {
 			{ key = "Image", shown = if cardState then cardState.status else "none" },
 			{ key = "Name", shown = if cardState then cardState.nameText else "" },
 			{ key = "Rarity", shown = if cardState then cardState.rarityLabel else "" },
 			{ key = "World", shown = self._worldValue.Text },
 			{ key = "LapPay", shown = self._payValue.Text },
-			{ key = "Finishes", shown = finishes },
+			{ key = "Editions", shown = editions },
 		},
+		progress = self._barText.Text,
+		boost = self._boost.Text,
+		earnLine = self._earn.Text,
 		rowLabels = {
 			(self._worldCaption :: TextLabel).Text,
 			(self._payCaption :: TextLabel).Text,
-			(self._finishCaption :: TextLabel).Text,
+			(self._ladderCaption :: TextLabel).Text,
 		},
 		card = cardState,
 		instances = #self.root:GetDescendants(),

@@ -47,7 +47,7 @@ export type Offer = {
 	lockedText: string?, -- Medal cards: how it is earned
 	note: string?, -- a calm line under the card
 	swatches: { Color3 }?, -- Style cards: the colours the live preview cycles through
-	parts: { { art: string, label: string } }?, -- Starter Pack: each thing inside, as its own tile
+	parts: { { art: string?, car: string?, label: string } }?, -- Starter Pack: each thing inside, as its own tile (`car`: a model in ReplicatedStorage.Cars, drawn as the real car)
 }
 
 export type Section = {
@@ -71,8 +71,17 @@ Catalog.PriceWord = "Robux"
 Catalog.PreviewValueTag = "PREVIEW VALUE"
 Catalog.PreviewNote = "PREVIEW: contents and price proposed"
 Catalog.StyleNote = "Looks only. Same driving stats."
--- A cheap way back into a run after a crash, once the free ones are used (Adam, 2026-11-02). PREVIEW: nothing can be bought yet.
+-- The Robux respawn: a way back into a run after a crash, once the free respawns are used. DECIDED by Adam (2026-11-02, decision
+-- 0036: in the launch scope, not a proposal). The price is the PREVIEW default; nothing can be bought yet (press: Coming soon).
+-- The Rare car inside the Starter Pack (decision 0038): its model name in ReplicatedStorage.Cars, the roster id.
+Catalog.StarterCar = "Brawler"
 Catalog.RespawnRobux = 19
+Catalog.Respawn = table.freeze({
+	name = "Respawn",
+	price = Catalog.RespawnRobux,
+	benefit = "Keep your run going.",
+	where = "Run results, after the free respawns are used",
+})
 
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -85,9 +94,13 @@ local offers: { Offer } = {
 		kind = "Starter",
 		name = "STARTER PACK",
 		tag = "FEATURED",
-		body = "A fresh look for your first laps.",
-		contents = "$5,000 Cash + Rookie Flame paint + Starter Stripe decal",
+		-- Round 4: Adam decided on 2026-11-03 (decision 0038) that the Starter Pack includes one Rare car, Brawler, so the pack's
+		-- car art tells the truth. The one exception to "cars are never sold for Robux"; editions are still never sold. One per
+		-- player. PREVIEW: nothing can be bought yet, and the grant is Brian L's server.
+		body = "A Rare car and a fresh look for your first laps. One per player.",
+		contents = "Brawler (Rare car) + $5,000 Cash + Rookie Flame paint + Starter Stripe decal",
 		parts = {
+			{ car = Catalog.StarterCar, label = "Brawler" },
 			{ art = "art_cash2", label = "$5,000" },
 			{ art = "decal", label = "Rookie Flame" },
 			{ art = "item_stripe", label = "Starter Stripe" },
@@ -128,10 +141,11 @@ local offers: { Offer } = {
 	{
 		id = "expanded-paddock",
 		kind = "Pass",
-		name = "Extra Parking",
+		name = "Expanded Paddock",
 		tag = "+3 PARKING SPOTS",
-		body = "Park 3 more cars!",
-		detail = "Three more spots on your Raceway. Each car earns at its normal rate.",
+		body = "Park 3 more cars: up to 18!",
+		-- Round 4 (C-03): Lane 3's recommendation, a question for Brian L: the pass raises the 15-spot maximum to 18
+		detail = "Three more spots on your Raceway, up to 18. Each car earns at its normal rate.",
 		icon = "Paddock",
 		art = "expanded-paddock",
 		fill = "Lime",

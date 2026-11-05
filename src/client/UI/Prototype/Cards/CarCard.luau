@@ -18,8 +18,9 @@
 --   card:getDebugState()      -- numbers for automated checks
 --
 -- Design (preview choices, see the handoff):
--- * Rarity reads without colour: a rarity frame (gradient) PLUS the rarity LABEL word PLUS 1-5
---   diamond PIPS (filled count out of 5).
+-- * Rarity reads without colour: a rarity frame (gradient) PLUS the rarity LABEL word. The five diamond dots are the
+--   EDITIONS (Round 4) when car.edition is given: Normal, Gold, Diamond, Rainbow, Galaxy, lit up to the best reached;
+--   the old harness cars without an edition still show 1-5 rarity pips.
 -- * Variants (Gold / Chrome / Rainbow) are finishes, not rarities: a separate outer finish ring
 --   plus a ribbon with the finish word. The rarity frame, label and pips stay as they are.
 -- * Unowned: the model is a near-black silhouette (recoloured once at build time); the rarity
@@ -65,6 +66,8 @@ local Icons = require(Prototype.Icons)
 local Motion = require(Prototype.Motion)
 local PreviewTokens = require(Prototype.PreviewTokens)
 local ProxyCar = require(Prototype.ProxyCar)
+local RealCar = require(Prototype.RealCar)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Sounds = require(Prototype.Sounds)
 local Style = require(Prototype.Screens.Style)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
@@ -220,6 +223,26 @@ local VARIANT: { [string]: { label: string, sequence: ColorSequence } } = {
 			kp(0.6, rgb(96, 214, 120)),
 			kp(0.8, rgb(80, 156, 255)),
 			kp(1, rgb(186, 110, 255)),
+		}),
+	},
+	-- Round 4: the editions Diamond (replaces Chrome) and Galaxy (a PREVIEW placeholder look until Brian L approves one)
+	Diamond = {
+		label = "DIAMOND",
+		sequence = ColorSequence.new({
+			kp(0, rgb(220, 248, 255)),
+			kp(0.4, rgb(110, 210, 255)),
+			kp(0.6, rgb(236, 252, 255)),
+			kp(1, rgb(40, 140, 220)),
+		}),
+	},
+	Galaxy = {
+		label = "GALAXY",
+		sequence = ColorSequence.new({
+			kp(0, rgb(40, 18, 90)),
+			kp(0.35, rgb(110, 60, 200)),
+			kp(0.5, rgb(236, 220, 255)),
+			kp(0.65, rgb(110, 60, 200)),
+			kp(1, rgb(30, 12, 70)),
 		}),
 	},
 }
@@ -1034,11 +1057,8 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 			model = ProxyCar.build(car)
 			isProxy = true
 		elseif car.model ~= nil then
-			local folder = ReplicatedStorage:FindFirstChild("Cars")
-			local source = folder and folder:FindFirstChild(car.model)
-			if source and source:IsA("Model") then
-				model = source:Clone()
-			end
+			-- a showroom car: RealCar squares its pivot up from the wheels (decision 0034), front to -Z at the origin
+			model = RealCar.displayModel(car.model)
 		end
 		if not model then
 			isProxy = false
@@ -1058,12 +1078,21 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 				d.CanQuery = false
 				d.CanTouch = false
 				if car.owned ~= true then
+					if d:IsA("MeshPart") then
+						d.TextureID = "" -- a baked texture would show through the dark colour
+					end
 					d.Color = SILHOUETTE
 					d.Material = Enum.Material.SmoothPlastic
 					d.Reflectance = 0
 					d.Transparency = 0
 				end
-			elseif d:IsA("Script") or d:IsA("LocalScript") or d:IsA("Sound") or d:IsA("ParticleEmitter") then
+			elseif
+				d:IsA("Script")
+				or d:IsA("LocalScript")
+				or d:IsA("Sound")
+				or d:IsA("ParticleEmitter")
+				or (car.owned ~= true and (d:IsA("SurfaceAppearance") or d:IsA("Decal")))
+			then
 				d:Destroy()
 			end
 		end
@@ -1109,10 +1138,19 @@ function CarCard.new(parent: Instance, initialCar: CarRef, options: Options?): C
 		rarityLabel.TextWrapped = false
 		rarityLabel.Text = rarityFull
 		checkRarity()
+		-- Round 4 (E-06): when the car carries an edition the five dots are the editions in order (Normal, Gold, Diamond,
+		-- Rainbow, Galaxy), lit up to the best one reached, each in its edition colour; an unowned car (edition 0) lights none.
+		-- The rarity stays its word and frame. Without an edition (the old harness sheets) they are the rarity pips.
 		for i, p in pipFrames do
-			local filled = i <= rarity.pips
-			p.BackgroundColor3 = if filled then Color3.new(1, 1, 1) else A.Ink
-			p.BackgroundTransparency = if filled then 0 else 0.55
+			if car.edition ~= nil then
+				local lit = i <= car.edition
+				p.BackgroundColor3 = if lit then EconomyPreview.edition(i).colour else A.Ink
+				p.BackgroundTransparency = if lit then 0 else 0.55
+			else
+				local filled = i <= rarity.pips
+				p.BackgroundColor3 = if filled then Color3.new(1, 1, 1) else A.Ink
+				p.BackgroundTransparency = if filled then 0 else 0.55
+			end
 		end
 		local finish = VARIANT[car.variant]
 		variantRing.Visible = finish ~= nil
