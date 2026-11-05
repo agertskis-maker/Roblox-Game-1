@@ -5,12 +5,15 @@
 -- Built front toward -Z, pivot on the road surface under the centre of the car. About 20 to 30
 -- parts each, inside the outline's 20 to 40 part budget.
 
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Families = require(ReplicatedStorage.Shared.Run.Families)
 local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
 
 local CarVisual = {}
+
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local PAINTS: { Color3 } = {
 	Color3.fromRGB(236, 82, 70),
@@ -382,13 +385,62 @@ function CarVisual.build(options: Options): Model
 		local light = Instance.new("PointLight")
 		light.Color = CarVisual.RARITY_COLOR[options.rarity]
 		light.Range = math.max(L, 10)
-		light.Brightness = 1.5
+		light.Brightness = if options.rarity == "Legendary" then 3 else 1.5
 		light.Parent = glow
+		CarVisual.addRarityFx(options.rarity, glow, L, H)
 	end
 
 	CarVisual.applyVariant(m, options.variant or "None")
 	m.WorldPivot = CFrame.new()
 	return m
+end
+
+-- Bigger effects the rarer the car (Brian L with Adam, 2026-11-05), so an Epic or Legendary is
+-- obvious from far down the road. Epic: rising sparkles. Legendary: more, gold sparkles plus a tall
+-- light beacon. Reduce Motion keeps the still glow and beacon and drops the moving sparkles.
+function CarVisual.addRarityFx(rarity: RunConfig.Rarity, glow: BasePart, length: number, height: number)
+	if rarity ~= "Epic" and rarity ~= "Legendary" then
+		return
+	end
+	local colour = CarVisual.RARITY_COLOR[rarity]
+	local legendary = rarity == "Legendary"
+	if not GuiService.ReducedMotionEnabled then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Name = "RaritySparkles"
+		sparkles.Texture = SPARKLE
+		sparkles.Color = ColorSequence.new(colour)
+		sparkles.LightEmission = 1
+		sparkles.Size = NumberSequence.new(if legendary then 1.1 else 0.8, 0)
+		sparkles.Lifetime = NumberRange.new(0.8, 1.4)
+		sparkles.Speed = NumberRange.new(4, 8)
+		sparkles.SpreadAngle = Vector2.new(25, 25)
+		sparkles.EmissionDirection = Enum.NormalId.Top
+		sparkles.Rate = if legendary then 16 else 8
+		sparkles.Parent = glow
+	end
+	if legendary then
+		local base = Instance.new("Attachment")
+		base.Name = "BeaconBase"
+		base.Parent = glow
+		local top = Instance.new("Attachment")
+		top.Name = "BeaconTop"
+		top.Position = Vector3.new(0, height + 40, 0)
+		top.Parent = glow
+		local beam = Instance.new("Beam")
+		beam.Name = "LegendaryBeacon"
+		beam.Attachment0 = base
+		beam.Attachment1 = top
+		beam.Color = ColorSequence.new(colour)
+		beam.LightEmission = 1
+		beam.FaceCamera = true
+		beam.Width0 = math.max(length * 0.35, 2)
+		beam.Width1 = 0.5
+		beam.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.35),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		beam.Parent = glow
+	end
 end
 
 function CarVisual.applyVariant(m: Model, variant: RunConfig.Variant)
