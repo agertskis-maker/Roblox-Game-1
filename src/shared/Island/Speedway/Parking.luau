@@ -13,6 +13,7 @@
 
 local Ctx = require(script.Parent.Ctx)
 local Kit = require(script.Parent.Kit)
+local ParkingTiers = require(script.Parent.ParkingTiers)
 
 local Parking = {}
 
@@ -138,10 +139,11 @@ end
 Parking.opening = opening
 
 -- Cream ground lines of one bay: both sides and the back line (open toward the aisle).
-function Parking.lines(folder: Instance, ctx: Ctx, bay: Bay): { BasePart }
+-- Round 6 (V-02): `colour` is the tier's line colour (cream on gravel, bright white from asphalt up).
+function Parking.lines(folder: Instance, ctx: Ctx, bay: Bay, colour: Color3?): { BasePart }
 	local made: { BasePart } = {}
 	local h = Parking.BayHalfWidth
-	local options = { name = "BayLine", color = CREAM, castShadow = false }
+	local options = { name = "BayLine", color = colour or CREAM, castShadow = false }
 	for _, sx in { -h, h } do
 		local p = Kit.slab(
 			folder,
@@ -314,12 +316,18 @@ function Parking.build(plot: Model, ctx: Ctx, spots: number): Built
 			)
 		end
 	end
+	-- Round 6 (V-02): the Paddock's tier (gravel, asphalt, covered, showroom, gold trim for the pass), under the lines
+	local tier = ParkingTiers.tierOf(n)
+	folder:SetAttribute("Tier", tier)
+	ParkingTiers.dress(folder, ctx, n, extended, function(i: number): any
+		return Parking.bay(i, extended)
+	end)
 	for i = 1, n do
 		local bay = Parking.bay(i, extended)
 		local f = Instance.new("Folder")
 		f.Name = string.format("Bay%02d", i)
 		f.Parent = folder
-		out.lines[i] = Parking.lines(f, ctx, bay)
+		out.lines[i] = Parking.lines(f, ctx, bay, ParkingTiers.lineColour(tier))
 	end
 	if n < max then
 		local next = Instance.new("Folder")
