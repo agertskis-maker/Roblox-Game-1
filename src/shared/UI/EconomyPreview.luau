@@ -11,6 +11,8 @@
 --   EconomyPreview.spotPrice(spot) -> number?                           the price of parking spot 3..15
 --   EconomyPreview.addCopy(edition, copies) -> (edition, copies, rose)  one Joyride copy on the edition ladder (Round 5)
 --   EconomyPreview.offlineCredit(payPerLap, seconds) -> number          the Welcome back credit (Round 5, L-06)
+--   EconomyPreview.staminaFor(level) -> number                          Stamina (hops) per run at a Stamina Shop level
+--   EconomyPreview.staminaPrice(level) -> number?                       the price of reaching that Stamina Shop level
 --   EconomyPreview.selfTest() -> { string }
 
 local EconomyPreview = {}
@@ -130,6 +132,25 @@ EconomyPreview.LapSeconds = 15
 -- affordable at the end of it. Paid only on the save's TutorialDone false -> true change, so it never repeats.
 EconomyPreview.TutorialBonus = 500
 
+-- Stamina Shop (Adam, 2026-11-05; beta, PREVIEW, a proposal for Brian L): every run starts with 5 Stamina, one per hop.
+-- Ten upgrades add 1 each, up to 15. Prices climb x3 a step from $1,000, the same curve as parking spots, so the last one
+-- ($20M) sits between the Dusty Highway ($5M) and Summit Pass ($1B) unlocks.
+EconomyPreview.StaminaStart = 5
+EconomyPreview.StaminaPerLevel = 1
+EconomyPreview.StaminaPrice = table.freeze({
+	[1] = 1e3,
+	[2] = 3e3,
+	[3] = 9e3,
+	[4] = 27e3,
+	[5] = 80e3,
+	[6] = 250e3,
+	[7] = 750e3,
+	[8] = 2.25e6,
+	[9] = 6.75e6,
+	[10] = 20e6,
+}) :: { [number]: number }
+EconomyPreview.StaminaMaxLevel = 10
+
 function EconomyPreview.edition(n: number?): Edition
 	return EconomyPreview.Editions[math.clamp(math.floor(n or 1), 1, #EconomyPreview.Editions)]
 end
@@ -146,6 +167,19 @@ end
 
 function EconomyPreview.spotPrice(spot: number): number?
 	return EconomyPreview.SpotPrice[spot]
+end
+
+function EconomyPreview.staminaFor(level: number?): number
+	local n = tonumber(level) or 0
+	if n ~= n then
+		n = 0 -- NaN
+	end
+	local l = math.clamp(math.floor(n), 0, EconomyPreview.StaminaMaxLevel)
+	return EconomyPreview.StaminaStart + l * EconomyPreview.StaminaPerLevel
+end
+
+function EconomyPreview.staminaPrice(level: number): number?
+	return EconomyPreview.StaminaPrice[level]
 end
 
 -- The copies needed at `edition` to reach the next one (nil at the top).
@@ -230,6 +264,13 @@ function EconomyPreview.selfTest(): { string }
 	expect("spot 15", EconomyPreview.spotPrice(15), 265e6)
 	expect("level 12", EconomyPreview.racewayPrice(12), 2e12)
 	expect("level 1 has no price", EconomyPreview.racewayPrice(1), nil)
+	expect("stamina at level 0", EconomyPreview.staminaFor(0), 5)
+	expect("stamina at the top", EconomyPreview.staminaFor(10), 15)
+	expect("stamina past the top clamps", EconomyPreview.staminaFor(99), 15)
+	expect("stamina from junk", EconomyPreview.staminaFor(0 / 0), 5)
+	expect("first stamina upgrade", EconomyPreview.staminaPrice(1), 1000)
+	expect("last stamina upgrade", EconomyPreview.staminaPrice(10), 20e6)
+	expect("no stamina level 11", EconomyPreview.staminaPrice(11), nil)
 	return failures
 end
 

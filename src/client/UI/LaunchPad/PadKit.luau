@@ -57,6 +57,7 @@ PadKit.Themes = {
 			Cars = { rgb(255, 136, 30), rgb(250, 240, 222) },
 			Trails = { rgb(40, 110, 220), rgb(250, 240, 222) },
 			Paint = { rgb(232, 64, 92), rgb(250, 240, 222) },
+			Stamina = { rgb(150, 70, 230), rgb(250, 240, 222) }, -- the Stamina Shop (2026-11-05): the purple bolt
 		},
 		world = rgb(56, 70, 96),
 		worldMaterial = Enum.Material.SmoothPlastic,
@@ -105,6 +106,7 @@ PadKit.Themes = {
 			Cars = { rgb(214, 70, 62), rgb(250, 236, 208) },
 			Trails = { rgb(52, 138, 138), rgb(250, 236, 208) },
 			Paint = { rgb(240, 150, 50), rgb(250, 236, 208) },
+			Stamina = { rgb(140, 80, 190), rgb(250, 236, 208) },
 		},
 		world = rgb(206, 124, 84),
 		worldMaterial = Enum.Material.Sand,
@@ -153,6 +155,7 @@ PadKit.Themes = {
 			Cars = { rgb(116, 72, 42), rgb(244, 248, 255) },
 			Trails = { rgb(116, 72, 42), rgb(244, 248, 255) },
 			Paint = { rgb(116, 72, 42), rgb(244, 248, 255) },
+			Stamina = { rgb(116, 72, 42), rgb(244, 248, 255) }, -- the chalet keeps its wood; the bolt brings the colour
 		},
 		world = rgb(232, 240, 250),
 		worldMaterial = Enum.Material.Snow,
