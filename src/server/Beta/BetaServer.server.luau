@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
+local BetaRunNet = require(ReplicatedStorage.Shared.Beta.BetaRunNet)
 if not BetaConfig.enabled() then
 	return
 end
@@ -51,10 +52,14 @@ end
 
 local net = Instance.new("Folder")
 net.Name = BetaConfig.NetName
+-- Round 6 (E-04): the run remotes under Brian L's names, in his folder name (BetaRunNet, a stand-in for EconomyPreviewNet)
+local runNet = Instance.new("Folder")
+runNet.Name = BetaRunNet.FolderName
 BetaShop.start(net)
 BetaLineup.start(net)
-BetaRun.startRemotes(net)
+BetaRun.startRemotes(net, runNet)
 BetaLapPay.start(net)
+runNet.Parent = ReplicatedStorage
 net.Parent = ReplicatedStorage
 
 BetaEconomy.start()

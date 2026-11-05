@@ -17,6 +17,13 @@
 -- `d` (studs) never ahead of the run's own speed curve plus 1,500 studs, never backwards; `t` (seconds) never ahead of the
 -- server's clock for the run by more than 3 s; one active run per player; unknown runId ignored. Over a cap: dropped and
 -- logged with the UserId; the run keeps going.
+--
+-- Round 6 (E-04, E-05): the remotes use Brian L's names (src/shared/Beta/BetaRunNet, a stand-in for his EconomyPreviewNet),
+-- and the Round 5 Beta* names are accepted for one more round. Every event, the urgent KeysComplete included, passes the t
+-- and d checks. A Hop names its target car: the target must already be in the server's built traffic (the server never
+-- builds the sequence out to a distance a client names) and within `hopReach` studs of the player. A KeysComplete counts
+-- only for the car the last Hop landed on, and only once the profile's Keys time for that car's rarity has passed since
+-- that Hop (Brian R's RunConfig keysTime, less `keysTolerance`).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -26,6 +33,7 @@ local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaLineup = require(script.Parent.BetaLineup)
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta.BetaRunMap)
+local BetaRunNet = require(ReplicatedStorage.Shared.Beta.BetaRunNet)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
@@ -42,6 +50,10 @@ BetaRun.Caps = table.freeze({
 	backStuds = 5,
 	clockAhead = 3, -- seconds
 	maxRunSeconds = 1800,
+	-- Round 6 (E-05, Tunable): studs between the player and a Hop's target car. Brian L's preview uses 90; that is his
+	-- question to Brian R (the new Hop reaches further), so the beta allows more until they agree.
+	hopReach = 250,
+	keysTolerance = 0.25, -- seconds a KeysComplete may come early (Brian L's 0.25 s question to Brian R)
 })
 BetaRun.PROFILE = "Circuit" -- the profile the beta plays (BetaRun.client)
 
@@ -82,10 +94,25 @@ type Run = {
 	lastT: number,
 	batchTimes: { number },
 	done: { [number]: boolean }, -- spawn indexes already paid this run
+	ride: { index: number, t: number }?, -- the car the last accepted Hop targeted, and the run time of that Hop
 	milestones: number,
 	totals: Totals,
 	closed: boolean,
 }
+
+local deprecatedLogged: { [string]: boolean } = {}
+local function deprecated(oldName: string, newName: string)
+	if not deprecatedLogged[oldName] then
+		deprecatedLogged[oldName] = true
+		print(
+			string.format(
+				"[CarHopBeta run] DEPRECATED: %s was used; use %s (Round 7 removes the old name)",
+				oldName,
+				newName
+			)
+		)
+	end
+end
 
 local runs: { [Player]: Run } = {}
 local closedRuns: { [string]: Totals } = {} -- a short record so a late RunEnd retry gets the same reply
@@ -116,10 +143,48 @@ function BetaRun.carAt(run: Run, index: number, d: number): string?
 end
 
 local function grantTo(run: Run, grant: Grant)
-	local remote = remotes.granted
-	if remote then
-		remote:FireClient(run.player, run.id, grant)
+	-- RunGranted (Brian L's name) and, for Round 6 only, the Round 5 BetaRunGranted. A client listens to one of them.
+	for _, key in { "granted", "grantedOld" } do
+		local remote = remotes[key]
+		if remote then
+			remote:FireClient(run.player, run.id, grant)
+		end
 	end
+end
+
+-- E-05: a Hop's target must be a car the server has already built, near the player. Returns nil when it may count.
+function BetaRun.hopProblem(run: Run, t: number, d: number, target: any): string?
+	if target == 0 then
+		return nil -- a hop with no car (onto the road)
+	end
+	if not finite(target) or target % 1 ~= 0 or target < 1 then
+		return "Hop target is not a car index"
+	end
+	-- only as far as the run has really gone: never as far as a client-named index or distance
+	run.sequence:ensure(math.min(run.lastD + run.sequence.profile.spawnAhead + 200, 2e6))
+	local spawn = run.sequence:get(target)
+	if not spawn then
+		return "far Hop: target " .. target .. " is not in the traffic yet"
+	end
+	local gap = math.abs(run.sequence:alongAt(spawn, t) - d)
+	if gap > BetaRun.Caps.hopReach then
+		return string.format("far Hop: target %d is %.0f studs away", target, gap)
+	end
+	return nil
+end
+
+-- E-05: whether a KeysComplete at run time `t` comes after the Keys time of the car the last Hop landed on.
+function BetaRun.keysProblem(run: Run, index: number, t: number): string?
+	local ride = run.ride
+	if not ride or ride.index ~= index then
+		return "Keys for a car the player did not hop onto"
+	end
+	local spawn = run.sequence:get(index)
+	local need = if spawn then run.sequence.profile.keysTime[spawn.rarity] or 3 else 3
+	if t - ride.t < need - BetaRun.Caps.keysTolerance then
+		return string.format("Keys after %.2f s, faster than the %.1f s Keys time", t - ride.t, need)
+	end
+	return nil
 end
 
 -- Checks t and d of one event against the caps; returns whether it may count. Updates the run's last t and d.
@@ -160,10 +225,15 @@ local function milestones(run: Run)
 end
 
 -- One accepted KeysComplete: the server decides claim or Joyride. Returns the grant (nil when dropped).
-function BetaRun.keysComplete(run: Run, index: any, d: number, betaModel: any): Grant?
+function BetaRun.keysComplete(run: Run, index: any, d: number, betaModel: any, t: number): Grant?
 	local player = run.player
 	if run.done[index] then
 		log(player, "KeysComplete repeated for spawn " .. tostring(index) .. ": nothing granted twice")
+		return nil
+	end
+	local tooFast = if finite(index) then BetaRun.keysProblem(run, index, t) else "Keys index is not a number"
+	if tooFast then
+		log(player, "KeysComplete for spawn " .. tostring(index) .. " dropped: " .. tooFast)
 		return nil
 	end
 	local carId = BetaRun.carAt(run, index, d)
@@ -334,9 +404,19 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			log(player, string.format("%s event dropped: %s", e.kind, why or "?"))
 			continue
 		end
+		if e.kind == "Hop" then
+			local problem = BetaRun.hopProblem(run, e.t, e.d, e.target)
+			if problem then
+				log(player, "Hop dropped: " .. problem)
+				continue
+			end
+			if e.target ~= 0 and (run.ride == nil or (run.ride :: any).index ~= e.target) then
+				run.ride = { index = e.target, t = e.t }
+			end
+		end
 		accepted += 1
 		if e.kind == "KeysComplete" and e.index ~= nil then
-			BetaRun.keysComplete(run, e.index, e.d, e.betaModel)
+			BetaRun.keysComplete(run, e.index, e.d, e.betaModel, e.t)
 		elseif e.kind == "RunEnd" then
 			-- a crash pauses the run; it closes on BetaRunEnd (a revive may follow)
 			run.totals.cause = if type(e.cause) == "string" then string.sub(e.cause, 1, 60) else "?"
@@ -346,14 +426,24 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 	return string.format("accepted %d", accepted)
 end
 
--- KeysComplete sent at once (0021): (runId, spawnIndex). Its t and d arrive in the next batch, so the urgent copy uses the
--- last accepted d; a later batch copy of the same spawn is ignored by the per-run `done` set.
-function BetaRun.keysNow(player: Player, runId: any, index: any, betaModel: any): Grant?
+-- KeysComplete sent at once. Brian L's shape (Round 6): (runId, event) with the event's own t, d and index, checked like
+-- every other event. The Round 5 shape (runId, spawnIndex, betaModel?) has no t or d: it uses the last accepted d and the
+-- server's own run clock. A later batch copy of the same spawn is ignored by the per-run `done` set.
+function BetaRun.keysNow(player: Player, runId: any, eventOrIndex: any, betaModel: any): Grant?
 	local run = runs[player]
 	if not run or run.id ~= runId then
 		return nil
 	end
-	return BetaRun.keysComplete(run, index, run.lastD, betaModel)
+	if type(eventOrIndex) == "table" then
+		local e = eventOrIndex
+		local ok, why = plausible(run, e.t, e.d)
+		if not ok then
+			log(player, "urgent KeysComplete dropped: " .. (why or "?"))
+			return nil
+		end
+		return BetaRun.keysComplete(run, e.index, e.d, e.betaModel, e.t)
+	end
+	return BetaRun.keysComplete(run, eventOrIndex, run.lastD, betaModel, os.clock() - run.started)
 end
 
 function BetaRun.finish(player: Player, runId: any, cause: any): Totals?
@@ -372,36 +462,50 @@ function BetaRun.finish(player: Player, runId: any, cause: any): Totals?
 	return run.totals
 end
 
-function BetaRun.startRemotes(net: Folder)
-	local startFn = Instance.new("RemoteFunction")
-	startFn.Name = BetaConfig.Remotes.RunStart
-	startFn.Parent = net
-	local events = Instance.new("RemoteEvent")
-	events.Name = BetaConfig.Remotes.RunEvents
-	events.Parent = net
-	local keys = Instance.new("RemoteEvent")
-	keys.Name = BetaConfig.Remotes.KeysComplete
-	keys.Parent = net
-	local finish = Instance.new("RemoteEvent")
-	finish.Name = BetaConfig.Remotes.RunEnd
-	finish.Parent = net
-	local granted = Instance.new("RemoteEvent")
-	granted.Name = BetaConfig.Remotes.RunGranted
-	granted.Parent = net
-	local results = Instance.new("RemoteEvent")
-	results.Name = BetaConfig.Remotes.RunResults
-	results.Parent = net
-	remotes.granted = granted
+-- `net` is CarHopBetaNet (the beta-only BetaRunEnd and BetaRunResults, and the Round 5 names); `runNet` is the
+-- EconomyPreviewNet stand-in folder (Brian L's names, BetaRunNet). Both are parented by BetaServer once complete.
+function BetaRun.startRemotes(net: Folder, runNet: Folder)
+	local function remote(className: string, name: string, parent: Folder): any
+		local r = Instance.new(className)
+		r.Name = name
+		r.Parent = parent
+		return r
+	end
+	local names, old = BetaRunNet.Remotes, BetaRunNet.Deprecated
+	local startFn = remote("RemoteFunction", names.StartRun, runNet)
+	local events = remote("RemoteEvent", names.RunEvents, runNet)
+	local keys = remote("RemoteEvent", names.KeysComplete, runNet)
+	remotes.granted = remote("RemoteEvent", names.RunGranted, runNet)
+	local oldStart = remote("RemoteFunction", old.StartRun, net)
+	local oldEvents = remote("RemoteEvent", old.RunEvents, net)
+	local oldKeys = remote("RemoteEvent", old.KeysComplete, net)
+	remotes.grantedOld = remote("RemoteEvent", old.RunGranted, net)
+	local finish = remote("RemoteEvent", BetaConfig.Remotes.RunEnd, net)
+	local results = remote("RemoteEvent", BetaConfig.Remotes.RunResults, net)
 
-	startFn.OnServerInvoke = function(player: Player, world: any, startCarId: any)
+	local function onStart(player: Player, world: any, startCarId: any)
 		local run = BetaRun.start(player, world, startCarId)
 		return if run then { runId = run.id, seed = run.seed } else nil
+	end
+	startFn.OnServerInvoke = onStart
+	oldStart.OnServerInvoke = function(player: Player, world: any, startCarId: any)
+		deprecated(old.StartRun, names.StartRun)
+		return onStart(player, world, startCarId)
 	end
 	events.OnServerEvent:Connect(function(player: Player, runId: any, list: any)
 		BetaRun.events(player, runId, list)
 	end)
-	-- (runId, spawnIndex) as agreed; the beta-only betaModel rides as an optional third value
-	keys.OnServerEvent:Connect(function(player: Player, runId: any, index: any, betaModel: any)
+	oldEvents.OnServerEvent:Connect(function(player: Player, runId: any, list: any)
+		deprecated(old.RunEvents, names.RunEvents)
+		BetaRun.events(player, runId, list)
+	end)
+	-- (runId, event) in Brian L's shape; the beta-only betaModel rides inside the event
+	keys.OnServerEvent:Connect(function(player: Player, runId: any, event: any)
+		BetaRun.keysNow(player, runId, event, nil)
+	end)
+	-- Round 5's (runId, spawnIndex, betaModel?)
+	oldKeys.OnServerEvent:Connect(function(player: Player, runId: any, index: any, betaModel: any)
+		deprecated(old.KeysComplete, names.KeysComplete)
 		BetaRun.keysNow(player, runId, index, betaModel)
 	end)
 	finish.OnServerEvent:Connect(function(player: Player, runId: any, cause: any)
@@ -459,28 +563,104 @@ function BetaRun.selfTest(player: Player): { string }
 	end
 	local a, b = byCar[twice][1], byCar[twice][2]
 	local cashBefore = data.Cash
-	run.started = os.clock() - 20 -- the run is 20 s old
-	local status = BetaRun.events(player, run.id, { { kind = "Hop", t = 10, d = 500, x = 0, target = a } })
-	expect("an honest hop is accepted", status, "accepted 1")
-	local g1 = BetaRun.keysNow(player, run.id, a, twice)
+	run.started = os.clock() - 300 -- the run is 300 s old, so every test time below is in the past
+	local seq = run.sequence
+	-- each step starts from a clean t and d, so one check never depends on another's order
+	local function fresh()
+		run.lastT, run.lastD, run.batchTimes = 0, 0, {}
+	end
+	local function along(index: number, t: number): number
+		return seq:alongAt(seq:get(index), t)
+	end
+	local function need(index: number): number
+		return seq.profile.keysTime[seq:get(index).rarity] or 3
+	end
+	local function hop(index: number, t: number): string
+		fresh()
+		return BetaRun.events(player, run.id, { { kind = "Hop", t = t, d = along(index, t), x = 0, target = index } })
+	end
+	local function keys(index: number, t: number, model: string?): Grant?
+		local event = { kind = "KeysComplete", t = t, d = along(index, t), index = index, betaModel = model }
+		return BetaRun.keysNow(player, run.id, event, nil)
+	end
+	-- a test time when the car is within the run's reach (d no further ahead than the speed curve allows)
+	local function timeFor(index: number): number
+		local most = BetaRun.Caps.aheadStuds - 50
+		for t = 5, 280, 5 do
+			if
+				along(index, t) <= seq:travelledAt(t) + most
+				and along(index, t + 10) <= seq:travelledAt(t + 10) + most
+			then
+				return t
+			end
+		end
+		return 5
+	end
+	local ta = timeFor(a)
+	expect("an honest hop is accepted", hop(a, ta), "accepted 1")
+	expect("E-05 Keys faster than the Keys time is dropped", keys(a, ta + 0.5, twice), nil)
+	local g1 = keys(a, ta + need(a) + 0.1, twice)
 	expect("first spawn of a new model is a claim", g1 and g1.kind, "claim")
-	local again = BetaRun.keysNow(player, run.id, a, twice)
-	expect("the same spawn again grants nothing", again, nil)
-	local g2 = BetaRun.keysNow(player, run.id, b, twice)
+	expect("the same spawn again grants nothing", keys(a, ta + need(a) + 0.2, twice), nil)
+	local tb = math.max(timeFor(b), ta + need(a) + 1)
+	fresh()
+	expect("E-05 Keys for a car never hopped onto is dropped", keys(b, tb + need(b) + 0.1, twice), nil)
+	hop(b, tb)
+	expect("an unknown betaModel is dropped", keys(b, tb + need(b) + 0.1, "Hyperion"), nil)
+	local g2 = keys(b, tb + need(b) + 0.2, twice)
 	expect("a second spawn of the same model is a joyride", g2 and g2.kind, "joyride")
-	local wrong = BetaRun.keysNow(player, run.id, byCar[twice][3] or 99999, "Hyperion")
-	expect("an unknown betaModel is dropped", wrong, nil)
-	run.batchTimes = {}
+	-- E-05: a far Hop is dropped and never makes the server build the traffic out to it
+	local far = #seq._spawns + 500
+	fresh()
+	local status = BetaRun.events(player, run.id, { { kind = "Hop", t = tb, d = along(b, tb), x = 0, target = far } })
+	expect("E-05 a Hop onto a car not yet in the traffic is dropped", status, "accepted 0")
+	expect("E-05 ... and the sequence was never built out to it", #seq._spawns < far, true)
+	local away: number? = nil
+	for i = 1, #seq._spawns do
+		if i ~= b and math.abs(along(i, tb) - along(b, tb)) > BetaRun.Caps.hopReach + 50 then
+			away = i
+			break
+		end
+	end
+	fresh()
+	status = BetaRun.events(player, run.id, { { kind = "Hop", t = tb, d = along(b, tb), x = 0, target = away or 0 } })
+	expect("E-05 a Hop onto a car out of reach is dropped", status, if away then "accepted 0" else "accepted 1")
+	-- E-05: a d beyond reach is dropped on any event, the urgent KeysComplete included
+	fresh()
 	status = BetaRun.events(player, run.id, { { kind = "Hop", t = 11, d = 1e6, x = 0, target = 0 } })
 	expect("an over-speed distance is dropped", status, "accepted 0")
-	run.batchTimes = {}
+	fresh()
+	local urgent = { kind = "KeysComplete", t = 20, d = 1e7, index = b }
+	expect(
+		"E-05 an urgent KeysComplete with d out of reach is dropped",
+		BetaRun.keysNow(player, run.id, urgent, nil),
+		nil
+	)
+	-- E-05: Keys over the bolt cap
+	local spare: number? = nil
+	for i = 1, #seq._spawns do
+		if i ~= a and i ~= b and not run.done[i] then
+			spare = i
+			break
+		end
+	end
+	if spare then
+		local claimsBefore = run.totals.claims
+		run.totals.claims = 99
+		local ts = math.max(timeFor(spare), 1)
+		hop(spare, ts)
+		expect("E-05 Keys over the bolt cap is dropped", keys(spare, ts + need(spare) + 0.1, nil), nil)
+		run.totals.claims = claimsBefore
+	end
+	fresh()
 	local big = {}
 	for i = 1, 31 do
 		big[i] = { kind = "Hop", t = 12, d = 600, x = 0, target = 0 }
 	end
 	expect("an oversized batch is dropped", BetaRun.events(player, run.id, big), "batch")
 	expect("NaN index dropped", BetaRun.keysNow(player, run.id, 0 / 0, nil), nil)
-	expect("unknown runId ignored", BetaRun.events(player, "nope", {}), "unknown run")
+	expect("E-05 an unknown runId is ignored", BetaRun.events(player, "nope", {}), "unknown run")
+	expect("E-05 an urgent Keys for an unknown runId is ignored", BetaRun.keysNow(player, "nope", urgent, nil), nil)
 	local totals = BetaRun.finish(player, run.id, "Quit") :: Totals
 	expect("results count one claim and one joyride", string.format("%d/%d", totals.claims, totals.joyrides), "1/1")
 	expect(

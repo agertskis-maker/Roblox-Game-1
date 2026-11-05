@@ -26,12 +26,10 @@ BetaConfig.Remotes = {
 	-- Server -> client: (what: string, ok: boolean, reason: string?, missing: number?) after every purchase or Lineup
 	-- request, so a refusal shows the server's reason and the server's missing amount. The client never computes either.
 	Result = "BetaResult",
-	-- The run report (note 0021 shape, beta-only remotes; Brian L's real ones take the same payloads).
-	RunStart = "BetaRunStart", -- RemoteFunction (worldId: string, startCarId: string?) -> { runId: string, seed: number }?
-	RunEvents = "BetaRunEvents", -- (runId: string, events: { Event }) about once a second
-	KeysComplete = "BetaKeysComplete", -- (runId: string, spawnIndex: number) sent at once
+	-- The run report (note 0021 shape). Round 6 (E-04): StartRun, RunEvents, KeysComplete and RunGranted use Brian L's names
+	-- in src/shared/Beta/BetaRunNet (folder ReplicatedStorage.EconomyPreviewNet); the Round 5 Beta* names are accepted for
+	-- one round. These two stay beta-only (his contract has no close-and-total remote yet):
 	RunEnd = "BetaRunEnd", -- (runId: string, cause: string)
-	RunGranted = "BetaRunGranted", -- server -> client: (runId, grant)
 	RunResults = "BetaRunResults", -- server -> client: (runId, totals)
 	LapPaid = "BetaLapPaid", -- server -> client: (plotIndex, slot, carId, amount, newCash?) newCash only to the owner
 }

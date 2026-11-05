@@ -159,6 +159,29 @@ function BetaData.sanitize(data: any): { string }
 	return fixed
 end
 
+-- Round 6 (E-02, Adam's decision of 2026-11-05): Cars[id].Copies is now the LIFETIME total (Brian L's meaning). A save made
+-- before Round 6 counted copies at the current edition, so it is converted ONCE, in place, on load. No save field is added:
+-- the marker is the profile's RobloxMetaData key below (DataStore key metadata, beta-only), so the conversion never runs
+-- twice. Returns how many cars changed (0 for a fresh save or an already-converted one).
+BetaData.CopiesMarker = "CarHopBetaCopiesLifetime"
+function BetaData.migrateCopies(data: any, meta: any): number
+	if type(meta) ~= "table" or meta[BetaData.CopiesMarker] == true then
+		return 0
+	end
+	local changed = 0
+	if type(data.Cars) == "table" then
+		for _, car in data.Cars do
+			local lifetime = EconomyPreview.lifetimeCopies(car.Edition, car.Copies)
+			if lifetime ~= car.Copies then
+				car.Copies = lifetime
+				changed += 1
+			end
+		end
+	end
+	meta[BetaData.CopiesMarker] = true
+	return changed
+end
+
 local function load(player: Player)
 	local source = if useMock then store.Mock else store
 	if nextJoinKey then
@@ -179,6 +202,10 @@ local function load(player: Player)
 	local fixed = BetaData.sanitize(profile.Data)
 	if #fixed > 0 then
 		warn(string.format("[CarHopBeta] repaired %s's save: %s", player.Name, table.concat(fixed, ", ")))
+	end
+	local converted = BetaData.migrateCopies(profile.Data, profile.RobloxMetaData)
+	if converted > 0 then
+		print(string.format("[CarHopBeta] %s's Copies converted to lifetime totals (%d cars)", player.Name, converted))
 	end
 	local priorLastSeen = (profile.Data :: Data).LastSeen
 	profile.OnSessionEnd:Connect(function()

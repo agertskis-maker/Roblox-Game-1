@@ -17,6 +17,7 @@ if not BetaConfig.enabled() then
 end
 
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta:WaitForChild("BetaRunMap"))
+local BetaRunNet = require(ReplicatedStorage.Shared.Beta:WaitForChild("BetaRunNet"))
 local RunConfig = require(ReplicatedStorage.Shared:WaitForChild("Run"):WaitForChild("RunConfig"))
 local Families = require(ReplicatedStorage.Shared.Run:WaitForChild("Families"))
 local RosterFixtures = require(ReplicatedStorage.Shared:WaitForChild("UI"):WaitForChild("RosterFixtures"))
@@ -110,6 +111,12 @@ local function netRemote(name: string): Instance?
 	return net and net:FindFirstChild(name)
 end
 
+-- Round 6 (E-04): the run remotes under Brian L's names (BetaRunNet: StartRun, RunEvents, KeysComplete, RunGranted)
+local function runRemote(name: string): Instance?
+	local net = ReplicatedStorage:FindFirstChild(BetaRunNet.FolderName)
+	return net and net:FindFirstChild(name)
+end
+
 local function newTally(): any
 	return { cars = {}, claimCash = 0, joyrideCash = 0, milestoneCash = 0, total = 0, pending = 0, waiting = {} }
 end
@@ -117,8 +124,8 @@ end
 local function bridge(run: any, world: string, runId: string)
 	local state = { runId = runId, world = world, tally = newTally(), conns = {} }
 	live = state
-	local events = netRemote(BetaConfig.Remotes.RunEvents) :: RemoteEvent?
-	local keys = netRemote(BetaConfig.Remotes.KeysComplete) :: RemoteEvent?
+	local events = runRemote(BetaRunNet.Remotes.RunEvents) :: RemoteEvent?
+	local keys = runRemote(BetaRunNet.Remotes.KeysComplete) :: RemoteEvent?
 	local report = run._report
 	if not (report and events and keys) then
 		warn("[CarHopBeta] run report bridge not available: this run is not paid")
@@ -143,7 +150,11 @@ local function bridge(run: any, world: string, runId: string)
 				t.waiting[e.index] = true
 				t.pending += 1
 			end
-			keys:FireServer(runId, e.index, betaModel)
+			-- Round 6 (E-05): the Hop that landed on this car may still sit in the report's buffer; send it first, so the
+			-- server knows the ride before the Keys arrive (remote events from one client arrive in order). Brian L's
+			-- shape: (runId, event), with the beta-only betaModel inside the event.
+			report:flush()
+			keys:FireServer(runId, { kind = e.kind, t = e.t, d = e.d, index = e.index, betaModel = betaModel })
 			-- an answer that never comes is given up after 3 s (the card then shows what is known)
 			task.delay(3, function()
 				if t.waiting[e.index] then
@@ -171,8 +182,8 @@ unbridge = function(cause: string)
 end
 
 task.spawn(function()
-	local granted = ReplicatedStorage:WaitForChild(BetaConfig.NetName, 15)
-	local remote = granted and granted:WaitForChild(BetaConfig.Remotes.RunGranted, 5)
+	local granted = ReplicatedStorage:WaitForChild(BetaRunNet.FolderName, 15)
+	local remote = granted and granted:WaitForChild(BetaRunNet.Remotes.RunGranted, 5)
 	if remote and remote:IsA("RemoteEvent") then
 		remote.OnClientEvent:Connect(function(runId: any, grant: any)
 			local state = live
@@ -202,7 +213,7 @@ local function startRun(world: string): RunController.RunController
 	-- the server's seed and run id (a short wait; with no answer the run still plays, unpaid, and says so in Output)
 	local seed: number? = nil
 	local runId: string? = nil
-	local startFn = netRemote(BetaConfig.Remotes.RunStart)
+	local startFn = runRemote(BetaRunNet.Remotes.StartRun)
 	if startFn and startFn:IsA("RemoteFunction") then
 		local ok, reply = pcall(function()
 			return startFn:InvokeServer(world, nil)

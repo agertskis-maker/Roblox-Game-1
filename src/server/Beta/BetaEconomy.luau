@@ -45,13 +45,27 @@ function BetaEconomy.publishWorlds(player: Player, data: BetaData.Data)
 	player:SetAttribute(BetaConfig.WorldsAttribute, table.concat(worlds, ","))
 end
 
--- Adds a whole, positive, finite amount. Returns the amount added (0 when refused).
+-- Round 6 (E-05): the most Cash a save may hold, $1,000 Qa (1e15). Luau numbers stay exact up to about 9e15, so every sum
+-- below the cap is exact. Lane 3's proposal for Brian L's "largest Cash value" question; Cash over the cap is not paid.
+BetaEconomy.CashCap = 1e15
+
+-- The whole amount that fits under the cap (pure, for the self-test).
+function BetaEconomy.capped(cash: number, amount: number): number
+	return math.max(0, math.min(math.floor(amount), BetaEconomy.CashCap - cash))
+end
+
+-- Adds a whole, positive, finite amount, up to the Cash cap. Returns the amount added (0 when refused or at the cap).
 function BetaEconomy.addCash(player: Player, amount: number, reason: string): number
 	local data = BetaData.get(player)
 	if not data or not finite(amount) or amount <= 0 then
 		return 0
 	end
-	local whole = math.floor(amount)
+	local whole = BetaEconomy.capped(data.Cash, amount)
+	if whole < math.floor(amount) then
+		print(
+			string.format("[CarHopBeta] %s is at the Cash cap: $%d of $%d paid", player.Name, whole, math.floor(amount))
+		)
+	end
 	data.Cash += whole
 	BetaEconomy.publishCash(player, data)
 	if reason ~= "Lap" then
@@ -85,7 +99,7 @@ function BetaEconomy.lapPayOf(data: BetaData.Data, id: string): number
 	if not car or not save then
 		return 0
 	end
-	return math.floor(EconomyPreview.lapPay(car.rarity, save.Edition, data.RacewayLevel))
+	return math.floor(EconomyPreview.lapPay(car.rarity, save.Edition, data.RacewayLevel, car.world))
 end
 
 function BetaEconomy.lapPayFor(player: Player, id: string): number
@@ -122,13 +136,14 @@ function BetaEconomy.keysOutcome(data: BetaData.Data, carId: string): Grant?
 	if not car then
 		return nil
 	end
-	local rarity = EconomyPreview.Rarity[car.rarity] or EconomyPreview.Rarity.Common
 	local save = data.Cars[carId]
 	if save == nil then
 		data.Cars[carId] = { Edition = 1, Copies = 0 }
-		return { kind = "claim", carId = carId, amount = rarity.claimBonus, edition = 1, copies = 0, rose = false }
+		local bonus = math.floor(EconomyPreview.claimBonus(car.rarity, car.world))
+		return { kind = "claim", carId = carId, amount = bonus, edition = 1, copies = 0, rose = false }
 	end
-	local amount = math.floor(rarity.joyride * EconomyPreview.edition(save.Edition).multiplier)
+	-- Round 6: the Joyride Bonus carries the car's World factor; Copies is the lifetime total (EconomyPreview.addCopy)
+	local amount = math.floor(EconomyPreview.joyrideBonus(car.rarity, save.Edition, car.world))
 	local edition, copies, rose = EconomyPreview.addCopy(save.Edition, save.Copies)
 	save.Edition, save.Copies = edition, copies
 	return { kind = "joyride", carId = carId, amount = amount, edition = edition, copies = copies, rose = rose }
@@ -155,6 +170,7 @@ function BetaEconomy.payOffline(player: Player, data: BetaData.Data, priorLastSe
 		amount, away = BetaEconomy.welcomeCredit(data, priorLastSeen, now)
 	end
 	seenThisServer[key] = true
+	amount = BetaEconomy.capped(data.Cash, amount)
 	if amount > 0 then
 		data.Cash += amount
 		print(string.format("[CarHopBeta] %s Welcome back +$%d for %d s away", player.Name, amount, away))
@@ -219,33 +235,51 @@ function BetaEconomy.selfTest(): { string }
 	end
 	local d = save()
 	expect("Lap Pay Putter L1", BetaEconomy.lapPayOf(d, "Putter"), 10)
-	expect("Lap Pay Executive Gold L1", BetaEconomy.lapPayOf(d, "Executive"), 6000)
+	expect("Lap Pay Executive Gold L1", BetaEconomy.lapPayOf(d, "Executive"), 450)
 	d.RacewayLevel = 2
 	expect("Lap Pay Putter L2 (x1.9, floored)", BetaEconomy.lapPayOf(d, "Putter"), 19)
 	expect("Lap Pay unowned", BetaEconomy.lapPayOf(d, "Bolt"), 0)
+	-- E-01: a World's car pays its World factor (Thunder is Dusty Highway's Rare: $60 x 40 x 3.5 at level 3)
+	d.RacewayLevel = 3
+	d.Cars.Thunder = { Edition = 1, Copies = 0 }
+	expect("E-01 Dusty Highway Rare L3", BetaEconomy.lapPayOf(d, "Thunder"), 8400)
 	d = save()
-	expect("Lineup pay per lap", BetaEconomy.lineupPayOf(d), 6010)
-	-- the edition ladder
+	expect("Lineup pay per lap", BetaEconomy.lineupPayOf(d), 460)
+	-- the edition ladder (lifetime Copies, E-02)
 	d = save()
 	local g = BetaEconomy.keysOutcome(d, "Minnow") :: Grant
 	expect("new model is a claim", g.kind, "claim")
-	expect("claim bonus Uncommon", g.amount, 500)
+	expect("claim bonus Uncommon (10x $25)", g.amount, 250)
 	g = BetaEconomy.keysOutcome(d, "Minnow") :: Grant
 	expect("second of a model is a joyride", g.kind .. g.copies, "joyride1")
-	expect("joyride bonus Uncommon Normal", g.amount, 150)
+	expect("joyride bonus Uncommon Normal (3x $25)", g.amount, 75)
 	d.Cars.Minnow.Copies = 24
 	g = BetaEconomy.keysOutcome(d, "Minnow") :: Grant
-	expect("25th copy makes Gold", string.format("%d/%d/%s", g.edition, g.copies, tostring(g.rose)), "2/0/true")
+	expect(
+		"25th copy makes Gold, Copies keeps counting",
+		string.format("%d/%d/%s", g.edition, g.copies, tostring(g.rose)),
+		"2/25/true"
+	)
 	g = BetaEconomy.keysOutcome(d, "Minnow") :: Grant
-	expect("Gold joyride pays x3", g.amount, 450)
+	expect("Gold joyride pays x3", g.amount, 225)
 	expect("unknown car", BetaEconomy.keysOutcome(d, "Hyperion"), nil)
+	d.Cars.Phantom = { Edition = 1, Copies = 0 }
+	g = BetaEconomy.keysOutcome(d, "Phantom") :: Grant
+	expect("E-01 Summit Pass Legendary Joyride", g.amount, 1920000)
+	d.Cars.Thunder = nil
+	g = BetaEconomy.keysOutcome(d, "Thunder") :: Grant
+	expect("Dusty Highway Rare claim (10x $60 x 40)", g.amount, 24000)
+	-- E-05: the Cash cap
+	expect("cap: room left is paid", BetaEconomy.capped(1e15 - 5, 100), 5)
+	expect("cap: nothing past the cap", BetaEconomy.capped(1e15, 100), 0)
+	expect("cap: below it pays in full", BetaEconomy.capped(0, 1234.9), 1234)
 	-- the Welcome back credit
-	d = save() -- 6010 a lap
+	d = save() -- 460 a lap
 	expect("never stamped pays nothing", (BetaEconomy.welcomeCredit(d, 0, 1e9)), 0)
 	expect("30 s away pays nothing", (BetaEconomy.welcomeCredit(d, 1e9 - 30, 1e9)), 0)
 	expect("future LastSeen pays nothing", (BetaEconomy.welcomeCredit(d, 1e9 + 500, 1e9)), 0)
-	expect("1 h away", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 721200)
-	expect("over 8 h is capped", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9)), 5769600)
+	expect("1 h away", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 55200)
+	expect("over 8 h is capped", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9)), 441600)
 	d.Lineup = {}
 	expect("empty Lineup earns nothing", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 0)
 	-- sanitize
@@ -269,6 +303,20 @@ function BetaEconomy.selfTest(): { string }
 		end
 	end
 	expect("old save gets Cash 0 and LastSeen 0", string.format("%d/%d", missing.Cash, missing.LastSeen), "0/0")
+	-- E-02: the one-time Copies conversion (a fresh save and a Round 5 save)
+	local fresh: any = save()
+	local freshMeta = {}
+	expect("fresh save: nothing to convert", BetaData.migrateCopies(fresh, freshMeta), 0)
+	expect("fresh save: marker set", freshMeta[BetaData.CopiesMarker], true)
+	local r5: any = save() -- Executive Gold with 0 copies at Gold in Round 5's reading
+	r5.Cars.Executive.Copies = 12
+	r5.Cars.Minnow = { Edition = 1, Copies = 7 }
+	local meta = {}
+	expect("Round 5 save: one car converted", BetaData.migrateCopies(r5, meta), 1)
+	expect("Round 5 Gold 12 becomes 37", r5.Cars.Executive.Copies, 37)
+	expect("Round 5 Normal 7 stays 7", r5.Cars.Minnow.Copies, 7)
+	expect("never runs twice", BetaData.migrateCopies(r5, meta), 0)
+	expect("still 37 after a second load", r5.Cars.Executive.Copies, 37)
 	return lines
 end
 
