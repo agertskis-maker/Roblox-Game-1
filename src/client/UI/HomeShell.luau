@@ -20,6 +20,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local CosmeticPreviewCatalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local RobuxSeam = require(script.Parent:WaitForChild("RobuxSeam"))
 local MissionFeed = require(script.Parent:WaitForChild("MissionFeed"))
+local StuntCircuit = require(script.Parent:WaitForChild("StuntCircuit"))
 
 local Prototype = script.Parent:WaitForChild("Prototype")
 local ModalQueue = require(Prototype:WaitForChild("Home"):WaitForChild("ModalQueue"))
@@ -344,6 +345,13 @@ function HomeShell.start(options: Options?): any
 		end,
 	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+	-- Round 6 (C-02, C-03): the Stunt Circuit's gate prompt, pre-race card, race HUD, results and this server's board
+	local okStunt, stuntCleanup = pcall(StuntCircuit.attach, self, mount, components, userPanel)
+	if okStunt then
+		trove:Add(stuntCleanup)
+	else
+		warn("[HomeShell] Stunt Circuit failed: " .. tostring(stuntCleanup))
+	end
 	-- Round 5 (L-04): YOUR RACEWAY, the Lineup panel (from the parking sign and the Garage's PARK)
 	mount("lineup", { "Screens", "LineupPanel" }, "Overlay", {
 		onMoreSpots = function()
