@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaEvents = require(script.Parent.BetaEvents)
 local BetaLineup = require(script.Parent.BetaLineup)
 local BetaPlots = require(script.Parent.BetaPlots)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
@@ -35,6 +36,8 @@ local function reply(player: Player, what: string, ok: boolean, reason: string?,
 	end
 	if not ok then
 		print(string.format("[CarHopBeta] %s refused for %s (%d): %s", what, player.Name, player.UserId, reason or "?"))
+	else
+		BetaEvents.fire(player, what) -- Round 6 (G-01): the purchase went through
 	end
 end
 

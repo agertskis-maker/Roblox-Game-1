@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaEvents = require(script.Parent.BetaEvents)
 local BetaOwnership = require(script.Parent.BetaOwnership)
 local BetaPlots = require(script.Parent.BetaPlots)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
@@ -86,6 +87,7 @@ function BetaLapPay.tick(t: number): number
 			BetaEconomy.addCash(player, amount, "Lap")
 			paid += 1
 			BetaLapPay.Lap:Fire(player, slot, carId, amount)
+			BetaEvents.fire(player, "lap", { carId = carId, amount = amount }) -- Round 6 (G-01)
 			if remote then
 				for _, other in Players:GetPlayers() do
 					remote:FireClient(other, plotIndex, slot, carId, amount, if other == player then data.Cash else nil)

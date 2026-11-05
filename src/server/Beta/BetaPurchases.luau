@@ -26,6 +26,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaEvents = require(script.Parent.BetaEvents)
 local BetaLineup = require(script.Parent.BetaLineup)
 local BetaOwnership = require(script.Parent.BetaOwnership)
 local BetaPlots = require(script.Parent.BetaPlots)
@@ -155,6 +156,7 @@ function BetaPurchases.processReceipt(receipt: any): Enum.ProductPurchaseDecisio
 		)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
+	BetaEvents.fire(player, "purchase", { item = item.id })
 	local remote = grantedRemote
 	if remote and summary then
 		remote:FireClient(player, item.id, summary)

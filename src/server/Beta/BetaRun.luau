@@ -31,6 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
+local BetaEvents = require(script.Parent.BetaEvents)
 local BetaLineup = require(script.Parent.BetaLineup)
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta.BetaRunMap)
 local BetaRunNet = require(ReplicatedStorage.Shared.Beta.BetaRunNet)
@@ -144,6 +145,7 @@ function BetaRun.carAt(run: Run, index: number, d: number): string?
 end
 
 local function grantTo(run: Run, grant: Grant)
+	BetaEvents.fire(run.player, grant.kind, grant :: any) -- Round 6 (G-01): claim, joyride, milestone, respawn
 	-- RunGranted (Brian L's name) and, for Round 6 only, the Round 5 BetaRunGranted. A client listens to one of them.
 	for _, key in { "granted", "grantedOld" } do
 		local remote = remotes[key]
@@ -310,6 +312,13 @@ local function closeRun(run: Run, cause: string)
 	end
 	closedRuns[run.id] = run.totals
 	lastClosed[run.player] = run.totals
+	BetaEvents.fire(run.player, "runEnded", {
+		world = run.world,
+		metres = run.totals.metres,
+		claims = run.totals.claims,
+		joyrides = run.totals.joyrides,
+		cause = cause,
+	})
 	table.insert(closedOrder, run.id)
 	if #closedOrder > 64 then
 		closedRuns[table.remove(closedOrder, 1) :: string] = nil
