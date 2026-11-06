@@ -45,12 +45,13 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{ icon = "Raceway", title = "Cars pay you", text = "Park cars. Every lap pays!" },
-	{ icon = "Garage", title = "Keep your catches", text = "Cars you catch are saved." },
-	{ icon = "Shop", title = "Spend your Cash", text = "Level up, buy spots." },
-	{ icon = "Portal", title = "Open new Worlds", text = "Catch 5 cars, then unlock." },
+	-- Round 7 (2026-11-05)
+	{ icon = "Hop", title = "Two-press Hop", text = "Press to leap, press again to dive!" },
+	{ icon = "Shop", title = "Style Shop", text = "Paint, decals, wheels and trails." },
+	{ icon = "Star", title = "Lucky Clover", text = "More rare cars on the road." },
+	{ icon = "Missions", title = "45 Missions", text = "Five tabs of things to do." },
 }
-HomeShell.UpdateVersion = "beta-2.3"
+HomeShell.UpdateVersion = "beta-5.0" -- Lane 3 Round 7 (2026-11-05)
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
@@ -259,6 +260,13 @@ function HomeShell.start(options: Options?): any
 			components.garage:close()
 			self.openLineup(car.id)
 		end,
+		-- Round 7 (U-02): RIDE THIS CAR picks the car the runs start in (the launch card shows it)
+		onRide = function(car: any)
+			StyleState.setCar(car.id)
+		end,
+		ridingId = function(): string?
+			return StyleState.car()
+		end,
 		canPutOnRaceway = function(car: any): (boolean, string?)
 			if not LiveData.hasCars(player) then
 				return false, "Parking works in the beta place."
@@ -343,6 +351,15 @@ function HomeShell.start(options: Options?): any
 			local plus = self.hud and self.hud:getButton("CashPlus")
 			return if plus and plus.Visible then plus.AbsolutePosition else nil
 		end,
+		-- Round 7 (P-01): COLLECT asks the server to add the amount it is holding; the Cash counter then really rises. The
+		-- client sends no amount, and a second press adds nothing (the server holds one amount, once).
+		onCollect = function()
+			local net = ReplicatedStorage:FindFirstChild("CarHopBetaNet")
+			local collect = net and net:FindFirstChild("CollectWelcome")
+			if collect and collect:IsA("RemoteEvent") then
+				collect:FireServer()
+			end
+		end,
 	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
 	-- Round 6 (C-02, C-03): the Stunt Circuit's gate prompt, pre-race card, race HUD, results and this server's board
@@ -399,10 +416,21 @@ function HomeShell.start(options: Options?): any
 
 	local function shopAt(section: string?)
 		userPanel("shop")
-		local shop = components.shop
-		if section and shop and shop.openSection then
-			shop:openSection(section)
+		if not section then
+			return
 		end
+		-- Round 7 (U-06): the panel queue opens the Shop a moment later, and opening resets it to Featured, so the section is
+		-- picked once the Shop is really open
+		task.spawn(function()
+			for _ = 1, 40 do
+				local shop = components.shop
+				if shop and shop.isOpen and shop:isOpen() and shop.openSection then
+					shop:openSection(section)
+					return
+				end
+				task.wait(0.05)
+			end
+		end)
 	end
 	self.shopAt = shopAt
 
@@ -424,6 +452,20 @@ function HomeShell.start(options: Options?): any
 			end,
 			onMissions = function()
 				userPanel("missions")
+			end,
+			-- Round 7: the red count of missions ready to claim (U-05) and the one goal line (H-01), both from the live feed
+			getMissionsClaimable = function(): number?
+				return if LiveData.active() then MissionFeed.claimable() else nil
+			end,
+			getGoalLine = function(): string?
+				-- not over an open Raceway or parking card (reviewer, 2026-11-05: it drew over the card's top)
+				local found, cardOpen = pcall(function()
+					return (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel).isOpen()
+				end)
+				if found and cardOpen then
+					return nil
+				end
+				return if LiveData.active() then MissionFeed.goalLine() else nil
 			end,
 			onSettings = function()
 				userPanel("settings", self.hud and self.hud:getButton("Settings") or nil)
@@ -481,6 +523,7 @@ function HomeShell._updateLog(self: any, o: Options)
 					version = o.updateVersion or HomeShell.UpdateVersion,
 					entries = o.updates or HomeShell.Updates,
 				}, { onClose = done })
+				self.updatePanel = panel -- Studio driver: "close:update"
 				if panel then
 					trove:Add(function()
 						pcall(function()
@@ -534,12 +577,13 @@ function HomeShell._join(self: any, o: Options)
 						})
 					end
 					local seconds = if type(away) == "number" then away else 0
+					local counted = player:GetAttribute("BetaWelcomeCapped")
 					welcome:setData({
 						source = "server (PREVIEW rate)",
 						status = "Ready",
 						earned = amount,
 						awaySeconds = seconds,
-						cappedSeconds = math.min(seconds, 8 * 3600),
+						cappedSeconds = if type(counted) == "number" then counted else math.min(seconds, 24 * 3600),
 						lineup = cars,
 					})
 				end
@@ -607,7 +651,7 @@ function HomeShell._join(self: any, o: Options)
 			end)
 		end
 	end
-	Tutorial.start({
+	self.tutorialController = Tutorial.start({
 		store = self.store,
 		screen = self.screen,
 		layer = self.screen.safe:FindFirstChild("HudLayer"),

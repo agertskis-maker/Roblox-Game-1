@@ -70,7 +70,8 @@ function PreviewPanel.mount(
 	plotCount: number,
 	maxLevel: number
 ): ((() -> ())?, (() -> ())?)
-	if not RunService:IsStudio() then
+	-- the preview panel is a Studio tool; the beta (Car Hop Beta 1) shows the real saved levels instead
+	if not RunService:IsStudio() or ReplicatedStorage:FindFirstChild("CarHopBeta") then
 		return nil, nil
 	end
 	local player = Players.LocalPlayer

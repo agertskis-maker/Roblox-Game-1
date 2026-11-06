@@ -345,6 +345,31 @@ function Facts.setCar(self: FactsPanel, car: TradingCard.CarRef, info: TradingCa
 			elseif state == "Next" then edition.colour
 			else Color3.new(1, 1, 1)
 	end
+	-- Round 7 (U-03, decision 0042 item 15): no editions ladder in the Index; the edition is a badge on the card's corner
+	self._ladder.Visible = false
+	local tag = self._editionTag :: TextLabel?
+	if not tag then
+		local made = make("TextLabel", {
+			Name = "EditionTag",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -6, 0, 6),
+			Size = UDim2.fromOffset(92, 26),
+			FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json"),
+			TextScaled = true,
+			TextColor3 = Color3.new(1, 1, 1),
+			ZIndex = 30,
+		})
+		make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = made })
+		make("UIStroke", { Color = INK, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = made })
+		make("UIPadding", { PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3), Parent = made })
+		self._editionTag = made
+		tag = made
+	end
+	local t = tag :: TextLabel
+	t.Parent = self._card and self._card.root or self.root
+	t.Visible = owned and progress.edition.index > 1
+	t.Text = string.upper(progress.edition.label) .. " x" .. progress.edition.multiplier
+	t.BackgroundColor3 = progress.edition.colour
 	if owned then
 		self._boost.Text = "x" .. progress.edition.multiplier .. " Lap Pay"
 		self._fill.Size = UDim2.fromScale(progress.fraction, 1)
@@ -366,9 +391,9 @@ end
 -- The height of the rows for a rows column `colW` wide (the caller sizes the card from what is left).
 function Facts.rowsHeight(colW: number, compact: boolean?): number
 	local rowH, badgeH, gap = metrics(compact == true)
-	local badgesH = if colW >= LADDER_ACROSS then badgeH else 2 * badgeH + gap
-	local infoH = if paired(colW, compact) then rowH + gap else rowH + gap + rowH + gap
-	return infoH + LADDER_LABEL_H + badgesH + gap + BAR_H + gap + EARN_H
+	local _ = badgeH
+	-- Round 7 (U-03): the rows are World and Lap Pay only; the ladder is gone
+	return if paired(colW, compact) then rowH else rowH + gap + rowH
 end
 
 -- The card size and the row density for a scrolling area `innerW` wide and `scrollH` tall (design px): beside the card
@@ -376,12 +401,12 @@ end
 -- what the rows leave). Never smaller than the smallest card. Compact rows when the area is short (a phone frame).
 function Facts.fit(innerW: number, scrollH: number): (Vector2, boolean)
 	local compact = scrollH < 300
-	local sideH = math.clamp(scrollH, CarCard.MinSize.Y, 340)
+	local sideH = math.clamp(scrollH, CarCard.MinSize.Y, 420) -- Round 7 (U-03): a bigger car where the ladder was
 	local sideW = math.max(CarCard.MinSize.X, math.floor(sideH * 200 / 280))
 	if innerW >= sideW + COLUMN_GAP + SIDE_COLUMN then
 		return Vector2.new(sideW, sideH), compact
 	end
-	local stackH = math.clamp(scrollH - STACK_GAP - Facts.rowsHeight(innerW, compact), CarCard.MinSize.Y, 280)
+	local stackH = math.clamp(scrollH - STACK_GAP - Facts.rowsHeight(innerW, compact), CarCard.MinSize.Y, 360)
 	return Vector2.new(math.max(CarCard.MinSize.X, math.floor(stackH * 200 / 280)), stackH), compact
 end
 

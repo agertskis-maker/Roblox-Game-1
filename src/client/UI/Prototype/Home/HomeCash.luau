@@ -41,7 +41,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local make = Arcade.make
 
-local PLUS = Tokens.Touch.Minimum -- the green "+" is a 48 px touch target
+local PLUS = 44 -- the green "+": Round 7 (U-06, Adam: "a little bit too big") 44 px, still a full touch target
 local ROW2 = 28
 local ROW2_GAP = 4
 local ICON2 = 24

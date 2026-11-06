@@ -10,6 +10,8 @@
 -- Reduce Motion: the pop appears and fades in place, no rise and no flight. A missing car model never stops a payout (the
 -- server pays from the save); the stand-in car drives instead and the miss is logged once.
 -- Off without a live server (LiveData.active()): the Studio LappingPreview fixture covers that case.
+-- Round 7 (K-01): every Uncommon or better car (and every Gold, Diamond, Rainbow or Galaxy edition) wears its RacewayAura, and a
+-- Legendary crossing the line on a payout sets off fireworks, so visitors see who has the good cars.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,7 +29,10 @@ local Trove = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("T
 local UI = script.Parent.Parent.Parent:WaitForChild("UI")
 local Prototype = UI:WaitForChild("Prototype")
 local Motion = require(Prototype:WaitForChild("Motion"))
+local RacewayAura = require(Prototype:WaitForChild("Style"):WaitForChild("RacewayAura"))
 local RealCar = require(Prototype:WaitForChild("RealCar"))
+local Sounds = require(Prototype:WaitForChild("Sounds"))
+local StyleState = require(Prototype:WaitForChild("StyleState"))
 
 local player = Players.LocalPlayer
 
@@ -44,7 +49,7 @@ local CAR_LENGTH = 12.6
 local CAR_HEIGHT = 5.2
 local WHEELBASE = 8.5
 
-type Car = { rig: any, slot: number, carId: string, placed: boolean }
+type Car = { rig: any, slot: number, carId: string, placed: boolean, edition: number, aura: any, auraBody: any }
 type Lane = {
 	plot: Model,
 	index: number,
@@ -107,7 +112,29 @@ local function rebuild(lane: Lane)
 		lane.trove:Add(function()
 			rig:destroy()
 		end)
-		table.insert(lane.cars, { rig = rig, slot = slot, carId = carId, placed = false })
+		-- Round 7 (C-08): your own selected car wears your Style Shop look here too
+		if owner == Players.LocalPlayer and carId == StyleState.car() then
+			rig:setPaint(StyleState.item("Paint"))
+			rig:setDecal(StyleState.item("Decals"))
+			rig:setWheels(StyleState.item("Wheels"))
+			rig:setTrail(StyleState.item("Trails"))
+		end
+		local saved = LiveData.cars(owner)[carId]
+		local car: Car = {
+			rig = rig,
+			slot = slot,
+			carId = carId,
+			placed = false,
+			edition = if saved and type(saved.Edition) == "number" then saved.Edition else 1,
+			aura = nil,
+			auraBody = nil,
+		}
+		lane.trove:Add(function()
+			if car.aura then
+				car.aura:destroy()
+			end
+		end)
+		table.insert(lane.cars, car)
 	end
 end
 
@@ -164,10 +191,13 @@ local function carFrame(lane: Lane, slot: number, now: number): CFrame?
 	local s = Path.distanceAt(path, f)
 	local pos, look, up = Path.sample(path, s)
 	local wp = lane.frame * (pos + up * Path.carLift(path, s, WHEELBASE))
-	return CFrame.lookAt(wp, wp - lane.frame:VectorToWorldSpace(look), lane.frame:VectorToWorldSpace(up))
+	-- a RealCar's front is its -Z (its LookVector), so it looks along the way it drives (2026-11-05: it was turned the
+	-- LappingPreview stand-in's way, +Z forward, and drove backwards)
+	return CFrame.lookAt(wp, wp + lane.frame:VectorToWorldSpace(look), lane.frame:VectorToWorldSpace(up))
 end
 
 RunService.RenderStepped:Connect(function()
+	RacewayAura.step(os.clock())
 	local camera = Workspace.CurrentCamera
 	local eye = if camera then camera.CFrame.Position else Vector3.zero
 	local now = Workspace:GetServerTimeNow()
@@ -178,9 +208,20 @@ RunService.RenderStepped:Connect(function()
 			if near or not car.placed then
 				local cf = carFrame(lane, car.slot, now)
 				if cf then
-					car.rig:pivotTo(cf * CFrame.new(0, CAR_HEIGHT / 2 - 0.4, 0))
+					-- a RealCar's pivot is the bottom centre between its wheels, so it sits on the track as it is
+					-- (2026-11-05: it was lifted half a car, as for a pivot at the middle, and floated)
+					car.rig:pivotTo(cf)
 					car.placed = true
 				end
+			end
+			-- K-01: the aura goes on once the car's body has loaded (and again if the body was swapped)
+			local body = car.rig._body
+			if body and body ~= car.auraBody then
+				if car.aura then
+					car.aura:destroy()
+				end
+				car.auraBody = body
+				car.aura = RacewayAura.attach(body.model, car.carId, car.edition)
 			end
 		end
 	end
@@ -281,6 +322,13 @@ if lapPaid then
 				if part then
 					popAt(part, amount, newCash ~= nil)
 				end
+				-- K-01: a Legendary crossing the line gets fireworks, and a cheer for its owner
+				if car and car.aura and car.aura.rarity == "Legendary" then
+					RacewayAura.celebrate(car.aura)
+					if newCash ~= nil then
+						Sounds.play("NewBest", 0.5)
+					end
+				end
 			end
 		end
 	end)
@@ -299,6 +347,14 @@ Players.PlayerAdded:Connect(function()
 	for plot, lane in lanes do
 		if ownerOf(plot) ~= lane.owner and lane.refresh then
 			lane.refresh()
+		end
+	end
+end)
+-- Round 7 (C-08): a change in what you wear or which car you picked repaints your own Raceway at once
+StyleState.Changed:Connect(function()
+	for _, lane in lanes do
+		if lane.owner == Players.LocalPlayer then
+			rebuild(lane)
 		end
 	end
 end)

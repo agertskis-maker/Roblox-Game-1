@@ -260,7 +260,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, card) :: Frame
 		make("UICorner", { CornerRadius = UDim.new(0, 14) }, ribbon)
 		make("UIStroke", { Thickness = 3.5, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ribbon)
-		CarKit.title(ribbon, if good then "RUN OVER!" else "SO CLOSE!", math.round(66 * k), {
+		CarKit.title(ribbon, if good then "GREAT RUN!" else "SO CLOSE!", math.round(66 * k), {
 			align = Enum.TextXAlignment.Center,
 			top = if good then CarKit.Yellow else CarKit.White,
 			bottom = if good then CarKit.Orange else Color3.fromRGB(190, 220, 255),
@@ -395,7 +395,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		if showTip then
 			tipIndex = tipIndex % #RunResults.Tips + 1
 			local tip = if data.outOfBolts
-				then { icon = "stamina", text = "Out of bolts! Each hop uses one." }
+				then { icon = "stamina", text = "Out of bolts! Get more at the Pit Stop." }
 				else RunResults.Tips[tipIndex]
 			local tipH = math.round(52 * k)
 			local bar = CarKit.board(card, {
@@ -491,24 +491,13 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				self:pressHome()
 			end,
 		})
-		-- back into the run: free ones first; only with none left is there a cheap Robux one. No timer, no nagging.
+		-- back into the run: Round 7 (U-04, decision 0042 item 13): there is never a free respawn. Only the 19 Robux one, which says
+		-- Coming soon in the beta (RealPurchases is off). No timer, no nagging.
 		local respawnH = math.round(math.max(58 * k, 46))
 		local respawnSize = UDim2.new(0.46, 0, 0, respawnH)
 		-- Round 5: never over the RETRY and HOME row
 		local respawnAt = UDim2.new(1, -math.round(16 * k), 0, math.min(y + rowH / 2, bottomTop - respawnH / 2 - 2))
-		if data.revives > 0 and options.onRevive then
-			CarKit.button(card, {
-				text = ("RESPAWN FREE (%d)"):format(data.revives),
-				tone = "Gold",
-				px = math.max(math.round(30 * k), 20),
-				size = respawnSize,
-				position = respawnAt,
-				anchor = Vector2.new(1, 0.5),
-				z = 8,
-				name = "Respawn",
-				onPress = options.onRevive,
-			})
-		elseif options.onBuyRespawn then
+		if options.onBuyRespawn then
 			local respawn: CarKit.Button
 			respawn = CarKit.button(card, {
 				text = ("RESPAWN %d Robux"):format(options.respawnRobux or 19),

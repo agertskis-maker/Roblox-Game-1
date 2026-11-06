@@ -14,7 +14,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-if not RunService:IsStudio() then
+-- off in Car Hop Beta 1, where the run portals (Beta/BetaRun) own the takeover
+if not RunService:IsStudio() or game:GetService("ReplicatedStorage"):FindFirstChild("CarHopBeta") then
 	return
 end
 

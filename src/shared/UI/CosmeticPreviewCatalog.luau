@@ -10,7 +10,8 @@
 -- Showpiece), shown as words as well as colour. The medal conditions are PRESENTATION states: Brian R supplies the achievement
 -- evidence, Brian L approves the entitlement. An unknown medal stays locked; nothing is unlocked by a made-up race result.
 --
---   Counts: 34 paints (9 free + 25), 14 decals (plus "No decal"), 10 wheels, 9 trails (plus "No trail").
+--   Counts (Round 7, C-03 to C-06): 34 paints plus Factory Paint, 20 decals (plus "No decal"), 14 wheels, 13 trails (plus
+--   "No trail"). The server (BetaStyle) prices every Cash item from this table and saves what a player owns and wears.
 --   CosmeticPreviewCatalog.Items[tab] / .Tiers[tab] / .byId(tab, id) / .counts() / .tierItems(tab, tierId)
 --   CosmeticPreviewCatalog.defaultOwnership() / .defaultEquipped() / .stateOf(item, ownership, equippedId)
 --
@@ -29,7 +30,21 @@ CosmeticPreviewCatalog.Caption = "PREVIEW"
 export type TabId = "Paint" | "Decals" | "Wheels" | "Trails"
 export type MedalKey = "gold" | "silver" | "bronze"
 export type RarityName = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary"
-export type PaintKind = "solid" | "metallic" | "pearl" | "gradient" | "animated"
+export type PaintKind =
+	"solid"
+	| "metallic"
+	| "pearl"
+	| "gradient"
+	| "animated"
+	| "flow"
+	| "pulse"
+	| "galaxy"
+	| "rainbow"
+	| "sparkle"
+	| "chrome"
+	| "holo"
+	| "molten"
+	| "electric"
 export type Render = "car" | "approx" | "swatch"
 
 export type Tier = {
@@ -52,7 +67,8 @@ export type Item = {
 	note: string, -- one honest line on how the preview shows it
 	isNone: boolean?, -- the "No decal" and "No trail" entries (not counted)
 	key: string?, -- the texture or mesh this item uses
-	robux: number?, -- Trails: a PREVIEW Robux price instead of Cash
+	robux: number?, -- a Robux item: never sold for Cash, and not on sale while its real product price is unknown
+	vip: boolean?, -- Round 7: free with the VIP pass
 }
 
 CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels", "Trails" } :: { TabId })
@@ -73,26 +89,31 @@ local function tier(id: string, name: string, rarity: RarityName): Tier
 end
 
 CosmeticPreviewCatalog.Tiers = table.freeze({
+	-- Round 7 (C-03): six paint tiers, each clearly fancier than the last, with the prices climbing hard
 	Paint = table.freeze({
-		tier("basic", "BASIC", "Common"),
+		tier("solid", "SOLID", "Common"),
 		tier("metallic", "METALLIC", "Uncommon"),
-		tier("pearl", "PEARL", "Rare"),
-		tier("twotone", "TWO-TONE", "Epic"),
-		tier("animated", "ANIMATED", "Legendary"),
-		tier("medal", "MEDAL", "Epic"),
+		tier("twotone", "TWO-TONE", "Rare"),
+		tier("animated", "ANIMATED", "Epic"),
+		tier("legendary", "LEGENDARY", "Legendary"),
+		tier("robux", "ROBUX", "Legendary"),
+		tier("vip", "VIP", "Legendary"),
 	}),
+	-- Round 7 (C-04): simple shapes, then street designs, then designs that move
 	Decals = table.freeze({
-		tier("starter", "STARTER", "Common"),
-		tier("street", "STREET", "Uncommon"),
-		tier("track", "TRACK", "Rare"),
-		tier("elite", "ELITE", "Epic"),
+		tier("simple", "SIMPLE", "Common"),
+		tier("street", "STREET", "Rare"),
+		tier("animated", "ANIMATED", "Epic"),
 	}),
+	-- Round 7 (C-06): Cash trails, the four Robux trails, the VIP trail
 	Trails = table.freeze({
 		tier("street", "STREET", "Uncommon"),
 		tier("track", "TRACK", "Rare"),
 		tier("elite", "ELITE", "Epic"),
-		tier("showpiece", "SHOWPIECE", "Legendary"),
+		tier("robux", "ROBUX", "Legendary"),
+		tier("vip", "VIP", "Legendary"),
 	}),
+	-- Round 7 (C-05): rims and tyre styles
 	Wheels = table.freeze({
 		tier("stock", "STOCK", "Common"),
 		tier("street", "STREET", "Uncommon"),
@@ -102,7 +123,10 @@ CosmeticPreviewCatalog.Tiers = table.freeze({
 	}),
 } :: { [string]: { Tier } })
 
--- PAINT (33) -----------------------------------------------------------------------------------------------------------------
+-- PAINT (34 plus Factory Paint) --------------------------------------------------------------------------------------------------
+-- Round 7 (C-02, C-03): paint covers the body panels only (CarStyle's body masks), never the windows, tyres, lights or chrome.
+-- PREVIEW price ladder (brief C-03): solid $500 to $5K, metallic $10K to $100K, two-tone $250K to $2M, animated $5M to $50M,
+-- legendary $100M to $2B; three Robux paints (R$ shown only when the real product price is known) and two VIP paints.
 
 local function slug(name: string): string
 	return (string.lower(name):gsub("[^%w]+", "_"))
@@ -115,8 +139,7 @@ local function paint(
 	kind: PaintKind,
 	colours: { Color3 },
 	note: string,
-	render: Render?,
-	extra: { medal: MedalKey?, cycle: number? }?
+	extra: { cycle: number?, robux: number?, vip: boolean? }?
 ): Item
 	local e = extra or {}
 	return {
@@ -125,116 +148,172 @@ local function paint(
 		tab = "Paint",
 		tier = tierId,
 		price = price,
-		medal = e.medal,
 		kind = kind,
 		colours = colours,
 		cycleSeconds = e.cycle,
-		render = render or "car",
+		robux = e.robux,
+		vip = e.vip,
+		render = "car",
 		note = note,
 	}
 end
 
 local SOLID = "A clean solid colour on the body."
-local METAL = "Metal body with a lighter roof highlight (no real reflections in the preview)."
-local PEARL = "A soft two-colour sheen, shown as six smooth body bands (not a texture)."
-local FADE = "A front-to-rear blend, shown as six body bands (not a texture)."
-local FLOW = "A slow colour cycle across six body bands, about 12 updates a second (not a texture)."
+local METAL = "Metal flake: deeper shadows and a bright shine on the body."
+local PEARL = "Pearl: the shadows one colour, the shine another."
+local TWO = "Two colours across the body's light and shade."
+local MOVE = "Colours that move across the body."
 
 local paints: { Item } = {
-	-- BASIC, free (9): immediately available in the preview. Factory Paint leaves a real car as Brian L made it.
-	paint("Factory Paint", "basic", 0, "solid", { rgb(40, 120, 232) }, "The car's own colours."),
-	paint("Pit White", "basic", 0, "solid", { rgb(236, 240, 248) }, SOLID),
-	paint("Asphalt Charcoal", "basic", 0, "solid", { rgb(58, 62, 74) }, SOLID),
-	paint("Downtown Blue", "basic", 0, "solid", { rgb(40, 120, 232) }, SOLID),
-	paint("Signal Red", "basic", 0, "solid", { rgb(226, 56, 60) }, SOLID),
-	paint("Taxi Gold", "basic", 0, "solid", { rgb(250, 196, 40) }, SOLID),
-	paint("Fresh Lime", "basic", 0, "solid", { rgb(110, 210, 70) }, SOLID),
-	paint("Bubblegum Pink", "basic", 0, "solid", { rgb(255, 140, 200) }, SOLID),
-	paint("Cloud Cyan", "basic", 0, "solid", { rgb(120, 220, 240) }, SOLID),
-	-- BASIC, additional (2)
-	paint("Tangerine Pop", "basic", 250, "solid", { rgb(255, 138, 40) }, SOLID),
-	paint("Plum Punch", "basic", 250, "solid", { rgb(150, 60, 170) }, SOLID),
-	-- METALLIC (5): { highlight, base }
-	paint("Brushed Steel", "metallic", 750, "metallic", { rgb(214, 220, 232), rgb(140, 150, 168) }, METAL),
-	paint("Copper Sprint", "metallic", 750, "metallic", { rgb(232, 154, 100), rgb(160, 90, 48) }, METAL),
-	paint("Midnight Alloy", "metallic", 900, "metallic", { rgb(96, 108, 160), rgb(26, 30, 62) }, METAL),
-	paint("Cobalt Chrome", "metallic", 900, "metallic", { rgb(130, 172, 250), rgb(34, 70, 160) }, METAL),
-	paint("Rose Metal", "metallic", 1100, "metallic", { rgb(250, 176, 196), rgb(176, 96, 118) }, METAL),
-	-- PEARL (5): { front, rear }
-	paint("Shell Pearl", "pearl", 1800, "pearl", { rgb(255, 240, 232), rgb(255, 196, 214) }, PEARL, "approx"),
-	paint("Glacier Pearl", "pearl", 1800, "pearl", { rgb(226, 244, 255), rgb(150, 196, 250) }, PEARL, "approx"),
-	paint("Mint Pearl", "pearl", 2100, "pearl", { rgb(214, 255, 238), rgb(120, 220, 186) }, PEARL, "approx"),
-	paint("Sunset Pearl", "pearl", 2100, "pearl", { rgb(255, 212, 164), rgb(255, 130, 168) }, PEARL, "approx"),
-	paint("Lavender Pearl", "pearl", 2400, "pearl", { rgb(236, 220, 255), rgb(164, 136, 240) }, PEARL, "approx"),
-	-- TWO-TONE GRADIENT (5): { front, rear }
-	paint("Citrus Split", "twotone", 3500, "gradient", { rgb(255, 214, 60), rgb(110, 210, 60) }, FADE, "approx"),
-	paint("Candy Horizon", "twotone", 3500, "gradient", { rgb(255, 120, 190), rgb(110, 170, 255) }, FADE, "approx"),
-	paint("Ocean Fade", "twotone", 4000, "gradient", { rgb(70, 220, 232), rgb(24, 66, 168) }, FADE, "approx"),
-	paint("Dusk Runner", "twotone", 4000, "gradient", { rgb(255, 150, 70), rgb(92, 52, 156) }, FADE, "approx"),
-	paint("Peach Skyline", "twotone", 4500, "gradient", { rgb(255, 196, 150), rgb(255, 104, 136) }, FADE, "approx"),
-	-- ANIMATED (5): a slow colour cycle, body only
-	paint("Prism Flow", "animated", 7500, "animated", {
+	paint("Factory Paint", "solid", 0, "solid", { rgb(40, 120, 232) }, "The car's own colours."),
+	-- SOLID (8)
+	paint("Pit White", "solid", 500, "solid", { rgb(240, 242, 248) }, SOLID),
+	paint("Asphalt Charcoal", "solid", 500, "solid", { rgb(58, 62, 74) }, SOLID),
+	paint("Signal Red", "solid", 1000, "solid", { rgb(226, 40, 48) }, SOLID),
+	paint("Downtown Blue", "solid", 1000, "solid", { rgb(30, 110, 240) }, SOLID),
+	paint("Taxi Gold", "solid", 2000, "solid", { rgb(255, 196, 30) }, SOLID),
+	paint("Fresh Lime", "solid", 2000, "solid", { rgb(110, 220, 60) }, SOLID),
+	paint("Bubblegum Pink", "solid", 3500, "solid", { rgb(255, 120, 196) }, SOLID),
+	paint("Plum Punch", "solid", 5000, "solid", { rgb(140, 50, 190) }, SOLID),
+	-- METALLIC AND PEARL (6)
+	paint("Brushed Steel", "metallic", 10000, "metallic", { rgb(190, 198, 214) }, METAL),
+	paint("Copper Sprint", "metallic", 15000, "metallic", { rgb(220, 120, 60) }, METAL),
+	paint("Cobalt Flake", "metallic", 25000, "metallic", { rgb(40, 90, 230) }, METAL),
+	paint("Emerald Flake", "metallic", 40000, "metallic", { rgb(20, 170, 90) }, METAL),
+	paint("Shell Pearl", "metallic", 60000, "pearl", { rgb(255, 170, 200), rgb(255, 250, 240) }, PEARL),
+	paint("Glacier Pearl", "metallic", 100000, "pearl", { rgb(80, 150, 255), rgb(235, 250, 255) }, PEARL),
+	-- TWO-TONE AND GRADIENT (6)
+	paint("Citrus Split", "twotone", 250000, "gradient", { rgb(110, 210, 40), rgb(255, 220, 40) }, TWO),
+	paint("Candy Horizon", "twotone", 400000, "gradient", { rgb(80, 140, 255), rgb(255, 110, 190) }, TWO),
+	paint("Ocean Fade", "twotone", 600000, "gradient", { rgb(16, 50, 160), rgb(70, 230, 240) }, TWO),
+	paint("Dusk Runner", "twotone", 900000, "gradient", { rgb(80, 40, 150), rgb(255, 150, 60) }, TWO),
+	paint("Cherry Cola", "twotone", 1400000, "gradient", { rgb(90, 10, 30), rgb(255, 60, 80) }, TWO),
+	paint("Mint Chip", "twotone", 2000000, "gradient", { rgb(40, 120, 90), rgb(190, 255, 220) }, TWO),
+	-- ANIMATED (6)
+	paint("Colour Shift", "animated", 5000000, "animated", {
 		rgb(255, 72, 72),
-		rgb(255, 170, 40),
-		rgb(255, 230, 60),
-		rgb(80, 220, 90),
-		rgb(60, 170, 255),
+		rgb(255, 200, 40),
+		rgb(60, 210, 120),
+		rgb(60, 140, 255),
+		rgb(190, 80, 255),
+	}, MOVE, { cycle = 6 }),
+	paint("Aurora", "animated", 9000000, "flow", {
+		rgb(40, 230, 140),
+		rgb(30, 180, 220),
+		rgb(140, 100, 240),
+	}, "Northern-light bands drifting over the body.", { cycle = 8 }),
+	paint("Lava Cruise", "animated", 14000000, "flow", {
+		rgb(90, 10, 10),
+		rgb(240, 70, 10),
+		rgb(255, 190, 40),
+	}, "Hot lava bands that ooze along the body.", { cycle = 7 }),
+	paint("Ocean Waves", "animated", 20000000, "flow", {
+		rgb(10, 50, 140),
+		rgb(30, 150, 230),
+		rgb(200, 245, 255),
+	}, "Rolling waves of blue across the body.", { cycle = 6 }),
+	paint(
+		"Neon Pulse",
+		"animated",
+		32000000,
+		"pulse",
+		{ rgb(255, 40, 200), rgb(60, 255, 240) },
+		"A neon glow that beats."
+	),
+	paint("Sunset Cruise", "animated", 50000000, "flow", {
+		rgb(255, 90, 60),
+		rgb(255, 180, 60),
+		rgb(190, 70, 160),
+	}, "A slow sunset sliding along the body.", { cycle = 9 }),
+	-- LEGENDARY (4)
+	paint("Galaxy Swirl", "legendary", 100000000, "galaxy", {
+		rgb(20, 12, 60),
+		rgb(110, 50, 200),
+		rgb(255, 255, 255),
+	}, "Deep space with stars that twinkle and drift."),
+	paint("Rainbow", "legendary", 300000000, "rainbow", {
+		rgb(255, 60, 70),
+		rgb(255, 170, 30),
+		rgb(255, 236, 60),
+		rgb(70, 220, 110),
+		rgb(60, 150, 255),
 		rgb(170, 90, 255),
-	}, FLOW, "approx", { cycle = 6 }),
-	paint("Nebula Drift", "animated", 9000, "animated", {
-		rgb(30, 22, 92),
-		rgb(96, 52, 190),
-		rgb(214, 70, 190),
-		rgb(60, 170, 255),
-	}, FLOW .. " No star texture.", "approx", { cycle = 8 }),
-	paint("Lava Cruise", "animated", 10000, "animated", {
-		rgb(110, 14, 20),
-		rgb(230, 60, 20),
-		rgb(255, 160, 30),
-		rgb(230, 60, 20),
-	}, FLOW .. " No lava texture.", "approx", { cycle = 7 }),
-	paint("Aurora Ribbon", "animated", 12000, "animated", {
-		rgb(60, 230, 140),
-		rgb(40, 190, 210),
-		rgb(130, 110, 240),
-		rgb(60, 230, 140),
-	}, FLOW .. " No ribbon pattern.", "approx", { cycle = 8 }),
-	paint("Electric Tide", "animated", 12000, "animated", {
-		rgb(20, 120, 255),
-		rgb(60, 220, 255),
-		rgb(235, 250, 255),
-		rgb(60, 220, 255),
-	}, FLOW .. " No wave pattern.", "approx", { cycle = 6 }),
-	-- MEDAL-LOCKED (3): Cash AND a medal; both conditions are shown, and both are a fixture
-	paint("Bronze Dash", "medal", 2500, "metallic", { rgb(236, 168, 100), rgb(150, 86, 36) }, METAL, "car", {
-		medal = "bronze",
-	}),
-	paint("Silver Current", "medal", 5000, "metallic", { rgb(232, 238, 248), rgb(132, 144, 166) }, METAL, "car", {
-		medal = "silver",
-	}),
-	paint("Gold Horizon", "medal", 10000, "metallic", { rgb(255, 232, 120), rgb(226, 150, 0) }, METAL, "car", {
-		medal = "gold",
+	}, "Every colour of the rainbow, cycling.", { cycle = 4 }),
+	paint(
+		"Sparkle",
+		"legendary",
+		800000000,
+		"sparkle",
+		{ rgb(255, 120, 210), rgb(255, 255, 255) },
+		"Glitter that twinkles."
+	),
+	paint(
+		"Chrome Mirror",
+		"legendary",
+		2000000000,
+		"chrome",
+		{ rgb(235, 240, 250) },
+		"Bright chrome with hard highlights."
+	),
+	-- ROBUX (3): never on sale while the product price is unknown
+	paint("Holographic", "robux", 0, "holo", {
+		rgb(120, 255, 240),
+		rgb(255, 140, 250),
+		rgb(255, 250, 160),
+	}, "A shimmering hologram finish.", { robux = 149, cycle = 3 }),
+	paint(
+		"Molten Gold",
+		"robux",
+		0,
+		"molten",
+		{ rgb(140, 70, 0), rgb(255, 200, 40), rgb(255, 250, 200) },
+		"Liquid gold, glowing.",
+		{
+			robux = 199,
+			cycle = 5,
+		}
+	),
+	paint(
+		"Electric",
+		"robux",
+		0,
+		"electric",
+		{ rgb(20, 40, 120), rgb(80, 220, 255), rgb(255, 255, 255) },
+		"Crackling electric blue.",
+		{
+			robux = 249,
+		}
+	),
+	-- VIP (2): free with the VIP pass (decision 0042 item 12)
+	paint(
+		"VIP Royal",
+		"vip",
+		0,
+		"pearl",
+		{ rgb(90, 30, 160), rgb(255, 210, 90) },
+		"VIP PASS: royal purple with gold shine.",
+		{
+			vip = true,
+		}
+	),
+	paint("VIP Neon", "vip", 0, "pulse", { rgb(255, 196, 40), rgb(170, 60, 255) }, "VIP PASS: gold and purple glow.", {
+		vip = true,
 	}),
 }
 
--- DECALS (14 plus "No decal") --------------------------------------------------------------------------------------------------
+-- DECALS (20 plus "No decal") --------------------------------------------------------------------------------------------------
+-- Round 7 (C-04): drawn by the game (CarStyle's decal art), mirrored on both sides of the body. `key` names the design.
 
-local function decal(
-	name: string,
-	tierId: string,
-	price: number,
-	colours: { Color3 },
-	render: Render,
-	note: string
-): Item
+local function decal(name: string, tierId: string, price: number, key: string, colours: { Color3 }, note: string): Item
 	return {
 		id = slug(name),
 		name = name,
 		tab = "Decals",
 		tier = tierId,
 		price = price,
+		key = key,
 		colours = colours,
-		render = render,
+		render = "car",
 		note = note,
 	}
 end
@@ -246,49 +325,75 @@ local RED = rgb(232, 56, 64)
 local CYAN = rgb(90, 220, 255)
 local ORANGE = rgb(255, 140, 40)
 
--- `key` names the decal's texture (decal_<key>) and its card picture (thumb_decal_<key>).
-local function art(item: Item, key: string): Item
-	item.key = key
-	return item
-end
-
 local decals: { Item } = {
 	{
 		id = "none",
 		name = "No decal",
 		tab = "Decals",
-		tier = "starter",
+		tier = "simple",
 		price = 0,
 		colours = { rgb(150, 160, 190) },
 		render = "car",
 		note = "Clears the decal.",
 		isNone = true,
 	},
-	art(decal("Racing Stripes", "starter", 500, { WHITE }, "car", "Twin stripes, nose to tail."), "stripes"),
-	art(decal("Flames", "starter", 1000, { ORANGE, GOLD }, "car", "Hot-rod flames off the nose."), "flames"),
-	art(decal("Speed Lines", "starter", 1200, { WHITE }, "car", "Three lines down each side."), "speedline"),
-	art(decal("Lightning", "street", 1500, { CYAN, WHITE }, "car", "A bolt down each side."), "lightning"),
-	art(decal("Number 7", "street", 2000, { WHITE, INK }, "car", "A race number on each door."), "seven"),
-	art(decal("Checkers", "street", 2500, { WHITE, INK }, "car", "Checkers that fade toward the nose."), "checkers"),
-	art(decal("Stars", "track", 3000, { WHITE }, "car", "Stars across the hood and sides."), "stars"),
-	art(decal("Shark Teeth", "track", 3500, { WHITE, RED }, "car", "A friendly grin on the nose."), "shark"),
-	art(decal("Comet Trail", "track", 4000, { WHITE, CYAN }, "car", "A comet down each side."), "comet"),
-	art(decal("Tiger Claws", "elite", 5000, { INK }, "car", "Dark stripes over any paint."), "tiger"),
-	art(decal("Pixel Burst", "elite", 5500, { CYAN, RED }, "car", "Pixels bursting toward the tail."), "pixel"),
-	art(decal("Hex Hood", "elite", 6000, { INK }, "car", "A dark honeycomb hood."), "hex"),
-	art(decal("Wings", "elite", 7500, { GOLD }, "car", "Golden wings on each door."), "wings"),
-	art(decal("Paint Splash", "elite", 9000, { GOLD, RED, CYAN }, "car", "Splashes of every colour."), "splash"),
+	-- SIMPLE (8): $500 to $5K
+	decal("Racing Stripe", "simple", 500, "stripe", { WHITE }, "One wide stripe down each side."),
+	decal("Twin Stripes", "simple", 800, "twin", { WHITE, RED }, "Two stripes, nose to tail."),
+	decal("Pinstripe", "simple", 1200, "pin", { GOLD }, "A thin gold line along each side."),
+	decal("Checkers", "simple", 1800, "checkers", { WHITE, INK }, "A chequered band on each side."),
+	decal("Number 7", "simple", 2500, "seven", { WHITE, INK }, "A race number on each door."),
+	decal("Number 23", "simple", 3000, "twentythree", { GOLD, INK }, "Another race number on each door."),
+	decal("Stars", "simple", 4000, "stars", { WHITE }, "Stars along each side."),
+	decal("Polka Dots", "simple", 5000, "dots", { WHITE }, "Big friendly dots."),
+	-- STREET (8): $10K to $2M
+	decal("Flames", "street", 25000, "flames", { RED, ORANGE, GOLD }, "Hot-rod flames off the nose."),
+	decal("Lightning Bolt", "street", 50000, "lightning", { CYAN, WHITE }, "A bolt down each side."),
+	decal("Wings", "street", 100000, "wings", { GOLD, WHITE }, "Wings on each door."),
+	decal("Swoosh", "street", 200000, "swoosh", { CYAN, rgb(60, 110, 255) }, "Two sweeping curves."),
+	decal("Paint Splatter", "street", 400000, "splatter", { RED, GOLD, CYAN }, "Splashes of every colour."),
+	decal("Circuit Lines", "street", 700000, "circuit", { rgb(90, 255, 160) }, "Glowing circuit-board lines."),
+	decal("Shark Grin", "street", 1200000, "shark", { WHITE, RED }, "A friendly grin on the nose."),
+	decal("Speed Chevrons", "street", 2000000, "chevrons", { GOLD }, "Arrows pointing forward."),
+	-- ANIMATED (4): $5M to $100M (the pattern really moves: its texture scrolls or its glow pulses)
+	decal(
+		"Shimmer Flames",
+		"animated",
+		8000000,
+		"flames",
+		{ rgb(255, 60, 20), GOLD, rgb(255, 255, 200) },
+		"Flames that flicker and run."
+	),
+	decal("Pulse Bolt", "animated", 20000000, "lightning", { CYAN, WHITE }, "A lightning bolt that pulses."),
+	decal(
+		"Chevron Run",
+		"animated",
+		45000000,
+		"chevrons",
+		{ rgb(255, 80, 200), GOLD },
+		"Chevrons that scroll forward."
+	),
+	decal(
+		"Rainbow Stripe",
+		"animated",
+		100000000,
+		"stripe",
+		{ rgb(255, 60, 70), rgb(60, 150, 255) },
+		"A stripe cycling every colour."
+	),
 }
 
--- WHEELS (10) ---------------------------------------------------------------------------------------------------------------------
+-- WHEELS (14) ---------------------------------------------------------------------------------------------------------------------
+-- Round 7 (C-05): the game's rim meshes plus tyre styles. `key` is the rim mesh (car_rim_<key>); `style` adds a look on top.
 
 local function wheel(
 	name: string,
 	tierId: string,
 	price: number,
+	key: string,
 	colours: { Color3 },
-	render: Render,
-	note: string
+	note: string,
+	style: string?
 ): Item
 	return {
 		id = slug(name),
@@ -296,134 +401,45 @@ local function wheel(
 		tab = "Wheels",
 		tier = tierId,
 		price = price,
+		key = key,
+		kind = style :: any,
 		colours = colours,
-		render = render,
+		render = "car",
 		note = note,
 	}
 end
 
 local STEEL = rgb(200, 206, 222)
 local DARK = rgb(44, 48, 66)
-local WHEELS_NOTE = "Same tyre size, mounts and handling: only the look changes."
 
 local wheels: { Item } = {
-	art(
-		wheel(
-			"Stock Five",
-			"stock",
-			0,
-			{ STEEL, DARK, rgb(120, 126, 146) },
-			"car",
-			"A simple chunky five-spoke. " .. WHEELS_NOTE
-		),
-		"five"
-	),
-	art(
-		wheel(
-			"Rally Block",
-			"street",
-			900,
-			{ rgb(226, 230, 240), DARK, rgb(226, 230, 240) },
-			"car",
-			"Squared spokes on a dark inset. " .. WHEELS_NOTE
-		),
-		"block"
-	),
-	art(
-		wheel(
-			"Classic Disc",
-			"street",
-			1200,
-			{ rgb(236, 240, 250), rgb(60, 66, 90), rgb(150, 156, 176) },
-			"car",
-			"A clean disc with small vent cuts. " .. WHEELS_NOTE
-		),
-		"disc"
-	),
-	art(
-		wheel(
-			"Split Six",
-			"street",
-			1600,
-			{ STEEL, DARK, rgb(240, 244, 252) },
-			"car",
-			"Six paired spokes. " .. WHEELS_NOTE
-		),
-		"split"
-	),
-	art(
-		wheel(
-			"Trail Chunk",
-			"track",
-			2000,
-			{ rgb(176, 182, 198), DARK, rgb(30, 34, 48) },
-			"approx",
-			"Twin chunky spokes. " .. WHEELS_NOTE
-		),
-		"twin"
-	),
-	art(
-		wheel(
-			"Star Runner",
-			"track",
-			2800,
-			{ rgb(255, 214, 80), DARK, rgb(255, 244, 190) },
-			"car",
-			"A broad rounded star hub. " .. WHEELS_NOTE
-		),
-		"star"
-	),
-	art(
-		wheel(
-			"Golden Turbine",
-			"elite",
-			3500,
-			{ rgb(255, 204, 60), DARK, rgb(255, 232, 140) },
-			"car",
-			"Swept gold spokes. " .. WHEELS_NOTE
-		),
-		"turbine"
-	),
-	art(
-		wheel(
-			"Neon Halo",
-			"elite",
-			4500,
-			{ DARK, rgb(60, 70, 100), rgb(90, 240, 255) },
-			"approx",
-			"Thin spokes with a steady neon glow. " .. WHEELS_NOTE
-		),
-		"ten"
-	),
-	art(
-		wheel(
-			"Moon Dish",
-			"elite",
-			5000,
-			{ rgb(232, 236, 255), rgb(190, 176, 240), rgb(250, 252, 255) },
-			"approx",
-			"Pearly split spokes. " .. WHEELS_NOTE
-		),
-		"y"
-	),
-	art(
-		wheel(
-			"Monster Mini",
-			"showpiece",
-			6000,
-			{ rgb(176, 182, 198), DARK, rgb(240, 90, 60) },
-			"approx",
-			"A deep dish with a red hot lip. " .. WHEELS_NOTE
-		),
-		"deep"
+	wheel("Stock Five", "stock", 0, "five", { STEEL, DARK }, "The car's own wheels."),
+	wheel("Split Five", "street", 1500, "split", { STEEL, DARK }, "Five paired spokes."),
+	wheel("Rally Block", "street", 4000, "block", { rgb(226, 230, 240), DARK }, "Squared spokes."),
+	wheel("White Wall", "street", 8000, "disc", { WHITE, DARK }, "Classic white-wall tyres.", "whitewall"),
+	wheel("Multi-Spoke", "track", 20000, "ten", { STEEL, DARK }, "Ten thin spokes."),
+	wheel("Mesh Lace", "track", 50000, "y", { rgb(230, 234, 246), DARK }, "A fine mesh pattern."),
+	wheel("Stripe Racer", "track", 120000, "split", { STEEL, RED }, "A red stripe round the tyre.", "stripe"),
+	wheel("Deep Dish", "elite", 300000, "deep", { STEEL, DARK }, "A deep dish with a polished lip."),
+	wheel("Turbine", "elite", 700000, "turbine", { STEEL, DARK }, "Swept turbine blades."),
+	wheel("Carbon", "elite", 1500000, "twin", { rgb(40, 42, 50), DARK }, "Dark carbon spokes.", "carbon"),
+	wheel("Chrome Disc", "showpiece", 4000000, "disc", { rgb(240, 244, 255), DARK }, "Mirror-bright chrome.", "chrome"),
+	wheel("Gold Star", "showpiece", 10000000, "star", { rgb(255, 204, 60), DARK }, "Solid gold star spokes.", "gold"),
+	wheel("Neon Ring", "showpiece", 25000000, "five", { STEEL, CYAN }, "A glowing ring in the rim.", "neonring"),
+	wheel(
+		"Glow Hub",
+		"showpiece",
+		50000000,
+		"turbine",
+		{ DARK, rgb(255, 80, 220) },
+		"A glowing hub and tread.",
+		"glowhub"
 	),
 }
 
--- Round 4: no Robux trail shares a word with an EARNED edition (Gold, Diamond, Rainbow, Galaxy), so a paid trail never looks
--- like an edition; "Rainbow Road" (also a well-known track name) became Prism Ribbon and "Galaxy Tail" Comet Tail, and the paints
--- "Rainbow Flow" and "Galaxy Drift" became Prism Flow and Nebula Drift.
--- TRAILS (9 plus "No trail"). Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. Cheaper ones cost PREVIEW Cash,
--- flashy ones PREVIEW Robux (`robux`); both are proposals for Brian L. In a run they are a plain Trail behind the car.
+-- TRAILS (12 plus VIP, plus "No trail") ------------------------------------------------------------------------------------------
+-- Round 7 (C-06): each a layered effect from two exhaust points (CarStyle's TrailFx): a hot core, a body, breakup particles and a
+-- fading tail. Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. The four Robux trails of earlier decisions stay.
 
 local function trail(
 	name: string,
@@ -432,7 +448,8 @@ local function trail(
 	robux: number?,
 	key: string,
 	colours: { Color3 },
-	note: string
+	note: string,
+	vip: boolean?
 ): Item
 	return {
 		id = slug(name),
@@ -441,6 +458,7 @@ local function trail(
 		tier = tierId,
 		price = cash,
 		robux = robux,
+		vip = vip,
 		key = key,
 		colours = colours,
 		render = "car",
@@ -460,61 +478,116 @@ local trails: { Item } = {
 		note = "No trail behind your car.",
 		isNone = true,
 	},
-	trail("Smoke Ring", "street", 800, nil, "smoke", { rgb(220, 226, 236), rgb(150, 160, 180) }, "Soft white smoke."),
-	trail(
-		"Spark Dust",
-		"street",
-		1500,
-		nil,
-		"spark",
-		{ rgb(255, 236, 120), rgb(255, 150, 40) },
-		"Hot sparks off the road."
-	),
 	trail(
 		"Bubble Pop",
 		"street",
-		2200,
+		5000,
 		nil,
 		"bubble",
 		{ rgb(150, 230, 255), rgb(255, 170, 230) },
-		"Bubbles that drift away."
+		"Bubbles that pop into stars."
 	),
-	trail("Neon Line", "track", 3000, nil, "neon", { rgb(70, 240, 255), rgb(60, 110, 255) }, "A clean neon ribbon."),
-	trail("Star Drift", "track", 4500, nil, "star", { rgb(255, 228, 110), rgb(255, 255, 255) }, "Falling stars."),
 	trail(
-		"Flame Rush",
-		"elite",
-		0,
-		99,
-		"flame",
-		{ rgb(255, 210, 60), rgb(240, 50, 20) },
-		"Your car on fire, in a good way."
+		"Pixel Blast",
+		"street",
+		20000,
+		nil,
+		"pixel",
+		{ rgb(255, 60, 120), rgb(60, 220, 255), rgb(255, 230, 60) },
+		"Arcade squares."
 	),
+	trail(
+		"Neon Ribbon",
+		"street",
+		60000,
+		nil,
+		"neon",
+		{ rgb(70, 240, 255), rgb(255, 70, 220) },
+		"Two ribbons of light twisting."
+	),
+	trail(
+		"Frost Bite",
+		"track",
+		250000,
+		nil,
+		"frost",
+		{ rgb(200, 240, 255), rgb(120, 200, 255) },
+		"Ice crystals and cold mist."
+	),
+	trail(
+		"Toxic Slime",
+		"track",
+		900000,
+		nil,
+		"slime",
+		{ rgb(120, 255, 60), rgb(30, 160, 40) },
+		"Green goo and glowing bubbles."
+	),
+	trail(
+		"Lightning",
+		"track",
+		3000000,
+		nil,
+		"lightning",
+		{ rgb(120, 200, 255), rgb(255, 255, 255) },
+		"Crackling bolts to the road."
+	),
+	trail(
+		"Galaxy",
+		"elite",
+		12000000,
+		nil,
+		"galaxy",
+		{ rgb(120, 70, 255), rgb(255, 90, 220), rgb(100, 220, 255) },
+		"Stars in a nebula."
+	),
+	trail(
+		"Golden Glory",
+		"elite",
+		60000000,
+		nil,
+		"gold",
+		{ rgb(255, 210, 60), rgb(255, 250, 200) },
+		"Gold sparks and coins."
+	),
+	-- the four Robux trails (earlier decisions): never on sale while the product price is unknown
+	trail("Flame Rush", "robux", 0, 99, "flame", { rgb(255, 210, 60), rgb(240, 50, 20) }, "Flames, embers and sparks."),
 	trail(
 		"Confetti Party",
-		"elite",
+		"robux",
 		0,
 		129,
 		"confetti",
 		{ rgb(255, 80, 150), rgb(70, 220, 255), rgb(255, 214, 40) },
-		"Every run is a party."
+		"Confetti and streamers."
 	),
-	trail("Prism Ribbon", "showpiece", 0, 199, "rainbow", {
+	trail("Rainbow Runway", "robux", 0, 199, "rainbow", {
 		rgb(255, 60, 70),
 		rgb(255, 170, 30),
 		rgb(255, 236, 60),
 		rgb(70, 220, 110),
 		rgb(60, 150, 255),
 		rgb(170, 90, 255),
-	}, "The full rainbow behind you."),
+	}, "A rainbow ribbon on the road, with sparkles."),
 	trail(
 		"Comet Tail",
-		"showpiece",
+		"robux",
 		0,
 		249,
-		"galaxy",
-		{ rgb(120, 70, 255), rgb(255, 90, 220), rgb(100, 220, 255) },
-		"A slice of deep space."
+		"comet",
+		{ rgb(180, 230, 255), rgb(90, 140, 255) },
+		"A glowing head and a long tail of light."
+	),
+	-- VIP (decision 0042 item 12)
+	trail(
+		"VIP Gradient",
+		"vip",
+		0,
+		nil,
+		"vip",
+		{ rgb(255, 196, 40), rgb(170, 60, 255) },
+		"VIP PASS: a gold-to-purple ribbon.",
+		true
 	),
 }
 
@@ -590,13 +663,7 @@ CosmeticPreviewCatalog.DefaultBalance = 5000
 
 function CosmeticPreviewCatalog.defaultOwnership(): Ownership
 	return {
-		owned = {
-			tangerine_pop = true,
-			brushed_steel = true,
-			racing_stripes = true,
-			rally_block = true,
-			smoke_ring = true,
-		},
+		owned = {}, -- Round 7: the server sends what this player owns (BetaStyle)
 		medals = { bronze = true, silver = false, gold = false },
 		unavailable = {},
 	}
@@ -616,6 +683,10 @@ function CosmeticPreviewCatalog.stateOf(item: Item, ownership: Ownership, equipp
 	end
 	if item.id == equippedId then
 		return "equipped"
+	end
+	-- Round 7: a VIP item is owned only while the server says so (the VIP pass); otherwise it is locked
+	if item.vip then
+		return if ownership.owned[item.id] then "owned" else "locked"
 	end
 	if (item.price == 0 and item.robux == nil) or ownership.owned[item.id] then
 		return "owned"
