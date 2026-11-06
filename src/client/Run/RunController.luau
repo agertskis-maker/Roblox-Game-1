@@ -427,6 +427,14 @@ local function spawnAhead(self: any)
 				local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.size, spawn.paint)
 				car.along = along
 				car.lateral = self._sequence:lateralAt(spawn, self._t)
+				-- A burst as an Epic or Legendary joins the road, plus a ring for a Legendary.
+				if self._t > 1 and (spawn.rarity == "Epic" or spawn.rarity == "Legendary") then
+					local at = RunRoad.frame(car.along, car.lateral, car.roof + 2)
+					self._fx:burst(at, CarVisual.RARITY_COLOR[spawn.rarity])
+					if spawn.rarity == "Legendary" then
+						self._fx:shockwave(at, 24)
+					end
+				end
 				if self._t > 1 and (spawn.rarity == RunConfig.ALERT_RARITY or spawn.size == "Giant") then
 					self._overlay:alert(
 						"A " .. carName(car) .. " is on the road ahead!",
