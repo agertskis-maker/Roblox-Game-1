@@ -565,6 +565,8 @@ if RunService:IsStudio() then
 			}
 		elseif command == "retry" or command == "home" then
 			return LaunchPad.debug(command)
+		elseif command == "start" then
+			return LaunchPad.debug("start") -- Round 7: as pressing START on the open launch card
 		elseif command == "enter" then
 			return LaunchPad.debug("enter", arg) -- Round 7: stand on a pad without starting a run
 		elseif command == "pause" or command == "resume" then

@@ -94,11 +94,12 @@ return {
 			ColorShift_Bottom = Color3.new(0, 0, 0),
 		},
 		atmosphere = {
-			density = 0.26,
-			offset = 0.18,
-			colour = rgb(206, 222, 244),
-			decay = rgb(150, 170, 206),
-			haze = 1.2,
+			-- Round 7 (R-09): a cool mountain blue instead of near white
+			density = 0.24,
+			offset = 0.16,
+			colour = rgb(158, 190, 232),
+			decay = rgb(110, 138, 196),
+			haze = 0.8,
 		},
 		grade = { brightness = 0.02, contrast = 0.06, saturation = 0.06, tint = rgb(238, 244, 255) },
 	},

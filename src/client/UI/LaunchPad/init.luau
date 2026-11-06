@@ -304,6 +304,15 @@ local function closeHomePanels()
 	end
 end
 
+-- Round 7 (R-09): the World under the road has its meshes and textures (true when the beta draws no World there)
+local function sceneryLoaded(name: string): boolean
+	local ok, loaded = pcall(function()
+		local RunScenery = require(script.Parent.WorldsUnderRoad.RunScenery) :: any
+		return RunScenery.loaded(name)
+	end)
+	return not ok or loaded == true
+end
+
 local function anyPanelOpen(): boolean
 	if StaminaPanel.isOpen() or LuckPanel.isOpen() then
 		return true
@@ -378,7 +387,7 @@ local function watchPad(pad: Build.Pad)
 		local card = panel("launchCard")
 		if inside and rampArmed and not anyPanelOpen() and card and not card:isOpen() then
 			rampArmed = false
-			card:open(WORLD_TITLE[world] or world, hint)
+			card:open(WORLD_TITLE[world] or world, hint or (if sceneryLoaded(world) then nil else "Warming up..."))
 			tutorial("PadCard", { open = true })
 		elseif not inside and not rampArmed then
 			rampArmed = true
@@ -912,7 +921,14 @@ function LaunchPad.attachShell(s: any)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
 		onStart = function()
 			padTrove:Clean()
-			countdown()
+			-- R-09: the countdown waits (at most 12 s) for the World's meshes and textures, so the run never starts white
+			task.spawn(function()
+				local t0 = os.clock()
+				while not sceneryLoaded(world) and os.clock() - t0 < 12 do
+					task.wait(0.2)
+				end
+				countdown()
+			end)
 		end,
 		onChangeCar = function()
 			panel("carStall"):open(world)

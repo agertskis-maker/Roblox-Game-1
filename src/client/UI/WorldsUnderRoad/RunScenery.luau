@@ -26,6 +26,7 @@
 -- made in the background halfway through the lap before, shown ahead of the car before it gets there, and freed once the car
 -- is well past it. Lap 0 is the prepared one and is kept for the next run; later laps are destroyed.
 
+local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -51,6 +52,7 @@ type Prepared = { city: any, folder: Folder }
 
 local prepared: { [string]: Prepared } = {}
 local preparing: { [string]: boolean } = {}
+local loaded: { [string]: boolean } = {} -- Round 7 (R-09): its meshes and textures have arrived
 
 local function config(): Instance?
 	return ReplicatedStorage:FindFirstChild("CarHopBeta")
@@ -121,8 +123,16 @@ local function prepare(world: string)
 		return
 	end
 	preparing[world] = true
-	prepared[world] = buildLap(world, 0)
+	local made = buildLap(world, 0)
+	prepared[world] = made
 	preparing[world] = false
+	-- R-09: fetch everything the World draws before its START is offered, so nothing arrives white in front of the player
+	if made then
+		pcall(function()
+			ContentProvider:PreloadAsync({ made.folder })
+		end)
+	end
+	loaded[world] = true
 end
 
 -- Prepares every World in the background, each on its own, so a slow one holds no other up.
@@ -134,6 +144,11 @@ end
 
 function RunScenery.ready(world: string): boolean
 	return prepared[world] ~= nil
+end
+
+-- R-09: built and its meshes and textures fetched (or it failed to build: then there is nothing to wait for).
+function RunScenery.loaded(world: string): boolean
+	return loaded[world] == true or not RunScenery.enabled()
 end
 
 -- Leaves only his road in a segment: its surface, kerbs and markings.
