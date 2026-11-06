@@ -150,7 +150,8 @@ function Panel.open()
 		name = "Card",
 	})
 	CarKit.pattern(card, "chevron", { color = Color3.fromRGB(200, 170, 255), transparency = 0.9, z = 3 })
-	CarKit.title(card, "STAMINA SHOP", math.max(math.round(52 * k), 30), {
+	-- Round 7 (H-03): the panel says the kiosk's name
+	CarKit.title(card, "PIT STOP", math.max(math.round(52 * k), 30), {
 		align = Enum.TextXAlignment.Center,
 		position = UDim2.fromOffset(0, math.round(10 * k)),
 		size = UDim2.new(1, 0, 0, math.round(58 * k)),
