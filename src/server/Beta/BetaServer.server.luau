@@ -47,11 +47,13 @@ end
 spawnPad.Parent = workspace
 
 -- A Studio multi-client test (BetaMultiTest) plays on the Mock store, so tests never touch a real beta save.
+local multiTest = false
 if RunService:IsStudio() then
 	local ok, args = pcall(function()
 		return StudioTestService:GetTestArgs()
 	end)
 	if ok and type(args) == "table" and (args :: any).suite ~= nil then
+		multiTest = true
 		BetaData.useMockStore()
 	end
 end
@@ -144,9 +146,10 @@ if RunService:IsStudio() then
 	-- Round 6: the Studio MCP in Adam's Studio cannot call the hook above (it lacks the capability), so in a Studio Play
 	-- server every self-test also runs once by itself, a few seconds after the first save loads, on a test save only
 	-- (the Mock store, or Studio with no DataStore access). Lines go to Output as "[CarHopBeta selftest] PASS ...".
+	-- Round 7: not during a multi-client test, whose checks would race the self-tests for Player1's save.
 	local ran = false
 	BetaData.Loaded:Connect(function(player: Player)
-		if ran or not BetaData.isTestSave() then
+		if ran or multiTest or not BetaData.isTestSave() then
 			return
 		end
 		ran = true
