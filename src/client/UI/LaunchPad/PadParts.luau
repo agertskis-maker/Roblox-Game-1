@@ -6,6 +6,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SignKit = require(ReplicatedStorage.Shared.Island.SignKit)
+local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local Format = require(ReplicatedStorage.Shared.UI.Format)
+local KioskSign = require(script.Parent.Parent.Prototype.World.KioskSign)
 local Motion = require(script.Parent.Parent.Prototype.Motion)
 local RealCar = require(script.Parent.Parent.Prototype.RealCar)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
@@ -720,6 +724,23 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	local stamAt = placed(32, -15)
 	local stamTop: number
 	stands.Stamina, stamTop = kioskShell(k, theme, "Stamina", "PIT STOP", stamAt)
+	-- H-03: the floating sign, readable from 20 studs: bolts now -> next and the price
+	KioskSign.attach(stands.Stamina, {
+		title = "PIT STOP",
+		colour = Color3.fromRGB(255, 214, 70),
+		height = stamTop + 13,
+		read = function(): (string, string?)
+			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.StaminaAttribute))
+				or 0
+			local now = EconomyPreview.staminaFor(level)
+			if level >= EconomyPreview.StaminaMaxLevel then
+				return string.format("%d BOLTS", now), nil
+			end
+			local price = EconomyPreview.staminaPrice(level + 1)
+			return string.format("BOLTS %d → %d", now, EconomyPreview.staminaFor(level + 1)),
+				if price then Format.cash(price) else nil
+		end,
+	})
 	local cellColours = { rgb(255, 216, 50), rgb(255, 64, 70), rgb(176, 84, 255) }
 	k:cyl("BatteryBase", 6, 0.9, stamAt * CFrame.new(0, 1.3, 1), INK)
 	local cells: { BasePart } = {}
@@ -773,6 +794,20 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	local luckAt = placed(32, 9)
 	local luckTop: number
 	stands.Luck, luckTop = kioskShell(k, theme, "Luck", "LUCKY CLOVER", luckAt)
+	KioskSign.attach(stands.Luck, {
+		title = "LUCKY CLOVER",
+		colour = Color3.fromRGB(110, 230, 120),
+		height = luckTop + 17,
+		read = function(): (string, string?)
+			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.LuckAttribute)) or 0
+			if level >= EconomyPreview.LuckMaxLevel then
+				return string.format("LUCK x%g", EconomyPreview.luckFor(level)), nil
+			end
+			local price = EconomyPreview.luckPrice(level + 1)
+			return string.format("LUCK x%g → x%g", EconomyPreview.luckFor(level), EconomyPreview.luckFor(level + 1)),
+				if price then Format.cash(price) else nil
+		end,
+	})
 	local leafGreen = rgb(70, 200, 90)
 	k:box("Planter", Vector3.new(10, 2.2, 3), luckAt * CFrame.new(0, 1.8, 4.6), theme.trim)
 	k:box("PlanterSoil", Vector3.new(9.4, 0.3, 2.4), luckAt * CFrame.new(0, 3, 4.6), rgb(92, 62, 40))

@@ -594,6 +594,36 @@ if RunService:IsStudio() then
 				rig:setPaint(item)
 			end
 			return #RealCar.list()
+		elseif command == "aura" and type(arg) == "string" then
+			-- Round 7 (K-01): "Cruiser/1,Executive/1,Bolt/1,Minnow/4" parks those cars with their Raceway aura in front of you
+			local RacewayAura = require(UI.Prototype.Style.RacewayAura) :: any
+			local old = workspace:FindFirstChild("Lane3AuraTest")
+			if old then
+				old:Destroy()
+			end
+			local folder = Instance.new("Folder")
+			folder.Name = "Lane3AuraTest"
+			folder.Parent = workspace
+			local at = root()
+			if not at or arg == "off" then
+				return "off"
+			end
+			local base = (at :: BasePart).CFrame * CFrame.new(-18, -2.5, -26)
+			local n = 0
+			for entry in string.gmatch(arg, "[^,]+") do
+				local name, ed = string.match(entry, "^(.-)/(%d)$")
+				if name then
+					local rig = RealCar.mount(folder, { length = 12.6, height = 5.2 })
+					rig:setCar(name)
+					rig:pivotTo(base * CFrame.new(n * 12, 0, 0) * CFrame.Angles(0, math.rad(90), 0))
+					task.wait(0.5)
+					if rig._body then
+						RacewayAura.attach(rig._body.model, name, tonumber(ed))
+					end
+					n += 1
+				end
+			end
+			return n
 		elseif command == "style" and type(arg) == "string" then
 			-- Round 7 (C-08): "Paint/galaxy" buys (through the server) and wears an item
 			local tab, id = string.match(arg, "^(%a+)/(.+)$")

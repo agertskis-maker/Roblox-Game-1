@@ -22,6 +22,8 @@
 --
 --   hud:notify(text, icon?)         one event pill at the top centre ("RACEWAY LEVEL 5!", "NEW CAR!"); icon = a painter name
 --   hud:setGoal(spec?)              the goal pill { title, subtitle?, progress? (0..1), icon?, onActivate? }; nil clears it
+--   Round 7 (H-01): adapters.getGoalLine -> string? draws one short line at the very top centre, always, above the pills; it
+--   hides with the HUD in a run and while the tutorial banner owns the top.
 --   hud:setTutorialActive(on)       the tutorial owns the top-centre spot: the pills and the return guide slide away
 --   hud:setVisible(on)              hide / show everything (a run, a full-screen card)
 --   hud:destroy()                   everything is cleaned through one Trove
@@ -71,6 +73,7 @@ export type Adapters = {
 	getShopUnread: (() -> boolean)?,
 	getGarageUnseen: (() -> number?)?,
 	getMissionsClaimable: (() -> number?)?,
+	getGoalLine: (() -> string?)?,
 	getFreeGiftReady: (() -> boolean)?,
 	getTimer: (() -> { label: string?, seconds: number }?)?,
 	preview: { cash: boolean?, rate: boolean?, owned: boolean? }?,
@@ -166,6 +169,35 @@ function HomeHud.mount(parent: GuiBase2d, adapters: Adapters, options: Options?)
 	trove:Add(function()
 		self._shortcuts:destroy()
 	end)
+	-- H-01: the goal line, one short sentence over the top-centre column
+	local goalLine = make("TextLabel", {
+		Name = "GoalLine",
+		AnchorPoint = Vector2.new(0.5, 0),
+		BackgroundColor3 = Color3.fromRGB(14, 22, 52),
+		BackgroundTransparency = 0.2,
+		FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json"),
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(255, 236, 140),
+		Text = "",
+		Visible = false,
+		ZIndex = 6,
+		Parent = root,
+	})
+	make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = goalLine })
+	make("UIStroke", {
+		Color = Color3.fromRGB(10, 14, 32),
+		Thickness = 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = goalLine,
+	})
+	make("UIPadding", {
+		PaddingLeft = UDim.new(0, 14),
+		PaddingRight = UDim.new(0, 14),
+		PaddingTop = UDim.new(0, 4),
+		PaddingBottom = UDim.new(0, 4),
+		Parent = goalLine,
+	})
+	self._goalLine = goalLine
 	self._pills = HomePills.new(root)
 	trove:Add(function()
 		self._pills:destroy()
@@ -376,6 +408,13 @@ function HomeHud.refresh(self: any)
 			self._nav:setBadge("Missions", if v == false then nil else v)
 		end
 	)
+	local line = safe(a.getGoalLine)
+	local goalLine: TextLabel = self._goalLine
+	local text = if type(line) == "string" then line else ""
+	if goalLine.Text ~= text then
+		goalLine.Text = text
+	end
+	goalLine.Visible = text ~= "" and not self._tutorial
 	self:_syncEntries()
 	self:_syncTimer()
 end
@@ -393,7 +432,14 @@ function HomeHud._place(self: any)
 	self._nav:place(plan.nav, m.scale)
 	self._cash:place(plan.cash, m.scale)
 	self._shortcuts:place(plan.shortcuts, m.scale)
-	self._pills:place(plan.top, m.scale)
+	-- H-01: the goal line takes the top of the column; the pills sit under it
+	local lineH = if plan.top.compact then 26 else 32
+	local goalLine: TextLabel = self._goalLine
+	goalLine.Position = UDim2.fromOffset(plan.top.cx * m.scale, plan.top.y * m.scale)
+	goalLine.Size = UDim2.fromOffset(plan.top.width * m.scale, lineH * m.scale)
+	local below = table.clone(plan.top) :: any
+	below.y = plan.top.y + lineH + 6
+	self._pills:place(below, m.scale)
 	local timer: Frame = self._timer
 	self._timerScale.Scale = m.scale
 	timer.Position = UDim2.fromOffset(plan.timer.right * m.scale, plan.timer.bottom * m.scale)
@@ -434,6 +480,8 @@ end
 function HomeHud.setTutorialActive(self: any, on: boolean)
 	self._tutorial = on
 	self._pills:setSuppressed(on)
+	local goalLine: TextLabel = self._goalLine
+	goalLine.Visible = goalLine.Text ~= "" and not on
 	for _, guide in self._guides do
 		guide:setSuppressed(on)
 	end

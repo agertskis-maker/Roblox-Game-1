@@ -914,7 +914,6 @@ function LaunchPad.attachShell(s: any)
 			padTrove:Clean()
 			countdown()
 		end,
-		hops = RunStamina.playerMax,
 		onChangeCar = function()
 			panel("carStall"):open(world)
 		end,

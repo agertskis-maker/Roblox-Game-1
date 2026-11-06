@@ -32,6 +32,15 @@ local Calm = require(script.Parent.Speedway.Calm)
 local Kiosk = require(script.Parent.Speedway.Kiosk)
 local LappingPreview = require(script.Parent.LappingPreview)
 local ParkingLook = require(script.Parent.Speedway.ParkingLook)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI:WaitForChild("EconomyPreview"))
+local Format = require(ReplicatedStorage.Shared.UI:WaitForChild("Format"))
+local KioskSign = require(
+	script.Parent.Parent.Parent
+		:WaitForChild("UI")
+		:WaitForChild("Prototype")
+		:WaitForChild("World")
+		:WaitForChild("KioskSign")
+)
 local Life = require(script.Parent.Speedway.Life)
 local PreviewPanel = require(script.Parent.Speedway.PreviewPanel)
 local Reveal = require(script.Parent.Speedway.Reveal)
@@ -220,6 +229,10 @@ local function attach(root: Instance): Trove.Trove
 			if park then
 				park:Destroy()
 			end
+			local sign = anchor and anchor:FindFirstChild("Lane3KioskSign")
+			if sign then
+				sign:Destroy()
+			end
 			return
 		end
 		if existing then
@@ -239,6 +252,35 @@ local function attach(root: Instance): Trove.Trove
 			end
 		end)
 		prompt.Parent = at
+		-- Round 7 (H-03): the floating sign over your own kiosk: now -> next and the price
+		if kind == "upgrade" then
+			KioskSign.attach(at, {
+				title = "RACEWAY SHOP",
+				height = 9,
+				read = function(): (string, string?)
+					local level = info.level
+					local price = EconomyPreview.racewayPrice(level + 1)
+					if not price then
+						return "LEVEL " .. level, nil
+					end
+					return string.format("LEVEL %d → %d", level, level + 1), Format.cash(price)
+				end,
+			})
+		else
+			KioskSign.attach(at, {
+				title = "PARKING",
+				colour = Color3.fromRGB(110, 190, 255),
+				height = 9,
+				read = function(): (string, string?)
+					local spots = ParkingLook.resolve(info.plot, info.index)
+					local price = EconomyPreview.spotPrice(spots + 1)
+					if not price then
+						return string.format("%d SPOTS", spots), nil
+					end
+					return string.format("SPOTS %d → %d", spots, spots + 1), Format.cash(price)
+				end,
+			})
+		end
 		-- Round 5 (L-04): with a live server the parking sign also opens YOUR RACEWAY, the Lineup panel (F, beside E)
 		if kind == "parking" and LiveData.active() and not at:FindFirstChild("Lane3LineupPrompt") then
 			local park = Instance.new("ProximityPrompt")

@@ -10,6 +10,8 @@
 --   MissionFeed.state(player?) -> State?       the panel state built from the attribute (nil when there is none)
 --   MissionFeed.nextMission(player?) -> Mission?   the first unfinished mission (for the goal pill)
 --   MissionFeed.claim(id) -> boolean           sends the claim when attached (false: no live feed, the preview resolves)
+--   MissionFeed.claimable(player?) -> number   missions ready to claim (Round 7, U-05: the red count on the Missions button)
+--   MissionFeed.goalLine(player?) -> string?   the one most useful next thing, in one short line (Round 7, H-01)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -108,6 +110,49 @@ function MissionFeed.nextMission(player: Player?): MissionsPreview.Mission?
 		end
 	end
 	return nil
+end
+
+function MissionFeed.claimable(player: Player?): number
+	local entries = parse(player or Players.LocalPlayer)
+	local n = 0
+	for _, entry in entries or {} do
+		if entry.status == "ready" then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- H-01: one line for the top of the hub, from the server's mission state only: a claim waiting, else the next Goal, else the
+-- next mission. nil with no live feed (the line hides).
+local GOAL_LINE: { [string]: string } = {
+	["first-catch"] = "Hop onto cars in a run to catch your first car!",
+	["level-3"] = "Buy Raceway level 3 at your Raceway shop!",
+	["downtown-5"] = "5 Downtown cars opens Dusty Highway!",
+	dusty = "Open Dusty Highway at its portal!",
+	gold = "Catch one car 25 times to make it GOLD!",
+	summit = "Open Summit Pass at its portal!",
+}
+
+function MissionFeed.goalLine(player: Player?): string?
+	local entries = parse(player or Players.LocalPlayer)
+	if not entries then
+		return nil
+	end
+	local ready = MissionFeed.claimable(player)
+	if ready > 0 then
+		return if ready == 1
+			then "A Mission is ready! Tap MISSIONS to claim it."
+			else "Missions are ready! Tap MISSIONS to claim them."
+	end
+	for _, id in MissionsPreview.Goals do
+		local entry = entries[id]
+		if entry and entry.status == "active" then
+			return GOAL_LINE[id]
+		end
+	end
+	local nextOne = MissionFeed.nextMission(player)
+	return if nextOne then nextOne.text else "Catch cars to earn more money!"
 end
 
 function MissionFeed.claim(id: string): boolean

@@ -452,6 +452,13 @@ function HomeShell.start(options: Options?): any
 			onMissions = function()
 				userPanel("missions")
 			end,
+			-- Round 7: the red count of missions ready to claim (U-05) and the one goal line (H-01), both from the live feed
+			getMissionsClaimable = function(): number?
+				return if LiveData.active() then MissionFeed.claimable() else nil
+			end,
+			getGoalLine = function(): string?
+				return if LiveData.active() then MissionFeed.goalLine() else nil
+			end,
 			onSettings = function()
 				userPanel("settings", self.hud and self.hud:getButton("Settings") or nil)
 			end,
@@ -635,7 +642,7 @@ function HomeShell._join(self: any, o: Options)
 			end)
 		end
 	end
-	Tutorial.start({
+	self.tutorialController = Tutorial.start({
 		store = self.store,
 		screen = self.screen,
 		layer = self.screen.safe:FindFirstChild("HudLayer"),
