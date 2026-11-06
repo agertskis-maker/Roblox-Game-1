@@ -18,6 +18,7 @@ local Motion = require(script.Parent.Parent.Prototype.Motion)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
 local PadBackdrop = require(script.Parent.PadBackdrop)
 local PadKit = require(script.Parent.PadKit)
+local PadDressing = require(script.Parent.PadDressing)
 local PadParts = require(script.Parent.PadParts)
 
 local Build = {}
@@ -64,6 +65,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	local home = PadParts.homePortal(k, theme, life)
 	local stalls, syncCars = PadParts.kiosks(k, theme, life, world)
 	PadParts.touches(k, theme, world, life)
+	PadDressing.dress(k, theme, world) -- Round 7 (A-06): bushes, trees, lamps, benches, bunting, the road-closed set
 
 	local chevronsOn = false
 	local rings: { BasePart } = {}

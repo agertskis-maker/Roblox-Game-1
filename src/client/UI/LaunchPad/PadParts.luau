@@ -904,15 +904,10 @@ function PadParts.touches(k: any, theme: any, world: string, life: any)
 			k:cyl("Cactus", 1.5, 4.4, CFrame.new(x, 4.8, z), rgb(70, 140, 90))
 			k:ball("CactusTop", 1.5, CFrame.new(x, 7, z), rgb(70, 140, 90))
 			k:cyl("CactusArm", 0.9, 1.8, CFrame.new(x + 1.1, 5, z), rgb(70, 140, 90))
-		else
-			k:ball("Hedge", 4, CFrame.new(x, 4, z), rgb(70, 160, 80), Enum.Material.Grass)
 		end
 	end
-	if world == "Downtown" then
-		for _, p in { { -14, -30 }, { 14, -30 } } do
-			planter(p[1], p[2])
-		end
-	elseif world == "DustyHighway" then
+	-- Round 7 (A-06): Downtown's hedge balls on blocks are gone; PadDressing's faceted bushes stand there now
+	if world == "DustyHighway" then
 		for _, p in { { -14, -30 }, { 14, -30 }, { 18, 34 }, { -18, 34 } } do
 			planter(p[1], p[2])
 		end
