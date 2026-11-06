@@ -136,10 +136,10 @@ Status: **done**, **partial**, **not done**, **blocked**.
 | T-04 10-minute runs, cold join | MUST | not done | See R-08 and R-09. Next action: in Studio Play run `CarHopBetaCmd` "start" plus the autopilot for 10 minutes in each World and record parts, memory and frames at 0/5/10 min; after the publish, Adam's first join is the cold-join check. |
 | T-05 Frames and reviewers | MUST | partial | Desktop frames only; two Sonnet reviewers (results in RESULT.md). |
 | T-06 Six clients | SHOULD | not done | First on the drop list. |
-| F-01 Push, PRs | MUST | see RESULT.md | |
+| F-01 Push, PRs | MUST | done | Every branch pushed and matching GitHub. PR #17 (run files, into Brian R's branch), draft PR #18 (`feature/lane3-round7` into `main`), draft PR #19 (`integration/beta-5` into `main`). |
 | F-02 Merge lane3-round7 | MUST | not done | Not every MUST passed. |
-| F-03 Publish | MUST | see RESULT.md | |
-| F-04 RESULT.md | MUST | see RESULT.md | |
+| F-03 Publish | MUST | blocked | The Studio MCP has no publish action: `StudioPublishService` is not reachable from its scripts, its keyboard tool reaches only the game view, and Open Cloud here sends only JSON or asset files (not a place file). This round allows Studio MCP input only, so the window-message clicks used in Round 6 were not used. Next action: Adam presses File > Publish to Roblox As in `CarHop-Beta-5-local.rbxl`, guided one click at a time; then check `Updated` on economy.roblox.com/v2/assets/118605678346800/details. |
+| F-04 RESULT.md | MUST | done | `Car-Hop-Art/review/round7/RESULT.md`. |
 
 ## T-05 reviewer findings
 
