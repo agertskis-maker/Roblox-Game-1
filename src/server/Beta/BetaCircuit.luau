@@ -16,8 +16,13 @@
 -- cross-server data (no OrderedDataStore, MemoryStore or MessagingService), and no reward is paid from a time.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 
 local BetaCircuit = {}
+
+BetaCircuit.open = BetaConfig.CircuitOpen -- Round 7 (A-03): false, the Circuit is Coming soon (the self-test opens it briefly)
 
 BetaCircuit.EventRemote = "CircuitEvent"
 BetaCircuit.ResultRemote = "CircuitResult"
@@ -63,6 +68,9 @@ end
 
 -- One event (apart from the remote so the self-test can call it, with `now` given). Returns a short status.
 function BetaCircuit.event(player: Player, kind: any, index: any, now: number): string
+	if not BetaCircuit.open then
+		return "closed: the Stunt Circuit is Coming soon (Round 7, A-03)"
+	end
 	if type(kind) ~= "string" then
 		return "bad kind"
 	end
@@ -146,6 +154,23 @@ function BetaCircuit.start(folder: Folder)
 end
 
 function BetaCircuit.selfTest(player: Player): { string }
+	local wasOpen = BetaCircuit.open
+	local closedStatus = BetaCircuit.event(player, "start", nil, os.clock())
+	BetaCircuit.open = true
+	local ok, lines = pcall(BetaCircuit.selfTestOpen, player)
+	BetaCircuit.open = wasOpen
+	local out: { string } = if ok then lines else { "FAIL error: " .. tostring(lines) }
+	table.insert(
+		out,
+		1,
+		(if wasOpen or string.sub(closedStatus, 1, 6) == "closed" then "PASS" else "FAIL")
+			.. " A-03 a closed Circuit refuses a lap start: "
+			.. closedStatus
+	)
+	return out
+end
+
+function BetaCircuit.selfTestOpen(player: Player): { string }
 	local lines: { string } = {}
 	local function expect(name: string, got: any, want: any)
 		table.insert(

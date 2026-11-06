@@ -23,6 +23,9 @@ BetaConfig.Remotes = {
 	-- Stamina Shop (Adam, 2026-11-05; beta-only, a proposal for Brian L): no arguments. The server raises the caller's own
 	-- StaminaLevel by one, for Cash at EconomyPreview.staminaPrice.
 	BuyStaminaLevel = "BuyStaminaLevel",
+	-- Round 7 (P-04, beta-only, a proposal for Brian L): no arguments. The server raises the caller's own LuckLevel by one, for Cash
+	-- at EconomyPreview.luckPrice, unless PolicyService says paid random items are restricted for that player (R7-S09).
+	BuyLuckLevel = "BuyLuckLevel",
 	-- Server -> client: (what: string, ok: boolean, reason: string?, missing: number?) after every purchase or Lineup
 	-- request, so a refusal shows the server's reason and the server's missing amount. The client never computes either.
 	Result = "BetaResult",
@@ -34,6 +37,9 @@ BetaConfig.Remotes = {
 	-- Round 6 (R-02): server -> client after a receipt is granted and saved: (itemId: string, summary: { [string]: any })
 	PurchaseGranted = "BetaPurchaseGranted",
 	LapPaid = "BetaLapPaid", -- server -> client: (plotIndex, slot, carId, amount, newCash?) newCash only to the owner
+	-- Round 7 (P-01): no arguments. Credits the caller's own Welcome back amount, which the server computed on load and holds;
+	-- once only (a second press credits nothing). Leaving without pressing it credits it too.
+	CollectWelcome = "CollectWelcome",
 }
 
 -- ProfileStore store and template. A beta-only store, so the real game's saves start clean.
@@ -57,6 +63,9 @@ BetaConfig.Template = {
 	-- three lanes in vault/design/specs/robux-fields-for-brian-l.md. No other field is added.
 	Purchases = {}, -- processed Developer Product receipt ids (PurchaseId strings), newest last, at most 200
 	Owned = {}, -- { [id]: true }: passes the All Passes Bundle granted, the Starter Pack (once per player) and its cosmetics
+	-- Round 7 (P-04, decision 0042 item 10): Lucky Clover levels bought, 0 to EconomyPreview.LuckMaxLevel. Beta-only, a proposal
+	-- for Brian L (vault/design/specs/lane3-round7-for-brian-l.md).
+	LuckLevel = 0,
 }
 BetaConfig.PurchasesKept = 200
 
@@ -66,6 +75,10 @@ BetaConfig.PurchasesKept = 200
 BetaConfig.RealPurchases = false
 BetaConfig.OwnedAttribute = "BetaOwned" -- Player: "vip,double-lap-pay" (read only; the server writes it)
 BetaConfig.StaminaAttribute = "BetaStaminaLevel" -- Player: the saved StaminaLevel (read only; the server writes it)
+BetaConfig.LuckAttribute = "BetaLuckLevel" -- Player: the saved LuckLevel (read only; the server writes it)
+-- Player: true when PolicyService says paid random items are restricted for this player (the Lucky Clover BUY is then replaced by
+-- "Not available for your account"); nil while the check is running. Read only; the server writes it.
+BetaConfig.LuckRestrictedAttribute = "BetaLuckRestricted"
 BetaConfig.LineupAttribute = "BetaLineup" -- Player: the Lineup as "Putter,Minnow" (read only; the server writes it)
 BetaConfig.CashAttribute = "BetaCash" -- Player: the saved Cash (read only; the server writes it)
 BetaConfig.WorldsAttribute = "BetaWorldsUnlocked" -- Player: "Downtown,DustyHighway" (read only)
@@ -75,6 +88,8 @@ BetaConfig.CarsAttribute = "BetaCars"
 -- after the credit is in the save; the card only reads them and never asks for a payment.
 BetaConfig.WelcomeAmountAttribute = "BetaWelcomeAmount"
 BetaConfig.WelcomeSecondsAttribute = "BetaWelcomeSeconds"
+-- Round 7 (P-01): the seconds the credit counts (the time away, capped at 24 h, or 30 h with VIP), for the card
+BetaConfig.WelcomeCappedAttribute = "BetaWelcomeCapped"
 -- Studio-only cheat (L-07): the SERVER sets this Player attribute to a number from the command bar; the beta adds it to Cash
 -- and clears it. A client cannot set it (client-made attributes never replicate), and outside Studio it is ignored.
 BetaConfig.GrantCashAttribute = "BetaGrantCash"
@@ -85,6 +100,13 @@ BetaConfig.HoldClaimsAttribute = "BetaHoldClaims"
 -- Plot attributes for the Lap Pay clock (src/shared/UI/LapClock): the server time slot phases count from, and the lap length.
 BetaConfig.LapEpochAttribute = "BetaLapEpoch"
 BetaConfig.LapSecondsAttribute = "BetaLapSeconds"
+-- Round 7 (A-04): CarHopBetaNet attribute, the RICHEST RACERS board: "userId|displayName|cash;..." for the top ten Cash totals of
+-- the players in THIS server (no cross-server data), highest first, ties by lower UserId. Read only; the server writes it.
+BetaConfig.RichestAttribute = "RichestRacers"
+BetaConfig.RichestRows = 10
+-- Round 7 (A-03, decision 0042 item 5): the Stunt Circuit is "Coming soon". Its gate is closed and the server refuses every
+-- Circuit event while this is false. Its screens stay in the code, switched off.
+BetaConfig.CircuitOpen = false
 
 -- Attributes the server sets. Plot: Owner (UserId), OwnerDisplayName, SpeedwayLevel, ParkingSpots
 -- (the names Lane 3's Raceway looks already read). Player: HomePlot (plot number).

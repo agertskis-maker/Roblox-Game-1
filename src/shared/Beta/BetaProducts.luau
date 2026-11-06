@@ -57,7 +57,7 @@ local items: { Item } = {
 BetaProducts.Starter = table.freeze({ car = "Brawler", cash = 5000, cosmetics = { "rookie_flame", "starter_stripe" } })
 -- VIP's paints (PREVIEW names from the cosmetics catalog) and its offline cap.
 BetaProducts.VipCosmetics = table.freeze({ "vip_gold_flake", "vip_midnight" })
-BetaProducts.VipOfflineHours = 12
+BetaProducts.VipOfflineHours = 30 -- Round 7 (decision 0042 item 11): VIP Welcome back cap, same 40% rate (was 12)
 
 -- Ids filled in after the products are created (R-01). Kept apart from the list so one edit updates them.
 local ids: { [string]: number } = {}

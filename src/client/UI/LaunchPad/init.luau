@@ -35,6 +35,7 @@ local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
+local HomeSpot = require(ReplicatedStorage.Shared.Island.HomeSpot)
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -74,6 +75,7 @@ local unbindKey: (() -> ())? = nil
 local hint: string? = nil
 local padVisits = 0
 local savedZoom: number? = nil
+local goHome: () -> ()
 
 local PAD_ZOOM = 44 -- far enough to take in the floor, never so far the platform looks small
 local STAND_RADIUS = 3.8
@@ -392,6 +394,18 @@ local function watchPad(pad: Build.Pad)
 	end)
 end
 
+-- Round 7 (A-01): home is your Raceway. Back to your own plot's entrance (looked up now, so a plot that changed hands is never
+-- used), facing the Raceway, never the portal; only a player with no plot yet goes back to the portal they came through.
+goHome = function()
+	local c = player.Character
+	local spot = HomeSpot.cframe(player:GetAttribute("HomePlot"), if c then { c } else nil)
+	if spot then
+		moveTo(spot)
+	elseif returnTo then
+		moveTo(returnTo)
+	end
+end
+
 function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	if phase ~= "island" then
 		return
@@ -457,9 +471,7 @@ function LaunchPad.leave()
 	task.spawn(function()
 		wipe(nil, function()
 			setLight(nil)
-			if returnTo then
-				moveTo(returnTo)
-			end
+			goHome()
 			local pad = pads[world]
 			if pad then
 				pad.folder.Parent = nil
@@ -532,7 +544,11 @@ local function hideHisResults()
 	if gui then
 		-- his keyboard hint names keys, and phones play too; he sets it visible again, so keep it down
 		for _, d in gui:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Space", 1, true) then
+			-- Round 7: and his "Lane 1 run prototype · nothing is saved" footer, which is not true in the beta (runs are paid and saved)
+			if
+				d:IsA("TextLabel")
+				and (string.find(d.Text, "Space", 1, true) or string.find(d.Text, "prototype", 1, true))
+			then
 				d.Visible = false
 				runTrove:Connect(d:GetPropertyChangedSignal("Visible"), function()
 					d.Visible = false
@@ -648,8 +664,9 @@ local function watchRun(run: any)
 		local state = run:getDebugState()
 		if state.mode == "Ended" and not shown then
 			shown = true
-			-- his card appears 0.8 s after the crash; ours takes that moment too
-			task.delay(0.8, function()
+			-- his card appears 0.8 s after the crash; ours takes that moment too (Round 7: longer after WRECKED!, so it is seen)
+			local RunExtras = require(script.Parent.RunHud.RunExtras) :: any
+			task.delay(RunExtras.resultsDelay(state.cause), function()
 				if phase ~= "run" or run:getDebugState().mode ~= "Ended" then
 					return
 				end
@@ -817,9 +834,7 @@ local function home()
 	task.spawn(function()
 		wipe(nil, function()
 			setLight(nil)
-			if returnTo then
-				moveTo(returnTo)
-			end
+			goHome()
 			local pad = pads[world]
 			if pad then
 				pad.folder.Parent = nil

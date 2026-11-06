@@ -134,9 +134,10 @@ EconomyPreview.Milestone =
 	table.freeze({ Downtown = 100, DustyHighway = 10e3, SummitPass = 1e6 }) :: { [string]: number }
 EconomyPreview.MilestoneMetres = 500
 
--- Section 9: Welcome back.
-EconomyPreview.OfflineRate = 0.5
-EconomyPreview.OfflineCapHours = 8
+-- Section 9: Welcome back. Round 7 (P-01, decision 0042 item 11, PREVIEW for Brian L): everyone earns 40% of their Raceway
+-- income while away, up to 24 hours; VIP raises the cap to 30 hours (BetaProducts.VipOfflineHours), same 40%. Was 50%, 8 hours.
+EconomyPreview.OfflineRate = 0.4
+EconomyPreview.OfflineCapHours = 24
 EconomyPreview.LapSeconds = 15
 
 -- Round 5 (L-01): a one-time PREVIEW bonus paid when the tutorial ends (finished or skipped), so "Add a spot" ($500) is
@@ -161,6 +162,22 @@ EconomyPreview.StaminaPrice = table.freeze({
 	[10] = 20e6,
 }) :: { [number]: number }
 EconomyPreview.StaminaMaxLevel = 10
+
+-- Round 7 (P-04, decision 0042 item 10; beta, PREVIEW, a proposal for Brian L): the Lucky Clover. Five levels, Cash only, each ten
+-- times the last. The multiplier is L in the shared odds rule (src/shared/Run/Luck): Legendary and Epic x L, Rare x (1 + (L - 1) / 2),
+-- Commons never below 35%. Level 0 is no luck (x1).
+EconomyPreview.LuckMultiplier = table.freeze({ 1.25, 1.5, 2, 3, 4 }) :: { number }
+EconomyPreview.LuckPrice = table.freeze({ 100e3, 1e6, 10e6, 100e6, 1e9 }) :: { number }
+EconomyPreview.LuckMaxLevel = 5
+
+function EconomyPreview.luckFor(level: number?): number
+	local n = math.clamp(math.floor(tonumber(level) or 0), 0, EconomyPreview.LuckMaxLevel)
+	return if n == 0 then 1 else EconomyPreview.LuckMultiplier[n]
+end
+
+function EconomyPreview.luckPrice(level: number): number?
+	return EconomyPreview.LuckPrice[level]
+end
 
 function EconomyPreview.edition(n: number?): Edition
 	return EconomyPreview.Editions[math.clamp(math.floor(n or 1), 1, #EconomyPreview.Editions)]
@@ -326,8 +343,9 @@ function EconomyPreview.selfTest(): { string }
 	expect("convert Normal 7", EconomyPreview.lifetimeCopies(1, 7), 7)
 	expect("convert never jumps an edition", EconomyPreview.lifetimeCopies(2, 240), 249)
 	expect("convert Galaxy", EconomyPreview.lifetimeCopies(5, 3), 25003)
-	expect("offline 1 h, $10 a lap", EconomyPreview.offlineCredit(10, 3600), 1200)
-	expect("offline cap 8 h", EconomyPreview.offlineCredit(10, 24 * 3600), 9600)
+	expect("offline 1 h, $10 a lap (40%)", EconomyPreview.offlineCredit(10, 3600), 960)
+	expect("offline cap 24 h", EconomyPreview.offlineCredit(10, 30 * 3600), 23040)
+	expect("offline VIP cap 30 h", EconomyPreview.offlineCredit(10, 40 * 3600, 30), 28800)
 	expect("offline negative", EconomyPreview.offlineCredit(10, -5), 0)
 	expect("offline NaN", EconomyPreview.offlineCredit(0 / 0, 100), 0)
 	expect("Galaxy top", EconomyPreview.editionProgress(5, 30).nextEdition, nil)

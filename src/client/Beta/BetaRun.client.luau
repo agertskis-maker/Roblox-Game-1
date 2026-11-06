@@ -23,6 +23,7 @@ local Families = require(ReplicatedStorage.Shared.Run:WaitForChild("Families"))
 local RosterFixtures = require(ReplicatedStorage.Shared:WaitForChild("UI"):WaitForChild("RosterFixtures"))
 local LiveData = require(ReplicatedStorage.Shared.UI:WaitForChild("LiveData"))
 local RunController = require(script.Parent.Parent:WaitForChild("Run"):WaitForChild("RunController"))
+local CarTags = require(script.Parent.Parent.Run:WaitForChild("CarTags"))
 local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
 local UI = script.Parent.Parent:WaitForChild("UI")
@@ -31,6 +32,7 @@ local StyleState = require(UI.Prototype:WaitForChild("StyleState"))
 local RunScenery = require(UI:WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
 local Tutorial = require(UI:WaitForChild("Tutorial"))
 local LaunchPad = require(UI:WaitForChild("LaunchPad"))
+local RunExtras = require(UI:WaitForChild("RunHud"):WaitForChild("RunExtras"))
 
 local player = Players.LocalPlayer
 local OWNER = "CarHopBetaRun"
@@ -64,7 +66,9 @@ local session: RunController.Session = {
 }
 
 local current: RunController.RunController? = nil
+local runsThisSession = 0
 local scenery: RunScenery.Handle? = nil -- the World beside the road (big round M8)
+local extras: any = nil -- Round 7: HOP button, END RUN, IT'S YOURS, SECURED, distance, WRECKED (UI/RunHud/RunExtras)
 
 local function root(): BasePart?
 	local character = player.Character
@@ -87,6 +91,10 @@ local function stopRun(again: boolean?)
 	if scenery then
 		scenery:destroy()
 		scenery = nil
+	end
+	if extras then
+		extras:destroy()
+		extras = nil
 	end
 	if run then
 		run:destroy()
@@ -195,6 +203,15 @@ task.spawn(function()
 				t.waiting[grant.index] = nil
 				t.pending -= 1
 			end
+			-- Round 7 (R-11): IT'S YOURS! and SECURED only from the server's grant
+			if extras and (grant.kind == "claim" or grant.kind == "joyride") then
+				local car = RosterFixtures.byId(grant.carId)
+				extras:claimed(
+					if car then car.name else tostring(grant.carId),
+					if car then car.rarity else "Common",
+					grant.kind == "claim"
+				)
+			end
 			if grant.kind == "claim" then
 				table.insert(t.cars, { carId = grant.carId, parked = grant.parked })
 				t.claimCash += grant.amount
@@ -213,6 +230,7 @@ local function startRun(world: string): RunController.RunController
 	-- the server's seed and run id (a short wait; with no answer the run still plays, unpaid, and says so in Output)
 	local seed: number? = nil
 	local runId: string? = nil
+	local luck: number? = nil -- Round 7 (L-02, R-12): the server's Luck snapshot for this run
 	local startFn = runRemote(BetaRunNet.Remotes.StartRun)
 	if startFn and startFn:IsA("RemoteFunction") then
 		local ok, reply = pcall(function()
@@ -220,6 +238,7 @@ local function startRun(world: string): RunController.RunController
 		end)
 		if ok and type(reply) == "table" and type(reply.seed) == "number" and type(reply.runId) == "string" then
 			seed, runId = reply.seed, reply.runId
+			luck = if type(reply.luck) == "number" then reply.luck else nil
 		else
 			warn("[CarHopBeta] the server did not start a run for " .. world .. ": this run is not paid")
 		end
@@ -247,7 +266,19 @@ local function startRun(world: string): RunController.RunController
 		end
 	end
 	session.owned = owned
-	local run = RunController.new({ session = session, profile = "Circuit", seed = seed })
+	-- Round 7: the tutorial run and the first two runs of a session float longer and say PRESS AGAIN! (R-01, session only); the
+	-- beta shows its own IT'S YOURS feed from the server's grants, so his claim banners stay quiet (R-11)
+	runsThisSession += 1
+	local help = player:GetAttribute(BetaConfig.TutorialDoneAttribute) ~= true
+		or runsThisSession <= RunConfig.FLOAT_HELP_RUNS
+	local run = RunController.new({
+		session = session,
+		profile = "Circuit",
+		seed = seed,
+		luck = luck,
+		floatHelp = help,
+		quietClaims = true,
+	})
 	current = run
 	if runId then
 		bridge(run, world, runId)
@@ -342,17 +373,19 @@ local function startRun(world: string): RunController.RunController
 			model.Destroying:Connect(function()
 				rig:destroy()
 			end)
-			-- his tag names the family ("Common Van"): it names the real car instead, keeping his size and variant words
-			local title = model:FindFirstChild("Tag") and (model :: any).Tag:FindFirstChild("Title")
+			-- his tag names the family ("Van"): it names the real car instead. Round 7 (R-10): the rarity word is the real car's
+			-- (Uncommon included), with the edition first when the car is an edition car
+			local tag = model:FindFirstChild("Tag")
+			local title = tag and tag:FindFirstChild("Title")
+			local word = tag and tag:FindFirstChild("Rarity")
 			local car = RosterFixtures.byId(carId)
 			if title and title:IsA("TextLabel") and car then
-				local sizeWord = model:GetAttribute("Size")
+				title.Text = car.name
+			end
+			if word and word:IsA("TextLabel") and car then
 				local variant = model:GetAttribute("Variant")
-				title.Text = (if type(sizeWord) == "string" then RunConfig.SIZE_LABEL[sizeWord :: any] or "" else "")
-					.. (if type(variant) == "string" and variant ~= "None" then string.upper(variant) .. " " else "")
-					.. car.rarity
-					.. " "
-					.. car.name
+				word.Text = CarTags.wordFor(car.rarity, if type(variant) == "string" then variant else nil)
+				word.TextColor3 = CarTags.WORD_COLOUR[car.rarity] or word.TextColor3
 			end
 		end
 		local traffic = zone:FindFirstChild("Traffic") or zone
@@ -361,6 +394,7 @@ local function startRun(world: string): RunController.RunController
 		end
 		traffic.ChildAdded:Connect(dress)
 	end
+	extras = RunExtras.attach(run, { world = world, floatHelp = help })
 	Tutorial.attachRun(run) -- the tutorial's run steps read the run, they never change it
 	if RunScenery.enabled() then
 		scenery = RunScenery.attach(world, run)
@@ -463,7 +497,7 @@ if RunService:IsStudio() then
 	local lastHop = 0
 	local control = Instance.new("BindableFunction")
 	control.Name = "CarHopBetaControl"
-	control.OnInvoke = function(command: string, arg: any): any
+	local function handleCommand(command: string, arg: any): any
 		if command == "launch" then
 			LaunchPad.debug("enter", arg)
 			task.wait(3.5)
@@ -490,7 +524,48 @@ if RunService:IsStudio() then
 		end
 		return "unknown command " .. tostring(command)
 	end
+	control.OnInvoke = handleCommand
 	control.Parent = player:WaitForChild("PlayerGui")
+	-- Round 7: the Studio MCP cannot invoke that BindableFunction in Adam's Studio (it lacks the Network capability), so the same
+	-- commands also come in through a LocalPlayer attribute: CarHopBetaCmd = "launch:Downtown", "autopilot:on", "state", "home",
+	-- "hop", "end". The answer (JSON) is written to CarHopBetaCmdResult. Studio only.
+	player:GetAttributeChangedSignal("CarHopBetaCmd"):Connect(function()
+		local text = player:GetAttribute("CarHopBetaCmd")
+		if type(text) ~= "string" or text == "" or text == "ping" then
+			return
+		end
+		player:SetAttribute("CarHopBetaCmd", "")
+		local command, arg = string.match(text, "^(%w+):?(.*)$")
+		task.spawn(function()
+			local ok, result = pcall(function(): any
+				if command == "hop" then
+					if current then
+						current:requestHop()
+					end
+					return if current then current:getDebugState().mode else "no run"
+				elseif command == "end" then
+					if current then
+						current:finish("Ended by you")
+					end
+					return "ended"
+				elseif command == "debug" then
+					return if current then current:getDebugState() else nil
+				end
+				return handleCommand(
+					command or "",
+					if arg == "on" then true elseif arg == "off" then false elseif arg ~= "" then arg else nil
+				)
+			end)
+			local HttpService = game:GetService("HttpService")
+			local encoded = pcall(function()
+				return HttpService:JSONEncode({ ok = ok, result = result })
+			end)
+			player:SetAttribute(
+				"CarHopBetaCmdResult",
+				if encoded then HttpService:JSONEncode({ ok = ok, result = result }) else tostring(result)
+			)
+		end)
+	end)
 	RunService.Heartbeat:Connect(function()
 		local run = current
 		if not (autopilot and run) then
@@ -506,7 +581,8 @@ if RunService:IsStudio() then
 				lastHop = os.clock()
 				run:requestHop()
 			end
-		elseif s.mode == "FootDash" and s.target then
+		elseif s.mode == "Float" and s.target then
+			-- Round 7 (R-01): the second press dives onto the ringed car
 			run:requestHop()
 		end
 	end)

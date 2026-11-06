@@ -53,7 +53,8 @@ BetaRun.Caps = table.freeze({
 	maxRunSeconds = 1800,
 	-- Round 6 (E-05, Tunable): studs between the player and a Hop's target car. Brian L's preview uses 90; that is his
 	-- question to Brian R (the new Hop reaches further), so the beta allows more until they agree.
-	hopReach = 250,
+	-- Round 7 (R-01): one reach constant for both sides, RunConfig.HOP_REACH_MAX (the float lets you aim, not reach farther). Was 250.
+	hopReach = RunConfig.HOP_REACH_MAX,
 	keysTolerance = 0.25, -- seconds a KeysComplete may come early (Brian L's 0.25 s question to Brian R)
 })
 BetaRun.PROFILE = "Circuit" -- the profile the beta plays (BetaRun.client)
@@ -97,6 +98,13 @@ type Run = {
 	done: { [number]: boolean }, -- spawn indexes already paid this run
 	ride: { index: number, t: number }?, -- the car the last accepted Hop targeted, and the run time of that Hop
 	milestones: number,
+	-- Round 7 (R-01, R-04, L-02): the bolts this run started with and has left (the server's own count), whether a paid Leap is
+	-- waiting for its dive, the run time of the last charged bump (BUMP_GRACE), and the Luck snapshot the traffic was built with
+	bolts: number,
+	boltsLeft: number,
+	leapOpen: boolean,
+	lastBump: number,
+	luck: number,
 	totals: Totals,
 	closed: boolean,
 }
@@ -354,12 +362,23 @@ function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
 	end
 	nextId += 1
 	local seed = Random.new():NextInteger(1, 2 ^ 30)
+	local tutorial = data.TutorialDone ~= true
+	local bolts = math.max(
+		if tutorial then BetaRun.Caps.tutorialClaims else BetaRun.Caps.claims,
+		EconomyPreview.staminaFor(data.StaminaLevel)
+	)
 	local run: Run = {
 		id = string.format("%d-%d", player.UserId, nextId),
 		player = player,
 		world = world,
 		seed = seed,
-		sequence = RunSequence.new(seed, RunConfig.profile(BetaRun.PROFILE)),
+		-- Round 7 (L-02, R-12): the luck snapshot at run start; a purchase during the run counts from the next run
+		sequence = RunSequence.new(seed, RunConfig.profile(BetaRun.PROFILE), EconomyPreview.luckFor(data.LuckLevel)),
+		luck = EconomyPreview.luckFor(data.LuckLevel),
+		bolts = bolts,
+		boltsLeft = bolts,
+		leapOpen = false,
+		lastBump = -math.huge,
 		started = os.clock(),
 		tutorial = data.TutorialDone ~= true,
 		lastD = 0,
@@ -415,7 +434,24 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			log(player, string.format("%s event dropped: %s", e.kind, why or "?"))
 			continue
 		end
-		if e.kind == "Hop" then
+		-- Round 7: the server's own bolt count. A Leap costs 1 and opens one dive; a Bump costs 1 unless one was charged in the last
+		-- BUMP_GRACE seconds of run time; a Bonk or a throw costs 1. A Leap with no bolts left is dropped, so its dive and Keys pay
+		-- nothing. The client never sends how many bolts it has.
+		if e.kind == "Leap" then
+			if run.boltsLeft <= 0 then
+				log(player, "Leap dropped: no bolts left on the server")
+				continue
+			end
+			run.boltsLeft -= 1
+			run.leapOpen = true
+		elseif e.kind == "Bump" then
+			if e.t - run.lastBump >= RunConfig.BUMP_GRACE then
+				run.lastBump = e.t
+				run.boltsLeft = math.max(run.boltsLeft - 1, 0)
+			end
+		elseif e.kind == "Bonk" or e.kind == "Thrown" then
+			run.boltsLeft = math.max(run.boltsLeft - 1, 0)
+		elseif e.kind == "Hop" then
 			local problem = BetaRun.hopProblem(run, e.t, e.d, e.target)
 			if problem then
 				log(player, "Hop dropped: " .. problem)
@@ -424,6 +460,7 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			if e.target ~= 0 and (run.ride == nil or (run.ride :: any).index ~= e.target) then
 				run.ride = { index = e.target, t = e.t }
 			end
+			run.leapOpen = false
 		end
 		accepted += 1
 		if e.kind == "KeysComplete" and e.index ~= nil then
@@ -512,7 +549,8 @@ function BetaRun.startRemotes(net: Folder, runNet: Folder)
 
 	local function onStart(player: Player, world: any, startCarId: any)
 		local run = BetaRun.start(player, world, startCarId)
-		return if run then { runId = run.id, seed = run.seed } else nil
+		-- Round 7: the luck snapshot (L-02, R-12) and the bolts rides along; the client builds the same traffic with them
+		return if run then { runId = run.id, seed = run.seed, luck = run.luck, bolts = run.bolts } else nil
 	end
 	startFn.OnServerInvoke = onStart
 	oldStart.OnServerInvoke = function(player: Player, world: any, startCarId: any)
@@ -699,6 +737,34 @@ function BetaRun.selfTest(player: Player): { string }
 	expect("Cash rose by the total", data.Cash - cashBefore, totals.total)
 	local late = BetaRun.finish(player, run.id, "Quit")
 	expect("a late RunEnd retry gets the same totals", late, totals)
+	-- Round 7 (T-02): the server's bolt count (R-01, R-04) and the luck snapshot (L-02, R-12)
+	local r7 = BetaRun.start(player, "Downtown", nil) :: Run
+	expect("R-12 the run keeps the save's luck snapshot", r7.luck, EconomyPreview.luckFor(data.LuckLevel))
+	expect("R-12 the traffic is built with that luck", r7.sequence.luck, r7.luck)
+	local bolts = r7.bolts
+	local tick = 1
+	local function send(kind: string): string
+		tick += 0.6
+		r7.batchTimes = {}
+		r7.started = os.clock() - tick - 1
+		return BetaRun.events(player, r7.id, { { kind = kind, t = tick, d = RunConfig.travelledAt(tick), x = 0 } })
+	end
+	for _ = 1, bolts do
+		send("Leap")
+	end
+	expect("R-01 every bolt pays for one Leap", r7.boltsLeft, 0)
+	expect("R-01 a Leap with no bolts left is dropped", send("Leap"), "accepted 0")
+	r7.boltsLeft = 5
+	send("Bump") -- t + 0.6: charged
+	send("Bump") -- 0.6 s later: inside the 1.5 s grace, free
+	expect("R-04 two bumps 0.6 s apart cost one bolt", r7.boltsLeft, 4)
+	tick += 1.5
+	send("Bump")
+	expect("R-04 a bump after the grace costs another bolt", r7.boltsLeft, 3)
+	send("Bonk")
+	send("Thrown")
+	expect("R-01 a bonk and a throw cost one bolt each", r7.boltsLeft, 1)
+	BetaRun.finish(player, r7.id, "Quit")
 	-- leave the save as it was (the test claim is removed again)
 	data.Cash = cashBefore
 	data.Cars[twice] = nil

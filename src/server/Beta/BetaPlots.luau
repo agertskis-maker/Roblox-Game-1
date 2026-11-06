@@ -11,6 +11,7 @@ local Workspace = game:GetService("Workspace")
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaOwnership = require(script.Parent.BetaOwnership)
+local HomeSpot = require(ReplicatedStorage.Shared.Island.HomeSpot)
 local Ladder = require(ReplicatedStorage.Shared.Island.Speedway.Ladder)
 local Parking = require(ReplicatedStorage.Shared.Island.Speedway.Parking)
 local RunService = game:GetService("RunService")
@@ -94,6 +95,35 @@ function BetaPlots.publish(player: Player)
 	plot:SetAttribute("ParkingSpots", BetaPlots.spotsOf(player))
 end
 
+-- Round 7 (A-01): home is your Raceway. Puts the player's character at their own plot's entrance, facing their Raceway. The plot is
+-- looked up now (never a stale reference); with no plot yet the player stays at the waiting spot by the island centre.
+function BetaPlots.sendHome(player: Player)
+	local character = player.Character
+	local plot = BetaPlots.plotOf(player)
+	if not (character and plot and character.Parent) then
+		return
+	end
+	local index = player:GetAttribute(BetaConfig.HomePlotAttribute)
+	local cf = HomeSpot.cframe(index, { character })
+	if cf then
+		character:PivotTo(cf)
+	end
+end
+
+-- Each new character (join, a reset, a respawn) appears at home once it is in the world.
+local function onCharacter(player: Player, character: Model)
+	task.spawn(function()
+		local rootPart = character:WaitForChild("HumanoidRootPart", 10)
+		if not rootPart then
+			return
+		end
+		task.wait(0.1) -- after Roblox has placed it at the spawn pad
+		if player.Character == character then
+			BetaPlots.sendHome(player)
+		end
+	end)
+end
+
 local function release(player: Player)
 	local plot = BetaPlots.plotOf(player)
 	if not plot then
@@ -130,7 +160,17 @@ function BetaPlots.start()
 		player:SetAttribute(BetaConfig.HomePlotAttribute, plotIndex(plot))
 		BetaPlots.publish(player)
 		BetaPlots.Assigned:Fire(player, plot)
+		BetaPlots.sendHome(player) -- A-01: from the waiting spot to the player's own Raceway
 	end)
+	local function watchCharacters(player: Player)
+		player.CharacterAdded:Connect(function(character: Model)
+			onCharacter(player, character)
+		end)
+	end
+	for _, player in Players:GetPlayers() do
+		watchCharacters(player)
+	end
+	Players.PlayerAdded:Connect(watchCharacters)
 	Players.PlayerRemoving:Connect(release)
 	-- the Studio test switch flips every plot at once
 	local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName)

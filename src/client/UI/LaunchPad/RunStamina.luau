@@ -356,26 +356,30 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 		bar.Visible = value > 0
 	end)
 
-	local original = run.requestHop
-	run.requestHop = function(selfRun: any)
-		if value <= 0 then
-			refused()
-			return
-		end
-		local before = selfRun:getDebugState().hops
-		original(selfRun)
-		if selfRun:getDebugState().hops > before then
+	-- Round 7: the run owns the count (RunController, so bumps, bonks and throws cost bolts the same way and the run can end on
+	-- them); this draws it. A leap, bump, bonk or throw drains a bolt with a burst; a refused leap shakes the board.
+	if run.setStamina then
+		run:setStamina(max)
+	end
+	local changed = run.StaminaChanged
+	local conn = if changed
+		then changed:Connect(function(v: number, _max: number, kind: string)
+			if kind == "Refused" then
+				refused()
+				return
+			end
 			local drained = pips[math.clamp(math.ceil(value / tier.per), 1, #pips)]
-			value -= 1
+			local spent = v < value
+			value = v
 			draw(true)
-			if drained then
+			if spent and drained then
 				burst(drained)
 			end
 			if value <= 0 then
 				refused()
 			end
-		end
-	end
+		end)
+		else nil
 
 	local self: { [string]: any } = {}
 
@@ -392,13 +396,19 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 	end
 
 	function self.refill(_self: any, n: number)
-		value = math.min(value + n, max)
-		draw(true)
+		if run.refillStamina then
+			run:refillStamina(n)
+		else
+			value = math.min(value + n, max)
+			draw(true)
+		end
 	end
 
 	function self.destroy(_self: any)
 		loop:Disconnect()
-		run.requestHop = nil
+		if conn then
+			conn:Disconnect()
+		end
 		gui:Destroy()
 	end
 

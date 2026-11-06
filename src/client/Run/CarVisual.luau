@@ -424,7 +424,8 @@ function CarVisual.addRarityFx(rarity: RunConfig.Rarity, glow: BasePart, length:
 		base.Parent = glow
 		local top = Instance.new("Attachment")
 		top.Name = "BeaconTop"
-		top.Position = Vector3.new(0, height + 40, 0)
+		-- Round 7 (R-10): a pillar of light into the sky, visible from far down the road (was height + 40)
+		top.Position = Vector3.new(0, height + 260, 0)
 		top.Parent = glow
 		local beam = Instance.new("Beam")
 		beam.Name = "LegendaryBeacon"
@@ -433,8 +434,8 @@ function CarVisual.addRarityFx(rarity: RunConfig.Rarity, glow: BasePart, length:
 		beam.Color = ColorSequence.new(colour)
 		beam.LightEmission = 1
 		beam.FaceCamera = true
-		beam.Width0 = math.max(length * 0.35, 2)
-		beam.Width1 = 0.5
+		beam.Width0 = math.max(length * 0.45, 3)
+		beam.Width1 = 2
 		beam.Transparency = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 0.35),
 			NumberSequenceKeypoint.new(1, 1),

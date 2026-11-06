@@ -343,6 +343,15 @@ function HomeShell.start(options: Options?): any
 			local plus = self.hud and self.hud:getButton("CashPlus")
 			return if plus and plus.Visible then plus.AbsolutePosition else nil
 		end,
+		-- Round 7 (P-01): COLLECT asks the server to add the amount it is holding; the Cash counter then really rises. The
+		-- client sends no amount, and a second press adds nothing (the server holds one amount, once).
+		onCollect = function()
+			local net = ReplicatedStorage:FindFirstChild("CarHopBetaNet")
+			local collect = net and net:FindFirstChild("CollectWelcome")
+			if collect and collect:IsA("RemoteEvent") then
+				collect:FireServer()
+			end
+		end,
 	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
 	-- Round 6 (C-02, C-03): the Stunt Circuit's gate prompt, pre-race card, race HUD, results and this server's board
@@ -534,12 +543,13 @@ function HomeShell._join(self: any, o: Options)
 						})
 					end
 					local seconds = if type(away) == "number" then away else 0
+					local counted = player:GetAttribute("BetaWelcomeCapped")
 					welcome:setData({
 						source = "server (PREVIEW rate)",
 						status = "Ready",
 						earned = amount,
 						awaySeconds = seconds,
-						cappedSeconds = math.min(seconds, 8 * 3600),
+						cappedSeconds = if type(counted) == "number" then counted else math.min(seconds, 24 * 3600),
 						lineup = cars,
 					})
 				end

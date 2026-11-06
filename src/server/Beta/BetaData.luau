@@ -37,6 +37,7 @@ export type Data = {
 	StaminaLevel: number, -- beta-only (Adam, 2026-11-05): Stamina Shop upgrades bought, not an agreed field
 	Purchases: { string }, -- beta-only (Round 6, R-02): processed receipt ids, newest last, at most 200
 	Owned: { [string]: boolean }, -- beta-only (Round 6, R-02): bundle passes, the Starter Pack and its cosmetics
+	LuckLevel: number, -- beta-only (Round 7, P-04): Lucky Clover levels bought, 0 to 5
 }
 
 local BetaData = {}
@@ -123,6 +124,12 @@ function BetaData.sanitize(data: any): { string }
 		fix("StaminaLevel", t.StaminaLevel)
 	else
 		data.StaminaLevel = math.clamp(math.floor(data.StaminaLevel), 0, EconomyPreview.StaminaMaxLevel)
+	end
+	-- Round 7 (P-04): a finite whole Lucky Clover level from 0 to 5; a bad value goes back to 0, a good one is kept
+	if not finite(data.LuckLevel) then
+		fix("LuckLevel", t.LuckLevel)
+	else
+		data.LuckLevel = math.clamp(math.floor(data.LuckLevel), 0, EconomyPreview.LuckMaxLevel)
 	end
 	-- Round 6 (R-02): receipt ids are strings, newest last, at most PurchasesKept; Owned is { [string]: true }
 	if type(data.Purchases) ~= "table" then

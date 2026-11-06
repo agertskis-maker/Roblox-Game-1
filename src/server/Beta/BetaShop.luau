@@ -10,6 +10,7 @@
 -- Also here: the tutorial-done flag, which pays the one-time PREVIEW tutorial bonus on its false -> true change only.
 
 local Players = game:GetService("Players")
+local PolicyService = game:GetService("PolicyService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
@@ -121,6 +122,75 @@ function BetaShop.buyStaminaLevel(player: Player): (boolean, string?, number?)
 	return true, nil, nil
 end
 
+function BetaShop.publishLuck(player: Player, data: BetaData.Data)
+	player:SetAttribute(BetaConfig.LuckAttribute, data.LuckLevel)
+end
+
+-- Round 7 (R7-S09): Roblox's paid random items policy names luck boosts, and Cash can be bought with Robux (Cash packs, the
+-- Starter Pack). So for a player whose PolicyService answer says paid random items are restricted, the Lucky Clover cannot be
+-- bought ("Not available for your account"). Until the answer is known, BUY waits; if PolicyService fails three times the
+-- player is treated as restricted (the safe side). Nothing is hidden: the stand and its numbers still show.
+local restricted: { [Player]: boolean } = {}
+local function checkPolicy(player: Player)
+	for attempt = 1, 3 do
+		local ok, info = pcall(function()
+			return PolicyService:GetPolicyInfoForPlayerAsync(player)
+		end)
+		if ok and type(info) == "table" then
+			local r = (info :: any).ArePaidRandomItemsRestricted == true
+			restricted[player] = r
+			player:SetAttribute(BetaConfig.LuckRestrictedAttribute, r)
+			return
+		end
+		task.wait(attempt * 2)
+	end
+	restricted[player] = true
+	player:SetAttribute(BetaConfig.LuckRestrictedAttribute, true)
+	warn(
+		string.format("[CarHopBeta] PolicyService did not answer for %s: the Lucky Clover is off for them", player.Name)
+	)
+end
+
+-- Test hook (Studio self-test only): sets the cached answer.
+function BetaShop.setLuckRestricted(player: Player, value: boolean?)
+	restricted[player] = value
+end
+
+function BetaShop.buyLuckLevel(player: Player): (boolean, string?, number?)
+	local data = BetaData.get(player)
+	if not data then
+		return false, "Your save is still loading.", nil
+	end
+	local r = restricted[player]
+	if r == nil then
+		return false, "One moment, checking your account.", nil
+	elseif r then
+		return false, "Not available for your account.", nil
+	end
+	if data.LuckLevel >= EconomyPreview.LuckMaxLevel then
+		return false, "Your luck is at the top level.", nil
+	end
+	local price = EconomyPreview.luckPrice(data.LuckLevel + 1)
+	if not price then
+		return false, "Not for sale.", nil
+	end
+	local paid, missing = BetaEconomy.trySpend(player, price)
+	if not paid then
+		return false, "Not enough Cash.", missing
+	end
+	data.LuckLevel = math.min(data.LuckLevel + 1, EconomyPreview.LuckMaxLevel)
+	BetaShop.publishLuck(player, data)
+	print(
+		string.format(
+			"[CarHopBeta] %s bought Luck level %d (x%g)",
+			player.Name,
+			data.LuckLevel,
+			EconomyPreview.luckFor(data.LuckLevel)
+		)
+	)
+	return true, nil, nil
+end
+
 -- Base models the save owns from a World (any edition counts once).
 function BetaShop.carsFrom(data: BetaData.Data, world: string): number
 	local n = 0
@@ -177,12 +247,15 @@ function BetaShop.start(net: Folder)
 	local unlock = remote(BetaConfig.Remotes.UnlockWorld)
 	local tutorialDone = remote(BetaConfig.Remotes.TutorialDone)
 	local buyStamina = remote(BetaConfig.Remotes.BuyStaminaLevel)
+	local buyLuck = remote(BetaConfig.Remotes.BuyLuckLevel)
 
 	-- the tutorial is for first-time players: the client reads this attribute, and says when it is over. No arguments,
 	-- and it can only ever set the caller's own flag to true. The PREVIEW bonus is paid on the change only.
 	BetaData.Loaded:Connect(function(player: Player, data: BetaData.Data)
 		player:SetAttribute(BetaConfig.TutorialDoneAttribute, data.TutorialDone == true)
 		BetaShop.publishStamina(player, data)
+		BetaShop.publishLuck(player, data)
+		task.spawn(checkPolicy, player)
 	end)
 	tutorialDone.OnServerEvent:Connect(function(player: Player)
 		local data = BetaData.get(player)
@@ -207,6 +280,7 @@ function BetaShop.start(net: Folder)
 	buyLevel.OnServerEvent:Connect(handle("BuyRacewayLevel", BetaShop.buyRacewayLevel))
 	buySpot.OnServerEvent:Connect(handle("BuyParkingSpot", BetaShop.buyParkingSpot))
 	buyStamina.OnServerEvent:Connect(handle("BuyStaminaLevel", BetaShop.buyStaminaLevel))
+	buyLuck.OnServerEvent:Connect(handle("BuyLuckLevel", BetaShop.buyLuckLevel))
 	unlock.OnServerEvent:Connect(function(player: Player, world: any)
 		handle("UnlockWorld", function(p: Player)
 			return BetaShop.unlockWorld(p, world)
@@ -214,6 +288,7 @@ function BetaShop.start(net: Folder)
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		lastBuy[player] = nil
+		restricted[player] = nil
 	end)
 end
 
@@ -242,6 +317,8 @@ function BetaShop.selfTest(player: Player): { string }
 		Level = data.RacewayLevel,
 		Worlds = data.WorldsUnlocked,
 		Stamina = data.StaminaLevel,
+		Luck = data.LuckLevel,
+		Restricted = restricted[player],
 	}
 	local config = ReplicatedStorage:FindFirstChild(BetaConfig.MarkerName) :: Instance
 	local free = config:GetAttribute(BetaConfig.FreePurchasesAttribute)
@@ -295,6 +372,49 @@ function BetaShop.selfTest(player: Player): { string }
 	ok, why = BetaShop.buyStaminaLevel(player)
 	expect("past the top stamina level is refused", why, "Your Stamina is at the top level.")
 	expect("a refused top buy charges nothing", data.Cash, 1e15)
+	-- Round 7 (P-04, T-02): the Lucky Clover
+	data.LuckLevel = 0
+	restricted[player] = nil
+	data.Cash = 1e15
+	ok, why = BetaShop.buyLuckLevel(player)
+	expect("P-04 luck waits for the account check", why, "One moment, checking your account.")
+	restricted[player] = true
+	ok, why = BetaShop.buyLuckLevel(player)
+	expect(
+		"R7-S09 a restricted account cannot buy luck",
+		ok == false and why == "Not available for your account.",
+		true
+	)
+	expect("R7-S09 a refused luck buy charges nothing", data.Cash == 1e15 and data.LuckLevel == 0, true)
+	restricted[player] = false
+	data.Cash = 99999
+	ok, why, missing = BetaShop.buyLuckLevel(player)
+	expect("P-04 luck 1 at $99,999 is refused, $1 missing", ok == false and missing == 1, true)
+	data.Cash = 100e3
+	ok = BetaShop.buyLuckLevel(player)
+	expect("P-04 luck 1 at $100K is bought (x1.25)", ok and data.LuckLevel == 1 and data.Cash == 0, true)
+	expect("P-04 luck attribute follows", player:GetAttribute(BetaConfig.LuckAttribute), 1)
+	ok = BetaShop.buyLuckLevel(player)
+	expect("P-04 a luck repeat with $0 buys at most one level", ok == false and data.LuckLevel == 1, true)
+	data.Cash = 1e15
+	for _ = 2, 5 do
+		BetaShop.buyLuckLevel(player)
+	end
+	expect("P-04 levels 2 to 5 cost $1.111B in all", 1e15 - data.Cash, 1.111e9)
+	expect("P-04 level 5 is x4", EconomyPreview.luckFor(data.LuckLevel), 4)
+	ok, why = BetaShop.buyLuckLevel(player)
+	expect("P-04 past the top luck level is refused", why, "Your luck is at the top level.")
+	local bad: any = { LuckLevel = 0 / 0 }
+	for k, v in BetaConfig.Template do
+		if bad[k] == nil then
+			bad[k] = if type(v) == "table" then table.clone(v) else v
+		end
+	end
+	BetaData.sanitize(bad)
+	expect("P-04 a NaN LuckLevel is repaired to 0", bad.LuckLevel, 0)
+	bad.LuckLevel = 7.6
+	BetaData.sanitize(bad)
+	expect("P-04 a LuckLevel over the top is clamped to 5", bad.LuckLevel, 5)
 	config:SetAttribute(BetaConfig.FreePurchasesAttribute, true)
 	data.Cash = 0
 	data.ParkingSpots = 2
@@ -303,8 +423,11 @@ function BetaShop.selfTest(player: Player): { string }
 	config:SetAttribute(BetaConfig.FreePurchasesAttribute, free)
 	data.Cash, data.ParkingSpots, data.RacewayLevel, data.WorldsUnlocked, data.StaminaLevel =
 		saved.Cash, saved.Spots, saved.Level, saved.Worlds, saved.Stamina
+	data.LuckLevel = saved.Luck
+	restricted[player] = saved.Restricted
 	BetaEconomy.publishCash(player, data)
 	BetaShop.publishStamina(player, data)
+	BetaShop.publishLuck(player, data)
 	BetaEconomy.publishWorlds(player, data)
 	BetaPlots.publish(player)
 	return lines

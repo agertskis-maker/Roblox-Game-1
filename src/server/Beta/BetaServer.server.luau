@@ -61,6 +61,7 @@ net.Name = BetaConfig.NetName
 local runNet = Instance.new("Folder")
 runNet.Name = BetaRunNet.FolderName
 BetaShop.start(net)
+BetaEconomy.startRemotes(net) -- Round 7 (P-01): COLLECT on the Welcome back card
 BetaLineup.start(net)
 BetaRun.startRemotes(net, runNet)
 BetaLapPay.start(net)
@@ -83,6 +84,11 @@ if RunService:IsStudio() then
 	local function selfTest(which: string, player: Player?): { string }
 		if which == "preview" then
 			return EconomyPreview.selfTest() -- failures only: an empty list is a pass
+		elseif which == "luck" then
+			-- Round 7 (L-02, L-04): the shared odds rule and 20,000 real spawns at L = 1 and L = 4
+			local Luck = require(ReplicatedStorage.Shared.Run.Luck)
+			local RunSequence = require(ReplicatedStorage.Shared.Run.RunSequence)
+			return Luck.selfTest(RunSequence)
 		elseif which == "economy" then
 			return BetaEconomy.selfTest()
 		elseif which == "lappay" then
@@ -116,7 +122,7 @@ if RunService:IsStudio() then
 		ran = true
 		task.delay(6, function()
 			for _, which in
-				{ "preview", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases" }
+				{ "preview", "luck", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases" }
 			do
 				local ok, lines = pcall(selfTest, which, player)
 				local list = if ok and type(lines) == "table" then lines else { "FAIL error: " .. tostring(lines) }

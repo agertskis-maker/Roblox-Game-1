@@ -29,8 +29,52 @@ local function finite(n: number): boolean
 	return n == n and n ~= math.huge and n ~= -math.huge
 end
 
+-- Round 7 (A-04): the RICHEST RACERS board, this server only. Players with a loaded save, most Cash first, ties by the lower
+-- UserId, at most BetaConfig.RichestRows; nobody is invented to fill the rows. Published at most twice a second.
+function BetaEconomy.richest(): { { userId: number, name: string, cash: number } }
+	local rows = {}
+	for _, p in Players:GetPlayers() do
+		local d = BetaData.get(p)
+		if d then
+			table.insert(rows, { userId = p.UserId, name = p.DisplayName, cash = d.Cash })
+		end
+	end
+	table.sort(rows, function(a, b)
+		if a.cash ~= b.cash then
+			return a.cash > b.cash
+		end
+		return a.userId < b.userId
+	end)
+	while #rows > BetaConfig.RichestRows do
+		table.remove(rows)
+	end
+	return rows
+end
+
+local richestQueued = false
+function BetaEconomy.publishRichest()
+	if richestQueued then
+		return
+	end
+	richestQueued = true
+	task.delay(0.5, function()
+		richestQueued = false
+		local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
+		if not net then
+			return
+		end
+		local parts = {}
+		for _, row in BetaEconomy.richest() do
+			-- display names never contain "|" or ";" (Roblox allows letters, digits and underscores)
+			table.insert(parts, string.format("%d|%s|%d", row.userId, row.name, row.cash))
+		end
+		net:SetAttribute(BetaConfig.RichestAttribute, table.concat(parts, ";"))
+	end)
+end
+
 function BetaEconomy.publishCash(player: Player, data: BetaData.Data)
 	player:SetAttribute(BetaConfig.CashAttribute, data.Cash)
+	BetaEconomy.publishRichest()
 end
 
 function BetaEconomy.publishCars(player: Player, data: BetaData.Data)
@@ -171,15 +215,29 @@ function BetaEconomy.welcomeCredit(
 	return EconomyPreview.offlineCredit(pay, away, p.capHours), away
 end
 
--- On load: pays the Welcome back credit and stamps LastSeen in one step (no yield), BEFORE the card can show.
+-- Round 7 (P-01, Adam: "none of it actually goes into your total sum of money"): the credit used to be added silently on load,
+-- so COLLECT only closed the card and the Cash counter never rose. Now the server computes the credit on load and HOLDS it
+-- (memory only, never sent by a client); COLLECT (CollectWelcome) adds it to Cash once and stamps LastSeen in the same step.
+-- Leaving without pressing COLLECT adds it on the way out (BetaData.Releasing). LastSeen is not stamped on load, so a server that
+-- stops before either happens pays the same absence next time instead of losing it; once credited, LastSeen moves on, so no
+-- absence is ever paid twice.
+local pending: { [Player]: number } = {}
+
+function BetaEconomy.pendingWelcome(player: Player): number
+	return pending[player] or 0
+end
+
+-- On load: works out the Welcome back credit and holds it for COLLECT.
 function BetaEconomy.payOffline(player: Player, data: BetaData.Data, priorLastSeen: number)
 	local now = os.time()
 	local key = BetaData.keyOf(player)
-	local amount, away = 0, 0
+	local amount, away, capHours = 0, 0, EconomyPreview.OfflineCapHours
 	if not seenThisServer[key] then
 		BetaOwnership.waitResolved(player, 5) -- the join-time pass checks (VIP, Double Lap Pay)
+		local vip = BetaOwnership.owns(player, "vip")
+		capHours = if vip then BetaProducts.VipOfflineHours else EconomyPreview.OfflineCapHours
 		local perks = {
-			capHours = if BetaOwnership.owns(player, "vip") then BetaProducts.VipOfflineHours else nil,
+			capHours = capHours,
 			multiplier = if BetaOwnership.owns(player, "double-lap-pay") then 2 else 1,
 		}
 		amount, away = BetaEconomy.welcomeCredit(data, priorLastSeen, now, perks)
@@ -187,15 +245,55 @@ function BetaEconomy.payOffline(player: Player, data: BetaData.Data, priorLastSe
 	seenThisServer[key] = true
 	amount = BetaEconomy.capped(data.Cash, amount)
 	if amount > 0 then
-		data.Cash += amount
-		print(string.format("[CarHopBeta] %s Welcome back +$%d for %d s away", player.Name, amount, away))
+		pending[player] = amount
+		print(string.format("[CarHopBeta] %s Welcome back $%d held for COLLECT (%d s away)", player.Name, amount, away))
+	else
+		data.LastSeen = now -- nothing to collect: the visit starts now
 	end
-	data.LastSeen = now
 	player:SetAttribute(BetaConfig.WelcomeAmountAttribute, amount)
 	player:SetAttribute(BetaConfig.WelcomeSecondsAttribute, if amount > 0 then away else 0)
+	player:SetAttribute(BetaConfig.WelcomeCappedAttribute, if amount > 0 then math.min(away, capHours * 3600) else 0)
+end
+
+-- COLLECT, or leaving: adds the held credit to Cash once, with LastSeen stamped in the same step (no yield). Returns the amount.
+-- `leaving` is the save handed over by BetaData.Releasing (the profile is no longer in BetaData.get by then).
+function BetaEconomy.collectWelcome(player: Player, reason: string, leaving: BetaData.Data?): number
+	local amount = pending[player]
+	local data = leaving or BetaData.get(player)
+	if not (amount and data) then
+		return 0
+	end
+	pending[player] = nil
+	data.LastSeen = os.time()
+	local added = BetaEconomy.capped(data.Cash, amount)
+	data.Cash += added
+	print(string.format("[CarHopBeta] %s +$%d (%s), Cash $%d", player.Name, added, reason, data.Cash))
+	if not leaving then
+		BetaEconomy.publishCash(player, data)
+		player:SetAttribute(BetaConfig.WelcomeAmountAttribute, 0)
+	end
+	return added
+end
+
+-- Round 7 (P-01): the CollectWelcome remote, made before CarHopBetaNet is parented (BetaServer).
+function BetaEconomy.startRemotes(net: Folder)
+	local collect = Instance.new("RemoteEvent")
+	collect.Name = BetaConfig.Remotes.CollectWelcome
+	collect.Parent = net
+	collect.OnServerEvent:Connect(function(player: Player)
+		BetaEconomy.collectWelcome(player, "Welcome back (COLLECT)")
+	end)
 end
 
 function BetaEconomy.start()
+	BetaData.Releasing:Connect(function(player: Player, data: BetaData.Data)
+		BetaEconomy.collectWelcome(player, "Welcome back (left before COLLECT)", data)
+	end)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		task.defer(function()
+			pending[player] = nil
+		end)
+	end)
 	BetaData.Loaded:Connect(function(player: Player, data: BetaData.Data, priorLastSeen: number)
 		BetaEconomy.payOffline(player, data, priorLastSeen)
 		BetaEconomy.publishCash(player, data)
@@ -219,6 +317,9 @@ function BetaEconomy.start()
 		watchCheat(player)
 	end
 	Players.PlayerAdded:Connect(watchCheat)
+	Players.PlayerRemoving:Connect(function()
+		task.defer(BetaEconomy.publishRichest) -- after the leaver's save is released
+	end)
 end
 
 -- From the command bar: print(require(game.ServerScriptService.Server.Beta.BetaEconomy).selfTest())
@@ -293,13 +394,23 @@ function BetaEconomy.selfTest(): { string }
 	expect("never stamped pays nothing", (BetaEconomy.welcomeCredit(d, 0, 1e9)), 0)
 	expect("30 s away pays nothing", (BetaEconomy.welcomeCredit(d, 1e9 - 30, 1e9)), 0)
 	expect("future LastSeen pays nothing", (BetaEconomy.welcomeCredit(d, 1e9 + 500, 1e9)), 0)
-	expect("1 h away", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 55200)
-	expect("over 8 h is capped", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9)), 441600)
-	expect("R-04 VIP: 12 h cap", (BetaEconomy.welcomeCredit(d, 1e9 - 86400, 1e9, { capHours = 12 })), 662400)
+	-- Round 7 (P-01): 40% of the Lineup's Lap Pay, capped at 24 h (VIP 30 h); $460 a lap, a lap every 15 s
+	expect("P-01 2 h away (40%)", (BetaEconomy.welcomeCredit(d, 1e9 - 7200, 1e9)), 88320)
+	expect("P-01 30 h away is capped at 24 h", (BetaEconomy.welcomeCredit(d, 1e9 - 30 * 3600, 1e9)), 1059840)
+	expect(
+		"P-01 30 h away with VIP pays all 30 h",
+		(BetaEconomy.welcomeCredit(d, 1e9 - 30 * 3600, 1e9, { capHours = 30 })),
+		1324800
+	)
+	expect(
+		"P-01 40 h away with VIP is capped at 30 h",
+		(BetaEconomy.welcomeCredit(d, 1e9 - 40 * 3600, 1e9, { capHours = 30 })),
+		1324800
+	)
 	expect(
 		"R-04 Double Lap Pay doubles it",
-		(BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9, { multiplier = 2 })),
-		110400
+		(BetaEconomy.welcomeCredit(d, 1e9 - 7200, 1e9, { multiplier = 2 })),
+		176640
 	)
 	d.Lineup = {}
 	expect("empty Lineup earns nothing", (BetaEconomy.welcomeCredit(d, 1e9 - 3600, 1e9)), 0)

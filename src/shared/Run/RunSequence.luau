@@ -16,6 +16,7 @@
 
 local Families = require(script.Parent.Families)
 local RunConfig = require(script.Parent.RunConfig)
+local Luck = require(script.Parent.Luck)
 
 export type Spawn = {
 	index: number,
@@ -54,32 +55,11 @@ local RunSequence = {}
 RunSequence.__index = RunSequence
 RunSequence.PAINTS = PAINTS
 
--- Rare, Epic and Legendary weights are doubled (Brian L with Adam, 2026-11-05: rare cars should
--- show up more, so players have something to work for). Was Legendary 0.006 + 0.024a, Epic
--- 0.03 + 0.07a, Rare 0.15 + 0.1a.
-local RARE_BOOST = 2
--- Commons never drop below this share, however much luck stacks on top.
-local MIN_COMMON = 0.2
-
--- `luck` (1 = none) multiplies the Rare, Epic and Legendary weights on top of the boost. It is
--- the player's Luck level, handed out with the seed, so the server rebuilds the same traffic.
+-- Round 7 (L-02): the odds of each rarity come from the one shared rule in Luck (Brian L's x2 on Rare, Epic and Legendary is
+-- kept there, with the brief's luck factors and 35% Common floor). `luck` (1 = none) is the player's Lucky Clover multiplier,
+-- handed out with the seed, so the server rebuilds the same traffic.
 local function weightsAt(distance: number, luck: number?): { [string]: number }
-	local a = math.clamp(RunConfig.toMetres(distance) / 3000, 0, 1)
-	local scale = RARE_BOOST * math.max(luck or 1, 1)
-	local w = {
-		Legendary = (0.006 + 0.024 * a) * scale,
-		Epic = (0.03 + 0.07 * a) * scale,
-		Rare = (0.15 + 0.1 * a) * scale,
-	}
-	local rare = w.Legendary + w.Epic + w.Rare
-	if rare > 1 - MIN_COMMON then
-		local fit = (1 - MIN_COMMON) / rare
-		w.Legendary *= fit
-		w.Epic *= fit
-		w.Rare *= fit
-	end
-	w.Common = 1 - w.Legendary - w.Epic - w.Rare
-	return w
+	return Luck.weightsAt(distance, luck) :: any
 end
 
 local RARITY_ORDER: { RunConfig.Rarity } = { "Legendary", "Epic", "Rare", "Common" }
@@ -199,7 +179,7 @@ function RunSequence.new(seed: number, profile: RunConfig.Profile?, luck: number
 	local self = setmetatable({
 		seed = seed,
 		profile = profile or RunConfig.profile(nil),
-		luck = math.max(luck or 1, 1),
+		luck = Luck.clamp(luck),
 		_rng = rng,
 		_spawns = {},
 		_nextStart = nextStart,
