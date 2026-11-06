@@ -7,6 +7,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local BetaConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Beta"):WaitForChild("BetaConfig"))
 if not BetaConfig.enabled() then
@@ -90,3 +91,24 @@ player:GetAttributeChangedSignal("MovementSpeedOwner"):Connect(function()
 		shell:runEnded(false)
 	end
 end)
+
+-- Studio test driver (Round 7): the Studio MCP cannot press a button, so CarHopHomeCmd = "open:missions" (any panel key)
+-- opens a panel the way its button does, and "tab:Racer" picks a Missions tab. Nothing here exists outside Studio.
+if RunService:IsStudio() then
+	player:GetAttributeChangedSignal("CarHopHomeCmd"):Connect(function()
+		local text = player:GetAttribute("CarHopHomeCmd")
+		if type(text) ~= "string" or text == "" then
+			return
+		end
+		player:SetAttribute("CarHopHomeCmd", "")
+		local command, arg = string.match(text, "^(%a+):(.+)$")
+		if command == "open" and arg then
+			shell.userPanel(arg)
+		elseif command == "tab" and arg then
+			local panel = shell.components and shell.components.missions
+			if panel and panel.selectTab then
+				panel:selectTab(arg)
+			end
+		end
+	end)
+end

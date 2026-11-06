@@ -1138,7 +1138,16 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 			y += rowH + p.gap
 			y += dealBanner(body, q, y) + p.gap
 			local halfW = math.floor((q.inner - p.gap) / 2)
-			sideCard(body, "vip", "Vip", "art_vip", "VIP", "Paints + name tag", q, { x = 0, y = y, w = halfW, h = 132 })
+			sideCard(
+				body,
+				"vip",
+				"Vip",
+				"art_vip",
+				"VIP",
+				"Trail, paints, name tag, 30 h",
+				q,
+				{ x = 0, y = y, w = halfW, h = 132 }
+			)
 			sideCard(body, "double-lap-pay", "Lap", "art_doublelap", lapName, lapLine, q, {
 				x = halfW + p.gap,
 				y = y,
@@ -1153,7 +1162,7 @@ function ShopMock.new(ctx: Overlay.Ctx, options: Options?): Shop
 				"Vip",
 				"art_vip",
 				"VIP",
-				"Paints + name tag",
+				"Trail, paints, name tag, 30 h",
 				q,
 				{ x = heroW + p.gap, y = y, w = sideW, h = sideH }
 			)

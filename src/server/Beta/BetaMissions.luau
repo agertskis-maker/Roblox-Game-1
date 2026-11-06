@@ -9,6 +9,9 @@
 --   * a SAVED mission already done when the player joins shows as done, with nothing to claim (no reward twice by rejoining);
 --   * a COUNTED mission starts again at 0 on a rejoin (a visit's Joyrides are not saved);
 --   * a mission finished but not claimed when the player leaves is paid then, into the save: nothing is lost for stopping.
+-- Round 7 (U-05): forty-five missions in five tabs. New saved facts come from the save's rarities (RosterFixtures), the Stamina
+-- level, the Style Shop's Owned and Equipped; new counted facts (hops, the longest hop chain, the longest bump-free run) come
+-- from the runEnded event.
 -- Missions never use a timer, a streak or a deadline. State is published read-only as the Player attribute BetaMissions,
 -- "id=status:progress" joined by ";" (status: before | active | ready | claimed). The claim remote is ClaimMission (id).
 
@@ -19,6 +22,7 @@ local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaEvents = require(script.Parent.BetaEvents)
+local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local MissionsPreview = require(ReplicatedStorage.Shared.UI.MissionsPreview)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 
@@ -27,22 +31,81 @@ local BetaMissions = {}
 BetaMissions.Attribute = "BetaMissions"
 BetaMissions.ClaimRemote = "ClaimMission"
 
-type Counters = { lapCash: number, joyrides: number, runs: number, bestMetres: number }
+type Counters = {
+	lapCash: number,
+	joyrides: number,
+	runs: number,
+	bestMetres: number,
+	hops: number,
+	bestChain: number,
+	bumpFreeMetres: number,
+}
 type PlayerState = { counters: Counters, status: { [string]: string }, lastClaim: number }
 
 local states: { [Player]: PlayerState } = {}
+
+local RANK: { [string]: number } = { Common = 1, Uncommon = 2, Rare = 3, Epic = 4, Legendary = 5 }
+local styleItems: { [string]: Catalog.Item } = {}
+for _, tab in Catalog.Tabs do
+	for _, item in Catalog.Items[tab] do
+		styleItems[item.id] = item
+	end
+end
+local STYLE_FACT: { [string]: string } = { Paint = "paints", Decals = "decals", Wheels = "wheels", Trails = "trails" }
+
+local function newCounters(): Counters
+	return { lapCash = 0, joyrides = 0, runs = 0, bestMetres = 0, hops = 0, bestChain = 0, bumpFreeMetres = 0 }
+end
 local resultRemote: RemoteEvent? = nil
 
 -- The facts a mission reads, from a save and this visit's counters (pure).
 function BetaMissions.factsOf(data: any, counters: Counters): MissionsPreview.Facts
 	local cars, carsIn, best = 0, {}, 1
+	local rare, epic, legendary = 0, 0, 0
 	for id, car in data.Cars do
 		cars += 1
 		local info = RosterFixtures.byId(id)
 		if info then
 			carsIn[info.world] = (carsIn[info.world] or 0) + 1
+			local rank = RANK[info.rarity] or 1
+			rare += if rank >= 3 then 1 else 0
+			epic += if rank >= 4 then 1 else 0
+			legendary += if rank >= 5 then 1 else 0
 		end
 		best = math.max(best, car.Edition)
+	end
+	-- a World counts once a car other than the Loaner was caught there
+	local worldsWithCars = 0
+	for world, n in carsIn do
+		local loaner = RosterFixtures.loaner(world :: any)
+		local caught = n - (if loaner and data.Cars[loaner.id] then 1 else 0)
+		worldsWithCars += if caught > 0 then 1 else 0
+	end
+	local lineupRare = if #data.Lineup >= 3 then 1 else 0
+	for _, id in data.Lineup do
+		local info = RosterFixtures.byId(id)
+		if not (info and (RANK[info.rarity] or 1) >= 3) then
+			lineupRare = 0
+		end
+	end
+	local style = { paints = 0, decals = 0, wheels = 0, trails = 0 }
+	local bought, legendaryPaint = 0, 0
+	for id, yes in data.Owned or {} do
+		local item = styleItems[id]
+		if yes and item and not item.isNone then
+			bought += 1
+			style[STYLE_FACT[item.tab]] += 1
+			legendaryPaint = if item.tab == "Paint" and item.tier == "legendary" then 1 else legendaryPaint
+		end
+	end
+	local defaults = BetaConfig.Template.Equipped :: any
+	local fullLook = 1
+	for _, tab in Catalog.Tabs do
+		local worn = data.Equipped and data.Equipped[tab]
+		local item = worn and styleItems[worn]
+		if not item or item.isNone or worn == defaults[tab] then
+			fullLook = 0
+		end
 	end
 	return {
 		cars = cars,
@@ -52,10 +115,26 @@ function BetaMissions.factsOf(data: any, counters: Counters): MissionsPreview.Fa
 		worlds = data.WorldsUnlocked,
 		carsIn = carsIn,
 		bestEdition = best,
+		rare = rare,
+		epic = epic,
+		legendary = legendary,
+		worldsWithCars = worldsWithCars,
+		lineupRare = lineupRare,
+		staminaLevel = data.StaminaLevel or 0,
+		styleBought = bought,
+		paints = style.paints,
+		decals = style.decals,
+		wheels = style.wheels,
+		trails = style.trails,
+		legendaryPaint = legendaryPaint,
+		fullLook = fullLook,
 		lapCash = counters.lapCash,
 		joyrides = counters.joyrides,
 		runs = counters.runs,
 		bestMetres = counters.bestMetres,
+		hops = counters.hops,
+		bestChain = counters.bestChain,
+		bumpFreeMetres = counters.bumpFreeMetres,
 	}
 end
 
@@ -88,7 +167,7 @@ end
 
 local function begin(player: Player, data: any)
 	local state: PlayerState = {
-		counters = { lapCash = 0, joyrides = 0, runs = 0, bestMetres = 0 },
+		counters = newCounters(),
 		status = {},
 		lastClaim = 0,
 	}
@@ -99,6 +178,14 @@ local function begin(player: Player, data: any)
 	end
 	states[player] = state
 	publish(player, state, facts)
+end
+
+-- Studio self-tests only: starts the player's missions again from the save as it is now (the tests touch it for a moment).
+function BetaMissions.restart(player: Player)
+	local data = BetaData.get(player)
+	if data then
+		begin(player, data)
+	end
 end
 
 -- The claim, apart from the remote so the self-test can call it. Returns ok and the reason.
@@ -156,6 +243,15 @@ function BetaMissions.start(net: Folder)
 			c.runs += 1
 			if type(info.metres) == "number" then
 				c.bestMetres = math.max(c.bestMetres, info.metres)
+				if info.bumps == 0 then
+					c.bumpFreeMetres = math.max(c.bumpFreeMetres, info.metres)
+				end
+			end
+			if type(info.hops) == "number" then
+				c.hops += info.hops
+			end
+			if type(info.bestChain) == "number" then
+				c.bestChain = math.max(c.bestChain, info.bestChain)
 			end
 		end
 		BetaMissions.refresh(player)
@@ -246,6 +342,30 @@ function BetaMissions.selfTest(player: Player): { string }
 	expect("a second claim pays nothing", (BetaMissions.claim(player, "joyride")), false)
 	expect("... nothing", data.Cash, before)
 	expect("an unknown id is refused", (BetaMissions.claim(player, { "x" })), false)
+	-- U-05: a run with hops and no bumps feeds the Racer missions
+	state.counters = newCounters()
+	BetaEvents.fire(player, "runEnded", { metres = 1200, bumps = 0, hops = 4, bestChain = 3 })
+	expect("U-05 hops are counted from a run", state.counters.hops, 4)
+	expect(
+		"U-05 a chain of 3 makes Hop 3 cars ready",
+		state.status["chain-3"] == "ready" or state.status["chain-3"] == "claimed",
+		true
+	)
+	expect("U-05 a 1,200 m run with no bumps counts as bump-free", state.counters.bumpFreeMetres, 1200)
+	BetaEvents.fire(player, "runEnded", { metres = 3000, bumps = 2, hops = 0, bestChain = 0 })
+	expect("U-05 a run with bumps is not bump-free", state.counters.bumpFreeMetres, 1200)
+	local look = BetaMissions.factsOf({
+		Cars = {},
+		Lineup = {},
+		RacewayLevel = 1,
+		ParkingSpots = 2,
+		WorldsUnlocked = {},
+		Owned = { galaxy_swirl = true, pit_white = true },
+		Equipped = { Paint = "pit_white", Decals = "none", Wheels = "stock_five", Trails = "no_trail" },
+	}, newCounters())
+	expect("U-05 two bought paints count", look.paints, 2)
+	expect("U-05 a Legendary paint counts", look.legendaryPaint, 1)
+	expect("U-05 a paint alone is not a full look", look.fullLook, 0)
 	local facts = BetaMissions.factsOf(data, state.counters)
 	local firstCatch = MissionsPreview.get("first-catch") :: MissionsPreview.Mission
 	if MissionsPreview.progress(firstCatch, facts) >= firstCatch.target then

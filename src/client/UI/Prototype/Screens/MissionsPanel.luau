@@ -5,10 +5,13 @@
 -- with a square icon tile (family colour, rays, a big icon), the objective, a progress bar with its count inside it, and the
 -- reward as real art with its amount over it. A finished row shows a big green CLAIM! with a pulsing glow. GOALS: the six
 -- one-time milestones as a checklist, completed ones ticked and the next one highlighted.
+-- Round 7 (U-05): the MISSIONS tab became five category tabs (STARTER, RACER, COLLECTOR, TYCOON, STYLE) beside GOALS. A tab
+-- with something to claim wears a green count; opening the panel goes to the first tab with a claim waiting. A claimed live
+-- mission (one with a tab) leaves its list instead of being replaced by a fixture.
 --
 --   local panel = MissionsPanel.new(ctx, { onClaim = fn?, onRetry = fn?, onClose = fn?, state = State?,
 --                                          previewResolve = "Success" | "Error" | "None"?, onClaimableChanged = fn? })
---   panel:open(returnTo?)  panel:close()  panel:isOpen()  panel:selectTab("Missions" | "Goals")
+--   panel:open(returnTo?)  panel:close()  panel:isOpen()  panel:selectTab("Missions" | "Goals" | a category tab)
 --   panel:setState(state)  panel:setPreset("OneReady")                  -- MissionFixtures presets
 --   panel:pressClaim(id) -> boolean   panel:resolveClaim(id, "Success" | "Error")   -- the claim round trip
 --   panel:fixtureRefresh() -> number  -- the explicit "daily refresh" switch (a fixture, never a timer)
@@ -55,7 +58,10 @@ local make = CarKit.make
 
 local MissionsPanel = {}
 
-local MAX_MISSIONS = 15 -- the list scrolls: three rows show at a time
+local MAX_MISSIONS = 60 -- the list scrolls: three rows show at a time
+-- Round 7 (U-05): the category tabs, in order (MissionsPreview.Tabs), then GOALS
+local CATEGORIES = { "Starter", "Racer", "Collector", "Tycoon", "Style" }
+local CLAIM_GREEN = Color3.fromRGB(46, 190, 84)
 local PREVIEW_RESOLVE_SECONDS = 0.35
 local CLAIM_HOLD = 1.8 -- the claimed card stays until its feedback (0.7 s) has finished, and then a moment more
 local CLAIM_HOLD_REDUCED = 0.5
@@ -150,7 +156,7 @@ local function fitPx(text: string, width: number, most: number, least: number): 
 	return math.clamp(math.floor(width / (math.max(#text, 1) * 0.5)), least, most)
 end
 
-export type Tab = "Missions" | "Goals"
+export type Tab = string -- "Missions" (the current category), "Goals", or a category name
 export type Tier = "Phone" | "Tablet" | "Desktop"
 
 export type Options = {
@@ -280,7 +286,10 @@ function MissionsPanel.geometry(ds: Vector2): Geo
 	local rewardW = if stacked then math.clamp(math.round(rowW * 0.26), 150, 232) else ih
 	local btnW = if stacked then rewardW - math.round(12 * k) else math.clamp(math.round(rowW * 0.21), 112, 140)
 	local radius = if phone then 10 else 14
-	local tabW = math.round(pw * 0.36)
+	-- six tabs share the strip left of the close X, each lapping the next a little
+	local overlap = math.round(8 * math.max(k, 0.8))
+	local tabX = math.round(pw * 0.025)
+	local tabW = math.floor((pw - tabX - 52 + overlap * 5) / 6)
 	local list: Rect = { x = pad, y = tabsH + topGap, w = rowW, h = rowH * 3 + gap * 2 }
 	return {
 		fit = fit,
@@ -291,8 +300,8 @@ function MissionsPanel.geometry(ds: Vector2): Geo
 		tabsH = tabsH,
 		lap = lap,
 		tabW = tabW,
-		tabX = math.round(pw * 0.025),
-		tabStep = tabW - math.round(8 * math.max(k, 0.8)),
+		tabX = tabX,
+		tabStep = tabW - overlap,
 		pad = pad,
 		gap = gap,
 		radius = radius,
@@ -442,7 +451,8 @@ type GoalRow = {
 
 type TabParts = {
 	button: TextButton,
-	icon: Frame,
+	icon: Frame?,
+	badge: TextLabel?,
 	label: TextLabel,
 	gradient: UIGradient,
 	x: number,
@@ -471,6 +481,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 	local geo = MissionsPanel.geometry(Vector2.new(750, 325))
 	local builtKey = ""
 	local tab: Tab = "Missions"
+	local category = "Starter"
 	local cards: { Card } = {}
 	local goalRows: { GoalRow } = {}
 	local latch: { [string]: boolean } = {} -- goals seen done stay done
@@ -507,7 +518,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 
 	-- STATE HELPERS --------------------------------------------------------------------------
 
-	local function visibleMissions(): { MissionFixtures.Mission }
+	local function allMissions(): { MissionFixtures.Mission }
 		local out: { MissionFixtures.Mission } = {}
 		for i, m in state.missions do
 			if i > MAX_MISSIONS then
@@ -518,17 +529,45 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		return out
 	end
 
-	local function claimableCount(): number
+	-- the missions of the open category tab
+	local function visibleMissions(): { MissionFixtures.Mission }
+		local out: { MissionFixtures.Mission } = {}
+		for _, m in allMissions() do
+			if (m.tab or "Starter") == category then
+				table.insert(out, m)
+			end
+		end
+		return out
+	end
+
+	local function claimableIn(name: string?): number
 		local n = 0
-		for _, m in visibleMissions() do
-			if MissionFixtures.visual(m) == "Ready" then
+		for _, m in allMissions() do
+			if (name == nil or (m.tab or "Starter") == name) and MissionFixtures.visual(m) == "Ready" then
 				n += 1
 			end
 		end
 		return n
 	end
 
+	local function claimableCount(): number
+		return claimableIn(nil)
+	end
+
+	-- the green count on each category tab with something to claim
+	local function paintBadges()
+		for name, parts in tabs do
+			local badge = parts.badge
+			if badge then
+				local n = claimableIn(name)
+				badge.Text = tostring(n)
+				badge.Visible = n > 0
+			end
+		end
+	end
+
 	local function notify()
+		paintBadges()
 		for _, fn in table.clone(listeners) do
 			fn(state)
 		end
@@ -1195,6 +1234,8 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			return "Could not load your Missions."
 		elseif tab == "Missions" and #state.missions == 0 then
 			return "No Missions right now. Check back soon!"
+		elseif tab == "Missions" and #visibleMissions() == 0 then
+			return "All done here! Try another tab."
 		end
 		return ""
 	end
@@ -1203,7 +1244,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		local g = geo
 		local drop = if g.tier == "Phone" then 4 else math.round(8 * g.k)
 		for name, parts in tabs do
-			local active = name == tab
+			local active = if tab == "Goals" then name == "Goals" else name == category
 			local visibleH = if active then g.tabsH else g.tabsH - drop
 			parts.button.Position = UDim2.fromOffset(parts.x, if active then 0 else drop)
 			parts.button.Size = UDim2.fromOffset(g.tabW, if active then g.tabsH + g.lap else g.tabsH - drop + g.lap + 4)
@@ -1215,18 +1256,22 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 				stroke.Enabled = not active
 			end
 			parts.label.Size = UDim2.new(parts.label.Size.X.Scale, parts.label.Size.X.Offset, 0, visibleH)
-			parts.icon.Position = UDim2.fromOffset(12, visibleH / 2)
-			local image = parts.icon:FindFirstChild("Image")
-			if image and image:IsA("ImageLabel") then
-				image.ImageColor3 = if active then CarKit.White else rgb(170, 184, 214)
+			local icon = parts.icon
+			if icon then
+				icon.Position = UDim2.fromOffset(12, visibleH / 2)
+				local image = icon:FindFirstChild("Image")
+				if image and image:IsA("ImageLabel") then
+					image.ImageColor3 = if active then CarKit.White else rgb(170, 184, 214)
+				end
 			end
 		end
+		paintBadges()
 	end
 
 	local function applyView()
 		local ready = state.load == "Ready"
 		local text = messageText()
-		local showMissions = ready and tab == "Missions" and #state.missions > 0
+		local showMissions = ready and tab == "Missions" and #visibleMissions() > 0
 		missionScroll.Visible = showMissions
 		for _, c in cards do
 			c.frame.Visible = showMissions
@@ -1239,7 +1284,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 		syncPulses()
 	end
 
-	local function makeTab(name: Tab, word: string, art: string, painter: string, x: number): TabParts
+	local function makeTab(name: Tab, word: string, art: string?, painter: string?, x: number): TabParts
 		local g = geo
 		local button = make("TextButton", {
 			Name = name .. "Tab",
@@ -1258,30 +1303,61 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		}, button)
 		local gradient = make("UIGradient", { Rotation = 90, Color = TAB_OFF }, button) :: UIGradient
-		local iconPx = if g.tier == "Desktop" then 48 else 32
-		local icon = CarKit.slot(button, art, iconPx, {
-			anchor = Vector2.new(0, 0.5),
-			position = UDim2.fromOffset(12, g.tabsH / 2),
-			z = 5,
-			fallback = painter,
-		})
-		-- both tabs use the size that fits the longer word, so MISSIONS and GOALS match
-		local labelW = g.tabW - (12 + iconPx + 16)
-		local px = fitPx("MISSIONS", labelW, if g.tier == "Phone" then 28 else math.round(38 * g.k), 16)
+		-- Round 7: six tabs leave room for words only; every tab uses the size that fits the longest word, so they match
+		local icon: Frame? = nil
+		local iconPx = 0
+		if art then
+			iconPx = if g.tier == "Desktop" then 32 else 24
+			icon = CarKit.slot(button, art, iconPx, {
+				anchor = Vector2.new(0, 0.5),
+				position = UDim2.fromOffset(8, g.tabsH / 2),
+				z = 5,
+				fallback = painter,
+			})
+		end
+		-- centred clear of the overlap on both sides, so the open tab never covers the next word
+		local edge = g.tabW - g.tabStep + 4
+		local lead = if art then edge + iconPx + 4 else edge
+		local labelW = g.tabW - lead - edge
+		local px = fitPx("COLLECTOR", g.tabW - edge * 2, if g.tier == "Phone" then 22 else math.round(28 * g.k), 14)
 		local label = CarKit.title(button, word, px, {
-			position = UDim2.fromOffset(12 + iconPx + 8, 0),
-			size = UDim2.new(1, -(12 + iconPx + 16), 0, g.tabsH),
+			position = UDim2.fromOffset(lead, 0),
+			size = UDim2.fromOffset(labelW, g.tabsH),
 			shadow = false,
+			align = Enum.TextXAlignment.Center,
 			z = 5,
 			name = "Label",
 		})
+		local badge: TextLabel? = nil
+		if table.find(CATEGORIES, name) then
+			local b = make("TextLabel", {
+				Name = "ClaimCount",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(1, -10, 0, 8),
+				Size = UDim2.fromOffset(26, 26),
+				BackgroundColor3 = CLAIM_GREEN,
+				FontFace = CarKit.display(),
+				TextScaled = true,
+				TextColor3 = CarKit.White,
+				Text = "",
+				Visible = false,
+				ZIndex = 14,
+			}, button) :: TextLabel
+			make("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+			make("UIStroke", {
+				Thickness = 2,
+				Color = CarKit.Ink,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}, b)
+			badge = b
+		end
 		buildTrove:Connect(button.Activated, function()
 			pcall(function()
 				Sounds.play("Tap")
 			end)
 			panelObj:selectTab(name)
 		end)
-		return { button = button, icon = icon, label = label, gradient = gradient, x = x }
+		return { button = button, icon = icon, badge = badge, label = label, gradient = gradient, x = x }
 	end
 
 	local function buildConfetti()
@@ -1332,8 +1408,10 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			bolts = g.tier ~= "Phone", -- the phone's bezel is too narrow for them
 			name = "Board",
 		})
-		tabs.Missions = makeTab("Missions", "MISSIONS", "missions", "Missions", g.tabX)
-		tabs.Goals = makeTab("Goals", "GOALS", "goals", "Goals", g.tabX + g.tabStep)
+		for i, name in CATEGORIES do
+			tabs[name] = makeTab(name, string.upper(name), nil, nil, g.tabX + g.tabStep * (i - 1))
+		end
+		tabs.Goals = makeTab("Goals", "GOALS", nil, nil, g.tabX + g.tabStep * #CATEGORIES)
 		-- Close: the kit's X, top right
 		local closePx = 48
 		closeButton = make("ImageButton", {
@@ -1583,6 +1661,12 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			return
 		end
 		replacements += 1
+		if mission.tab ~= nil and #state.pool == 0 then
+			-- a live mission is done for good: it leaves the list (the server's next state follows)
+			table.remove(state.missions, index)
+			rebuildCards()
+			return
+		end
 		local fresh = nextMission()
 		state.missions[index] = fresh
 		local function swap()
@@ -1702,6 +1786,15 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			if overlay:isOpen() then
 				return
 			end
+			-- go to the first category with a claim waiting, if the open one has none
+			if tab ~= "Goals" and claimableIn(category) == 0 then
+				for _, name in CATEGORIES do
+					if claimableIn(name) > 0 then
+						category = name
+						break
+					end
+				end
+			end
 			buildShell()
 			notify()
 			local focus: GuiObject = closeButton
@@ -1728,6 +1821,16 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			return overlay:isOpen()
 		end,
 		selectTab = function(_self: Panel, which: Tab)
+			if table.find(CATEGORIES, which) then
+				if tab == "Missions" and category == which then
+					return
+				end
+				tab = "Missions"
+				category = which
+				rebuildCards()
+				missionScroll.CanvasPosition = Vector2.zero
+				return
+			end
 			if which == tab then
 				return
 			end
@@ -1807,7 +1910,7 @@ function MissionsPanel.new(ctx: Overlay.Ctx, options: Options?): Panel
 			return state
 		end,
 		topMission = function(_self: Panel): MissionFixtures.Mission?
-			return MissionFixtures.top(visibleMissions())
+			return MissionFixtures.top(allMissions())
 		end,
 		destroy = function(_self: Panel)
 			stopEffects()

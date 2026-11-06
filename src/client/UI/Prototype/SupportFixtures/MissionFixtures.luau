@@ -36,6 +36,7 @@ export type Mission = {
 	reward: number, -- PREVIEW dollars
 	rewardKind: RewardKind?, -- PREVIEW: nil = Cash
 	claim: ClaimState,
+	tab: string?, -- Round 7 (U-05): the category tab it shows on (MissionsPreview.Tabs); nil = Starter
 }
 
 type Template = {

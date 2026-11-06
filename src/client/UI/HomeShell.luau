@@ -259,6 +259,13 @@ function HomeShell.start(options: Options?): any
 			components.garage:close()
 			self.openLineup(car.id)
 		end,
+		-- Round 7 (U-02): RIDE THIS CAR picks the car the runs start in (the launch card shows it)
+		onRide = function(car: any)
+			StyleState.setCar(car.id)
+		end,
+		ridingId = function(): string?
+			return StyleState.car()
+		end,
 		canPutOnRaceway = function(car: any): (boolean, string?)
 			if not LiveData.hasCars(player) then
 				return false, "Parking works in the beta place."
@@ -408,10 +415,21 @@ function HomeShell.start(options: Options?): any
 
 	local function shopAt(section: string?)
 		userPanel("shop")
-		local shop = components.shop
-		if section and shop and shop.openSection then
-			shop:openSection(section)
+		if not section then
+			return
 		end
+		-- Round 7 (U-06): the panel queue opens the Shop a moment later, and opening resets it to Featured, so the section is
+		-- picked once the Shop is really open
+		task.spawn(function()
+			for _ = 1, 40 do
+				local shop = components.shop
+				if shop and shop.isOpen and shop:isOpen() and shop.openSection then
+					shop:openSection(section)
+					return
+				end
+				task.wait(0.05)
+			end
+		end)
 	end
 	self.shopAt = shopAt
 

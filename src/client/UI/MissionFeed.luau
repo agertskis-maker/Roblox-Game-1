@@ -21,7 +21,6 @@ local MissionFeed = {}
 
 MissionFeed.Attribute = "BetaMissions"
 MissionFeed.ClaimRemote = "ClaimMission"
-local SHOWN = 3 -- the panel's rows
 local claimer: ((id: string) -> ())? = nil
 
 type Entry = { status: string, progress: number }
@@ -49,6 +48,7 @@ local function card(mission: MissionsPreview.Mission, entry: Entry): { [string]:
 		format = mission.format,
 		reward = mission.reward,
 		claim = "None",
+		tab = mission.tab, -- Round 7 (U-05): the panel's category tab
 	}
 end
 
@@ -58,11 +58,19 @@ function MissionFeed.state(player: Player?): { [string]: any }?
 	if not entries then
 		return nil
 	end
+	-- Round 7 (U-05): every open mission, each on its category tab; a ready one comes first in its tab
 	local missions, pool = {}, {}
-	for _, mission in MissionsPreview.List do
-		local entry = entries[mission.id]
-		if entry and (entry.status == "active" or entry.status == "ready") then
-			table.insert(if #missions < SHOWN then missions else pool, card(mission, entry))
+	for _, wantReady in { true, false } do
+		for _, mission in MissionsPreview.List do
+			local entry = entries[mission.id]
+			if
+				entry
+				and (entry.status == "ready") == wantReady
+				and entry.status ~= "before"
+				and entry.status ~= "claimed"
+			then
+				table.insert(missions, card(mission, entry))
+			end
 		end
 	end
 	local goals = {}

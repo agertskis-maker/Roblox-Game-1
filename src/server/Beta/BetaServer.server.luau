@@ -177,6 +177,8 @@ if RunService:IsStudio() then
 				end
 				print(string.format("[CarHopBeta selftest] %s done: %d lines, %d not PASS", which, #list, failed))
 			end
+			-- the tests above changed the save for a moment; start the missions again from the save as it is now
+			BetaMissions.restart(player)
 		end)
 	end)
 end

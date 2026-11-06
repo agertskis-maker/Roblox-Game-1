@@ -116,8 +116,9 @@ local offers: { Offer } = {
 		kind = "Pass",
 		name = "VIP",
 		tag = "YOUR VIP LOOK",
-		body = "VIP paints, a name tag and your own lounge.",
-		detail = "Offline earnings can build for up to 12 hours. No boost to driving or racing.",
+		-- Round 7 (decision 0042 item 12): trail, name tag, paints, 30 h of offline earnings. No lounge.
+		body = "VIP trail, VIP paints and a gold VIP name tag.",
+		detail = "Offline earnings build for up to 30 hours. No boost to driving or racing.",
 		icon = "VipCrown",
 		art = "vip",
 		fill = "Violet",

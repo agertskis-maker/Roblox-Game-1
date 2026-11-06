@@ -115,6 +115,7 @@ function BetaStyle.equip(player: Player, tab: any, id: any): (boolean, string?, 
 	end
 	data.Equipped[item.tab] = item.id
 	BetaStyle.publish(player)
+	BetaEvents.fire(player, "EquipStyle") -- Round 7 (U-05): the full-look mission
 	return true, nil, nil
 end
 

@@ -105,6 +105,11 @@ type Run = {
 	leapOpen: boolean,
 	lastBump: number,
 	luck: number,
+	-- Round 7 (U-05): for missions. Accepted hops, bumps, and the longest chain of hops without touching the road
+	hops: number,
+	bumps: number,
+	chain: number,
+	bestChain: number,
 	totals: Totals,
 	closed: boolean,
 }
@@ -326,6 +331,9 @@ local function closeRun(run: Run, cause: string)
 		claims = run.totals.claims,
 		joyrides = run.totals.joyrides,
 		cause = cause,
+		hops = run.hops,
+		bumps = run.bumps,
+		bestChain = run.bestChain,
 	})
 	table.insert(closedOrder, run.id)
 	if #closedOrder > 64 then
@@ -379,6 +387,10 @@ function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
 		boltsLeft = bolts,
 		leapOpen = false,
 		lastBump = -math.huge,
+		hops = 0,
+		bumps = 0,
+		chain = 0,
+		bestChain = 0,
 		started = os.clock(),
 		tutorial = data.TutorialDone ~= true,
 		lastD = 0,
@@ -445,12 +457,14 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			run.boltsLeft -= 1
 			run.leapOpen = true
 		elseif e.kind == "Bump" then
+			run.bumps += 1
 			if e.t - run.lastBump >= RunConfig.BUMP_GRACE then
 				run.lastBump = e.t
 				run.boltsLeft = math.max(run.boltsLeft - 1, 0)
 			end
 		elseif e.kind == "Bonk" or e.kind == "Thrown" then
 			run.boltsLeft = math.max(run.boltsLeft - 1, 0)
+			run.chain = 0
 		elseif e.kind == "Hop" then
 			local problem = BetaRun.hopProblem(run, e.t, e.d, e.target)
 			if problem then
@@ -459,6 +473,12 @@ function BetaRun.events(player: Player, runId: any, events: any): string
 			end
 			if e.target ~= 0 and (run.ride == nil or (run.ride :: any).index ~= e.target) then
 				run.ride = { index = e.target, t = e.t }
+			end
+			if run.leapOpen then
+				-- a paid leap that landed on a car: one more hop in the chain
+				run.hops += 1
+				run.chain += 1
+				run.bestChain = math.max(run.bestChain, run.chain)
 			end
 			run.leapOpen = false
 		end

@@ -7,7 +7,8 @@
 --     kind "claim" | "joyride"   info = the run grant (carId, amount, edition, rose, ...)
 --     kind "lap"                 info = { carId, amount }            a Lap Pay payout
 --     kind "BuyRacewayLevel" | "BuyParkingSpot" | "UnlockWorld" | "BuyStaminaLevel"   info = {}   a purchase that went through
---     kind "runEnded"            info = { world, metres, claims, joyrides, cause }
+--     kind "runEnded"            info = { world, metres, claims, joyrides, cause, hops, bumps, bestChain }
+--     kind "BuyStyle" | "EquipStyle"   info = {}   Round 7: the Style Shop
 --     kind "purchase"            info = { item }                    a Robux item granted
 -- Missions (BetaMissions) count these; nothing else may grant anything from them.
 
