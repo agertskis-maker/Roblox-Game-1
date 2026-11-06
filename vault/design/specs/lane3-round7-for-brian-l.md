@@ -17,7 +17,7 @@ Hi Brian L. Here is what Round 7 added that touches your work. Decision: [[0042-
   - **Apex:** its texture is mostly grey, so the mask had to be forced. Paint shows weakly on it.
   - **Viper Strike:** keeps some of its green where the mask misses body panels.
   - **Rainbow editions** have their own mesh with no mask, so they are not painted. Gold and Diamond share the base mesh and take paint.
-- **A livery to check (AGENTS.md vehicle rule 5):** a reviewer said one SUV in the paint contact sheet (`Car-Hop-Art/review/round7/frames/C02-contact-sheet-white.png`, third row, left) looks like it has a police livery. Please check it and change the texture if you agree.
+- **A livery to check (AGENTS.md vehicle rule 5):** a reviewer said one SUV in the paint contact sheet (`Car-Hop-Art/review/round7/frames/C02-contact-sheet-white.jpg`, third row, left) looks like it has a police livery. Please check it and change the texture if you agree.
 - **An upload problem to fix:** `AssetService:CreateEditableImageAsync` cannot read your car textures. Asset 91449126189134 is owned by a user account (10608836728), not by LEGION STUDI0S. If the car textures were re-uploaded under the group, paint could be drawn straight from them instead of from the stored masks.
 
 ## New beta save fields (in `src/server/Beta/BetaData.luau`, all repaired by `sanitize`)
