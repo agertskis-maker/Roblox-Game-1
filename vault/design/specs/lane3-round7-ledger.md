@@ -37,7 +37,7 @@ Status: **done**, **partial**, **not done**, **blocked**.
 | A-02 Badge over every plot | MUST | done | solo Play | Always-on-top badges with the owner's headshot. |
 | A-03 Circuit Coming soon | MUST | done | self-test | Closed gate; the server refuses Circuit events. |
 | A-04 RICHEST RACERS | MUST | done | solo Play | This server's players only. |
-| A-05 Portals and Coach Roxy | MUST | partial | code, solo Play | Two bars (cars, Cash), one next-step line, GOT IT / UNLOCK; the portal-open moment (chains fall) is the existing Portals moment. **Roxy's new portrait is not uploaded** (R7-S04). |
+| A-05 Portals and Coach Roxy | MUST | partial | code, solo Play | Two bars (cars, Cash), one next-step line, GOT IT / UNLOCK; the portal-open moment (chains fall) is the existing Portals moment. Roxy's new portrait (cut from R7-IMG-01) uploaded late in the round with the Studio MCP image upload: image 106010075891034, owned by peskaface (user, not the group). Every Roxy card shows it (`5714452`). **Not seen in Studio after the change.** |
 | A-06 Launch Pads detail | MUST | partial | frame | Faceted bushes with flowers, trees (pines on Summit), lamps, benches, bunting, hydrants / crates / tyre stacks, a ROAD CLOSED set with an invisible wall, symmetric layout, HOME arch. Checked north and south from Downtown; **the full 360-degree turn at three heights in all three Worlds was not done**. |
 | A-07 Launch card | MUST | done | frame | No hops line, car centred about its own middle, red X (48 px), walking off closes it, START orange. |
 | A-08 Island cooler | SHOULD | not done | | Time went to MUSTs. |
