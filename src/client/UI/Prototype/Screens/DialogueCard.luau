@@ -400,12 +400,15 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		ZIndex = 7,
 		Parent = portraitBack,
 	})
-	if spec.portraitImage then
+	-- Round 7 (A-05): Coach Roxy's new portrait (cut from R7-IMG-01, image 106010075891034, owned by peskaface) wherever she appears
+	local portraitImage = spec.portraitImage
+		or (if spec.portraitName == "Coach Roxy" then "rbxassetid://106010075891034" else nil)
+	if portraitImage then
 		make("ImageLabel", {
 			Name = "PortraitImage",
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
-			Image = spec.portraitImage,
+			Image = portraitImage,
 			ScaleType = Enum.ScaleType.Fit,
 			ZIndex = 8,
 			Parent = artHolder,
