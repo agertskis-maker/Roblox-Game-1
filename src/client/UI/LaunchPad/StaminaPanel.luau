@@ -45,9 +45,11 @@ local function cash(): number?
 	return if type(v) == "number" then v else nil
 end
 
+-- Round 7 (P-03): waits a moment for the remote (a slow join) instead of giving up at once
 local function remote(name: string): RemoteEvent?
 	local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
-	local r = net and net:FindFirstChild(name)
+		or ReplicatedStorage:WaitForChild(BetaConfig.NetName, 5)
+	local r = net and (net:FindFirstChild(name) or net:WaitForChild(name, 3))
 	return if r and r:IsA("RemoteEvent") then r else nil
 end
 
@@ -325,7 +327,8 @@ function Panel.open()
 		end
 		local r = remote(BetaConfig.Remotes.BuyStaminaLevel)
 		if not r then
-			status.Text = "The shop is closed in this place."
+			status.Text = "The shop is not ready yet. Try again in a moment."
+			warn("[CarHopBeta] Stamina BUY: CarHopBetaNet." .. BetaConfig.Remotes.BuyStaminaLevel .. " not found")
 			return
 		end
 		waiting = true

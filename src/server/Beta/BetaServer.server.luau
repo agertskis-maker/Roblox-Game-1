@@ -60,14 +60,38 @@ net.Name = BetaConfig.NetName
 -- Round 6 (E-04): the run remotes under Brian L's names, in his folder name (BetaRunNet, a stand-in for EconomyPreviewNet)
 local runNet = Instance.new("Folder")
 runNet.Name = BetaRunNet.FolderName
-BetaShop.start(net)
-BetaEconomy.startRemotes(net) -- Round 7 (P-01): COLLECT on the Welcome back card
-BetaLineup.start(net)
-BetaRun.startRemotes(net, runNet)
-BetaLapPay.start(net)
-BetaPurchases.start(net) -- Round 6 (R-02): the one ProcessReceipt handler
-BetaMissions.start(net) -- Round 6 (G-01): Missions on real events (after BetaShop, which makes BetaResult)
-BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
+-- Round 7 (P-03): each part starts on its own. Adam saw "The shop is closed in this place." on the Stamina BUY in the published beta,
+-- which is what a player sees when CarHopBetaNet is missing; one part failing to start must never leave every remote unparented.
+local function startPart(name: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then
+		warn(string.format("[CarHopBeta] %s failed to start: %s", name, tostring(err)))
+	end
+end
+startPart("BetaShop", function()
+	BetaShop.start(net)
+end)
+startPart("BetaEconomy remotes", function()
+	BetaEconomy.startRemotes(net) -- Round 7 (P-01): COLLECT on the Welcome back card
+end)
+startPart("BetaLineup", function()
+	BetaLineup.start(net)
+end)
+startPart("BetaRun", function()
+	BetaRun.startRemotes(net, runNet)
+end)
+startPart("BetaLapPay", function()
+	BetaLapPay.start(net)
+end)
+startPart("BetaPurchases", function()
+	BetaPurchases.start(net) -- Round 6 (R-02): the one ProcessReceipt handler
+end)
+startPart("BetaMissions", function()
+	BetaMissions.start(net) -- Round 6 (G-01): Missions on real events (after BetaShop, which makes BetaResult)
+end)
+startPart("BetaCircuit", function()
+	BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
+end)
 runNet.Parent = ReplicatedStorage
 net.Parent = ReplicatedStorage
 

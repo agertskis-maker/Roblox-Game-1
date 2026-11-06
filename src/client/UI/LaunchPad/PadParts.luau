@@ -6,7 +6,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SignKit = require(ReplicatedStorage.Shared.Island.SignKit)
-local GameIcons = require(script.Parent.Parent.Prototype.GameIcons)
 local Motion = require(script.Parent.Parent.Prototype.Motion)
 local RealCar = require(script.Parent.Parent.Prototype.RealCar)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
@@ -27,7 +26,6 @@ local RAIL_SEGMENTS = 24
 local WALL_SIDES = 16
 local rgb = Color3.fromRGB
 local GOLD = rgb(244, 190, 60)
-local SHOWROOM_SECONDS = 5
 local SPRAY_SECONDS = 3
 local CHROME = rgb(205, 212, 226)
 local INK = rgb(26, 34, 56)
@@ -154,13 +152,13 @@ end
 
 -- Where the player lands: a glowing pad with the World's name, and the chevrons that show the way the first few times.
 function PadParts.arrival(k: any, theme: any, name: string): { Part }
-	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.22, 34), theme.trim)
-	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.3, 34), theme.glow, Enum.Material.Neon)
-	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.38, 34), INK)
+	k:cyl("ArrivalBase", 22, 0.3, CFrame.new(0, 0.22, 22), theme.trim)
+	k:cyl("ArrivalGlow", 20, 0.3, CFrame.new(0, 0.3, 22), theme.glow, Enum.Material.Neon)
+	k:cyl("ArrivalFace", 18.6, 0.3, CFrame.new(0, 0.38, 22), INK)
 	local label = k:box(
 		"ArrivalArt",
 		Vector3.new(3, 0.04, 10.6),
-		CFrame.new(0, 0.56, 26.8) * CFrame.Angles(0, -math.pi / 2, 0),
+		CFrame.new(0, 0.56, 14.8) * CFrame.Angles(0, -math.pi / 2, 0),
 		INK
 	)
 	label.Transparency = 1
@@ -176,7 +174,7 @@ function PadParts.arrival(k: any, theme: any, name: string): { Part }
 	local chevrons: { Part } = {}
 	for i = 1, 4 do
 		for _, s in { 1, -1 } do
-			local z = 26 - i * 5.6
+			local z = 14 - i * 5.6
 			local c = k:neon(
 				"Chevron",
 				Vector3.new(4, 0.08, 1.2),
@@ -327,7 +325,7 @@ local CORE = "rbxassetid://131487211688936"
 function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 	-- its face (the HOME sign and the pool) looks at the middle of the floor, as the kiosks do (2026-11-05, Adam: it was
 	-- turned about 45 degrees away)
-	local at = CFrame.lookAt(Vector3.new(-33, 0, 15), Vector3.new(0, 0, 2))
+	local at = CFrame.lookAt(Vector3.new(0, 0, 38), Vector3.new(0, 0, 2)) -- Round 7 (A-06): due south, behind the arrival pad
 	local cream = rgb(232, 214, 178)
 	k:box("HomeStep", Vector3.new(19, 0.6, 9), at * CFrame.new(0, 0.3, 0), theme.trim)
 	k:box("HomeStep", Vector3.new(16, 0.4, 7), at * CFrame.new(0, 0.8, 0), cream)
@@ -616,7 +614,7 @@ function PadParts.lightningBolt(k: any, at: CFrame, size: number, colour: Color3
 	return model
 end
 
-function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [string]: BasePart }, () -> ())
+function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [string]: BasePart }, () -> ())
 	local centre = Vector3.new(0, 0, 2)
 	local function placed(x: number, z: number): CFrame
 		return CFrame.lookAt(Vector3.new(x, 0, z), centre)
@@ -624,96 +622,19 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 	local stands: { [string]: BasePart } = {}
 	local rigs: { any } = {}
 
-	-- CARS: a real car on a turntable, a little one floating over the roof
-	local carsAt = placed(-27.2, -21.2) -- 2026-11-05: was (-29, -19), mirrors PAINT
-	local carTop: number
-	stands.Cars, carTop = kioskShell(k, theme, "Cars", "CARS", carsAt)
-	local shown = RealCar.mount(k.parent, { length = 9.5, height = 6 })
-	local mini = RealCar.mount(k.parent, { length = 5.4, height = 3.4 })
-	table.insert(rigs, mini)
-	-- the turntable is a little showroom: it brings out this World's cars one after another (Round 4: its nine, Loaner first)
-	local line = RealCar.forWorld(world or "Downtown")
-	local onShow = 1
-	local shownAt = 0
-	k:cyl("Turntable", 12.6, 0.8, carsAt * CFrame.new(0, 1.2, 1), theme.kiosk.Cars[1])
-	k:cyl("TurntableGlow", 13.2, 0.2, carsAt * CFrame.new(0, 0.95, 1), theme.glow, Enum.Material.Neon)
-	local turnAt = k.origin * carsAt * CFrame.new(0, 1.6, 1)
-	local miniAt = k.origin * carsAt * CFrame.new(0, carTop + 4.6, 0)
-	life(function(t: number, _dt: number)
-		if Motion.reduced() then
-			return
-		end
-		shown:pivotTo(turnAt * CFrame.Angles(0, t * 0.5, 0))
-		if t - shownAt > SHOWROOM_SECONDS and #line > 0 then
-			shownAt = t
-			onShow = (onShow % #line) + 1
-			shown:setCar(line[onShow].name)
-		end
-		mini:pivotTo(miniAt * CFrame.new(0, math.sin(t * 1.6) * 0.5, 0) * CFrame.Angles(0, t * 0.9, 0))
-	end)
-	shown:pivotTo(turnAt * CFrame.Angles(0, 0.6, 0))
-	mini:pivotTo(miniAt)
+	-- Round 7 (A-06, decision 0042 item 14): a symmetric pad. The ramp north, the arrival and the HOME portal south, the STYLE SHOP
+	-- alone on the west side, the PIT STOP (Stamina) and the LUCKY CLOVER on the east. The old CARS stall is gone (the launch card's
+	-- CHANGE CAR opens the same car picker) and PAINT and TRAILS are now one shop.
 
-	-- TRAILS: the car circles its pedestal with a real trail behind it; a rainbow knot floats over the roof
-	local trailAt = placed(28.6, 19.3) -- 2026-11-05: was (33, 13); PAINT, STAMINA and TRAILS now stand 36 degrees apart
-	local trailTop: number
-	stands.Trails, trailTop = kioskShell(k, theme, "Trails", "TRAILS", trailAt)
-	k:cyl("Pedestal", 12.6, 0.8, trailAt * CFrame.new(0, 1.2, 1), theme.kiosk.Trails[1])
-	k:cyl("PedestalGlow", 13.2, 0.2, trailAt * CFrame.new(0, 0.95, 1), theme.glow, Enum.Material.Neon)
-	local runner = RealCar.mount(k.parent, { length = 5.4, height = 3.6 })
-	table.insert(rigs, runner)
-	runner:setPaint({ id = "kiosk", kind = "solid", colours = { rgb(50, 190, 255) } } :: any)
-	local carrier = k:box("TrailCarrier", Vector3.new(0.2, 0.2, 0.2), trailAt, rgb(0, 0, 0))
-	carrier.Transparency = 1
-	local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
-	a0.Position = Vector3.new(-1.5, 0, 0)
-	a1.Position = Vector3.new(1.5, 0, 0)
-	a0.Parent = carrier
-	a1.Parent = carrier
-	local trail = Instance.new("Trail")
-	trail.Attachment0 = a0
-	trail.Attachment1 = a1
-	trail.Lifetime = 2.2
-	trail.LightEmission = 0.6
-	trail.FaceCamera = false
-	trail.TextureMode = Enum.TextureMode.Stretch
-	trail.Parent = carrier
-	local function trailArt()
-		local item = StyleState.item("Trails")
-		local key = item and item.key or "rainbow"
-		trail.Texture = GameIcons.uri("ribbon_" .. key) or ""
-	end
-	trailArt()
-	local trailHome = k.origin * trailAt * CFrame.new(0, 1.7, 1)
-	local function ride(t: number)
-		local a = t * 1.1
-		local p = trailHome * CFrame.Angles(0, a, 0) * CFrame.new(3.4, 0, 0)
-		runner:pivotTo(p)
-		carrier.CFrame = runner:tail() * CFrame.new(0, -0.5, 0.4)
-	end
-	ride(0)
-	life(function(t: number, _dt: number)
-		if not Motion.reduced() then
-			ride(t)
-		end
-	end)
-	local knot, knotModel = k:model("TrailKnot")
-	local beads = 16
-	local facing = trailAt * CFrame.new(0, trailTop + 2.6, 0) * CFrame.Angles(0, math.rad(45), 0)
-	for i = 0, beads - 1 do
-		local a = i / beads * math.pi * 2
-		local cf = facing * CFrame.Angles(0, 0, a) * CFrame.new(0, 2.5, 0)
-		knot:ball("LoopBead", 1.5, cf, Color3.fromHSV(i / beads, 0.85, 1), Enum.Material.Neon)
-	end
-	bobbing(knotModel, life, 0)
-
-	-- PAINT: a spray booth with shelves of cans; a chunky can floats over the roof
-	local paintAt = placed(27.2, -21.2) -- 2026-11-05: was (29, -19), see TRAILS
-	local paintTop: number
-	stands.Paint, paintTop = kioskShell(k, theme, "Paint", "PAINT", paintAt)
-	k:box("BoothWall", Vector3.new(14, 8.4, 0.8), paintAt * CFrame.new(0, 4.9, 6.4), rgb(216, 224, 236))
-	k:box("BoothShelf", Vector3.new(11, 0.4, 1.6), paintAt * CFrame.new(0, 3.5, 5.4), theme.trim)
-	k:box("BoothShelf", Vector3.new(11, 0.4, 1.6), paintAt * CFrame.new(0, 6.3, 5.4), theme.trim)
+	-- STYLE SHOP: a garage boutique. Your own car turns on a turntable trying coats of paint, a back wall of cans and spare wheels,
+	-- and the four things it sells float over the roof: a spray can (Paint), a star (Decals), a wheel (Wheels), a rainbow (Trails).
+	local styleAt = placed(-34, -4)
+	local styleTop: number
+	stands.Style, styleTop = kioskShell(k, theme, "Style", "STYLE SHOP", styleAt)
+	k:cyl("Turntable", 12.6, 0.8, styleAt * CFrame.new(0, 1.2, 1), theme.kiosk.Style[1])
+	k:cyl("TurntableGlow", 13.2, 0.2, styleAt * CFrame.new(0, 0.95, 1), theme.glow, Enum.Material.Neon)
+	k:box("BoothWall", Vector3.new(14, 8.4, 0.8), styleAt * CFrame.new(0, 4.9, 6.6), rgb(216, 224, 236))
+	k:box("BoothShelf", Vector3.new(11, 0.4, 1.6), styleAt * CFrame.new(0, 6.3, 5.6), theme.trim)
 	local cans = {
 		rgb(232, 64, 72),
 		rgb(250, 170, 50),
@@ -723,53 +644,82 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 		rgb(170, 90, 230),
 	}
 	for i, c in cans do
-		local row = if i <= 3 then 3.7 else 6.5
-		local x = ((i - 1) % 3 - 1) * 3.2
-		k:cyl("Can", 1.3, 1.9, paintAt * CFrame.new(x, row + 0.95, 5.2), c)
+		k:cyl("Can", 1.2, 1.8, styleAt * CFrame.new((i - 3.5) * 1.8, 7.4, 5.5), c)
 	end
-	-- a car in the booth, changing colour under the spray
-	local sprayed = RealCar.mount(k.parent, { length = 9, height = 5.4 })
-	table.insert(rigs, sprayed)
-	sprayed:pivotTo(k.origin * paintAt * CFrame.new(0, 0.9, 0) * CFrame.Angles(0, math.rad(70), 0))
+	local upright = CFrame.Angles(math.pi / 2, 0, 0)
+	for _, s in { -1, 1 } do
+		local hang = styleAt * CFrame.new(s * 4.6, 3.4, 5.6)
+		k:cyl("WallTyre", 2.8, 0.9, hang * upright, INK)
+		k:cyl("WallHub", 1.5, 1, hang * upright, CHROME, Enum.Material.Metal)
+	end
+	local shown = RealCar.mount(k.parent, { length = 9, height = 5.4 })
+	table.insert(rigs, shown)
+	local turnAt = k.origin * styleAt * CFrame.new(0, 1.6, 1)
 	local coat = 0
 	local coatAt = -math.huge
 	life(function(t: number, _dt: number)
+		if not Motion.reduced() then
+			shown:pivotTo(turnAt * CFrame.Angles(0, t * 0.5, 0))
+		end
 		if t - coatAt > SPRAY_SECONDS then
 			coatAt = t
 			coat = (coat % #cans) + 1
-			sprayed:setPaint({ id = "kiosk", kind = "solid", colours = { cans[coat] } } :: any)
+			shown:setPaint({ id = "kiosk", kind = "solid", colours = { cans[coat] } } :: any)
 		end
 	end)
-	local can, canModel = k:model("SprayCan")
-	local canAt = paintAt * CFrame.new(0, paintTop + 4.8, 0) * CFrame.Angles(0, 0, math.rad(-18))
+	shown:pivotTo(turnAt * CFrame.Angles(0, 0.6, 0))
+	-- the four signs over the roof, one row, each turning gently
+	local row = styleAt * CFrame.new(0, styleTop + 4.4, 1)
+	local can, canModel = k:model("StyleIconPaint")
+	local canAt = row * CFrame.new(-5.4, 0, 0) * CFrame.Angles(0, 0, math.rad(-14))
 	for i, c in { rgb(232, 64, 72), rgb(250, 200, 60), rgb(60, 150, 240) } do
-		can:cyl("CanBand", 3, 1.3, canAt * CFrame.new(0, (i - 2) * 1.3, 0), c)
+		can:cyl("CanBand", 2.2, 1, canAt * CFrame.new(0, (i - 2) * 1, 0), c)
 	end
-	can:cyl("CanShoulder", 2.2, 0.8, canAt * CFrame.new(0, 2.3, 0), CHROME, Enum.Material.Metal)
-	can:cyl("CanNozzle", 1.1, 0.8, canAt * CFrame.new(0, 3, 0), CHROME, Enum.Material.Metal)
-	for i, size in { 1.5, 1.1, 0.8 } do
-		can:ball(
-			"SprayPuff",
-			size,
-			canAt * CFrame.new(i * 1.4, 3.1 + i * 0.2, 0),
-			rgb(255, 150, 200),
+	can:cyl("CanNozzle", 0.9, 0.9, canAt * CFrame.new(0, 1.9, 0), CHROME, Enum.Material.Metal)
+	bobbing(canModel, life, 0.6)
+	local star, starModel = k:model("StyleIconDecal")
+	local starAt = row * CFrame.new(-1.8, 0, 0)
+	for i = 0, 4 do
+		local a1, a2 = i / 5 * math.pi * 2, (i + 0.5) / 5 * math.pi * 2
+		local a0 = (i - 0.5) / 5 * math.pi * 2
+		local tip = (starAt * CFrame.new(math.sin(a1) * 1.9, math.cos(a1) * 1.9, 0)).Position
+		local left = (starAt * CFrame.new(math.sin(a0) * 0.8, math.cos(a0) * 0.8, 0)).Position
+		local right = (starAt * CFrame.new(math.sin(a2) * 0.8, math.cos(a2) * 0.8, 0)).Position
+		triangle(star, "StarPoint", tip, left, right, 0.4, rgb(255, 214, 40), Enum.Material.Neon)
+		triangle(star, "StarMiddle", starAt.Position, left, right, 0.4, rgb(255, 214, 40), Enum.Material.Neon)
+	end
+	bobbing(starModel, life, 0.8)
+	local wheel, wheelModel = k:model("StyleIconWheel")
+	local wheelAt = row * CFrame.new(1.8, 0, 0)
+	wheel:cyl("IconTyre", 3.2, 1, wheelAt * upright, INK)
+	wheel:cyl("IconRim", 2, 1.1, wheelAt * upright, CHROME, Enum.Material.Metal)
+	wheel:cyl("IconHub", 0.8, 1.2, wheelAt * upright, rgb(232, 64, 72))
+	bobbing(wheelModel, life, 0.7)
+	local knot, knotModel = k:model("StyleIconTrail")
+	local knotAt = row * CFrame.new(5.4, 0, 0)
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		knot:ball(
+			"LoopBead",
+			0.9,
+			knotAt * CFrame.Angles(0, 0, a) * CFrame.new(0, 1.5, 0),
+			Color3.fromHSV(i / 12, 0.85, 1),
 			Enum.Material.Neon
 		)
 	end
-	bobbing(canModel, life, 0.6)
+	bobbing(knotModel, life, 0.5)
 
 	local function sync()
 		local name = StyleState.car()
 		for _, r in rigs do
 			r:setCar(name)
 		end
-		trailArt()
 	end
-	-- STAMINA (Adam, 2026-11-05: the Stamina Shop goes in the hubs before a run): a battery tower of the three bolt colours under the
-	-- roof, crackling up to a big zigzag bolt that floats and turns over it. Its circle opens the STAMINA SHOP card (StaminaPanel).
-	local stamAt = placed(34.5, -1.2)
+	-- PIT STOP (the Stamina Shop of 2026-11-05, renamed in Round 7, H-03): a battery tower of the three bolt colours under the roof,
+	-- crackling up to a big zigzag bolt that floats and turns over it. Its circle opens the STAMINA SHOP card (StaminaPanel).
+	local stamAt = placed(32, -15)
 	local stamTop: number
-	stands.Stamina, stamTop = kioskShell(k, theme, "Stamina", "STAMINA", stamAt)
+	stands.Stamina, stamTop = kioskShell(k, theme, "Stamina", "PIT STOP", stamAt)
 	local cellColours = { rgb(255, 216, 50), rgb(255, 64, 70), rgb(176, 84, 255) }
 	k:cyl("BatteryBase", 6, 0.9, stamAt * CFrame.new(0, 1.3, 1), INK)
 	local cells: { BasePart } = {}
@@ -817,8 +767,97 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 		end
 	end)
 
+	-- LUCKY CLOVER (Round 7, L-01): a little greenhouse stand. A planter of clovers on the counter, a clover mascot with big eyes
+	-- waving from it, and a giant four-leaf clover spinning over the roof in sparkles. Its circle opens the LUCKY CLOVER card
+	-- (LuckPanel).
+	local luckAt = placed(32, 9)
+	local luckTop: number
+	stands.Luck, luckTop = kioskShell(k, theme, "Luck", "LUCKY CLOVER", luckAt)
+	local leafGreen = rgb(70, 200, 90)
+	k:box("Planter", Vector3.new(10, 2.2, 3), luckAt * CFrame.new(0, 1.8, 4.6), theme.trim)
+	k:box("PlanterSoil", Vector3.new(9.4, 0.3, 2.4), luckAt * CFrame.new(0, 3, 4.6), rgb(92, 62, 40))
+	for i = 0, 4 do
+		local x = (i - 2) * 1.9
+		local h = 3.6 + (i % 2) * 0.6
+		k:cyl("SproutStem", 0.25, 1.2, luckAt * CFrame.new(x, h - 0.6, 4.6), rgb(40, 140, 60))
+		for q = 0, 3 do
+			local a = q * math.pi / 2 + math.pi / 4
+			k:ball(
+				"SproutLeaf",
+				0.8,
+				luckAt * CFrame.new(x + math.cos(a) * 0.35, h, 4.6 + math.sin(a) * 0.35),
+				leafGreen,
+				Enum.Material.Grass
+			)
+		end
+	end
+	-- the mascot: a round clover head on a little body, with eyes that look at the middle of the floor
+	local mascotAt = luckAt * CFrame.new(0, 0, 1.2)
+	k:cyl("MascotStand", 3.4, 1.2, mascotAt * CFrame.new(0, 1.3, 0), INK)
+	k:ball("MascotBody", 2.6, mascotAt * CFrame.new(0, 3.2, 0), rgb(46, 160, 70))
+	for q = 0, 3 do
+		local a = q * math.pi / 2 + math.pi / 4
+		k:ball("MascotLeaf", 2.2, mascotAt * CFrame.new(math.cos(a) * 0.95, 5.4 + math.sin(a) * 0.95, 0), leafGreen)
+	end
+	for _, s in { -1, 1 } do
+		k:ball("MascotEye", 0.9, mascotAt * CFrame.new(s * 0.45, 5.5, -1.2), rgb(255, 255, 255))
+		k:ball("MascotPupil", 0.45, mascotAt * CFrame.new(s * 0.45, 5.45, -1.6), INK)
+		k:cyl(
+			"MascotArm",
+			0.4,
+			1.6,
+			mascotAt * CFrame.new(s * 1.6, 3.6, 0) * CFrame.Angles(0, 0, s * 0.6),
+			rgb(46, 160, 70)
+		)
+	end
+	-- the giant clover over the roof
+	local giant, giantModel = k:model("GiantClover")
+	local giantAt = luckAt * CFrame.new(0, luckTop + 5.6, 1)
+	for q = 0, 3 do
+		local a = q * math.pi / 2 + math.pi / 4
+		local out = Vector2.new(math.cos(a), math.sin(a))
+		local side = Vector2.new(-out.Y, out.X)
+		for _, s in { -1, 1 } do
+			local p = out * 2.4 + side * s * 0.85
+			giant:cyl("CloverLeaf", 3, 0.5, giantAt * CFrame.new(p.X, p.Y, 0) * upright, leafGreen)
+			giant:cyl(
+				"CloverLeafEdge",
+				3.4,
+				0.3,
+				giantAt * CFrame.new(p.X, p.Y, 0) * upright,
+				rgb(255, 214, 40),
+				Enum.Material.Neon
+			)
+		end
+	end
+	giant:cyl("CloverHeart", 1.6, 0.7, giantAt * upright, rgb(40, 140, 60))
+	giant:box(
+		"CloverStem",
+		Vector3.new(0.5, 3.4, 0.4),
+		giantAt * CFrame.new(0.5, -2.4, 0) * CFrame.Angles(0, 0, math.rad(-18)),
+		rgb(40, 140, 60)
+	)
+	local cloverCore = giant:box("CloverCore", Vector3.one * 0.4, giantAt, INK)
+	cloverCore.Transparency = 1
+	local glitter = Instance.new("ParticleEmitter")
+	glitter.Name = "Sparkles"
+	glitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	glitter.Rate = 14
+	glitter.Lifetime = NumberRange.new(0.8, 1.4)
+	glitter.Speed = NumberRange.new(1.5, 4)
+	glitter.SpreadAngle = Vector2.new(180, 180)
+	glitter.LightEmission = 1
+	glitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	glitter.Color = ColorSequence.new(rgb(140, 255, 150), rgb(255, 230, 90))
+	glitter.Parent = cloverCore
+	local cloverLight = Instance.new("PointLight")
+	cloverLight.Color = leafGreen
+	cloverLight.Range = 18
+	cloverLight.Brightness = 1.5
+	cloverLight.Parent = cloverCore
+	bobbing(giantModel, life, 1.1)
+
 	sync()
-	shown:setCar(line[1] and line[1].name)
 	return stands, sync
 end
 

@@ -54,9 +54,8 @@ PadKit.Themes = {
 		trim = rgb(240, 186, 60),
 		glow = rgb(70, 190, 255),
 		kiosk = {
-			Cars = { rgb(255, 136, 30), rgb(250, 240, 222) },
-			Trails = { rgb(40, 110, 220), rgb(250, 240, 222) },
-			Paint = { rgb(232, 64, 92), rgb(250, 240, 222) },
+			Style = { rgb(232, 64, 92), rgb(250, 240, 222) }, -- Round 7: the STYLE SHOP (Paint, Decals, Wheels, Trails)
+			Luck = { rgb(46, 170, 80), rgb(250, 240, 222) }, -- Round 7: the LUCKY CLOVER
 			Stamina = { rgb(150, 70, 230), rgb(250, 240, 222) }, -- the Stamina Shop (2026-11-05): the purple bolt
 		},
 		world = rgb(56, 70, 96),
@@ -103,9 +102,8 @@ PadKit.Themes = {
 		trim = rgb(214, 70, 62),
 		glow = rgb(255, 170, 70),
 		kiosk = {
-			Cars = { rgb(214, 70, 62), rgb(250, 236, 208) },
-			Trails = { rgb(52, 138, 138), rgb(250, 236, 208) },
-			Paint = { rgb(240, 150, 50), rgb(250, 236, 208) },
+			Style = { rgb(240, 150, 50), rgb(250, 236, 208) }, -- Round 7: the STYLE SHOP (Paint, Decals, Wheels, Trails)
+			Luck = { rgb(46, 170, 80), rgb(250, 236, 208) }, -- Round 7: the LUCKY CLOVER
 			Stamina = { rgb(140, 80, 190), rgb(250, 236, 208) },
 		},
 		world = rgb(206, 124, 84),
@@ -152,9 +150,8 @@ PadKit.Themes = {
 		trim = rgb(70, 44, 28),
 		glow = rgb(255, 196, 110),
 		kiosk = {
-			Cars = { rgb(116, 72, 42), rgb(244, 248, 255) },
-			Trails = { rgb(116, 72, 42), rgb(244, 248, 255) },
-			Paint = { rgb(116, 72, 42), rgb(244, 248, 255) },
+			Style = { rgb(116, 72, 42), rgb(244, 248, 255) }, -- Round 7: the STYLE SHOP (Paint, Decals, Wheels, Trails)
+			Luck = { rgb(116, 72, 42), rgb(244, 248, 255) }, -- Round 7: the LUCKY CLOVER
 			Stamina = { rgb(116, 72, 42), rgb(244, 248, 255) }, -- the chalet keeps its wood; the bolt brings the colour
 		},
 		world = rgb(232, 240, 250),

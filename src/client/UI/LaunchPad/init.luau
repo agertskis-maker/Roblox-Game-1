@@ -25,6 +25,7 @@ local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
 local RobuxSeam = require(script.Parent.RobuxSeam)
 local RunStamina = require(script.RunStamina)
+local LuckPanel = require(script.LuckPanel)
 local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
@@ -304,7 +305,7 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
-	if StaminaPanel.isOpen() then
+	if StaminaPanel.isOpen() or LuckPanel.isOpen() then
 		return true
 	end
 	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
@@ -324,13 +325,12 @@ local function openCustomize(tab: string)
 	end
 end
 
+-- Round 7 (A-06): three stands. STYLE SHOP (Paint, Decals, Wheels, Trails), PIT STOP (Stamina) and LUCKY CLOVER (Luck).
 local function openStall(key: string)
-	if key == "Cars" then
-		panel("carStall"):open(world)
-	elseif key == "Stamina" then
+	if key == "Stamina" then
 		StaminaPanel.open() -- 2026-11-05: the Stamina Shop
-	elseif key == "Trails" then
-		openCustomize("Trails")
+	elseif key == "Luck" then
+		LuckPanel.open()
 	else
 		openCustomize("Paint")
 	end
@@ -926,15 +926,7 @@ function LaunchPad.attachShell(s: any)
 	s:mountPanel("runResults", { "Screens", "RunResults" }, "Overlay", {
 		onRetry = retry,
 		onHome = home,
-		onRevive = function()
-			local h = hooks
-			if h and (h :: any).revive then
-				(h :: any).revive()
-				if stamina then
-					stamina:refill(RunStamina.ReviveRefill)
-				end
-			end
-		end,
+		-- Round 7 (U-04): no onRevive: there is never a free respawn (decision 0042 item 13)
 		-- Round 6 (R-03): the price this player pays (regional pricing), else the PREVIEW number
 		respawnRobux = (RobuxSeam.price("respawn", Catalog.RespawnRobux)),
 		onBuyRespawn = function(report: (string, string?) -> ())
@@ -965,10 +957,8 @@ function LaunchPad.attachShell(s: any)
 				end
 			end)
 		end,
-		onEarnFaster = function()
-			home()
-			s.shopAt("Passes")
-		end,
+		-- Round 7 (U-04): no "Earn faster: Double Lap Pay" link on Results (it covered the header, and a purchase nudge after every
+		-- run is pressure on children; the Shop still sells it)
 	})
 end
 
@@ -1000,26 +990,22 @@ liveLock = function(name: string): any
 		portraitName = "Coach Roxy",
 		primary = { label = "GOT IT!" },
 	}
+	-- Round 7 (A-05, decision 0042 item 6): two bars like the reference's goal card, CARS and CASH, and one line that says exactly
+	-- what is missing. The Cash is spent on UNLOCK (the server checks both again); a bar filling never spends anything.
+	spec.progress = { label = string.upper(from) .. " CARS", current = have, target = rule.cars }
+	spec.progress2 = { label = "CASH", current = cash, target = rule.cash, cash = true }
 	if not LiveData.worlds()[rule.from] then
 		spec.text = "Open " .. from .. " first."
+		spec.progress = nil
+		spec.progress2 = nil
 	elseif have < rule.cars then
-		spec.text = function(remaining: number): string
-			return string.format(
-				"Catch %d more %s %s to unlock %s.",
-				remaining,
-				from,
-				if remaining == 1 then "car" else "cars",
-				RosterFixtures.WorldNames[name]
-			)
-		end
-		spec.progress = { label = string.upper(from) .. " CARS", current = have, target = rule.cars }
+		local need = rule.cars - have
+		spec.text = string.format("Catch %d more %s %s!", need, from, if need == 1 then "car" else "cars")
+			.. (if cash < rule.cash then " Then save up " .. Format.cash(rule.cash - cash) .. " more Cash." else "")
 	elseif cash < rule.cash then
-		spec.text = function(remaining: number): string
-			return string.format("Save up %s more Cash to unlock %s. (PREVIEW)", Format.cash(remaining), title)
-		end
-		spec.progress = { label = "CASH", current = cash, target = rule.cash, cash = true }
+		spec.text = string.format("Great cars! Save up %s more Cash to open %s.", Format.cash(rule.cash - cash), title)
 	else
-		spec.text = string.format("You're ready! Unlock %s for %s? (PREVIEW)", title, Format.cash(rule.cash))
+		spec.text = string.format("You're ready! Open %s for %s?", title, Format.cash(rule.cash))
 		spec.primary = {
 			label = "UNLOCK",
 			onActivate = function()
