@@ -93,7 +93,7 @@ player:GetAttributeChangedSignal("MovementSpeedOwner"):Connect(function()
 end)
 
 -- Studio test driver (Round 7): the Studio MCP cannot press a button, so CarHopHomeCmd = "open:missions" (any panel key)
--- opens a panel the way its button does, "tab:Racer" picks a Missions tab and "skip:tutorial" skips the tutorial and "close:update" closes What's New. Nothing here exists outside Studio.
+-- opens a panel the way its button does, "tab:Racer" picks a Missions tab and "skip:tutorial" skips the tutorial, "close:update" closes What's New and "kiosk:upgrade" / "kiosk:parking" open your plot's cards. Nothing here exists outside Studio.
 if RunService:IsStudio() then
 	player:GetAttributeChangedSignal("CarHopHomeCmd"):Connect(function()
 		local text = player:GetAttribute("CarHopHomeCmd")
@@ -108,6 +108,12 @@ if RunService:IsStudio() then
 			shell.tutorialController:skip() -- "skip:tutorial": as the banner's Skip and its YES
 		elseif command == "close" and arg == "update" and shell.updatePanel then
 			shell.updatePanel:close()
+		elseif command == "kiosk" and (arg == "upgrade" or arg == "parking") then
+			-- "kiosk:upgrade" / "kiosk:parking": your own plot's Raceway or parking card, as its prompt opens it
+			local ShopPanel = require(script.Parent.Parent.Home.Island.Speedway.ShopPanel) :: any
+			if ShopPanel.openHome then
+				ShopPanel.openHome(arg)
+			end
 		elseif command == "tab" and arg then
 			local panel = shell.components and shell.components.missions
 			if panel and panel.selectTab then

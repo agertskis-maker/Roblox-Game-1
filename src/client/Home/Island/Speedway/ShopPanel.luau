@@ -997,6 +997,115 @@ local function buildFooter(p: Panel, inner: Frame, width: number, y: number)
 end
 
 -- Builds (or rebuilds) everything inside the card for the shown value and the current layout.
+-- Round 7 (U-01, Adam: the upgrade screens "look really bad"; to R7-IMG-02 and R7-IMG-03): the card's frame says which shop it
+-- is. The Raceway card is framed by a racetrack: red and white kerbs, chequered corners and a little car lapping the border
+-- (Reduce Motion: it waits on the start line). The parking card is a paddock: an asphalt edge with white bay lines and a big P
+-- sign. Drawn in the card's padding, so the rows, the price and BUY are untouched.
+local KERB_RED = Color3.fromRGB(226, 48, 52)
+local KERB_WHITE = Color3.fromRGB(250, 250, 250)
+local ASPHALT = Color3.fromRGB(52, 56, 66)
+local BAY_LINE = Color3.fromRGB(245, 245, 245)
+local function buildBorder(p: Panel)
+	local layout = p.layout
+	local w, h = layout.cardW, layout.cardH
+	local t = math.clamp(layout.pad - 6, 5, 10)
+	local inset = 5
+	local holder = frame(p.card, "TrackBorder", 0, 0, w, h, nil)
+	holder.ZIndex = 3
+	p.content:Add(holder)
+	local function strip(name: string, x: number, y: number, sw: number, sh: number, fill: Color3): Frame
+		local f = frame(holder, name, x, y, sw, sh, fill)
+		f.ZIndex = 3
+		return f
+	end
+	if p.kind == "upgrade" then
+		local block = t * 2.2
+		local function kerbs(x0: number, y0: number, length: number, across: boolean)
+			local n = math.max(math.floor(length / block), 1)
+			local size = length / n
+			for i = 0, n - 1 do
+				local fill = if i % 2 == 0 then KERB_RED else KERB_WHITE
+				if across then
+					strip("Kerb", x0 + i * size, y0, size, t, fill)
+				else
+					strip("Kerb", x0, y0 + i * size, t, size, fill)
+				end
+			end
+		end
+		local span = 2 * t
+		kerbs(inset + span, inset, w - 2 * (inset + span), true)
+		kerbs(inset + span, h - inset - t, w - 2 * (inset + span), true)
+		kerbs(inset, inset + span, h - 2 * (inset + span), false)
+		kerbs(w - inset - t, inset + span, h - 2 * (inset + span), false)
+		-- chequered corners
+		for _, c in
+			{
+				{ inset, inset },
+				{ w - inset - span, inset },
+				{ inset, h - inset - span },
+				{ w - inset - span, h - inset - span },
+			}
+		do
+			for i = 0, 3 do
+				local cx, cy = i % 2, i // 2
+				strip("Chequer", c[1] + cx * t, c[2] + cy * t, t, t, if (cx + cy) % 2 == 0 then ASPHALT else KERB_WHITE)
+			end
+		end
+		-- the little car lapping the border
+		local car = strip("LapCar", 0, 0, t * 3.2, t * 1.8, Color3.fromRGB(255, 170, 30))
+		car.AnchorPoint = Vector2.new(0.5, 0.5)
+		car.ZIndex = 4
+		corner(car, UDim.new(0, math.floor(t * 0.6)))
+		stroke(car, 1.5, Color3.fromRGB(30, 30, 40), Enum.ApplyStrokeMode.Border)
+		local mid = inset + t / 2
+		local lw, lh = w - 2 * mid, h - 2 * mid
+		local perimeter = 2 * (lw + lh)
+		local function place(d: number)
+			d = d % perimeter
+			local x, y, r
+			if d < lw then
+				x, y, r = mid + d, mid, 0
+			elseif d < lw + lh then
+				x, y, r = w - mid, mid + (d - lw), 90
+			elseif d < 2 * lw + lh then
+				x, y, r = w - mid - (d - lw - lh), h - mid, 180
+			else
+				x, y, r = mid, h - mid - (d - 2 * lw - lh), 270
+			end
+			car.Position = UDim2.fromOffset(x, y)
+			car.Rotation = r
+		end
+		place(lw * 0.5)
+		local started = os.clock()
+		p.content:Add(RunService.Heartbeat:Connect(function()
+			if not Calm() then
+				place(lw * 0.5 + (os.clock() - started) * 160)
+			end
+		end))
+	else
+		-- the paddock: an asphalt edge with white bay lines, and a P sign
+		strip("Asphalt", inset, inset, w - 2 * inset, t, ASPHALT)
+		strip("Asphalt", inset, h - inset - t, w - 2 * inset, t, ASPHALT)
+		strip("Asphalt", inset, inset, t, h - 2 * inset, ASPHALT)
+		strip("Asphalt", w - inset - t, inset, t, h - 2 * inset, ASPHALT)
+		local gap = math.max(t * 3, 22)
+		for x = inset + gap, w - inset - gap, gap do
+			strip("BayLine", x, inset, 2, t, BAY_LINE)
+			strip("BayLine", x, h - inset - t, 2, t, BAY_LINE)
+		end
+		for y = inset + gap, h - inset - gap, gap do
+			strip("BayLine", inset, y, t, 2, BAY_LINE)
+			strip("BayLine", w - inset - t, y, t, 2, BAY_LINE)
+		end
+		local sign = strip("ParkingSign", inset - 2, inset - 2, 30, 30, Color3.fromRGB(28, 102, 214))
+		sign.ZIndex = 5
+		corner(sign, UDim.new(0, 6))
+		stroke(sign, 2, KERB_WHITE, Enum.ApplyStrokeMode.Border)
+		local letter = text(sign, "P", "P", 24, KERB_WHITE, 0)
+		letter.ZIndex = 6
+	end
+end
+
 local function buildContent(p: Panel)
 	local reselect = selectionInside(p)
 	p.content:Clean()
@@ -1017,6 +1126,7 @@ local function buildContent(p: Panel)
 	local inner = frame(p.card, "Inner", layout.pad, layout.pad, width, height, nil)
 	p.content:Add(inner)
 
+	buildBorder(p)
 	buildHeader(p, inner, width)
 	if p.shown >= p.max then
 		buildMaxBody(p, inner, width, height)

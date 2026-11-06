@@ -24,6 +24,7 @@ local UI = script.Parent.Parent
 local Prototype = UI:WaitForChild("Prototype")
 local CarKit = require(Prototype:WaitForChild("CarKit"))
 local Motion = require(Prototype:WaitForChild("Motion"))
+local Sounds = require(Prototype:WaitForChild("Sounds"))
 local StaminaBolt = require(Prototype:WaitForChild("Run"):WaitForChild("StaminaBolt")) :: any
 local RunStamina = require(script.Parent.RunStamina)
 
@@ -315,8 +316,45 @@ function Panel.open()
 			buy.setEnabled(not waiting)
 			status.Text = string.format("Level %d of %d", lvl, EconomyPreview.StaminaMaxLevel)
 		end
-		if shownLevel >= 0 and lvl > shownLevel and not Motion.reduced() then
-			Motion.pop(card, 1.06)
+		if shownLevel >= 0 and lvl > shownLevel then
+			-- Round 7 (U-07): the buy moment: the bolts charge up and sparks fly (Reduce Motion: the sound only)
+			pcall(Sounds.play, "Unlock")
+			if not Motion.reduced() then
+				Motion.pop(card, 1.06)
+				local flash = make("Frame", {
+					BackgroundColor3 = Color3.fromRGB(255, 240, 120),
+					BackgroundTransparency = 0.35,
+					Size = UDim2.fromScale(1, 1),
+					ZIndex = 8,
+				}, card)
+				make("UICorner", { CornerRadius = UDim.new(0, 18) }, flash)
+				Motion.tween(flash, "flash", Motion.info(0.45), { BackgroundTransparency = 1 })
+				for i = 1, 14 do
+					local spark = make("TextLabel", {
+						AnchorPoint = Vector2.new(0.5, 0.5),
+						BackgroundTransparency = 1,
+						Position = UDim2.fromScale(0.5, 0.4),
+						Size = UDim2.fromOffset(30, 30),
+						Text = "⚡",
+						TextScaled = true,
+						TextColor3 = if i % 2 == 0 then Color3.fromRGB(255, 226, 60) else Color3.fromRGB(110, 230, 255),
+						Rotation = i * 25,
+						ZIndex = 9,
+					}, card)
+					local angle = i / 14 * math.pi * 2
+					Motion.tween(spark, "spark", Motion.info(0.6), {
+						Position = UDim2.new(0.5, math.cos(angle) * 170, 0.4, math.sin(angle) * 120),
+						TextTransparency = 1,
+						Rotation = i * 25 + 90,
+					})
+					task.delay(0.65, function()
+						spark:Destroy()
+					end)
+				end
+				task.delay(0.5, function()
+					flash:Destroy()
+				end)
+			end
 		end
 		shownLevel = lvl
 	end
