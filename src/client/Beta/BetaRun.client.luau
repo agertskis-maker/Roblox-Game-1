@@ -537,6 +537,7 @@ end)
 -- Nothing here exists outside Studio.
 if RunService:IsStudio() then
 	local autopilot = false
+	local fakeScenery: any = nil
 	local lastHop = 0
 	local control = Instance.new("BindableFunction")
 	control.Name = "CarHopBetaControl"
@@ -594,6 +595,54 @@ if RunService:IsStudio() then
 				rig:setPaint(item)
 			end
 			return #RealCar.list()
+		elseif command == "scenery" and type(arg) == "string" then
+			-- Round 7 (R-08): a pretend run at a set distance ("scenery:Downtown/9500", "scenery:off"), to check the World keeps
+			-- coming in laps without driving 10 minutes. Reports each World folder standing and how far its nearest part is
+			-- from where the car would be.
+			if arg == "off" then
+				if fakeScenery then
+					fakeScenery.ended:Fire()
+					fakeScenery.handle:destroy()
+					fakeScenery = nil
+				end
+				return "off"
+			end
+			local world, at = string.match(arg, "^(%a+)/(%d+)$")
+			if not (world and at) then
+				return "use World/studs"
+			end
+			if not fakeScenery then
+				local ended = Instance.new("BindableEvent")
+				local fake = { along = 0, ended = ended, handle = nil :: any }
+				local runLike = {
+					getDebugState = function(_self: any)
+						return { along = fake.along }
+					end,
+					Ended = ended.Event,
+				}
+				fake.handle = RunScenery.attach(world, runLike :: any)
+				fakeScenery = fake
+			end
+			fakeScenery.along = tonumber(at) :: number
+			task.wait(8)
+			local carZ = (RunConfig.ORIGIN * CFrame.new(0, 0, -fakeScenery.along)).Position.Z
+			local out = {}
+			for _, f in workspace:GetChildren() do
+				if f.Name == "Lane3_WorldUnderRoad" then
+					local n, nearest, ahead = 0, math.huge, 0
+					for _, d in f:GetDescendants() do
+						if d:IsA("BasePart") then
+							n += 1
+							nearest = math.min(nearest, math.abs(d.Position.Z - carZ))
+							if d.Position.Z < carZ - 50 and d.Position.Z > carZ - 1500 then
+								ahead += 1
+							end
+						end
+					end
+					table.insert(out, string.format("%d parts, nearest %d studs, %d ahead", n, nearest, ahead))
+				end
+			end
+			return table.concat(out, " | ")
 		elseif command == "aura" and type(arg) == "string" then
 			-- Round 7 (K-01): "Cruiser/1,Executive/1,Bolt/1,Minnow/4" parks those cars with their Raceway aura in front of you
 			local RacewayAura = require(UI.Prototype.Style.RacewayAura) :: any

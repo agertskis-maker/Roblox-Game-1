@@ -19,6 +19,12 @@
 -- A World takes about 20 s to load in Studio, and a run can be over sooner, so all three are prepared in the background
 -- after join and kept for the session. A run started before its World is ready begins with his scenery and swaps when
 -- the World arrives.
+--
+-- Round 7 (R-08, Adam: "if you play the game for long enough, the map actually just disappears"): a World is one route of
+-- about 9,000 studs at fixed positions, and his road goes on for ever, so past the route's end the car drove on bare road.
+-- Now the route repeats in laps: lap k is the same World built again with its origin k route-lengths further down the road,
+-- made in the background halfway through the lap before, shown ahead of the car before it gets there, and freed once the car
+-- is well past it. Lap 0 is the prepared one and is kept for the next run; later laps are destroyed.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -75,39 +81,47 @@ local function kitFor(world: string): ({ [string]: string }, string?)
 	return ids, if own then own.palette else b2.palette
 end
 
--- Builds one World out of sight (the folder is not in the Workspace) and keeps it for the session.
-local function prepare(world: string)
-	if prepared[world] or preparing[world] then
-		return
-	end
-	preparing[world] = true
+-- Builds one lap of a World out of sight (the folder is not in the Workspace): lap 0 starts at the road's origin, lap k
+-- "shift" studs further down the road.
+local function buildLap(world: string, shift: number): Prepared?
 	local RunConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Run"):WaitForChild("RunConfig"))
 	local City = (require :: any)((ReplicatedStorage :: any).LookDev.Downtown.City)
 	local folder = Instance.new("Folder")
 	folder.Name = "Lane3_WorldUnderRoad"
 	local ids, palette = kitFor(world)
+	local made: Prepared? = nil
 	local ok, err = pcall(function()
-		local made = City.new({
+		local city = City.new({
 			world = world,
 			parent = folder,
 			preview = true,
 			seed = SEED,
 			length = ROUTE,
 			sceneryOnly = true,
-			origin = RunConfig.ORIGIN,
+			origin = RunConfig.ORIGIN * CFrame.new(0, 0, -shift),
 			frontagePush = if replaces() then 0 else PUSH_BESIDE,
 			controlCamera = false,
 			lighting = false,
 			meshIds = ids,
 			textureId = palette,
 		})
-		made:build(0)
-		prepared[world] = { city = made, folder = folder }
+		city:build(0)
+		made = { city = city, folder = folder }
 	end)
 	if not ok then
 		warn("[RunScenery] " .. world .. " failed: " .. tostring(err))
 		folder:Destroy()
 	end
+	return made
+end
+
+-- Builds lap 0 of one World and keeps it for the session.
+local function prepare(world: string)
+	if prepared[world] or preparing[world] then
+		return
+	end
+	preparing[world] = true
+	prepared[world] = buildLap(world, 0)
 	preparing[world] = false
 end
 
@@ -145,6 +159,7 @@ function RunScenery.attach(world: string, run: RunLike): Handle
 	local City = (require :: any)((ReplicatedStorage :: any).LookDev.Downtown.City)
 	local stopped = false
 	local shown: Prepared? = nil
+	local laps: { [number]: Prepared | false } = {} -- lap k > 0: false while it is being built
 	local function stop()
 		if stopped then
 			return
@@ -154,17 +169,78 @@ function RunScenery.attach(world: string, run: RunLike): Handle
 			shown.folder.Parent = nil -- kept for the next run
 			shown = nil
 		end
+		for _, lap in laps do
+			if lap then
+				lap.city:destroy()
+				lap.folder:Destroy()
+			end
+		end
+		table.clear(laps)
 		City.restoreLighting() -- never leave one World's light behind
 		trove:Destroy()
 	end
 	local function show(p: Prepared)
 		shown = p
+		local length = p.city.plan.length
 		p.city:applyLighting()
-		p.city:setStation(run:getDebugState().along % p.city.plan.length)
-		p.folder.Parent = Workspace
-		trove:Connect(RunService.Heartbeat, function()
-			p.city:setStation(run:getDebugState().along % p.city.plan.length)
-		end)
+		local function lapOf(k: number): Prepared?
+			if k == 0 then
+				return p
+			end
+			local lap = laps[k]
+			return if lap then lap else nil
+		end
+		local function ensure(k: number)
+			if k <= 0 or laps[k] ~= nil then
+				return
+			end
+			laps[k] = false
+			task.spawn(function()
+				local made = buildLap(world, k * length)
+				if stopped or laps[k] ~= false then
+					if made then
+						made.city:destroy()
+						made.folder:Destroy()
+					end
+					return
+				end
+				laps[k] = made or nil
+			end)
+		end
+		local function step()
+			local along = run:getDebugState().along
+			local k = math.max(math.floor(along / length), 0)
+			local into = along - k * length
+			if k >= 2 then
+				p.folder.Parent = nil -- lap 0 is far behind now
+			end
+			-- the lap under the car, and the next one ahead of it once the car is 80% of the way through
+			for j = k - 1, k + 1 do
+				local lap = lapOf(j)
+				if lap then
+					local wanted = j == k or (j == k + 1 and into > length * 0.8) or (j == k - 1 and into < 400)
+					if wanted then
+						lap.city:setStation(along - j * length)
+						lap.folder.Parent = Workspace
+					else
+						lap.folder.Parent = nil
+					end
+				end
+			end
+			if into > length * 0.5 then
+				ensure(k + 1)
+			end
+			-- a lap well behind the car is freed (lap 0 is kept for the next run)
+			for j, lap in laps do
+				if lap and j < k - 1 then
+					lap.city:destroy()
+					lap.folder:Destroy()
+					laps[j] = nil
+				end
+			end
+		end
+		step()
+		trove:Connect(RunService.Heartbeat, step)
 		if not replaces() then
 			return
 		end
