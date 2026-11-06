@@ -23,7 +23,10 @@ local Workspace = game:GetService("Workspace")
 
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
+local RobuxSeam = require(script.Parent.RobuxSeam)
 local RunStamina = require(script.RunStamina)
+local LuckPanel = require(script.LuckPanel)
+local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
@@ -33,6 +36,7 @@ local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
+local HomeSpot = require(ReplicatedStorage.Shared.Island.HomeSpot)
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -72,6 +76,7 @@ local unbindKey: (() -> ())? = nil
 local hint: string? = nil
 local padVisits = 0
 local savedZoom: number? = nil
+local goHome: () -> ()
 
 local PAD_ZOOM = 44 -- far enough to take in the floor, never so far the platform looks small
 local STAND_RADIUS = 3.8
@@ -299,7 +304,19 @@ local function closeHomePanels()
 	end
 end
 
+-- Round 7 (R-09): the World under the road has its meshes and textures (true when the beta draws no World there)
+local function sceneryLoaded(name: string): boolean
+	local ok, loaded = pcall(function()
+		local RunScenery = require(script.Parent.WorldsUnderRoad.RunScenery) :: any
+		return RunScenery.loaded(name)
+	end)
+	return not ok or loaded == true
+end
+
 local function anyPanelOpen(): boolean
+	if StaminaPanel.isOpen() or LuckPanel.isOpen() then
+		return true
+	end
 	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
 		local c = panel(key)
 		if c and c.isOpen and c:isOpen() then
@@ -317,11 +334,12 @@ local function openCustomize(tab: string)
 	end
 end
 
+-- Round 7 (A-06): three stands. STYLE SHOP (Paint, Decals, Wheels, Trails), PIT STOP (Stamina) and LUCKY CLOVER (Luck).
 local function openStall(key: string)
-	if key == "Cars" then
-		panel("carStall"):open(world)
-	elseif key == "Trails" then
-		openCustomize("Trails")
+	if key == "Stamina" then
+		StaminaPanel.open() -- 2026-11-05: the Stamina Shop
+	elseif key == "Luck" then
+		LuckPanel.open()
 	else
 		openCustomize("Paint")
 	end
@@ -369,7 +387,7 @@ local function watchPad(pad: Build.Pad)
 		local card = panel("launchCard")
 		if inside and rampArmed and not anyPanelOpen() and card and not card:isOpen() then
 			rampArmed = false
-			card:open(WORLD_TITLE[world] or world, hint)
+			card:open(WORLD_TITLE[world] or world, hint or (if sceneryLoaded(world) then nil else "Warming up..."))
 			tutorial("PadCard", { open = true })
 		elseif not inside and not rampArmed then
 			rampArmed = true
@@ -383,6 +401,18 @@ local function watchPad(pad: Build.Pad)
 			LaunchPad.leave()
 		end
 	end)
+end
+
+-- Round 7 (A-01): home is your Raceway. Back to your own plot's entrance (looked up now, so a plot that changed hands is never
+-- used), facing the Raceway, never the portal; only a player with no plot yet goes back to the portal they came through.
+goHome = function()
+	local c = player.Character
+	local spot = HomeSpot.cframe(player:GetAttribute("HomePlot"), if c then { c } else nil)
+	if spot then
+		moveTo(spot)
+	elseif returnTo then
+		moveTo(returnTo)
+	end
 end
 
 function LaunchPad.enter(name: string, islandCFrame: CFrame)
@@ -450,9 +480,7 @@ function LaunchPad.leave()
 	task.spawn(function()
 		wipe(nil, function()
 			setLight(nil)
-			if returnTo then
-				moveTo(returnTo)
-			end
+			goHome()
 			local pad = pads[world]
 			if pad then
 				pad.folder.Parent = nil
@@ -525,7 +553,11 @@ local function hideHisResults()
 	if gui then
 		-- his keyboard hint names keys, and phones play too; he sets it visible again, so keep it down
 		for _, d in gui:GetDescendants() do
-			if d:IsA("TextLabel") and string.find(d.Text, "Space", 1, true) then
+			-- Round 7: and his "Lane 1 run prototype · nothing is saved" footer, which is not true in the beta (runs are paid and saved)
+			if
+				d:IsA("TextLabel")
+				and (string.find(d.Text, "Space", 1, true) or string.find(d.Text, "prototype", 1, true))
+			then
 				d.Visible = false
 				runTrove:Connect(d:GetPropertyChangedSignal("Visible"), function()
 					d.Visible = false
@@ -641,8 +673,9 @@ local function watchRun(run: any)
 		local state = run:getDebugState()
 		if state.mode == "Ended" and not shown then
 			shown = true
-			-- his card appears 0.8 s after the crash; ours takes that moment too
-			task.delay(0.8, function()
+			-- his card appears 0.8 s after the crash; ours takes that moment too (Round 7: longer after WRECKED!, so it is seen)
+			local RunExtras = require(script.Parent.RunHud.RunExtras) :: any
+			task.delay(RunExtras.resultsDelay(state.cause), function()
 				if phase ~= "run" or run:getDebugState().mode ~= "Ended" then
 					return
 				end
@@ -705,7 +738,11 @@ begin = function()
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
 		stamina = runTrove:Add(
-			RunStamina.attach(run, { max = if isTutorial() then RunStamina.TutorialMax else nil }),
+			RunStamina.attach(run, {
+				max = if isTutorial()
+					then math.max(RunStamina.TutorialMax, RunStamina.playerMax())
+					else RunStamina.playerMax(),
+			}),
 			"destroy"
 		)
 		attachTrail()
@@ -806,9 +843,7 @@ local function home()
 	task.spawn(function()
 		wipe(nil, function()
 			setLight(nil)
-			if returnTo then
-				moveTo(returnTo)
-			end
+			goHome()
 			local pad = pads[world]
 			if pad then
 				pad.folder.Parent = nil
@@ -862,7 +897,7 @@ function LaunchPad.attachShell(s: any)
 				local lineup = LiveData.lineup()
 				for id, save in LiveData.cars() do
 					local car = RosterFixtures.byId(id)
-					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition) else 0
+					local pay = if car then EconomyPreview.lapPay(car.rarity, save.Edition, 1, car.world) else 0
 					if not table.find(lineup, id) and (pay > bestPay or (pay == bestPay and id < (best or ""))) then
 						best, bestPay = id, pay
 					end
@@ -886,9 +921,15 @@ function LaunchPad.attachShell(s: any)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
 		onStart = function()
 			padTrove:Clean()
-			countdown()
+			-- R-09: the countdown waits (at most 12 s) for the World's meshes and textures, so the run never starts white
+			task.spawn(function()
+				local t0 = os.clock()
+				while not sceneryLoaded(world) and os.clock() - t0 < 12 do
+					task.wait(0.2)
+				end
+				countdown()
+			end)
 		end,
-		hops = RunStamina.Max,
 		onChangeCar = function()
 			panel("carStall"):open(world)
 		end,
@@ -900,23 +941,39 @@ function LaunchPad.attachShell(s: any)
 	s:mountPanel("runResults", { "Screens", "RunResults" }, "Overlay", {
 		onRetry = retry,
 		onHome = home,
-		onRevive = function()
-			local h = hooks
-			if h and (h :: any).revive then
-				(h :: any).revive()
-				if stamina then
-					stamina:refill(RunStamina.ReviveRefill)
+		-- Round 7 (U-04): no onRevive: there is never a free respawn (decision 0042 item 13)
+		-- Round 6 (R-03): the price this player pays (regional pricing), else the PREVIEW number
+		respawnRobux = (RobuxSeam.price("respawn", Catalog.RespawnRobux)),
+		onBuyRespawn = function(report: (string, string?) -> ())
+			RobuxSeam.buy("respawn", function(r: RobuxSeam.Result)
+				if r.status == "Purchased" then
+					local summary = r.summary or {}
+					if summary.continued then
+						report("Purchased", "Respawning!")
+						local h = hooks
+						if h and (h :: any).revive then
+							(h :: any).revive()
+							if stamina then
+								stamina:refill(RunStamina.ReviveRefill)
+							end
+						end
+					else
+						-- the run had already ended: the server paid its Results total instead
+						report("Paid", "Run ended: +" .. Format.cash(summary.cash or 0))
+					end
+				elseif r.status == "Cancelled" then
+					report("Cancelled")
+				else
+					report(
+						r.status,
+						RobuxSeam.stateText(r.status :: any)
+							or (if r.status == "NotCreated" then "Not set up yet" else "Coming soon!")
+					)
 				end
-			end
+			end)
 		end,
-		respawnRobux = Catalog.RespawnRobux,
-		onBuyRespawn = function()
-			print("[LaunchPad] Robux respawn is a PREVIEW: nothing was charged")
-		end,
-		onEarnFaster = function()
-			home()
-			s.shopAt("Passes")
-		end,
+		-- Round 7 (U-04): no "Earn faster: Double Lap Pay" link on Results (it covered the header, and a purchase nudge after every
+		-- run is pressure on children; the Shop still sells it)
 	})
 end
 
@@ -948,26 +1005,22 @@ liveLock = function(name: string): any
 		portraitName = "Coach Roxy",
 		primary = { label = "GOT IT!" },
 	}
+	-- Round 7 (A-05, decision 0042 item 6): two bars like the reference's goal card, CARS and CASH, and one line that says exactly
+	-- what is missing. The Cash is spent on UNLOCK (the server checks both again); a bar filling never spends anything.
+	spec.progress = { label = string.upper(from) .. " CARS", current = have, target = rule.cars }
+	spec.progress2 = { label = "CASH", current = cash, target = rule.cash, cash = true }
 	if not LiveData.worlds()[rule.from] then
 		spec.text = "Open " .. from .. " first."
+		spec.progress = nil
+		spec.progress2 = nil
 	elseif have < rule.cars then
-		spec.text = function(remaining: number): string
-			return string.format(
-				"Catch %d more %s %s to unlock %s.",
-				remaining,
-				from,
-				if remaining == 1 then "car" else "cars",
-				RosterFixtures.WorldNames[name]
-			)
-		end
-		spec.progress = { label = string.upper(from) .. " CARS", current = have, target = rule.cars }
+		local need = rule.cars - have
+		spec.text = string.format("Catch %d more %s %s!", need, from, if need == 1 then "car" else "cars")
+			.. (if cash < rule.cash then " Then save up " .. Format.cash(rule.cash - cash) .. " more Cash." else "")
 	elseif cash < rule.cash then
-		spec.text = function(remaining: number): string
-			return string.format("Save up %s more Cash to unlock %s. (PREVIEW)", Format.cash(remaining), title)
-		end
-		spec.progress = { label = "CASH", current = cash, target = rule.cash, cash = true }
+		spec.text = string.format("Great cars! Save up %s more Cash to open %s.", Format.cash(rule.cash - cash), title)
 	else
-		spec.text = string.format("You're ready! Unlock %s for %s? (PREVIEW)", title, Format.cash(rule.cash))
+		spec.text = string.format("You're ready! Open %s for %s?", title, Format.cash(rule.cash))
 		spec.primary = {
 			label = "UNLOCK",
 			onActivate = function()
@@ -1003,6 +1056,9 @@ function LaunchPad.lockedAway()
 			if spec then
 				Dialogue.clearSuppression(spec.key)
 			end
+			-- the live card too (liveLock's key): without this, GOT IT once kept the card, and its UNLOCK, away all session
+			-- (found 2026-11-05)
+			Dialogue.clearSuppression("portal:live:" .. place)
 		end
 	end)
 end
@@ -1028,6 +1084,11 @@ function LaunchPad.debug(command: string, arg: any): any
 		local r = root()
 		LaunchPad.enter(arg or "Downtown", if r then r.CFrame else CFrame.new(0, 5, -30))
 	elseif command == "start" then
+		local card = panel("launchCard")
+		if card and card:isOpen() then
+			card:press() -- as the START button: the card closes and the run starts
+			return phase
+		end
 		padTrove:Clean()
 		countdown()
 	elseif command == "retry" then

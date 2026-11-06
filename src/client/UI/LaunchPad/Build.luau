@@ -5,7 +5,7 @@
 -- road. Only the floor, ramp and invisible edge walls collide. Local +Z is south, -Z is north, y = 0 is the floor.
 --
 --   Build.build(world, origin) -> Pad
---   Pad = { folder, arrival: CFrame, rampCentre, rampHalf, home: Vector3, stalls = { Cars = Part, Trails = Part, Paint = Part } }
+--   Pad = { folder, arrival: CFrame, rampCentre, rampHalf, home: Vector3, stalls = { Style = Part, Stamina = Part, Luck = Part } }
 --   pad:step(dt)                 motion, called while the pad is on show
 --   pad:showChevrons(on)         the way to the ramp
 --   pad:setLight(i, colour?)     one of the four start lights; nil is off
@@ -18,6 +18,7 @@ local Motion = require(script.Parent.Parent.Prototype.Motion)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
 local PadBackdrop = require(script.Parent.PadBackdrop)
 local PadKit = require(script.Parent.PadKit)
+local PadDressing = require(script.Parent.PadDressing)
 local PadParts = require(script.Parent.PadParts)
 
 local Build = {}
@@ -64,6 +65,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	local home = PadParts.homePortal(k, theme, life)
 	local stalls, syncCars = PadParts.kiosks(k, theme, life, world)
 	PadParts.touches(k, theme, world, life)
+	PadDressing.dress(k, theme, world) -- Round 7 (A-06): bushes, trees, lamps, benches, bunting, the road-closed set
 
 	local chevronsOn = false
 	local rings: { BasePart } = {}
@@ -96,7 +98,7 @@ function Build.build(world: string, origin: CFrame): Pad
 	local foot = PadParts.RampFoot
 	local pad: any = {
 		folder = folder,
-		arrival = origin * CFrame.new(0, 3.2, 34),
+		arrival = origin * CFrame.new(0, 3.2, 22),
 		rampCentre = (origin * CFrame.new(0, 4, foot - 9)).Position,
 		rampHalf = Vector2.new(PadParts.RampWidth / 2 + 1, 8),
 		home = home,

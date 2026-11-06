@@ -108,10 +108,13 @@ local function marker(): Instance?
 end
 
 local function gate(options: Options, requireDowntown: boolean)
-	assert(RunService:IsStudio(), "the Downtown city preview runs only in Roblox Studio")
+	-- an embedded city (preview = true: the beta run's World scenery, RunScenery) also builds in a live game; it uses the
+	-- uploaded group meshes (2026-11-05: the Studio-only check left every live run on an empty road). The command-bar
+	-- harness below stays Studio-only.
 	if options.preview == true then
 		return
 	end
+	assert(RunService:IsStudio(), "the Downtown city preview runs only in Roblox Studio")
 	local m = marker()
 	if requireDowntown then
 		assert(

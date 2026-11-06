@@ -107,6 +107,8 @@ export type SortMode = CardGrid.SortMode
 
 export type Options = {
 	onDrive: ((CarRef) -> ())?, -- the lineup adapter: put this car on the Raceway
+	onRide: ((CarRef) -> ())?, -- Round 7 (U-02): ride this car in runs (the launch card's car)
+	ridingId: (() -> string?)?, -- the car picked for runs now
 	onClose: (() -> ())?,
 	cars: { CarRef }?, -- the collection to list (default: the synthetic Downtown fixtures); read only, never sorted in place
 	infoOf: ((CarRef) -> TradingCard.Info?)?, -- supplied per-car data: Lap Pay, World, finishes (default: the preview data)
@@ -702,6 +704,89 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 	})
 	trove:Add(driveButton.trove)
 	driveButton.root.ZIndex = 12
+	-- Round 7 (U-02, Adam: "I want some kind of confirmation of what car I'm choosing"): RIDE THIS CAR picks the car for runs and
+	-- answers with a green check, "Ready to ride: <name>!" and a glow round the card
+	local confirm: TextLabel = make("TextLabel", {
+		Name = "RideConfirm",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromOffset(340, 44),
+		BackgroundColor3 = Color3.fromRGB(46, 180, 80),
+		FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json"),
+		TextScaled = true,
+		TextColor3 = Color3.new(1, 1, 1),
+		Visible = false,
+		ZIndex = 40,
+		Parent = panel,
+	})
+	make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = confirm })
+	make("UIStroke", {
+		Thickness = 3,
+		Color = Color3.fromRGB(10, 60, 24),
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = confirm,
+	})
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 6),
+		PaddingLeft = UDim.new(0, 12),
+		PaddingRight = UDim.new(0, 12),
+		Parent = confirm,
+	})
+	local confirmSerial = 0
+	local refreshRide: () -> () = function() end
+	local rideButton = Arcade.button(actionBar, {
+		name = "Ride",
+		label = "RIDE THIS CAR",
+		fill = "Gold",
+		size = "Custom",
+		width = DRIVE_W,
+		height = Tokens.Touch.Primary,
+		cooldown = 0.6,
+		onActivate = function()
+			local car = selected
+			if not (car and car.owned == true and car.model ~= nil and opts.onRide) then
+				return
+			end
+			opts.onRide(car)
+			confirmSerial += 1
+			local serial = confirmSerial
+			confirm.Text = "✔ Ready to ride: " .. (car.name or car.id) .. "!"
+			confirm.Visible = true
+			local cardRef = facts:card()
+			local glow: UIStroke? = nil
+			if cardRef then
+				glow = make("UIStroke", {
+					Name = "RideGlow",
+					Thickness = 6,
+					Color = Color3.fromRGB(90, 255, 120),
+					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+					Parent = cardRef.root,
+				})
+			end
+			refreshRide()
+			task.delay(2.5, function()
+				if glow then
+					glow:Destroy()
+				end
+				if confirmSerial == serial then
+					confirm.Visible = false
+				end
+			end)
+		end,
+	})
+	trove:Add(rideButton.trove)
+	rideButton.root.ZIndex = 12
+	refreshRide = function()
+		local car = selected
+		local can = car ~= nil and car.owned == true and car.model ~= nil and opts.onRide ~= nil
+		local riding = car ~= nil and opts.ridingId ~= nil and opts.ridingId() == car.id
+		rideButton.root.Visible = car ~= nil and opts.onRide ~= nil
+		rideButton.setEnabled(can and not riding)
+		if rideButton.setLabel then
+			rideButton.setLabel(if riding then "RIDING ✔" else "RIDE THIS CAR")
+		end
+	end
 	local backButton = Arcade.button(actionBar, {
 		name = "Back",
 		label = "BACK",
@@ -1090,6 +1175,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			driveReason = ""
 			driveButton.root.Visible = false
 			reasonLabel.Visible = false
+			refreshRide()
 			return
 		end
 		local info = infoFor(car)
@@ -1103,6 +1189,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 		driveButton.setEnabled(ok)
 		reasonLabel.Text = reason
 		reasonLabel.Visible = reason ~= ""
+		refreshRide()
 	end
 
 	local function setSelected(car: CarRef?)
@@ -1368,8 +1455,13 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			actionBar.Position = UDim2.fromOffset(detailX, bodyY + bodyH - ACTION_H)
 			actionBar.Size = UDim2.fromOffset(detailW, ACTION_H)
 			backButton.root.Visible = false
-			driveButton.root.AnchorPoint = Vector2.new(0.5, 0)
-			driveButton.root.Position = UDim2.fromScale(0.5, 0)
+			local half = math.min(DRIVE_W, math.floor((detailW - 12) / 2))
+			rideButton.root.Size = UDim2.fromOffset(half, Tokens.Touch.Primary)
+			driveButton.root.Size = UDim2.fromOffset(half, Tokens.Touch.Primary)
+			rideButton.root.AnchorPoint = Vector2.new(1, 0)
+			rideButton.root.Position = UDim2.new(0.5, -4, 0, 0)
+			driveButton.root.AnchorPoint = Vector2.new(0, 0)
+			driveButton.root.Position = UDim2.new(0.5, 4, 0, 0)
 			reasonLabel.AnchorPoint = Vector2.new(0, 0)
 			reasonLabel.Position = UDim2.fromOffset(4, Tokens.Touch.Primary + 8)
 			reasonLabel.Size = UDim2.fromOffset(detailW - 8, ACTION_H - Tokens.Touch.Primary - 8)
@@ -1412,11 +1504,16 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 			backButton.root.Visible = true
 			backButton.root.AnchorPoint = Vector2.new(0, 0.5)
 			backButton.root.Position = UDim2.fromScale(0, 0.5)
+			local each = math.min(DRIVE_W, math.floor((pageW - BACK_W - 24) / 2))
+			rideButton.root.Size = UDim2.fromOffset(each, Tokens.Touch.Primary)
+			driveButton.root.Size = UDim2.fromOffset(each, Tokens.Touch.Primary)
+			rideButton.root.AnchorPoint = Vector2.new(1, 0.5)
+			rideButton.root.Position = UDim2.fromScale(1, 0.5)
 			driveButton.root.AnchorPoint = Vector2.new(1, 0.5)
-			driveButton.root.Position = UDim2.fromScale(1, 0.5)
-			reasonLabel.AnchorPoint = Vector2.new(0, 0.5)
-			reasonLabel.Position = UDim2.new(0, BACK_W + 8, 0.5, 0)
-			reasonLabel.Size = UDim2.fromOffset(math.max(pageW - BACK_W - DRIVE_W - 24, 60), barH)
+			driveButton.root.Position = UDim2.new(1, -each - 8, 0.5, 0)
+			reasonLabel.AnchorPoint = Vector2.new(0, 1)
+			reasonLabel.Position = UDim2.fromOffset(BACK_W + 8, -2)
+			reasonLabel.Size = UDim2.fromOffset(math.max(pageW - BACK_W - 16, 60), 20)
 		end
 		refreshWorlds()
 		grid:refresh()

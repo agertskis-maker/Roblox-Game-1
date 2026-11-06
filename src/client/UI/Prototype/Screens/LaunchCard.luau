@@ -1,6 +1,8 @@
 --!strict
 -- LaunchCard: the card that opens when you step on a Launch Pad's ramp (Lane 3, Round 3 N6-03). The World's name, your car on a
 -- turntable, your trail behind it, two small change buttons and a giant START!. It starts nothing itself: it calls onStart.
+-- Round 7 (A-07): no "hops this run" line (Adam: the card should not say how many hops you have), the car centred in its
+-- frame, and a red X top right (48 px) that closes it, as walking off the ramp does.
 --
 --   local c = LaunchCard.new(ctx, { onStart = fn, onChangeCar = fn?, onChangeTrail = fn?, onClose = fn? })
 --   c:open(worldTitle, hint?)  c:close()  c:isOpen()  c:press()  c:destroy()
@@ -24,7 +26,6 @@ export type Options = {
 	onChangeCar: (() -> ())?,
 	onChangeTrail: (() -> ())?,
 	onClose: (() -> ())?,
-	hops: number?, -- the bolts in a run, for the line under the title
 }
 
 function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
@@ -64,18 +65,21 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		})
 		CarKit.pattern(card, "speed", { color = Color3.fromRGB(170, 210, 255), transparency = 0.86, z = 3 })
 		local stageY = titlePx * 1.1 + 14
-		local boltPx = math.max(math.round(30 * k), 24)
-		CarKit.slot(card, "stamina", boltPx, {
-			position = UDim2.new(0.5, -math.round(58 * k), 0, stageY + boltPx * 0.4),
-			z = 7,
-		})
-		CarKit.text(card, string.format("%d hops this run", options.hops or 5), math.max(math.round(18 * k), 14), {
-			position = UDim2.new(0.5, -math.round(38 * k), 0, stageY - 4),
-			size = UDim2.fromOffset(180, boltPx),
-			stroke = 1.5,
-			z = 7,
-			name = "Bolts",
-		})
+		-- the red X, top right, clear of the title's letters
+		local closePx = 48
+		local closeButton = make("ImageButton", {
+			Name = "CloseX",
+			BackgroundTransparency = 1,
+			Image = "",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -8, 0, 8),
+			Size = UDim2.fromOffset(closePx, closePx),
+			ZIndex = 12,
+		}, card) :: ImageButton
+		CarKit.slot(closeButton, "close", closePx, { position = UDim2.fromScale(0.5, 0.5), z = 13, fallback = "Close" })
+		buildTrove:Connect(closeButton.Activated, function()
+			self:close()
+		end)
 		local bottom = math.round(190 * k)
 		local stageH = h - stageY - bottom
 		local view = make("ViewportFrame", {
@@ -90,7 +94,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		}, card) :: ViewportFrame
 		local camera = make("Camera", { FieldOfView = 17.5 }, view) :: Camera
 		view.CurrentCamera = camera
-		camera.CFrame = CFrame.lookAt(Vector3.new(-2, 7.2, 30), Vector3.new(-2, 1.9, 0))
+		camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.2, 30), Vector3.new(0, 1.9, 0))
 		local world = make("WorldModel", {}, view) :: WorldModel
 		local trailView = TrailPreview.new(world, { length = 5.5 })
 		buildTrove:Add(function()
@@ -112,6 +116,19 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			Material = Enum.Material.Neon,
 		}, world)
 		local rig = RealCar.mount(world, { height = 4.8 })
+		-- the car turns about its own middle, whatever car it is (A-07: centred on every screen size); measured once per loaded body
+		local measured: any = nil
+		local centre = Vector3.zero
+		local function place(angle: number)
+			local body = rig._body
+			if body and body ~= measured then
+				measured = body
+				local box = body.model:GetBoundingBox()
+				local off = body.model:GetPivot():PointToObjectSpace(box.Position)
+				centre = Vector3.new(off.X, 0, off.Z)
+			end
+			rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, angle, 0) * CFrame.new(-centre))
+		end
 		local function applyStyle()
 			rig:setCar(StyleState.car())
 			rig:setPaint(StyleState.item("Paint"), 0.18)
@@ -129,10 +146,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		-- the car sways a little: enough to feel alive, never turning its tail away from the ribbon
 		local started = os.clock()
 		buildTrove:Connect(RunService.Heartbeat, function(dt: number)
-			if not Motion.reduced() then
-				local a = math.rad(242 + math.sin((os.clock() - started) * 0.7) * 10)
-				rig:pivotTo(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, a, 0))
-			end
+			place(math.rad(242 + (if Motion.reduced() then 0 else math.sin((os.clock() - started) * 0.7) * 10)))
 			trailView:step(dt, rig:tail())
 		end)
 
@@ -165,7 +179,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		})
 		local start = CarKit.button(card, {
 			text = "START!",
-			tone = "Green",
+			tone = "Orange", -- A-07: START stays the big orange button
 			px = math.max(math.round(74 * k), 40),
 			size = UDim2.new(1, -math.round(36 * k), 0, math.round(112 * k)),
 			position = UDim2.new(0.5, 0, 1, -math.round(14 * k)),
@@ -180,7 +194,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local glow = CarKit.art(card, "fx_glow", {
 			size = UDim2.new(1.1, 0, 0, math.round(190 * k)),
 			position = UDim2.new(0.5, 0, 1, -math.round(70 * k)),
-			color = CarKit.Green,
+			color = CarKit.Orange,
 			transparency = 0.55,
 			z = 6,
 			placeholder = false,

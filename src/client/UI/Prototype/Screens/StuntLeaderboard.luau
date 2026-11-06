@@ -79,6 +79,7 @@ export type Leaderboard = {
 	close: (self: Leaderboard) -> (),
 	isOpen: (self: Leaderboard) -> boolean,
 	setBoard: (self: Leaderboard, board: StuntFixtures.Board) -> (),
+	setLabels: (self: Leaderboard, title: string, note: string) -> (),
 	setPreset: (self: Leaderboard, name: string) -> boolean,
 	pressRetry: (self: Leaderboard) -> boolean,
 	destroy: (self: Leaderboard) -> (),
@@ -390,6 +391,11 @@ function StuntLeaderboard.new(ctx: Overlay.Ctx, options: Options?): Leaderboard
 			board = b
 			render()
 			layoutNow()
+		end,
+		-- Round 6 (C-03): the live board of THIS server says so ("THIS SERVER", real players here now), never "weekly"
+		setLabels = function(_self: Leaderboard, title: string, note: string)
+			header.title.Text = title
+			noteLabel.Text = note
 		end,
 		setPreset = function(self: Leaderboard, name: string): boolean
 			for _, known in StuntFixtures.BoardOrder do

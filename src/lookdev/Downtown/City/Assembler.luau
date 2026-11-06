@@ -379,12 +379,14 @@ function Assembler.applyLighting(preset: any?): string
 	local sky = if preset then preset.atmosphere else nil
 	local atmosphere = Instance.new("Atmosphere")
 	atmosphere.Name = "Lane3LookDev_Atmosphere"
-	atmosphere.Density = if sky then sky.density else 0.3
-	atmosphere.Offset = if sky then sky.offset else 0.12
-	atmosphere.Color = if sky then sky.colour else Color3.fromRGB(205, 224, 238)
-	atmosphere.Decay = if sky then sky.decay else Color3.fromRGB(120, 150, 180)
+	-- Round 7 (R-09, Adam: "everything in the backgrounds is just very white"): Downtown's haze is a sky blue, thinner, so the
+	-- far city fades into colour instead of a white wall (it was 205, 224, 238 at density 0.3 and haze 1.4)
+	atmosphere.Density = if sky then sky.density else 0.24
+	atmosphere.Offset = if sky then sky.offset else 0.1
+	atmosphere.Color = if sky then sky.colour else Color3.fromRGB(150, 192, 236)
+	atmosphere.Decay = if sky then sky.decay else Color3.fromRGB(96, 136, 196)
 	atmosphere.Glare = 0
-	atmosphere.Haze = if sky then sky.haze else 1.4
+	atmosphere.Haze = if sky then sky.haze else 0.8
 	atmosphere:SetAttribute(OURS, true)
 	atmosphere.Parent = Lighting
 	local look = if preset then preset.grade else nil
@@ -518,8 +520,9 @@ end
 
 -- Construction --------------------------------------------------------------------------------
 
+-- City.new is the only caller and decides where a city may build (City's gate: Studio, or an embedded preview city in a
+-- live game, 2026-11-05).
 function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
-	assert(RunService:IsStudio(), "the Downtown city preview runs only in Roblox Studio")
 	local opts = options or {}
 	local parent = opts.parent or Workspace
 	local name = opts.name or Assembler.ROOT_NAME

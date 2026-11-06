@@ -17,6 +17,10 @@ local Workspace = game:GetService("Workspace")
 
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local CosmeticPreviewCatalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
+local RobuxSeam = require(script.Parent:WaitForChild("RobuxSeam"))
+local MissionFeed = require(script.Parent:WaitForChild("MissionFeed"))
+local StuntCircuit = require(script.Parent:WaitForChild("StuntCircuit"))
 
 local Prototype = script.Parent:WaitForChild("Prototype")
 local ModalQueue = require(Prototype:WaitForChild("Home"):WaitForChild("ModalQueue"))
@@ -24,6 +28,7 @@ local Priority = require(Prototype:WaitForChild("Priority")) :: any
 local Screen = require(Prototype:WaitForChild("Screen")) :: any
 local Store = require(Prototype:WaitForChild("Store")) :: any
 local GroupFixtures = require(Prototype:WaitForChild("SupportFixtures"):WaitForChild("GroupFixtures")) :: any
+local StyleState = require(Prototype:WaitForChild("StyleState")) :: any
 
 local HomeShell = {}
 HomeShell.__index = HomeShell
@@ -40,12 +45,13 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{ icon = "Raceway", title = "Cars pay you", text = "Park cars. Every lap pays!" },
-	{ icon = "Garage", title = "Keep your catches", text = "Cars you catch are saved." },
-	{ icon = "Shop", title = "Spend your Cash", text = "Level up, buy spots." },
-	{ icon = "Portal", title = "Open new Worlds", text = "Catch 5 cars, then unlock." },
+	-- Round 7 (2026-11-05)
+	{ icon = "Hop", title = "Two-press Hop", text = "Press to leap, press again to dive!" },
+	{ icon = "Shop", title = "Style Shop", text = "Paint, decals, wheels and trails." },
+	{ icon = "Star", title = "Lucky Clover", text = "More rare cars on the road." },
+	{ icon = "Missions", title = "45 Missions", text = "Five tabs of things to do." },
 }
-HomeShell.UpdateVersion = "beta-2.3"
+HomeShell.UpdateVersion = "beta-5.0" -- Lane 3 Round 7 (2026-11-05)
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
@@ -204,16 +210,41 @@ function HomeShell.start(options: Options?): any
 		end,
 	})
 	mount("customize", { "Screens", "StuntCustomize" }, "Modal", {
-		onBuy = function(_id: string, title: string, _art: string?)
-			if self.hud then
-				self.hud:notify(title .. ": coming soon!", "Trail")
-			end
+		-- Round 6 (R-03, R-04): a Robux trail goes through RobuxSeam; once the server says it is owned it is the
+		-- player's and equipped (with no provider it says coming soon, as before)
+		onBuy = function(id: string, title: string, _art: string?)
+			RobuxSeam.buy(id, function(r: RobuxSeam.Result)
+				local words = if r.status == "Purchased"
+					then title .. " is yours!"
+					elseif r.status == "Cancelled" then nil
+					elseif r.status == "NotCreated" then title .. ": not set up on Roblox yet"
+					elseif r.status == "Unavailable" then title .. ": not available for your account"
+					elseif r.status == "Error" then title .. ": try later"
+					else title .. ": coming soon!"
+				if r.status == "Purchased" then
+					StyleState.own(id)
+					StyleState.equip("Trails", id)
+				end
+				if words and self.hud then
+					self.hud:notify(words, "Trail")
+				end
+			end)
 		end,
 		onViewShop = function()
 			components.customize:close()
 			self.shopAt("Cash")
 		end,
 	})
+	-- Round 6 (R-04): a Robux trail the server says this player owns (its Game Pass) is owned in the Garage too
+	local function syncOwnedTrails()
+		for _, item in CosmeticPreviewCatalog.itemsFor("Trails") do
+			if item.robux and RobuxSeam.state(item.id) == "Owned" and not StyleState.get().ownership.owned[item.id] then
+				StyleState.own(item.id)
+			end
+		end
+	end
+	RobuxSeam.Changed:Connect(syncOwnedTrails)
+	task.defer(syncOwnedTrails)
 	local function customizeView(tab: string): { [string]: any }
 		return { title = "CUSTOMIZE", tabs = { "Paint", "Decals", "Wheels", "Trails" }, tab = tab }
 	end
@@ -228,6 +259,13 @@ function HomeShell.start(options: Options?): any
 		onDrive = function(car: any)
 			components.garage:close()
 			self.openLineup(car.id)
+		end,
+		-- Round 7 (U-02): RIDE THIS CAR picks the car the runs start in (the launch card shows it)
+		onRide = function(car: any)
+			StyleState.setCar(car.id)
+		end,
+		ridingId = function(): string?
+			return StyleState.car()
 		end,
 		canPutOnRaceway = function(car: any): (boolean, string?)
 			if not LiveData.hasCars(player) then
@@ -273,7 +311,35 @@ function HomeShell.start(options: Options?): any
 			userPanel("groupReward")
 		end,
 	})
-	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {})
+	-- Round 6 (G-01): the live feed (MissionFeed) drives the panel when the server publishes missions; with none, the
+	-- PREVIEW fixtures and their 0.35 s preview claim stay as before
+	mount("missions", { "Screens", "MissionsPanel" }, "Overlay", {
+		onClaim = function(id: string)
+			if not MissionFeed.claim(id) then
+				task.delay(0.35, function()
+					local panel = components.missions
+					if panel then
+						panel:resolveClaim(id, "Success")
+					end
+				end)
+			end
+		end,
+	})
+	if components.missions then
+		task.spawn(function()
+			-- the server's folder and the attribute may arrive a moment after the shell is built
+			for _ = 1, 40 do
+				if LiveData.active() and Players.LocalPlayer:GetAttribute(MissionFeed.Attribute) ~= nil then
+					break
+				end
+				task.wait(0.25)
+			end
+			local detach = MissionFeed.attach(components.missions)
+			if detach then
+				trove:Add(detach)
+			end
+		end)
+	end
 	-- nothing joins and nothing is rewarded here yet, so the card must never say "You're in!": until the real join and reward
 	-- exist it answers "try later", and it is never offered by itself
 	mount("groupReward", { "Screens", "GroupRewardPopup" }, "Modal", {
@@ -285,8 +351,52 @@ function HomeShell.start(options: Options?): any
 			local plus = self.hud and self.hud:getButton("CashPlus")
 			return if plus and plus.Visible then plus.AbsolutePosition else nil
 		end,
+		-- Round 7 (P-01): COLLECT asks the server to add the amount it is holding; the Cash counter then really rises. The
+		-- client sends no amount, and a second press adds nothing (the server holds one amount, once).
+		onCollect = function()
+			local net = ReplicatedStorage:FindFirstChild("CarHopBetaNet")
+			local collect = net and net:FindFirstChild("CollectWelcome")
+			if collect and collect:IsA("RemoteEvent") then
+				collect:FireServer()
+			end
+		end,
 	})
 	mount("stuntBoard", { "Screens", "StuntLeaderboard" }, "Overlay", {})
+	-- Round 6 (C-02, C-03): the Stunt Circuit's gate prompt, pre-race card, race HUD, results and this server's board
+	local okStunt, stuntCleanup = pcall(StuntCircuit.attach, self, mount, components, userPanel)
+	if okStunt then
+		trove:Add(stuntCleanup)
+	else
+		warn("[HomeShell] Stunt Circuit failed: " .. tostring(stuntCleanup))
+	end
+	-- Round 6 (V-03): while a panel or a modal is open, the HUD layer (buttons, Cash, tutorial pill) steps back, so nothing
+	-- shows through or sits on a panel's tabs (two reviewers' first fix). WelcomeCoins is an effect that is always shown.
+	local function syncHud()
+		local open = false
+		for _, front in { layers.Overlay, layers.Modal } do
+			for _, child in front:GetChildren() do
+				if child:IsA("GuiObject") and child.Visible and child.Name ~= "WelcomeCoins" then
+					open = true
+				end
+			end
+		end
+		layers.Hud.Visible = not open
+	end
+	for _, front in { layers.Overlay, layers.Modal } do
+		local function watch(child: Instance)
+			if child:IsA("GuiObject") then
+				trove:Connect(child:GetPropertyChangedSignal("Visible"), syncHud)
+			end
+		end
+		for _, child in front:GetChildren() do
+			watch(child)
+		end
+		trove:Connect(front.ChildAdded, function(child: Instance)
+			watch(child)
+			syncHud()
+		end)
+	end
+	syncHud()
 	-- Round 5 (L-04): YOUR RACEWAY, the Lineup panel (from the parking sign and the Garage's PARK)
 	mount("lineup", { "Screens", "LineupPanel" }, "Overlay", {
 		onMoreSpots = function()
@@ -306,10 +416,21 @@ function HomeShell.start(options: Options?): any
 
 	local function shopAt(section: string?)
 		userPanel("shop")
-		local shop = components.shop
-		if section and shop and shop.openSection then
-			shop:openSection(section)
+		if not section then
+			return
 		end
+		-- Round 7 (U-06): the panel queue opens the Shop a moment later, and opening resets it to Featured, so the section is
+		-- picked once the Shop is really open
+		task.spawn(function()
+			for _ = 1, 40 do
+				local shop = components.shop
+				if shop and shop.isOpen and shop:isOpen() and shop.openSection then
+					shop:openSection(section)
+					return
+				end
+				task.wait(0.05)
+			end
+		end)
 	end
 	self.shopAt = shopAt
 
@@ -331,6 +452,20 @@ function HomeShell.start(options: Options?): any
 			end,
 			onMissions = function()
 				userPanel("missions")
+			end,
+			-- Round 7: the red count of missions ready to claim (U-05) and the one goal line (H-01), both from the live feed
+			getMissionsClaimable = function(): number?
+				return if LiveData.active() then MissionFeed.claimable() else nil
+			end,
+			getGoalLine = function(): string?
+				-- not over an open Raceway or parking card (reviewer, 2026-11-05: it drew over the card's top)
+				local found, cardOpen = pcall(function()
+					return (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel).isOpen()
+				end)
+				if found and cardOpen then
+					return nil
+				end
+				return if LiveData.active() then MissionFeed.goalLine() else nil
 			end,
 			onSettings = function()
 				userPanel("settings", self.hud and self.hud:getButton("Settings") or nil)
@@ -388,6 +523,7 @@ function HomeShell._updateLog(self: any, o: Options)
 					version = o.updateVersion or HomeShell.UpdateVersion,
 					entries = o.updates or HomeShell.Updates,
 				}, { onClose = done })
+				self.updatePanel = panel -- Studio driver: "close:update"
 				if panel then
 					trove:Add(function()
 						pcall(function()
@@ -441,12 +577,13 @@ function HomeShell._join(self: any, o: Options)
 						})
 					end
 					local seconds = if type(away) == "number" then away else 0
+					local counted = player:GetAttribute("BetaWelcomeCapped")
 					welcome:setData({
 						source = "server (PREVIEW rate)",
 						status = "Ready",
 						earned = amount,
 						awaySeconds = seconds,
-						cappedSeconds = math.min(seconds, 8 * 3600),
+						cappedSeconds = if type(counted) == "number" then counted else math.min(seconds, 24 * 3600),
 						lineup = cars,
 					})
 				end
@@ -514,7 +651,7 @@ function HomeShell._join(self: any, o: Options)
 			end)
 		end
 	end
-	Tutorial.start({
+	self.tutorialController = Tutorial.start({
 		store = self.store,
 		screen = self.screen,
 		layer = self.screen.safe:FindFirstChild("HudLayer"),

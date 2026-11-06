@@ -1,15 +1,23 @@
 --!strict
--- StyleState: what this player owns and wears this session (Lane 3, Round 3 N4). One shared table, so the Shop's Style page, the
--- Stunt customization screen, the Launch Pad stalls and the launch card can never disagree. PREVIEW: a fixture, nothing is saved,
--- and no purchase here is real. Brian L's real ownership replaces this module's data, not its callers.
+-- StyleState: what this player owns and wears (Lane 3, Round 3 N4). One shared table, so the Style Shop, the Launch Pad, the
+-- launch card, the Garage, the Raceway and the run car can never disagree.
+--
+-- Round 7 (C-07, C-08): in the beta the server owns it. The Player attribute BetaStyle (JSON, written by BetaStyle on the server)
+-- says what is owned and worn, and StyleState follows it; equip() and buy() only ask the server (EquipStyle, BuyStyle) and the
+-- answer comes back through that attribute. Where there is no beta server (the Studio UI playgrounds), equip() and own() change
+-- this table directly, as before. The picked car is local (the launch card's choice).
 --
 --   StyleState.get() -> State           StyleState.Changed (Signal)
---   StyleState.equip(tab, id)           StyleState.own(id)
+--   StyleState.equip(tab, id)           StyleState.buy(tab, id)        StyleState.own(id)
 --   StyleState.item(tab) -> Item?       the worn item of a tab
 --   StyleState.car() -> string          the picked car's model name   StyleState.setCar(name)
+--   StyleState.live() -> boolean        true when the server's style is being followed
 
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 
@@ -22,6 +30,7 @@ local state: State = {
 	equipped = Catalog.defaultEquipped(),
 	car = "Putter", -- Round 4: the Downtown Loaner (the first World's starting car)
 }
+local following = false
 
 StyleState.Changed = Signal.new()
 
@@ -29,9 +38,37 @@ function StyleState.get(): State
 	return state
 end
 
+function StyleState.live(): boolean
+	return following
+end
+
+local function remote(name: string): RemoteEvent?
+	local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
+	local r = net and net:FindFirstChild(name)
+	return if r and r:IsA("RemoteEvent") then r else nil
+end
+
 function StyleState.equip(tab: string, id: string)
+	if following then
+		local r = remote(BetaConfig.Remotes.EquipStyle)
+		if r then
+			r:FireServer(tab, id)
+		end
+		return
+	end
 	(state.equipped :: any)[tab] = id
 	StyleState.Changed:Fire(tab, id)
+end
+
+-- Asks the server to buy an item with Cash; the answer is a BetaResult ("BuyStyle") and, on success, the BetaStyle attribute.
+-- Returns false when there is no server to ask.
+function StyleState.buy(tab: string, id: string): boolean
+	local r = following and remote(BetaConfig.Remotes.BuyStyle)
+	if r then
+		r:FireServer(tab, id)
+		return true
+	end
+	return false
 end
 
 function StyleState.own(id: string)
@@ -50,6 +87,42 @@ end
 
 function StyleState.item(tab: string): Catalog.Item?
 	return Catalog.byId(tab :: any, (state.equipped :: any)[tab])
+end
+
+-- Follow the server's style (the beta). Runs on the client only.
+local player = Players.LocalPlayer
+if player then
+	local function read()
+		local text = player:GetAttribute(BetaConfig.StyleAttribute)
+		if type(text) ~= "string" then
+			return
+		end
+		local ok, data = pcall(function()
+			return HttpService:JSONDecode(text)
+		end)
+		if not ok or type(data) ~= "table" then
+			return
+		end
+		following = true
+		local owned = {}
+		for _, id in (if type(data.o) == "table" then data.o else {}) :: { any } do
+			if type(id) == "string" then
+				owned[id] = true
+			end
+		end
+		state.ownership.owned = owned
+		if type(data.e) == "table" then
+			for _, tab in Catalog.Tabs do
+				local id = data.e[tab]
+				if type(id) == "string" and Catalog.byId(tab, id) then
+					(state.equipped :: any)[tab] = id
+				end
+			end
+		end
+		StyleState.Changed:Fire("server", nil)
+	end
+	player:GetAttributeChangedSignal(BetaConfig.StyleAttribute):Connect(read)
+	task.defer(read)
 end
 
 return StyleState

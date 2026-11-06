@@ -15,6 +15,7 @@
 -- look from it (Home/Island/SpeedwayLooks). Nothing here pays, prices or saves.
 
 local Ctx = require(script.Parent.Ctx)
+local Dressing = require(script.Parent.Dressing)
 local Ladder = require(script.Parent.Ladder)
 local Props = require(script.Parent.Props)
 local Track = require(script.Parent.Track)
@@ -137,8 +138,12 @@ Look.Features = {
 	f("Pennants", 2, 9, function(p, c)
 		Props.pennants(p.minor, c)
 	end),
-	f("Bleachers", 3, 6, function(p, c)
-		Props.bleachers(p.major, p.life, c)
+	-- Round 6 (V-01): the stands fill up as the Raceway rises (rebuilt with more fans at levels 5 and 10)
+	f("Bleachers", 3, 4, function(p, c)
+		Props.bleachers(p.major, p.life, c, 9)
+	end),
+	f("BleachersFull", 5, 6, function(p, c)
+		Props.bleachers(p.major, p.life, c, 18)
 	end),
 	f("SnackCart", 3, 12, function(p, c)
 		Props.snackCart(p.minor, c)
@@ -164,8 +169,11 @@ Look.Features = {
 	f("Mechanic", 6, 12, function(p, c)
 		Props.mechanic(p.life, c)
 	end),
-	f("Grandstand", 7, 12, function(p, c)
-		Props.grandstand(p.major, p.life, c)
+	f("Grandstand", 7, 9, function(p, c)
+		Props.grandstand(p.major, p.life, c, 7)
+	end),
+	f("GrandstandFull", 10, 12, function(p, c)
+		Props.grandstand(p.major, p.life, c, 20)
 	end),
 	f("Announcer", 7, 12, function(p, c)
 		Props.announcer(p.major, c)
@@ -193,6 +201,25 @@ Look.Features = {
 	end),
 	f("GantryGold", 12, 12, function(p, c)
 		Props.gantry(p.major, p.minor, c, true)
+	end),
+	-- Round 6 (V-01): early charm, track marshals, light strips and the level 12 sky beams (Dressing)
+	f("Planters", 1, 3, function(p, c)
+		Dressing.planters(p.minor, c)
+	end),
+	f("EarlyKerbs", 2, 3, function(p, c)
+		Dressing.earlyKerbs(p.major, c)
+	end),
+	f("Marshals", 6, 12, function(p, c)
+		Dressing.marshals(p.life, c)
+	end),
+	f("LightStripMain", 8, 12, function(p, c)
+		Dressing.lightStrip(p.major, c, -1)
+	end),
+	f("LightStripBack", 8, 11, function(p, c)
+		Dressing.lightStrip(p.major, c, 1)
+	end),
+	f("SkyBeams", 12, 12, function(p, c)
+		Dressing.skyBeams(p.major, c)
 	end),
 	f("KioskBoard", 1, 12, function(p, c)
 		Props.kioskBoard(p.major, c)
