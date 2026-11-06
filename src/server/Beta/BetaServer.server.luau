@@ -22,6 +22,7 @@ local BetaPurchases = require(script.Parent.BetaPurchases)
 local BetaPlots = require(script.Parent.BetaPlots)
 local BetaRun = require(script.Parent.BetaRun)
 local BetaShop = require(script.Parent.BetaShop)
+local BetaStyle = require(script.Parent.BetaStyle)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local StudioTestService = game:GetService("StudioTestService")
 local RunService = game:GetService("RunService")
@@ -89,6 +90,9 @@ end)
 startPart("BetaMissions", function()
 	BetaMissions.start(net) -- Round 6 (G-01): Missions on real events (after BetaShop, which makes BetaResult)
 end)
+startPart("BetaStyle", function()
+	BetaStyle.start(net) -- Round 7 (C-07, C-08): the Style Shop (after BetaShop, which makes BetaResult)
+end)
 startPart("BetaCircuit", function()
 	BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
 end)
@@ -129,6 +133,8 @@ if RunService:IsStudio() then
 			return BetaMissions.selfTest(player)
 		elseif which == "circuit" and player then
 			return BetaCircuit.selfTest(player)
+		elseif which == "style" and player then
+			return BetaStyle.selfTest(player)
 		end
 		return { "unknown test " .. tostring(which) }
 	end
@@ -146,7 +152,19 @@ if RunService:IsStudio() then
 		ran = true
 		task.delay(6, function()
 			for _, which in
-				{ "preview", "luck", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases" }
+				{
+					"preview",
+					"luck",
+					"economy",
+					"lineup",
+					"lappay",
+					"run",
+					"shop",
+					"style",
+					"missions",
+					"circuit",
+					"purchases",
+				}
 			do
 				local ok, lines = pcall(selfTest, which, player)
 				local list = if ok and type(lines) == "table" then lines else { "FAIL error: " .. tostring(lines) }

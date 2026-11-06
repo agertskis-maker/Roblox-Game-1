@@ -49,14 +49,15 @@ local items: { Item } = {
 	{ id = "vip", name = "VIP", kind = "GamePass", robloxId = 0, robux = 299 },
 	{ id = "flame_rush", name = "Flame Rush trail", kind = "GamePass", robloxId = 0, robux = 99 },
 	{ id = "confetti_party", name = "Confetti Party trail", kind = "GamePass", robloxId = 0, robux = 129 },
-	{ id = "prism_ribbon", name = "Prism Ribbon trail", kind = "GamePass", robloxId = 0, robux = 199 },
+	{ id = "rainbow_runway", name = "Rainbow Runway trail", kind = "GamePass", robloxId = 0, robux = 199 },
 	{ id = "comet_tail", name = "Comet Tail trail", kind = "GamePass", robloxId = 0, robux = 249 },
 }
 
 -- The Starter Pack's contents (decision 0038): Brawler (one copy instead when already owned), $5,000, a paint and a decal.
-BetaProducts.Starter = table.freeze({ car = "Brawler", cash = 5000, cosmetics = { "rookie_flame", "starter_stripe" } })
+BetaProducts.Starter = table.freeze({ car = "Brawler", cash = 5000, cosmetics = { "taxi_gold", "racing_stripe" } })
 -- VIP's paints (PREVIEW names from the cosmetics catalog) and its offline cap.
-BetaProducts.VipCosmetics = table.freeze({ "vip_gold_flake", "vip_midnight" })
+-- Round 7 (decision 0042 item 12): the VIP pass shows these (the server treats them as owned while the player has VIP).
+BetaProducts.VipCosmetics = table.freeze({ "vip_royal", "vip_neon", "vip_gradient" })
 BetaProducts.VipOfflineHours = 30 -- Round 7 (decision 0042 item 11): VIP Welcome back cap, same 40% rate (was 12)
 
 -- Ids filled in after the products are created (R-01). Kept apart from the list so one edit updates them.

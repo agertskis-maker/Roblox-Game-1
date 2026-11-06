@@ -6,13 +6,16 @@
 --   local s = StyleStudio.new(ctx, host, { tab = "Paint", size = Vector2?, trove = T, onBuy = fn?, onGetCash = fn?, tabs = {...}? })
 --   s:setTab(name)  s:select(id) -> boolean  s:pressAction()  s:getDebugState()  s:destroy()
 --
--- Tapping a card previews it on the car at once. An owned item offers EQUIP. A Cash item offers BUY: a PREVIEW purchase from the
--- PREVIEW Cash balance that lasts this session. A Robux item goes to `onBuy` and ends in Coming soon. A medal item says what it
--- needs. Leaving resets the preview to what is worn. Everything is PREVIEW: no remote, no save, nothing real is charged.
+-- Tapping a card TRIES it on the car at once (only this screen's preview changes; switching tab or closing takes it off). An
+-- owned item offers EQUIP. A Cash item offers BUY. Round 7 (C-07): in the beta, BUY and EQUIP ask the server (StyleState.buy and
+-- StyleState.equip, the server prices and saves); BUY waits for the server's answer, then wears the item. A Robux item goes to
+-- `onBuy` and shows its price only when the real price is known. A VIP item says it comes with the VIP pass. Where there is no
+-- beta server (the UI playgrounds) BUY is the old PREVIEW purchase from the screen's PREVIEW Cash.
 --
 -- The trail on the turntable is parts on the car's tail (TrailPreview), because a ViewportFrame cannot show Trail, Beam or
 -- particle objects; it turns with the car. The car's own trail in the world is a real Trail (RunTrail, Launch Pad).
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -22,7 +25,9 @@ local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local RealCar = require(Prototype.RealCar)
 local StyleState = require(Prototype.StyleState)
+local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
+local DecalArt = require(Prototype.Style.DecalArt)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local TrailPreview = require(script.Parent.TrailPreview) :: any
@@ -79,6 +84,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local dragX = 0
 	local spinRestUntil = 0
 	local currentSlots: { [string]: Frame } = {}
+	local pending: string? = nil -- the id BUY is waiting on
+	local tryLabel: TextLabel
 
 	local root = trove:Add(make("Frame", {
 		Name = "StyleStudio",
@@ -202,6 +209,19 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		end
 	end)
 
+	-- Round 7 (C-01): says when the car shows something not bought or not worn yet
+	tryLabel = CarKit.text(stage, "TRYING IT ON", 16, {
+		align = Enum.TextXAlignment.Center,
+		anchor = Vector2.new(0.5, 0),
+		position = UDim2.new(0.5, 0, 0, 8),
+		size = UDim2.fromOffset(180, 24),
+		color = CarKit.Yellow,
+		stroke = 1.5,
+		z = 9,
+		name = "Trying",
+	})
+	tryLabel.Visible = false
+
 	-- WORN NOW ----------------------------------------------------------------------------------------------------------
 	if showStrip then
 		local strip = make("Frame", {
@@ -295,9 +315,18 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 
 	local function priceText(item: Catalog.Item): string
 		if item.robux then
-			return Format.group(item.robux) .. " Robux"
+			-- Round 7: never a live-looking Robux price while the product is not on sale
+			return "R$ ---"
 		end
 		return Format.cash(item.price)
+	end
+
+	local function cash(): number
+		local live = Players.LocalPlayer and Players.LocalPlayer:GetAttribute(BetaConfig.CashAttribute)
+		if StyleState.live() and type(live) == "number" then
+			return live
+		end
+		return ctx.store:get().cash or 0
 	end
 
 	local function paintCard(item: Catalog.Item, refs: any)
@@ -307,6 +336,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		refs.status.Text = if state == "equipped"
 			then "EQUIPPED"
 			elseif state == "owned" then "OWNED"
+			elseif state == "locked" and item.vip then "VIP PASS"
 			elseif state == "locked" then "Win " .. string.upper(item.medal or "")
 			elseif state == "unavailable" then "N/A"
 			else priceText(item)
@@ -323,8 +353,12 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		local state = isShown(item)
 		local name = item.name
 		message.Text = string.match(item.note, "^[^.!]+[.!]") or item.note -- one short line
-		if tab == "Decals" and rig.source ~= "Supercar" then
-			message.Text = "The card shows this decal. Decals reach real cars soon."
+		local trying = previewed[tab] ~= nil and state ~= "equipped"
+		tryLabel.Visible = trying
+		if pending == item.id then
+			action.setText("BUYING...")
+			action.setTone("Grey")
+			return
 		end
 		if state == "equipped" then
 			action.setText("EQUIPPED")
@@ -332,6 +366,10 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		elseif state == "owned" then
 			action.setText("EQUIP")
 			action.setTone("Green")
+		elseif state == "locked" and item.vip then
+			action.setText("VIP PASS")
+			action.setTone("Grey")
+			message.Text = name .. " comes with the VIP pass (in the Shop)."
 		elseif state == "locked" then
 			action.setText("LOCKED")
 			action.setTone("Grey")
@@ -339,9 +377,18 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		elseif state == "unavailable" then
 			action.setText("NOT HERE")
 			action.setTone("Grey")
+		elseif item.robux then
+			action.setText("ROBUX: SOON")
+			action.setTone("Grey")
 		else
-			action.setText("BUY " .. priceText(item))
-			action.setTone("Green")
+			local short = item.price - cash()
+			if short > 0 and StyleState.live() then
+				action.setText("NEED " .. Format.cash(short) .. " MORE")
+				action.setTone("Grey")
+			else
+				action.setText("BUY " .. priceText(item))
+				action.setTone("Green")
+			end
 		end
 	end
 
@@ -379,6 +426,43 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				make("UIGradient", { Color = ColorSequence.new(stops) }, image)
 			end
 			CarKit.art(holder, "thumb_car_top", { z = z + 2, placeholder = false })
+		elseif item.tab == "Decals" and not item.isNone and DecalArt.image(item) then
+			-- Round 7 (C-04): the drawn decal itself
+			local image = make("ImageLabel", {
+				BackgroundColor3 = Color3.fromRGB(70, 80, 110),
+				Size = UDim2.fromScale(0.92, 0.5),
+				Position = UDim2.fromScale(0.5, 0.45),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				ZIndex = z,
+			}, holder) :: ImageLabel
+			make("UICorner", { CornerRadius = UDim.new(0, 6) }, image)
+			pcall(function()
+				(image :: any).ImageContent = Content.fromObject(DecalArt.image(item) :: any)
+			end)
+		elseif item.tab == "Trails" and not item.isNone then
+			-- Round 7 (C-06): the trail's colours as a fading streak
+			holder.BackgroundTransparency = 0
+			holder.BackgroundColor3 = CarKit.Well
+			make("UICorner", { CornerRadius = UDim.new(0, 6) }, holder)
+			local streak = make("Frame", {
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				Size = UDim2.fromScale(0.86, 0.26),
+				Position = UDim2.fromScale(0.5, 0.42),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				ZIndex = z,
+			}, holder)
+			make("UICorner", { CornerRadius = UDim.new(1, 0) }, streak)
+			local stops = {}
+			for i, c in item.colours do
+				table.insert(stops, ColorSequenceKeypoint.new((i - 1) / math.max(#item.colours - 1, 1), c))
+			end
+			if #stops == 1 then
+				table.insert(stops, ColorSequenceKeypoint.new(1, item.colours[1]))
+			end
+			make("UIGradient", {
+				Color = ColorSequence.new(stops),
+				Transparency = NumberSequence.new(0, 0.85),
+			}, streak)
 		elseif item.isNone and item.tab == "Trails" then
 			CarKit.art(holder, "close", { z = z, placeholder = false, size = UDim2.fromScale(0.5, 0.7) })
 		elseif item.isNone then
@@ -505,6 +589,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			return
 		end
 		tab = wanted
+		table.clear(previewed) -- Round 7 (C-07): a tab change takes off whatever was being tried
+		applyToCar()
 		for key, refs in tabRefs do
 			refs.paint(key == tab)
 		end
@@ -597,6 +683,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			return
 		end
 		local state = isShown(item)
+		if pending then
+			return
+		end
 		if state == "owned" then
 			StyleState.equip(tab, item.id)
 			previewed[tab] = nil
@@ -605,15 +694,31 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 				if opts.onBuy then
 					opts.onBuy(item.id, item.name, TAB_ART[item.tab])
 				end
+			elseif StyleState.live() then
+				if item.price > cash() then
+					if opts.onGetCash then
+						opts.onGetCash()
+					end
+					return
+				end
+				pending = item.id
+				StyleState.buy(tab, item.id)
+				task.delay(5, function()
+					if pending == item.id then
+						pending = nil
+						message.Text = "No answer from the shop. Try again."
+						refreshAction()
+					end
+				end)
 			else
-				local cash = ctx.store:get().cash or 0
-				if cash >= item.price then
-					ctx.store:set("cash", cash - item.price)
+				local have = ctx.store:get().cash or 0
+				if have >= item.price then
+					ctx.store:set("cash", have - item.price)
 					StyleState.own(item.id)
 					StyleState.equip(tab, item.id)
 					previewed[tab] = nil
 				else
-					message.Text = ("You need $%s more Cash."):format(Format.group(item.price - cash))
+					message.Text = ("You need $%s more Cash."):format(Format.group(item.price - have))
 					if opts.onGetCash then
 						opts.onGetCash()
 					end
@@ -664,6 +769,31 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		applyToCar()
 		refreshCards()
 	end)
+	-- Round 7 (C-07): the server's answer to BUY. Bought: wear it at once. Refused: say why.
+	local net = ReplicatedStorage:FindFirstChild(BetaConfig.NetName)
+	local result = net and net:FindFirstChild(BetaConfig.Remotes.Result)
+	if result and result:IsA("RemoteEvent") then
+		trove:Connect(result.OnClientEvent, function(what: string, ok: boolean, reason: string?)
+			if what ~= "BuyStyle" or not pending then
+				return
+			end
+			local id = pending
+			pending = nil
+			local item = Catalog.byId(tab :: any, id)
+			if ok and item then
+				StyleState.equip(item.tab, item.id)
+				previewed[item.tab] = nil
+				message.Text = item.name .. " is yours!"
+			elseif reason then
+				message.Text = reason
+			end
+			refreshCards()
+		end)
+	end
+	local cashWatch = Players.LocalPlayer and Players.LocalPlayer:GetAttributeChangedSignal(BetaConfig.CashAttribute)
+	if cashWatch then
+		trove:Connect(cashWatch, refreshAction)
+	end
 
 	function self.setTab(_self: any, name: string)
 		setTab(name)

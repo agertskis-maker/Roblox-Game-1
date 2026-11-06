@@ -797,11 +797,11 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	k:ball("MascotBody", 2.6, mascotAt * CFrame.new(0, 3.2, 0), rgb(46, 160, 70))
 	for q = 0, 3 do
 		local a = q * math.pi / 2 + math.pi / 4
-		k:ball("MascotLeaf", 2.2, mascotAt * CFrame.new(math.cos(a) * 0.95, 5.4 + math.sin(a) * 0.95, 0), leafGreen)
+		k:ball("MascotLeaf", 2.2, mascotAt * CFrame.new(math.cos(a) * 0.95, 6.2 + math.sin(a) * 0.95, 0), leafGreen)
 	end
 	for _, s in { -1, 1 } do
-		k:ball("MascotEye", 0.9, mascotAt * CFrame.new(s * 0.45, 5.5, -1.2), rgb(255, 255, 255))
-		k:ball("MascotPupil", 0.45, mascotAt * CFrame.new(s * 0.45, 5.45, -1.6), INK)
+		k:ball("MascotEye", 0.9, mascotAt * CFrame.new(s * 0.45, 6.3, -1.2), rgb(255, 255, 255))
+		k:ball("MascotPupil", 0.45, mascotAt * CFrame.new(s * 0.45, 6.25, -1.6), INK)
 		k:cyl(
 			"MascotArm",
 			0.4,
@@ -812,7 +812,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	end
 	-- the giant clover over the roof
 	local giant, giantModel = k:model("GiantClover")
-	local giantAt = luckAt * CFrame.new(0, luckTop + 5.6, 1)
+	local giantAt = luckAt * CFrame.new(0, luckTop + 7.4, 1)
 	for q = 0, 3 do
 		local a = q * math.pi / 2 + math.pi / 4
 		local out = Vector2.new(math.cos(a), math.sin(a))

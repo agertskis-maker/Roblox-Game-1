@@ -163,6 +163,7 @@ export type RunController = {
 	refillStamina: (self: RunController, n: number) -> (),
 	StaminaChanged: any, -- Signal(value: number, max: number, kind: string): "Leap" | "Bump" | "Bonk" | "Thrown" | "Refused" | "Refill"
 	Bonk: any, -- Signal(kind: string, at: CFrame): a bonk, a bump or a throw, for the beta's BONK! pop
+	Boarded: any, -- Signal(model: Model): the rider landed on this car (Round 7, C-08)
 }
 
 local RunController = {}
@@ -359,6 +360,8 @@ function RunController.new(options: Options?): RunController
 	self._stamina = opts.stamina
 	self.StaminaChanged = trove:Add(Signal.new())
 	self.Bonk = trove:Add(Signal.new())
+	-- Round 7 (C-08): (model) whenever the rider lands on a car, so the car you ride can wear your Style Shop look
+	self.Boarded = trove:Add(Signal.new())
 	-- the warning on the car itself at full Heat (R-02): a red outline and a red "!" over the car
 	local warnLight = Instance.new("Highlight")
 	warnLight.Name = "HeatWarning"
@@ -939,6 +942,7 @@ end
 local function boardCar(self: any, car: Car)
 	self._mode = "Riding"
 	self._ridden = car
+	self.Boarded:Fire(car.model)
 	car.retired = true -- leaves the seed schedule while ridden
 	car.fade = nil
 	setModelTransparency(car.model, 0)

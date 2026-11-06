@@ -28,6 +28,7 @@ local UI = script.Parent.Parent.Parent:WaitForChild("UI")
 local Prototype = UI:WaitForChild("Prototype")
 local Motion = require(Prototype:WaitForChild("Motion"))
 local RealCar = require(Prototype:WaitForChild("RealCar"))
+local StyleState = require(Prototype:WaitForChild("StyleState"))
 
 local player = Players.LocalPlayer
 
@@ -107,6 +108,13 @@ local function rebuild(lane: Lane)
 		lane.trove:Add(function()
 			rig:destroy()
 		end)
+		-- Round 7 (C-08): your own selected car wears your Style Shop look here too
+		if owner == Players.LocalPlayer and carId == StyleState.car() then
+			rig:setPaint(StyleState.item("Paint"))
+			rig:setDecal(StyleState.item("Decals"))
+			rig:setWheels(StyleState.item("Wheels"))
+			rig:setTrail(StyleState.item("Trails"))
+		end
 		table.insert(lane.cars, { rig = rig, slot = slot, carId = carId, placed = false })
 	end
 end
@@ -303,6 +311,14 @@ Players.PlayerAdded:Connect(function()
 	for plot, lane in lanes do
 		if ownerOf(plot) ~= lane.owner and lane.refresh then
 			lane.refresh()
+		end
+	end
+end)
+-- Round 7 (C-08): a change in what you wear or which car you picked repaints your own Raceway at once
+StyleState.Changed:Connect(function()
+	for _, lane in lanes do
+		if lane.owner == Players.LocalPlayer then
+			rebuild(lane)
 		end
 	end
 end)

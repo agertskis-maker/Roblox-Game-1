@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
+local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local ProfileStore = require(ServerScriptService.Server.vendor.ProfileStore) :: any
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
@@ -38,6 +39,7 @@ export type Data = {
 	Purchases: { string }, -- beta-only (Round 6, R-02): processed receipt ids, newest last, at most 200
 	Owned: { [string]: boolean }, -- beta-only (Round 6, R-02): bundle passes, the Starter Pack and its cosmetics
 	LuckLevel: number, -- beta-only (Round 7, P-04): Lucky Clover levels bought, 0 to 5
+	Equipped: { [string]: string }, -- beta-only (Round 7, C-08): the worn Style Shop item per tab
 }
 
 local BetaData = {}
@@ -130,6 +132,24 @@ function BetaData.sanitize(data: any): { string }
 		fix("LuckLevel", t.LuckLevel)
 	else
 		data.LuckLevel = math.clamp(math.floor(data.LuckLevel), 0, EconomyPreview.LuckMaxLevel)
+	end
+	-- Round 7 (C-08): one known item id per Style Shop tab; anything else goes back to the default look
+	if type(data.Equipped) ~= "table" then
+		fix("Equipped", table.clone(t.Equipped))
+	else
+		for tab, default in t.Equipped do
+			local id = data.Equipped[tab]
+			if type(id) ~= "string" or Catalog.byId(tab :: any, id) == nil then
+				data.Equipped[tab] = default
+				table.insert(fixed, "Equipped." .. tab)
+			end
+		end
+		for tab in data.Equipped do
+			if t.Equipped[tab] == nil then
+				data.Equipped[tab] = nil
+				table.insert(fixed, "Equipped." .. tostring(tab))
+			end
+		end
 	end
 	-- Round 6 (R-02): receipt ids are strings, newest last, at most PurchasesKept; Owned is { [string]: true }
 	if type(data.Purchases) ~= "table" then

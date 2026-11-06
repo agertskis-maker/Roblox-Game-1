@@ -314,9 +314,10 @@ function Panel.open()
 				pct(a.Legendary)
 			)
 			else string.format(
-				"Rare or better: %s -> %s   (Rare %s · Epic %s -> %s · Legendary %s -> %s, over a 2 km run)",
+				"Rare or better: %s -> %s   (Rare %s -> %s · Epic %s -> %s · Legendary %s -> %s, over a 2 km run)",
 				pct(ra),
 				pct(rb),
+				pct(a.Rare),
 				pct(b.Rare),
 				pct(a.Epic),
 				pct(b.Epic),

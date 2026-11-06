@@ -280,6 +280,40 @@ local function startRun(world: string): RunController.RunController
 		quietClaims = true,
 	})
 	current = run
+	-- Round 7 (C-08): the car you ride wears your Style Shop look (paint, decal, wheels and trail), its wheels turning; the car
+	-- you leave goes back to how Brian L made it
+	local styleRigs: { [Model]: any } = {}
+	local wearing: any = nil
+	local riddenModel: Model? = nil
+	local function wear(rig: any, on: boolean)
+		rig:setPaint(if on then StyleState.item("Paint") else nil)
+		rig:setDecal(if on then StyleState.item("Decals") else nil)
+		rig:setWheels(if on then StyleState.item("Wheels") else nil)
+		rig:setTrail(if on then StyleState.item("Trails") else nil)
+	end
+	run.Boarded:Connect(function(model: Model)
+		riddenModel = model
+		if wearing then
+			wear(wearing, false)
+		end
+		wearing = styleRigs[model]
+		if wearing then
+			wear(wearing, true)
+			wearing:clearTrail()
+		end
+	end)
+	local spinner: RBXScriptConnection? = nil
+	spinner = RunService.Heartbeat:Connect(function(dt: number)
+		if current ~= run then
+			if spinner then
+				spinner:Disconnect()
+			end
+			return
+		end
+		if wearing then
+			wearing:spin(dt * 18)
+		end
+	end)
 	if runId then
 		bridge(run, world, runId)
 	else
@@ -370,7 +404,16 @@ local function startRun(world: string): RunController.RunController
 				end
 				return
 			end
+			styleRigs[model] = rig
+			if model == riddenModel then
+				wearing = rig
+				wear(rig, true)
+			end
 			model.Destroying:Connect(function()
+				styleRigs[model] = nil
+				if wearing == rig then
+					wearing = nil
+				end
 				rig:destroy()
 			end)
 			-- his tag names the family ("Van"): it names the real car instead. Round 7 (R-10): the rarity word is the real car's
@@ -521,6 +564,46 @@ if RunService:IsStudio() then
 			}
 		elseif command == "retry" or command == "home" then
 			return LaunchPad.debug(command)
+		elseif command == "enter" then
+			return LaunchPad.debug("enter", arg) -- Round 7: stand on a pad without starting a run
+		elseif command == "pause" or command == "resume" then
+			if current then
+				current:setPaused(command == "pause")
+			end
+			return command
+		elseif command == "sheet" and type(arg) == "string" then
+			-- Round 7 (C-02): all 27 cars in one painted contact sheet, far from everything ("sheet:off" removes it)
+			local old = workspace:FindFirstChild("Lane3ContactSheet")
+			if old then
+				old:Destroy()
+			end
+			if arg == "off" then
+				return "off"
+			end
+			local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
+			local item = Catalog.byId("Paint", arg)
+			local folder = Instance.new("Folder")
+			folder.Name = "Lane3ContactSheet"
+			folder.Parent = workspace
+			local base = Vector3.new(9000, 1500, 0)
+			for i, e in RealCar.list() do
+				local rig = RealCar.mount(folder, { length = 11, height = 6 })
+				rig:setCar(e.name)
+				local col, row = (i - 1) % 7, (i - 1) // 7
+				rig:pivotTo(CFrame.new(base + Vector3.new(col * 15, 0, row * 16)) * CFrame.Angles(0, math.rad(90), 0))
+				rig:setPaint(item)
+			end
+			return #RealCar.list()
+		elseif command == "style" and type(arg) == "string" then
+			-- Round 7 (C-08): "Paint/galaxy" buys (through the server) and wears an item
+			local tab, id = string.match(arg, "^(%a+)/(.+)$")
+			if tab and id then
+				StyleState.buy(tab, id)
+				task.wait(0.8)
+				StyleState.equip(tab, id)
+				task.wait(0.5)
+				return (StyleState.get().equipped :: any)[tab]
+			end
 		end
 		return "unknown command " .. tostring(command)
 	end

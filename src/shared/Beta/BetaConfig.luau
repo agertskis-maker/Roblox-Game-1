@@ -40,6 +40,9 @@ BetaConfig.Remotes = {
 	-- Round 7 (P-01): no arguments. Credits the caller's own Welcome back amount, which the server computed on load and holds;
 	-- once only (a second press credits nothing). Leaving without pressing it credits it too.
 	CollectWelcome = "CollectWelcome",
+	-- Round 7 (C-07, C-08): the Style Shop. BuyStyle(tab, id) and EquipStyle(tab, id): the server prices, checks ownership and saves.
+	BuyStyle = "BuyStyle",
+	EquipStyle = "EquipStyle",
 }
 
 -- ProfileStore store and template. A beta-only store, so the real game's saves start clean.
@@ -66,6 +69,9 @@ BetaConfig.Template = {
 	-- Round 7 (P-04, decision 0042 item 10): Lucky Clover levels bought, 0 to EconomyPreview.LuckMaxLevel. Beta-only, a proposal
 	-- for Brian L (vault/design/specs/lane3-round7-for-brian-l.md).
 	LuckLevel = 0,
+	-- Round 7 (C-08): what the player wears, one item id per Style Shop tab. Beta-only, a proposal for Brian L. Cosmetics bought
+	-- with Cash are kept in Owned, next to the Robux ones.
+	Equipped = { Paint = "factory_paint", Decals = "none", Wheels = "stock_five", Trails = "no_trail" },
 }
 BetaConfig.PurchasesKept = 200
 
@@ -75,6 +81,7 @@ BetaConfig.PurchasesKept = 200
 BetaConfig.RealPurchases = false
 BetaConfig.OwnedAttribute = "BetaOwned" -- Player: "vip,double-lap-pay" (read only; the server writes it)
 BetaConfig.StaminaAttribute = "BetaStaminaLevel" -- Player: the saved StaminaLevel (read only; the server writes it)
+BetaConfig.StyleAttribute = "BetaStyle" -- Player: JSON { o = owned ids, e = { tab = id } } (read only; the server writes it)
 BetaConfig.LuckAttribute = "BetaLuckLevel" -- Player: the saved LuckLevel (read only; the server writes it)
 -- Player: true when PolicyService says paid random items are restricted for this player (the Lucky Clover BUY is then replaced by
 -- "Not available for your account"); nil while the check is running. Read only; the server writes it.
