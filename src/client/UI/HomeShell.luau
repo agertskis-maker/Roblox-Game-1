@@ -45,12 +45,13 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{ icon = "Hop", title = "Better hops", text = "Flip, land and ride!" },
-	{ icon = "Shop", title = "Stamina Shop", text = "More bolts at every hub." },
-	{ icon = "Garage", title = "Real cars on the road", text = "Catch the car you see." },
-	{ icon = "Portal", title = "Worlds on the road", text = "Cities beside every run." },
+	-- Round 7 (2026-11-05)
+	{ icon = "Hop", title = "Two-press Hop", text = "Press to leap, press again to dive!" },
+	{ icon = "Shop", title = "Style Shop", text = "Paint, decals, wheels and trails." },
+	{ icon = "Star", title = "Lucky Clover", text = "More rare cars on the road." },
+	{ icon = "Missions", title = "45 Missions", text = "Five tabs of things to do." },
 }
-HomeShell.UpdateVersion = "beta-4.0" -- the beta driving update (2026-11-05)
+HomeShell.UpdateVersion = "beta-5.0" -- Lane 3 Round 7 (2026-11-05)
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
@@ -515,6 +516,7 @@ function HomeShell._updateLog(self: any, o: Options)
 					version = o.updateVersion or HomeShell.UpdateVersion,
 					entries = o.updates or HomeShell.Updates,
 				}, { onClose = done })
+				self.updatePanel = panel -- Studio driver: "close:update"
 				if panel then
 					trove:Add(function()
 						pcall(function()

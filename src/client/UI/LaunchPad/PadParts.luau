@@ -728,7 +728,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	KioskSign.attach(stands.Stamina, {
 		title = "PIT STOP",
 		colour = Color3.fromRGB(255, 214, 70),
-		height = stamTop + 13,
+		height = stamTop + 3,
 		read = function(): (string, string?)
 			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.StaminaAttribute))
 				or 0
@@ -797,7 +797,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	KioskSign.attach(stands.Luck, {
 		title = "LUCKY CLOVER",
 		colour = Color3.fromRGB(110, 230, 120),
-		height = luckTop + 17,
+		height = luckTop + 3,
 		read = function(): (string, string?)
 			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.LuckAttribute)) or 0
 			if level >= EconomyPreview.LuckMaxLevel then

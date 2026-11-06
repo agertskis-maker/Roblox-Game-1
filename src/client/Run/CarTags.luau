@@ -77,6 +77,9 @@ end
 -- its colour (an edition car says its edition first: "GOLD EPIC"), the car's name, and a red "new!" when you do not own it. Readable
 -- at speed (fixed pixel size), seen from further away the rarer the car. "Needs" (the Rider Level gate) stays for Brian R's
 -- playground; the beta hides it.
+CarTags.SEEN_FROM =
+	table.freeze({ Common = 70, Uncommon = 90, Rare = 150, Epic = 210, Legendary = 280 } :: { [string]: number })
+
 function CarTags.wordFor(rarity: string, variant: string?): string
 	local edition = if variant and variant ~= "None" then string.upper(variant) .. " " else ""
 	return edition .. string.upper(rarity)
@@ -87,7 +90,8 @@ function CarTags.attach(model: Model, info: TagInfo, height: number): BillboardG
 	gui.Name = "Tag"
 	gui.Size = UDim2.fromOffset(260, 98)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, height + 5, 0)
-	gui.MaxDistance = 170
+	-- seen from further away the rarer the car; a far Common tag only cluttered the horizon (2026-11-05 playtest: "COMMONCOMMON")
+	gui.MaxDistance = CarTags.SEEN_FROM[info.rarity] or 170
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
 	local word = text(gui, "Rarity", 0, 34, 30, CarTags.WORD_COLOUR[info.rarity] or CREAM)

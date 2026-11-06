@@ -179,7 +179,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		})
 		local start = CarKit.button(card, {
 			text = "START!",
-			tone = "Green",
+			tone = "Orange", -- A-07: START stays the big orange button
 			px = math.max(math.round(74 * k), 40),
 			size = UDim2.new(1, -math.round(36 * k), 0, math.round(112 * k)),
 			position = UDim2.new(0.5, 0, 1, -math.round(14 * k)),
@@ -194,7 +194,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local glow = CarKit.art(card, "fx_glow", {
 			size = UDim2.new(1.1, 0, 0, math.round(190 * k)),
 			position = UDim2.new(0.5, 0, 1, -math.round(70 * k)),
-			color = CarKit.Green,
+			color = CarKit.Orange,
 			transparency = 0.55,
 			z = 6,
 			placeholder = false,

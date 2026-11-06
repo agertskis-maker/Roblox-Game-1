@@ -1068,6 +1068,11 @@ function LaunchPad.debug(command: string, arg: any): any
 		local r = root()
 		LaunchPad.enter(arg or "Downtown", if r then r.CFrame else CFrame.new(0, 5, -30))
 	elseif command == "start" then
+		local card = panel("launchCard")
+		if card and card:isOpen() then
+			card:press() -- as the START button: the card closes and the run starts
+			return phase
+		end
 		padTrove:Clean()
 		countdown()
 	elseif command == "retry" then

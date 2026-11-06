@@ -564,6 +564,10 @@ function RunExtras.attach(run: any, options: Options): any
 				ZIndex = 31,
 			})
 			pcall(Sounds.play, "Warning")
+			-- it goes as Results opens (it was left showing round the Results card, 2026-11-05)
+			trove:Add(task.delay(math.max(RunExtras.resultsDelay(s.cause) - 0.05, 0), function()
+				card:Destroy()
+			end))
 			if not reduced then
 				big.TextSize = 24
 				Motion.tween(

@@ -93,7 +93,7 @@ player:GetAttributeChangedSignal("MovementSpeedOwner"):Connect(function()
 end)
 
 -- Studio test driver (Round 7): the Studio MCP cannot press a button, so CarHopHomeCmd = "open:missions" (any panel key)
--- opens a panel the way its button does, "tab:Racer" picks a Missions tab and "skip:tutorial" skips the tutorial. Nothing here exists outside Studio.
+-- opens a panel the way its button does, "tab:Racer" picks a Missions tab and "skip:tutorial" skips the tutorial and "close:update" closes What's New. Nothing here exists outside Studio.
 if RunService:IsStudio() then
 	player:GetAttributeChangedSignal("CarHopHomeCmd"):Connect(function()
 		local text = player:GetAttribute("CarHopHomeCmd")
@@ -106,6 +106,8 @@ if RunService:IsStudio() then
 			shell.userPanel(arg)
 		elseif command == "skip" and shell.tutorialController then
 			shell.tutorialController:skip() -- "skip:tutorial": as the banner's Skip and its YES
+		elseif command == "close" and arg == "update" and shell.updatePanel then
+			shell.updatePanel:close()
 		elseif command == "tab" and arg then
 			local panel = shell.components and shell.components.missions
 			if panel and panel.selectTab then
