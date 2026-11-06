@@ -68,13 +68,14 @@ RunConfig.PROFILES = table.freeze({
 		speedScale = 1.45,
 		laneSpeed = table.freeze({ 0.5, 0.57, 0.64, 0.71 }),
 		gapScale = 1.6,
-		crashEndsRun = true,
+		-- Round 7 (R-04): a bump costs a bolt instead of ending the run (Adam declined crash-ends-run on 2026-10-28). Was true.
+		crashEndsRun = false,
 		steerScale = 1.6,
 		scenery = "Circuit",
 		spawnAhead = 1150,
 		warmupDistance = 1400,
 		warmupGapScale = 2.2,
-		hopRangeScale = 1.25,
+		hopRangeScale = 1.56, -- Round 7 (R-03): x1.25 for the bigger cars (was 1.25)
 		-- Brian R: keeping a car takes 5 seconds or more (the outline's Decided values are 3 to 6).
 		keysTime = table.freeze({ Common = 5, Rare = 6, Epic = 7, Legendary = 8 }),
 		heatScale = 2,
@@ -109,6 +110,30 @@ RunConfig.SUSPENSION_STIFFNESS = 170
 RunConfig.SUSPENSION_DAMPING = 11
 RunConfig.LAUNCH_KICK = -7
 RunConfig.LANDING_SQUASH = -15
+
+-- Round 7 (R-01, decision 0042 item 8): the two-press Hop from Adam's reference. First press: leap up off the car and float; the
+-- world slows to FLOAT_SLOWMO so you can aim, A / D or the stick steer the float, and the ring follows the best car in reach from
+-- where you are now. Second press: dive onto the ringed car. No second press: you drop; a car under you catches you, otherwise
+-- BONK! on the road (1 bolt) and you blink back onto the nearest car behind. The tutorial and the first two runs of a session float
+-- longer and flash PRESS AGAIN! (session-only, no save field). Tuned by playing (Round 7 ledger).
+RunConfig.FLOAT_TIME = 1.0 -- seconds of run time
+RunConfig.FLOAT_TIME_HELP = 1.6
+RunConfig.FLOAT_HELP_RUNS = 2
+RunConfig.FLOAT_SLOWMO = 0.6 -- the run's own clock while floating (never the server, other players, the UI or income)
+RunConfig.FLOAT_HEIGHT = 9 -- studs above the car you left
+RunConfig.FLOAT_STEER = 26 -- sideways studs per second while floating
+RunConfig.FLOAT_REACH = 60 -- studs from the floating rider to a car that can be dived onto
+RunConfig.DIVE_TIME = 0.28 -- seconds from the second press to landing
+RunConfig.CATCH_TOLERANCE = 2.5 -- studs: dropping onto a car this close to its roof still lands on it
+RunConfig.BONK_BLINK = 0.7 -- seconds of blink before you are put back on a car
+-- The farthest a Hop's target may be from where the player is (studs), checked on the server too (BetaRun). One constant for both.
+RunConfig.HOP_REACH_MAX = 120
+-- Round 7 (R-04): driving into a car costs 1 bolt; then BUMP_GRACE seconds where another bump costs nothing (on the server too).
+RunConfig.BUMP_GRACE = 1.5
+-- Round 7 (R-02, Adam: Heat is "far too slow"): Heat now fills in the car's Keys time plus HEAT_TO_SPARE (so every claim is
+-- possible with 3 s to spare), which puts Heat Critical (0.85) at 6.8 s on a Common and 9.4 s on a Legendary in the Circuit
+-- profile the beta plays. At full Heat the car flashes red with a red "!" for HEAT_WARN_TIME, then throws you (1 bolt, as a bonk).
+RunConfig.HEAT_WARN_TIME = 1.0
 
 -- Forgiveness (Brian R, 2026-11-03: "a little easier"). Only used where contact ends the run.
 RunConfig.HIT_SCALE = 0.82 -- the crash box is this fraction of each car's size; closer is a graze
@@ -154,7 +179,11 @@ RunConfig.SIZE_ORDER = table.freeze({ "Giant", "Big", "Tiny", "Normal" } :: { Si
 -- although they should feel better). The size roll stays, so seeds keep using the random stream the
 -- same way; set a chance above 0 to bring a size back. Was Giant 0.03, Big 0.12, Tiny 0.12.
 RunConfig.SIZE_CHANCE = table.freeze({ Giant = 0, Big = 0, Tiny = 0, Normal = 1 } :: { [Size]: number })
-RunConfig.SIZE_SCALE = table.freeze({ Tiny = 0.72, Normal = 1, Big = 1.3, Giant = 1.6 } :: { [Size]: number })
+-- Round 7 (R-03, decision 0042 item 16): every road car is one size and bigger, 1.25 times the old Normal (Tunable; the hop reach,
+-- float reach and camera below were raised with it). Size never depends on rarity. Was Normal = 1.
+RunConfig.ROAD_CAR_SCALE = 1.25
+RunConfig.SIZE_SCALE =
+	table.freeze({ Tiny = 0.72, Normal = RunConfig.ROAD_CAR_SCALE, Big = 1.3, Giant = 1.6 } :: { [Size]: number })
 RunConfig.SIZE_LABEL =
 	table.freeze({ Tiny = "TINY ", Normal = "", Big = "BIG ", Giant = "GIANT " } :: { [Size]: string })
 
@@ -184,8 +213,8 @@ RunConfig.ALERT_RARITY = "Legendary"
 
 -- Chase camera (outline section 06), pulled a little higher and wider so the rider on the roof
 -- and the herd around them read like a stampede.
-RunConfig.CAMERA_BACK = 15
-RunConfig.CAMERA_UP = 8.5
+RunConfig.CAMERA_BACK = 18 -- Round 7 (R-03): pulled back for the bigger cars (was 15, 8.5 up)
+RunConfig.CAMERA_UP = 10
 RunConfig.CAMERA_LOOK_AHEAD = 34
 RunConfig.CAMERA_FOV = 70
 RunConfig.CAMERA_FOV_FAST = 80

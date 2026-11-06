@@ -22,6 +22,16 @@ CarTags.RARITY_TEXT = table.freeze({
 	Legendary = Color3.fromRGB(255, 212, 70),
 } :: { [RunConfig.Rarity]: Color3 })
 
+-- Round 7 (R-10): the rarity word's colour, Uncommon included (Brian L's roster has Uncommon cars; the run draws them from Commons).
+CarTags.WORD_COLOUR = table.freeze({
+	Common = Color3.fromRGB(255, 255, 255),
+	Uncommon = Color3.fromRGB(110, 230, 120),
+	Rare = Color3.fromRGB(80, 170, 255),
+	Epic = Color3.fromRGB(196, 110, 255),
+	Legendary = Color3.fromRGB(255, 205, 50),
+} :: { [string]: Color3 })
+CarTags.NEW_COLOUR = Color3.fromRGB(255, 70, 70)
+
 export type TagInfo = {
 	family: string,
 	rarity: RunConfig.Rarity,
@@ -63,19 +73,37 @@ function CarTags.title(info: TagInfo): string
 	return RunConfig.SIZE_LABEL[info.size] .. variant .. info.rarity .. " " .. info.family
 end
 
+-- Round 7 (R-10, Adam: the label "is too small to make him chase it"): three lines like the reference. The rarity word large and in
+-- its colour (an edition car says its edition first: "GOLD EPIC"), the car's name, and a red "new!" when you do not own it. Readable
+-- at speed (fixed pixel size), seen from further away the rarer the car. "Needs" (the Rider Level gate) stays for Brian R's
+-- playground; the beta hides it.
+CarTags.SEEN_FROM =
+	table.freeze({ Common = 70, Uncommon = 90, Rare = 150, Epic = 210, Legendary = 280 } :: { [string]: number })
+
+function CarTags.wordFor(rarity: string, variant: string?): string
+	local edition = if variant and variant ~= "None" then string.upper(variant) .. " " else ""
+	return edition .. string.upper(rarity)
+end
+
 function CarTags.attach(model: Model, info: TagInfo, height: number): BillboardGui
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Tag"
-	gui.Size = UDim2.fromOffset(220, 66)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, height + 4.5, 0)
-	gui.MaxDistance = 170
+	gui.Size = UDim2.fromOffset(260, 98)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, height + 5, 0)
+	-- seen from further away the rarer the car; a far Common tag only cluttered the horizon (2026-11-05 playtest: "COMMONCOMMON")
+	gui.MaxDistance = CarTags.SEEN_FROM[info.rarity] or 170
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
-	local title = text(gui, "Title", 0, 24, 18, CarTags.RARITY_TEXT[info.rarity])
-	title.Text = CarTags.title(info)
-	local odds = text(gui, "Odds", 22, 20, 16, CREAM)
-	odds.Text = CarTags.formatOdds(info.odds) .. (if info.owned then "  ·  owned" else "")
-	text(gui, "Needs", 42, 22, 16, OK)
+	local word = text(gui, "Rarity", 0, 34, 30, CarTags.WORD_COLOUR[info.rarity] or CREAM)
+	word.Text = CarTags.wordFor(info.rarity, info.variant)
+	local title = text(gui, "Title", 34, 26, 20, CREAM)
+	title.Text = RunConfig.SIZE_LABEL[info.size] .. info.family
+	local new = text(gui, "New", 60, 22, 20, CarTags.NEW_COLOUR)
+	new.Text = "new!"
+	new.TextStrokeColor3 = Color3.new(1, 1, 1)
+	new.Visible = not info.owned
+	local needs = text(gui, "Needs", 78, 20, 14, OK)
+	needs.Visible = false
 	gui.Adornee = (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) :: any
 	gui.Parent = model
 	return gui
