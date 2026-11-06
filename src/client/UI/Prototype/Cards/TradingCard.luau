@@ -54,7 +54,7 @@ export type Info = {
 	quirkLine: string?, -- one truthful line
 	variants: { Gold: boolean?, Chrome: boolean?, Rainbow: boolean? }?,
 	edition: number?, -- Round 4: the best edition reached, 1 Normal .. 5 Galaxy (nil = not owned)
-	copies: number?, -- copies held at that edition (the agreed Cars field's Copies, read as 0..24)
+	copies: number?, -- the agreed Cars field's Copies: lifetime copies (Round 6, E-02)
 	flavour: string?,
 	collectionNo: number?,
 	collectionTotal: number?,

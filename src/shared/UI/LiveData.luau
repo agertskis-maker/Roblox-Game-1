@@ -37,7 +37,7 @@ LiveData.Remotes = table.freeze({
 	UnlockWorld = "UnlockWorld",
 	Result = "BetaResult",
 	LapPaid = "BetaLapPaid",
-	RunGranted = "BetaRunGranted",
+	RunGranted = "RunGranted", -- Round 6: Brian L's name, in ReplicatedStorage.EconomyPreviewNet (BetaRunNet)
 	RunResults = "BetaRunResults",
 })
 

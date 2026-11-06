@@ -77,6 +77,9 @@ export type Spec = {
 	portraitImage: string?, -- the real portrait art once it exists; nil draws the UI-shape placeholder
 	text: string | ((remaining: number) -> string),
 	progress: Progress?,
+	-- Round 7 (A-05): a second bar under the first (Coach Roxy's locked portal: CARS and CASH, like the reference's goal card). With
+	-- two bars each row is "LABEL [ count ]" and the remaining-amount text is left to the speech bubble.
+	progress2: Progress?,
 	primary: Action?, -- default GOT IT! (closes)
 	ready: { text: string, primary: Action? }?,
 	onClose: (() -> ())?,
@@ -299,6 +302,7 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 	local totalChars = 0
 	local currentText = ""
 	local progress: Progress? = if spec.progress then table.clone(spec.progress) else nil
+	local progress2: Progress? = if spec.progress2 then table.clone(spec.progress2) else nil
 	local readyShown = false
 	local builtButton = ""
 	local priorSelection: GuiObject? = GuiService.SelectedObject
@@ -504,6 +508,32 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 	local countLabel = Arcade.text(track, { text = "", role = "Label", name = "Count", z = 11 })
 	countLabel.Size = UDim2.fromScale(1, 1)
 	countLabel.Position = UDim2.fromScale(0, 0)
+	-- the second bar (A-05), drawn only when spec.progress2 is set
+	local label2 = CardKit.ink(panel, "", 18, { name = "Label2", xAlign = Enum.TextXAlignment.Left, z = 9 })
+	local track2: Frame = make("Frame", {
+		Name = "Track2",
+		BackgroundColor3 = rgb(40, 52, 86),
+		BorderSizePixel = 0,
+		ZIndex = 8,
+		Visible = false,
+		Parent = panel,
+	})
+	Arcade.corner(track2, 9)
+	Arcade.outline(track2, "Minor")
+	local fill2: Frame = make("Frame", {
+		Name = "Fill",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(0, 1),
+		ZIndex = 9,
+		Parent = track2,
+	})
+	Arcade.corner(fill2, 9)
+	local fillGradient2: UIGradient = make("UIGradient", { Color = A.Fill.Garage, Rotation = 90, Parent = fill2 })
+	local count2 = Arcade.text(track2, { text = "", role = "Label", name = "Count", z = 11 })
+	count2.Size = UDim2.fromScale(1, 1)
+	count2.Position = UDim2.fromScale(0, 0)
+	label2.Visible = false
 
 	-- the primary button: rebuilt only when its size changes --------------------------------------------------------------
 	local primaryButton: Arcade.Button? = nil
@@ -672,6 +702,41 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		fill.Size = UDim2.fromScale(shownFraction, 1)
 		fill.Visible = shownFraction > 0
 		fillGradient.Color = if remaining == 0 then A.Fill.Green else A.Fill.Garage
+		local q = progress2
+		label2.Visible = q ~= nil
+		track2.Visible = q ~= nil
+		if q then
+			-- two rows: "LABEL [ count ]" each, the bar green once that goal is met
+			togoLabel.Visible = false
+			local half = math.floor((g.h - 12) / 2)
+			local function row(
+				lbl: TextLabel,
+				trk: Frame,
+				f: Frame,
+				grad: UIGradient,
+				cnt: TextLabel,
+				item: Progress,
+				y: number
+			)
+				local cur = math.min(math.max(math.floor(item.current), 0), math.max(math.floor(item.target), 0))
+				local frac = if item.target > 0 then math.clamp(item.current / item.target, 0, 1) else 0
+				lbl.Text = item.label
+				lbl.TextXAlignment = Enum.TextXAlignment.Left
+				lbl.Position = UDim2.fromOffset(10, y)
+				lbl.Size = UDim2.new(0.34, -10, 0, half)
+				trk.Position = UDim2.new(0.34, 0, 0, y + 2)
+				trk.Size = UDim2.new(0.66, -10, 0, half - 4)
+				f.Size = UDim2.fromScale(frac, 1)
+				f.Visible = frac > 0
+				grad.Color = if frac >= 1 then A.Fill.Green else A.Fill.Garage
+				cnt.Text = if item.cash
+					then Format.cash(cur) .. " / " .. Format.cash(item.target)
+					else string.format("%d / %d", cur, math.floor(item.target))
+			end
+			row(progressLabel, track, fill, fillGradient, countLabel, p, 4)
+			row(label2, track2, fill2, fillGradient2, count2, q, 8 + half)
+			return
+		end
 		local rowH = if geo.fit == "Compact" then 22 else 26
 		progressLabel.Position = UDim2.fromOffset(10, 4)
 		progressLabel.Size = UDim2.new(0.6, -10, 0, rowH)

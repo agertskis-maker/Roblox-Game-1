@@ -46,6 +46,9 @@ local ARROW_SIZE = 7 -- studs
 local BOUNCE_STUDS = 1.2
 local BOUNCE_HZ = 1.1
 local RING_RADIUS = 9 -- studs
+-- Standing this close (flat distance, studs) hides the arrow: the player has arrived, and the arrow would sit over the
+-- button they came for (2026-11-05, Adam: on the Park step it covered the parking sign's Park Cars button). The glow stays.
+local ARRIVED_STUDS = 14
 local GOLD = Color3.fromRGB(255, 226, 84)
 local HAND_SIZE = 60 -- design px
 local TAP_SECONDS = 1.8
@@ -215,7 +218,8 @@ function Guide.setGround(self: any, position: Vector3?, options: { radius: numbe
 	trove:Add(function()
 		Motion.cancelAll(grow)
 	end)
-	self._groundParts = { anchor = anchor, grow = grow, outer = outer, inner = inner, base = base, height = height }
+	self._groundParts =
+		{ anchor = anchor, gui = gui, grow = grow, outer = outer, inner = inner, base = base, height = height }
 	self:_applyGrow()
 	self:_refreshLoop()
 end
@@ -399,6 +403,13 @@ function Guide._tick(self: any)
 		local bounce = if reduced then 0 else math.sin(now * 2 * math.pi * BOUNCE_HZ) * BOUNCE_STUDS
 		local anchor: Part = parts.anchor
 		anchor.Position = base + Vector3.new(0, (parts.height :: number) + bounce, 0)
+		local character = Players.LocalPlayer.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local gui: BillboardGui = parts.gui
+		if root and root:IsA("BasePart") then
+			local flat = Vector3.new(root.Position.X - base.X, 0, root.Position.Z - base.Z)
+			gui.Enabled = flat.Magnitude > ARRIVED_STUDS
+		end
 		if not reduced then
 			local k = 0.5 + 0.5 * math.sin(now * 2 * math.pi * 0.8)
 			local outer: Part = parts.outer

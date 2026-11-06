@@ -53,11 +53,12 @@ return {
 			ColorShift_Bottom = Color3.new(0, 0, 0),
 		},
 		atmosphere = {
+			-- Round 7 (R-09): a warm sand colour instead of near white
 			density = 0.2,
-			offset = 0.22,
-			colour = rgb(238, 214, 178),
-			decay = rgb(196, 150, 110),
-			haze = 1.8,
+			offset = 0.2,
+			colour = rgb(226, 182, 132),
+			decay = rgb(186, 128, 84),
+			haze = 1.0,
 		},
 		grade = { brightness = 0.03, contrast = 0.08, saturation = 0.12, tint = rgb(255, 246, 232) },
 	},
