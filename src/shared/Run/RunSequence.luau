@@ -16,6 +16,7 @@
 
 local Families = require(script.Parent.Families)
 local RunConfig = require(script.Parent.RunConfig)
+local Luck = require(script.Parent.Luck)
 
 export type Spawn = {
 	index: number,
@@ -35,6 +36,7 @@ export type Spawn = {
 export type RunSequence = {
 	seed: number,
 	profile: RunConfig.Profile,
+	luck: number,
 	ensure: (self: RunSequence, distance: number) -> { Spawn },
 	get: (self: RunSequence, index: number) -> Spawn?,
 	alongAt: (self: RunSequence, spawn: Spawn, t: number) -> number,
@@ -53,21 +55,17 @@ local RunSequence = {}
 RunSequence.__index = RunSequence
 RunSequence.PAINTS = PAINTS
 
-local function weightsAt(distance: number): { [string]: number }
-	local a = math.clamp(RunConfig.toMetres(distance) / 3000, 0, 1)
-	local w = {
-		Legendary = 0.006 + 0.024 * a,
-		Epic = 0.03 + 0.07 * a,
-		Rare = 0.15 + 0.1 * a,
-	}
-	w.Common = 1 - w.Legendary - w.Epic - w.Rare
-	return w
+-- Round 7 (L-02): the odds of each rarity come from the one shared rule in Luck (Brian L's x2 on Rare, Epic and Legendary is
+-- kept there, with the brief's luck factors and 35% Common floor). `luck` (1 = none) is the player's Lucky Clover multiplier,
+-- handed out with the seed, so the server rebuilds the same traffic.
+local function weightsAt(distance: number, luck: number?): { [string]: number }
+	return Luck.weightsAt(distance, luck) :: any
 end
 
 local RARITY_ORDER: { RunConfig.Rarity } = { "Legendary", "Epic", "Rare", "Common" }
 
-local function pickRarity(rng: Random, distance: number): RunConfig.Rarity
-	local w = weightsAt(distance)
+local function pickRarity(rng: Random, distance: number, luck: number): RunConfig.Rarity
+	local w = weightsAt(distance, luck)
 	local roll = rng:NextNumber()
 	local acc = 0
 	for _, rarity: RunConfig.Rarity in RARITY_ORDER do
@@ -146,9 +144,10 @@ function RunSequence.oddsFor(
 	family: Families.Family,
 	rarity: RunConfig.Rarity,
 	size: RunConfig.Size,
-	distance: number
+	distance: number,
+	luck: number?
 ): number
-	local p = weightsAt(distance)[rarity] * (family.weight / allowedWeight(rarity)) * sizeChance(size)
+	local p = weightsAt(distance, luck)[rarity] * (family.weight / allowedWeight(rarity)) * sizeChance(size)
 	return math.max(1, math.round(1 / math.max(p, 1e-9)))
 end
 
@@ -171,7 +170,7 @@ function RunSequence.variantFor(spawn: Spawn, owned: boolean): RunConfig.Variant
 	return "None"
 end
 
-function RunSequence.new(seed: number, profile: RunConfig.Profile?): RunSequence
+function RunSequence.new(seed: number, profile: RunConfig.Profile?, luck: number?): RunSequence
 	local rng = Random.new(seed)
 	local nextStart = {}
 	for lane = 1, RunConfig.LANES do
@@ -180,6 +179,7 @@ function RunSequence.new(seed: number, profile: RunConfig.Profile?): RunSequence
 	local self = setmetatable({
 		seed = seed,
 		profile = profile or RunConfig.profile(nil),
+		luck = Luck.clamp(luck),
 		_rng = rng,
 		_spawns = {},
 		_nextStart = nextStart,
@@ -199,7 +199,7 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 			break
 		end
 		local rng = self._rng
-		local rarity: RunConfig.Rarity = pickRarity(rng, start)
+		local rarity: RunConfig.Rarity = pickRarity(rng, start, self.luck)
 		local family = pickFamily(rng, rarity)
 		local size: RunConfig.Size = pickSize(rng)
 		local length = family.length * RunConfig.SIZE_SCALE[size]
@@ -215,7 +215,7 @@ function RunSequence.ensure(self: RunSequence, distance: number): { Spawn }
 			phase = rng:NextNumber(0, 2 * math.pi),
 			variantRoll = rng:NextNumber(),
 			needs = RunConfig.needsFor(rarity, size),
-			odds = RunSequence.oddsFor(family, rarity, size, start),
+			odds = RunSequence.oddsFor(family, rarity, size, start, self.luck),
 		})
 		table.insert(self._spawns, spawn)
 		-- Herds come in bunches: mostly short gaps, sometimes a long open stretch to steer through.
