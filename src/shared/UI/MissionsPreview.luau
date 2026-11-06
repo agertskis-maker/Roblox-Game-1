@@ -114,7 +114,7 @@ end
 
 -- STARTER (9): the first few minutes, in the order the loop is learned
 currentTab = "Starter"
-add(m("first-catch", 1, "Catch your first car!", "Keys", "cars", 2, spot(3, 0.2)))
+add(m("first-catch", 1, "Have 2 cars: catch your first!", "Keys", "cars", 2, spot(3, 0.2)))
 add(m("first-hop", 1, "Hop onto a car.", "HopCar", "hops", 1, 100))
 add(m("first-run", 1, "Finish a run.", "Flag", "runs", 1, 100))
 add(m("park-it", 1, "Park a car on your Raceway.", "Track", "parked", 2, spot(3, 0.3)))

@@ -797,7 +797,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	KioskSign.attach(stands.Luck, {
 		title = "LUCKY CLOVER",
 		colour = Color3.fromRGB(110, 230, 120),
-		height = luckTop + 3,
+		height = luckTop + 11, -- above the Pit Stop's sign, so the two never overlap
 		read = function(): (string, string?)
 			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.LuckAttribute)) or 0
 			if level >= EconomyPreview.LuckMaxLevel then

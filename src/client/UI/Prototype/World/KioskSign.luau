@@ -59,7 +59,7 @@ end
 function KioskSign.attach(part: BasePart, options: Options): () -> ()
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Lane3KioskSign"
-	gui.Size = UDim2.fromScale(9, 3.6) -- studs
+	gui.Size = UDim2.fromScale(12, 4.8) -- studs (reviewer, 2026-11-05: 9 x 3.6 was too small to read from 20 studs)
 	gui.StudsOffset = Vector3.new(0, options.height or 8, 0)
 	gui.LightInfluence = 0
 	gui.MaxDistance = 90

@@ -458,6 +458,13 @@ function HomeShell.start(options: Options?): any
 				return if LiveData.active() then MissionFeed.claimable() else nil
 			end,
 			getGoalLine = function(): string?
+				-- not over an open Raceway or parking card (reviewer, 2026-11-05: it drew over the card's top)
+				local found, cardOpen = pcall(function()
+					return (require :: any)(script.Parent.Parent.Home.Island.Speedway.ShopPanel).isOpen()
+				end)
+				if found and cardOpen then
+					return nil
+				end
 				return if LiveData.active() then MissionFeed.goalLine() else nil
 			end,
 			onSettings = function()

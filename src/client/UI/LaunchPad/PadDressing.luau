@@ -175,15 +175,15 @@ local function roadClosed(k: any, theme: any)
 	for i = 1, 5 do
 		local x = -wide / 2 + i * wide / 6
 		local cone = CFrame.new(x, y, z + 3)
-		k:cyl("ConeBase", 1.8, 0.3, cone * CFrame.new(0, 0.15, 0), rgb(255, 120, 30))
-		k:cyl("Cone", 0.9, 2.2, cone * CFrame.new(0, 1.3, 0), rgb(255, 120, 30))
-		k:cyl("ConeStripe", 1, 0.4, cone * CFrame.new(0, 1.4, 0), rgb(255, 255, 255))
+		k:cyl("ConeBase", 2.6, 0.4, cone * CFrame.new(0, 0.2, 0), rgb(255, 120, 30))
+		k:cyl("Cone", 1.4, 3.4, cone * CFrame.new(0, 2, 0), rgb(255, 120, 30))
+		k:cyl("ConeStripe", 1.5, 0.6, cone * CFrame.new(0, 2.2, 0), rgb(255, 255, 255))
 	end
-	local board = k:box("ClosedSign", Vector3.new(10, 3.4, 0.4), CFrame.new(0, y + 6.4, z - 0.2), theme.trim)
+	local board = k:box("ClosedSign", Vector3.new(16, 6, 0.4), CFrame.new(0, y + 8, z - 0.2), theme.trim)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Back
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 40
+	gui.PixelsPerStud = 30
 	gui.LightInfluence = 0
 	gui.Parent = board
 	local label = Instance.new("TextLabel")
@@ -193,9 +193,15 @@ local function roadClosed(k: any, theme: any)
 	label.TextScaled = true
 	label.TextColor3 = INK
 	label.Text = "ROAD CLOSED\nRUNS START AT THE RAMP"
+	local inset = Instance.new("UIPadding")
+	inset.PaddingLeft = UDim.new(0.04, 0)
+	inset.PaddingRight = UDim.new(0.04, 0)
+	inset.PaddingTop = UDim.new(0.06, 0)
+	inset.PaddingBottom = UDim.new(0.06, 0)
+	inset.Parent = label
 	label.Parent = gui
 	for _, s in { -1, 1 } do
-		k:box("SignPost", Vector3.new(0.5, 5, 0.5), CFrame.new(s * 4, y + 2.5, z - 0.2), STEEL)
+		k:box("SignPost", Vector3.new(0.5, 5, 0.5), CFrame.new(s * 6.5, y + 2.5, z - 0.2), STEEL)
 	end
 	-- the invisible wall: as wide as the road and tall enough that no jump clears it
 	local wall = k:box("RoadClosedWall", Vector3.new(wide + 8, 40, 1), CFrame.new(0, y + 20, z - 3), INK, nil, true)
