@@ -595,11 +595,11 @@ if RunService:IsStudio() then
 				rig:setPaint(item)
 			end
 			return #RealCar.list()
-		elseif command == "scenery" and type(arg) == "string" then
+		elseif command == "scenery" then
 			-- Round 7 (R-08): a pretend run at a set distance ("scenery:Downtown/9500", "scenery:off"), to check the World keeps
 			-- coming in laps without driving 10 minutes. Reports each World folder standing and how far its nearest part is
 			-- from where the car would be.
-			if arg == "off" then
+			if arg == false or arg == "off" then -- the attribute bridge turns "off" into false
 				if fakeScenery then
 					fakeScenery.ended:Fire()
 					fakeScenery.handle:destroy()
@@ -607,7 +607,7 @@ if RunService:IsStudio() then
 				end
 				return "off"
 			end
-			local world, at = string.match(arg, "^(%a+)/(%d+)$")
+			local world, at = string.match(tostring(arg), "^(%a+)/(%d+)$")
 			if not (world and at) then
 				return "use World/studs"
 			end
@@ -643,7 +643,7 @@ if RunService:IsStudio() then
 				end
 			end
 			return table.concat(out, " | ")
-		elseif command == "aura" and type(arg) == "string" then
+		elseif command == "aura" then
 			-- Round 7 (K-01): "Cruiser/1,Executive/1,Bolt/1,Minnow/4" parks those cars with their Raceway aura in front of you
 			local RacewayAura = require(UI.Prototype.Style.RacewayAura) :: any
 			local old = workspace:FindFirstChild("Lane3AuraTest")
@@ -654,12 +654,12 @@ if RunService:IsStudio() then
 			folder.Name = "Lane3AuraTest"
 			folder.Parent = workspace
 			local at = root()
-			if not at or arg == "off" then
+			if not at or arg == false or arg == "off" then
 				return "off"
 			end
 			local base = (at :: BasePart).CFrame * CFrame.new(-18, -2.5, -26)
 			local n = 0
-			for entry in string.gmatch(arg, "[^,]+") do
+			for entry in string.gmatch(tostring(arg), "[^,]+") do
 				local name, ed = string.match(entry, "^(.-)/(%d)$")
 				if name then
 					local rig = RealCar.mount(folder, { length = 12.6, height = 5.2 })
