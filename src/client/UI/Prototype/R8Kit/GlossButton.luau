@@ -327,11 +327,20 @@ function GlossButton.new(parent: GuiObject, props: Props): Button
 		Size = UDim2.fromScale(0.92, 0.8),
 		TextColor3 = Palette.Navy,
 		TextTruncate = Enum.TextTruncate.None,
-		TextWrapped = true,
+		TextWrapped = false,
+		TextScaled = true,
 		ZIndex = 5,
 		Visible = false,
 	})
-	metrics:bindText(trove, message, 40)
+	-- one line scaled to fit the body (up to 40 design px, never under the 16 real px minimum)
+	local messageLimit: UITextSizeConstraint = Build.make("UITextSizeConstraint", {
+		MaxTextSize = 40,
+		MinTextSize = metrics:textSize(16),
+		Parent = message,
+	})
+	trove:Add(metrics.changed:Connect(function()
+		messageLimit.MinTextSize = metrics:textSize(16)
+	end))
 	-- the green "+" of the cannot-afford state
 	local plus: ImageButton = Build.make("ImageButton", {
 		Name = "Plus",
@@ -568,8 +577,8 @@ function Obj.setState(self: any, state: State, info: Info?)
 		end
 		self.message.Visible = true
 		self.message.TextColor3 = Palette.Navy
-		self.message.Position = UDim2.fromScale(0.04, 0.5)
-		self.message.Size = UDim2.fromScale(0.92, 0.8)
+		self.message.Position = UDim2.fromScale(0.13, 0.5)
+		self.message.Size = UDim2.fromScale(0.74, 0.8)
 		self.message.Text = i.maxText or "MAX LEVEL"
 		self.message.TextXAlignment = Enum.TextXAlignment.Center
 		if self.rosette.Visible then
@@ -586,8 +595,8 @@ function Obj.setState(self: any, state: State, info: Info?)
 		self.message.Visible = true
 		self.message.TextColor3 = Color3.new(1, 1, 1)
 		self.message.Text = i.doneText or "DONE!"
-		self.message.Position = UDim2.fromScale(0.04, 0.5)
-		self.message.Size = UDim2.fromScale(0.92, 0.8)
+		self.message.Position = UDim2.fromScale(0.13, 0.5)
+		self.message.Size = UDim2.fromScale(0.74, 0.8)
 		self.message.TextXAlignment = Enum.TextXAlignment.Center
 		if self.message:FindFirstChildOfClass("UIStroke") == nil then
 			Build.stroke(self.message, 6, Palette.NavyDeep, Enum.ApplyStrokeMode.Contextual)
