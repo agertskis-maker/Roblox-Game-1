@@ -288,7 +288,7 @@ local function padlock(parent: Instance, cx: number, cy: number)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(cx, cy),
 		Size = UDim2.fromOffset(bodyW, bodyH),
-		BackgroundColor3 = GOLD,
+		BackgroundColor3 = WHITE, -- coloured by the gradient below (a gradient multiplies the fill)
 		ZIndex = 3,
 	}, parent)
 	round(body, 12)
@@ -320,7 +320,7 @@ local function drawLocked(group: CanvasGroup, w: number, h: number, price: strin
 		Name = "Slab",
 		Position = UDim2.fromOffset(4, 4),
 		Size = UDim2.fromOffset(w - 8, h - 8),
-		BackgroundColor3 = Color3.fromRGB(24, 28, 42),
+		BackgroundColor3 = WHITE, -- coloured by the stripes below
 		BackgroundTransparency = 0.05,
 	}, group)
 	round(slab, 14)

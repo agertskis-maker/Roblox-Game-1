@@ -30,7 +30,6 @@ local OTHERS_FROM = 520 -- studs: the island centre is about 400 from every badg
 local ISLAND_RADIUS = 900 -- the player counts as "on the island" inside this distance of its centre, below ISLAND_TOP
 local ISLAND_TOP = 300
 local OTHERS_SCALE = 0.58 -- the size of another player's badge against yours
-local GOLD = Color3.fromRGB(247, 198, 76)
 local GOLD_LIGHT = Color3.fromRGB(255, 232, 140)
 local GOLD_DEEP = Color3.fromRGB(226, 150, 24)
 local WHITE = Color3.fromRGB(255, 255, 255)
@@ -80,7 +79,7 @@ local function avatar(parent: Instance, s: number, mine: boolean): Frame
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0),
 		Size = UDim2.fromOffset(size, size),
-		BackgroundColor3 = if mine then GOLD else WHITE,
+		BackgroundColor3 = WHITE, -- the gradient below gives the colours (a gradient multiplies the fill)
 	}, parent)
 	make("UICorner", { CornerRadius = UDim.new(1, 0) }, ring)
 	outline(ring, px(4, s), NAVY)
@@ -221,7 +220,7 @@ local function watch(plot: Model)
 				AnchorPoint = Vector2.new(0.5, 0),
 				Position = UDim2.new(0.5, 0, 0, ribbonY),
 				Size = UDim2.fromOffset(px(RIBBON.X, s), px(RIBBON.Y, s)),
-				BackgroundColor3 = GOLD,
+				BackgroundColor3 = WHITE, -- coloured by the gradient below
 				ZIndex = 2,
 			}, root)
 			make("UICorner", { CornerRadius = UDim.new(0, px(8, s)) }, ribbon)
