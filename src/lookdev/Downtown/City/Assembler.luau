@@ -518,8 +518,9 @@ end
 
 -- Construction --------------------------------------------------------------------------------
 
+-- City.new is the only caller and decides where a city may build (City's gate: Studio, or an embedded preview city in a
+-- live game, 2026-11-05).
 function Assembler.new(plan: Sequencer.Plan, options: Options?): Assembler
-	assert(RunService:IsStudio(), "the Downtown city preview runs only in Roblox Studio")
 	local opts = options or {}
 	local parent = opts.parent or Workspace
 	local name = opts.name or Assembler.ROOT_NAME

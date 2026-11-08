@@ -29,6 +29,11 @@ function PortalPreviewState.isLocked(world: string): boolean
 	if LiveData.hasWorlds() then
 		return not LiveData.worlds()[world]
 	end
+	-- Car Hop Beta, Round 5 (decision 0039): Worlds open for real now (the save's WorldsUnlocked). Until the save has loaded
+	-- only Downtown is open; the old "every portal open" beta switch (TestLockedPortals) is gone.
+	if game:GetService("ReplicatedStorage"):FindFirstChild("CarHopBeta") then
+		return world ~= "Downtown"
+	end
 	if RunService:IsStudio() then
 		local v = Players.LocalPlayer:GetAttribute(PREFIX .. world)
 		if type(v) == "boolean" then

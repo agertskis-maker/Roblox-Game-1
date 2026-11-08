@@ -40,12 +40,12 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	{ icon = "Raceway", title = "Cars pay you", text = "Park cars. Every lap pays!" },
-	{ icon = "Garage", title = "Keep your catches", text = "Cars you catch are saved." },
-	{ icon = "Shop", title = "Spend your Cash", text = "Level up, buy spots." },
-	{ icon = "Portal", title = "Open new Worlds", text = "Catch 5 cars, then unlock." },
+	{ icon = "Hop", title = "Better hops", text = "Flip, land and ride!" },
+	{ icon = "Shop", title = "Stamina Shop", text = "More bolts at every hub." },
+	{ icon = "Garage", title = "Real cars on the road", text = "Catch the car you see." },
+	{ icon = "Portal", title = "Worlds on the road", text = "Cities beside every run." },
 }
-HomeShell.UpdateVersion = "beta-2.3"
+HomeShell.UpdateVersion = "beta-4.0" -- the beta driving update (2026-11-05)
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}

@@ -24,6 +24,7 @@ local Workspace = game:GetService("Workspace")
 local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
 local RunStamina = require(script.RunStamina)
+local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
@@ -300,6 +301,9 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
+	if StaminaPanel.isOpen() then
+		return true
+	end
 	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
 		local c = panel(key)
 		if c and c.isOpen and c:isOpen() then
@@ -320,6 +324,8 @@ end
 local function openStall(key: string)
 	if key == "Cars" then
 		panel("carStall"):open(world)
+	elseif key == "Stamina" then
+		StaminaPanel.open() -- 2026-11-05: the Stamina Shop
 	elseif key == "Trails" then
 		openCustomize("Trails")
 	else
@@ -705,7 +711,11 @@ begin = function()
 		local run = h.startRun(world)
 		runTrove:Add(RunCamera.attach(), "destroy")
 		stamina = runTrove:Add(
-			RunStamina.attach(run, { max = if isTutorial() then RunStamina.TutorialMax else nil }),
+			RunStamina.attach(run, {
+				max = if isTutorial()
+					then math.max(RunStamina.TutorialMax, RunStamina.playerMax())
+					else RunStamina.playerMax(),
+			}),
 			"destroy"
 		)
 		attachTrail()
@@ -888,7 +898,7 @@ function LaunchPad.attachShell(s: any)
 			padTrove:Clean()
 			countdown()
 		end,
-		hops = RunStamina.Max,
+		hops = RunStamina.playerMax,
 		onChangeCar = function()
 			panel("carStall"):open(world)
 		end,
@@ -1003,6 +1013,9 @@ function LaunchPad.lockedAway()
 			if spec then
 				Dialogue.clearSuppression(spec.key)
 			end
+			-- the live card too (liveLock's key): without this, GOT IT once kept the card, and its UNLOCK, away all session
+			-- (found 2026-11-05)
+			Dialogue.clearSuppression("portal:live:" .. place)
 		end
 	end)
 end
