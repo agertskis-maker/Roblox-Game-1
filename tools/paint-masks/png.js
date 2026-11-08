@@ -29,11 +29,12 @@ function encode(w, h, data, channels) {
 }
 function decode(buf) {
   let p = 8, w, h, ct, bd, idat = [], plte = null;
-  while (p < buf.length) {
+  while (p + 12 <= buf.length) {
     const len = buf.readUInt32BE(p); const type = buf.toString('latin1', p + 4, p + 8); const d = buf.subarray(p + 8, p + 8 + len);
     if (type === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); bd = d[8]; ct = d[9]; }
     else if (type === 'PLTE') plte = d;
     else if (type === 'IDAT') idat.push(d);
+    else if (type === 'IEND') break;
     p += 12 + len;
   }
   const raw = zlib.inflateSync(Buffer.concat(idat));
