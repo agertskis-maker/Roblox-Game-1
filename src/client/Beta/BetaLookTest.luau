@@ -240,6 +240,7 @@ function BetaLookTest.run(ctx: Context): { string }
 	)
 
 	-- 2. the real launch --------------------------------------------------------------------------------------------------------
+	ctx.control("autopilot", true) -- steers round the car ahead so the run lasts long enough to hop
 	ctx.control("launch", "Downtown")
 	local boarded = waitFor(30, function()
 		return ridden() ~= nil
@@ -360,6 +361,7 @@ function BetaLookTest.run(ctx: Context): { string }
 			)
 		end
 	end
+	ctx.control("autopilot", false)
 	ctx.control("end")
 	task.wait(3)
 	ctx.control("home")
