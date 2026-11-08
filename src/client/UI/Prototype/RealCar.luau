@@ -9,8 +9,9 @@
 --   rig.source -> the car's name, "Supercar" or nil        rig:destroy()
 --   RealCar.thumb(holder, name) -> ViewportFrame?          RealCar.isAnimated(item?) -> boolean
 --
--- HOW IT DRAWS. The cars' textures are baked per car, so the Supercar's shells cannot map onto them. Paint is a see-through coloured
--- copy of the body, which keeps the car's detail (it tints the glass too); pattern paints show their first colour. Wheels hide the
+-- HOW IT DRAWS. On a rebuilt car (its glass is a separate "windows" part) paint replaces the body part's colour and nothing else.
+-- On an older one-piece car, paint is a see-through coloured copy of the body (it tints the glass too); pattern paints show their
+-- first colour. Wheels hide the
 -- car's own and put the game's tyre and rim at each wheel. "Factory Paint" and "Stock Five" leave the car as Brian L made it.
 -- Decals do not reach a real car yet: the decal images are the Supercar's own texture sheets or pictures of it, so the Decals tab
 -- shows the design on its card and says so. Flat decal art is the fix.
@@ -208,13 +209,24 @@ local function buildBody(entry: Entry, length: number, height: number): any
 	wash.Transparency = 1
 	wash.Parent = model
 	self._wash = wash
+	-- Rebuilt cars (Brian L, 2026-11-08) keep the glass, lights and trim as their own parts, so paint can replace the body's
+	-- colour outright and never touches them. One-piece cars keep the see-through wash, which tints their glass too.
+	self._solid = model:FindFirstChild("windows", true) ~= nil or model:FindFirstChild("windscreen", true) ~= nil
+	self._bodyTexture = self._body.TextureID
+	self._bodyColour = self._body.Color
+	self._bodyMaterial = self._body.Material
 	return self
 end
 
 function Body.tick(self: any, phase: number)
 	local item = self._paint
 	if item and item.kind == "animated" then
-		self._wash.Color = sample(item.colours, phase)
+		local colour = sample(item.colours, phase)
+		if self._solid then
+			self._body.Color = colour
+		else
+			self._wash.Color = colour
+		end
 	end
 end
 
@@ -222,10 +234,23 @@ function Body.setPaint(self: any, item: Catalog.Item?, phase: number?)
 	self._paint = item
 	if not item or item.id == "factory_paint" then
 		self._wash.Transparency = 1
+		if self._solid then
+			self._body.TextureID = self._bodyTexture
+			self._body.Color = self._bodyColour
+			self._body.Material = self._bodyMaterial
+		end
 		return
 	end
-	self._wash.Transparency = WASH
-	self._wash.Color = item.colours[1]
+	if self._solid then
+		-- the body alone takes the paint; its own texture goes so the colour is clean
+		self._wash.Transparency = 1
+		self._body.TextureID = ""
+		self._body.Material = Enum.Material.SmoothPlastic
+		self._body.Color = item.colours[1]
+	else
+		self._wash.Transparency = WASH
+		self._wash.Color = item.colours[1]
+	end
 	self:tick(phase or 0.18)
 end
 
