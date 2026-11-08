@@ -603,12 +603,27 @@ end
 -- Layout and building
 ----------------------------------------------------------------------------------------------------
 
+-- STUDIO TEST HOOK: the LocalPlayer attribute Lane3ScreenProfile ("PhoneLandscape", "Tablet") lays the card out for that screen
+-- (the viewport and the notch insets of Prototype/Screen's profiles), centred in the real window, so the phone card can be
+-- checked at its true pixel size. Studio only; ignored in a live game.
+local STUDIO_PROFILES: { [string]: { size: Vector2, pad: Vector2 } } = {
+	PhoneLandscape = { size = Vector2.new(844, 390), pad = Vector2.new(94, 0) },
+	Tablet = { size = Vector2.new(1180, 820), pad = Vector2.new(0, 78) },
+}
+
 local function computeScale(card: Card): (number, boolean)
 	local camera = Workspace.CurrentCamera
 	local viewport = if camera then camera.ViewportSize else card.gui.AbsoluteSize
 	local avail = card.gui.AbsoluteSize
 	if avail.X <= 0 or avail.Y <= 0 then
 		avail = viewport
+	end
+	local player = Players.LocalPlayer
+	local profile = if RunService:IsStudio() and player then player:GetAttribute("Lane3ScreenProfile") else nil
+	local emulated = if type(profile) == "string" then STUDIO_PROFILES[profile] else nil
+	if emulated then
+		viewport = emulated.size
+		avail = emulated.size - emulated.pad
 	end
 	local compact = math.min(viewport.X, viewport.Y) < COMPACT_SHORT_SIDE
 	local widthShare = if compact then 0.86 else 0.62
@@ -785,10 +800,13 @@ end
 
 local function createCard(source: Source, host: Host, playerGui: PlayerGui): Card
 	local root = Trove.new()
+	-- a phone gives the card the whole height (only the notch is kept clear); anything bigger keeps clear of the top bar too
+	local camera = Workspace.CurrentCamera
+	local phone = camera ~= nil and math.min(camera.ViewportSize.X, camera.ViewportSize.Y) < COMPACT_SHORT_SIDE
 	local gui: ScreenGui = Build.make("ScreenGui", {
 		Name = "Lane3RacewayPanel",
 		ResetOnSpawn = false,
-		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		ScreenInsets = if phone then Enum.ScreenInsets.DeviceSafeInsets else Enum.ScreenInsets.CoreUISafeInsets,
 		DisplayOrder = DISPLAY_ORDER,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = playerGui,
