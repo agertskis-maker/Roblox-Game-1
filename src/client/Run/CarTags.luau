@@ -109,6 +109,28 @@ function CarTags.attach(model: Model, info: TagInfo, height: number): BillboardG
 	return gui
 end
 
+-- Round 8 (R-01): the label of the car the Hop would land on grows a little (HopGuide eases `amount` from 0 to 1 and back). A UIScale
+-- scales the content and the billboard grows with it, so the label stays centred on its car.
+CarTags.FOCUS_GROWTH = 0.22
+local TAG_WIDTH, TAG_HEIGHT = 260, 98
+function CarTags.setFocus(gui: BillboardGui, amount: number)
+	local found = gui:FindFirstChild("FocusScale")
+	local scale: UIScale
+	if found and found:IsA("UIScale") then
+		scale = found
+	else
+		if amount <= 0 then
+			return
+		end
+		scale = Instance.new("UIScale")
+		scale.Name = "FocusScale"
+		scale.Parent = gui
+	end
+	local s = 1 + CarTags.FOCUS_GROWTH * math.clamp(amount, 0, 1)
+	scale.Scale = s
+	gui.Size = UDim2.fromOffset(TAG_WIDTH * s, TAG_HEIGHT * s)
+end
+
 -- Colours "Needs N" green when the Rider Level is enough, red when it is not.
 function CarTags.setLevel(gui: BillboardGui, needs: number, level: number)
 	local label = gui:FindFirstChild("Needs")
