@@ -55,7 +55,7 @@ local PILL = Color3.fromRGB(255, 232, 150)
 local GREY = Color3.fromRGB(150, 158, 178)
 local WHITE = Color3.new(1, 1, 1)
 
-local KEEP_ROWS = 2 -- car tiles further than this many rows off screen are let go
+local KEEP_ROWS = 1 -- car tiles further than this many rows off screen are let go
 local BUILD_ROWS = 1 -- and tiles this close to the screen are built ahead of the scroll
 
 local function text(

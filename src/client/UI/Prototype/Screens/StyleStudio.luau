@@ -333,9 +333,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		ZIndex = 3,
 	}, root) :: Frame
 
-	local tabH = if phone then 40 else 54
-	local actionH = if phone then 46 else 62
-	local lineH = if phone then 18 else 26
+	local tabH = if phone then 36 else 54
+	local actionH = if phone then 42 else 62
+	local lineH = if phone then 16 else 26
 	local gapT = 6
 	local tabW = (rightW - gapT * (#tabNames - 1)) / #tabNames
 	local tabRefs: { [string]: any } = {}
@@ -680,7 +680,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			else 3
 		local padding = 8
 		local cellW = math.floor((rightW - 22 - padding * (columns - 1)) / columns)
-		local cellH = math.round(cellW * (if phone then 0.92 else 1.02))
+		local cellH = math.round(cellW * (if phone then 0.84 else 1.02))
 		gridLayout.CellSize = UDim2.fromOffset(cellW, cellH)
 		gridLayout.CellPadding = UDim2.fromOffset(padding, padding)
 		grid = ShopGrid.new(gridHost, {
