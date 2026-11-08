@@ -19,6 +19,7 @@ local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaRide = require(script.Parent.BetaRide)
 local BetaStyle = require(script.Parent.BetaStyle)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 
 local BetaLookTest = {}
 
@@ -118,6 +119,16 @@ function BetaLookTest.start()
 		return
 	end
 	local function watch(player: Player)
+		-- Studio test saves only: BetaTestGrantCar = "Pizza Runner" puts that car in the Garage (for frames of the car pick)
+		player:GetAttributeChangedSignal("BetaTestGrantCar"):Connect(function()
+			local id = player:GetAttribute("BetaTestGrantCar")
+			local data = BetaData.get(player)
+			if type(id) == "string" and data and BetaData.isTestSave() and RosterFixtures.byId(id) then
+				data.Cars[id] = { Edition = 1, Copies = 0 }
+				BetaEconomy.publishCars(player, data)
+				player:SetAttribute("BetaTestGrantCar", nil)
+			end
+		end)
 		player:GetAttributeChangedSignal("BetaSelfTest"):Connect(function()
 			local which = player:GetAttribute("BetaSelfTest")
 			if which ~= "look" then
