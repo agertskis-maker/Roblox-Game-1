@@ -109,26 +109,35 @@ function CarTags.attach(model: Model, info: TagInfo, height: number): BillboardG
 	return gui
 end
 
--- Round 8 (R-01): the label of the car the Hop would land on grows a little (HopGuide eases `amount` from 0 to 1 and back). A UIScale
--- scales the content and the billboard grows with it, so the label stays centred on its car.
+-- Round 8 (R-01): the label of the car the Hop would land on grows a little (HopGuide eases `amount` from 0 to 1 and back). Each line's
+-- position, size and text size are scaled from the numbers in CarTags.attach, and the billboard grows with them, so the label stays
+-- centred on its car. (Plain properties, not a UIScale: a fixed set of four lines.)
 CarTags.FOCUS_GROWTH = 0.22
 local TAG_WIDTH, TAG_HEIGHT = 260, 98
+local TAG_LINES: { [string]: { number } } = { -- name -> { y, height, text size }, as built in CarTags.attach
+	Rarity = { 0, 34, 30 },
+	Title = { 34, 26, 20 },
+	New = { 60, 22, 20 },
+	Needs = { 78, 20, 14 },
+}
+local focusOf: { [BillboardGui]: number } = setmetatable({}, { __mode = "k" }) :: any
 function CarTags.setFocus(gui: BillboardGui, amount: number)
-	local found = gui:FindFirstChild("FocusScale")
-	local scale: UIScale
-	if found and found:IsA("UIScale") then
-		scale = found
-	else
-		if amount <= 0 then
-			return
-		end
-		scale = Instance.new("UIScale")
-		scale.Name = "FocusScale"
-		scale.Parent = gui
+	local a = math.clamp(amount, 0, 1)
+	local last = focusOf[gui] or 0
+	if math.abs(a - last) < 0.004 and (a ~= 0 or last == 0) then
+		return
 	end
-	local s = 1 + CarTags.FOCUS_GROWTH * math.clamp(amount, 0, 1)
-	scale.Scale = s
+	focusOf[gui] = a
+	local s = 1 + CarTags.FOCUS_GROWTH * a
 	gui.Size = UDim2.fromOffset(TAG_WIDTH * s, TAG_HEIGHT * s)
+	for name, line in TAG_LINES do
+		local label = gui:FindFirstChild(name)
+		if label and label:IsA("TextLabel") then
+			label.Position = UDim2.fromOffset(0, line[1] * s)
+			label.Size = UDim2.new(1, 0, 0, line[2] * s)
+			label.TextSize = math.floor(line[3] * s + 0.5)
+		end
+	end
 end
 
 -- Colours "Needs N" green when the Rider Level is enough, red when it is not.

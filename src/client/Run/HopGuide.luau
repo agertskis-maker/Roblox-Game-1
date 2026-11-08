@@ -239,7 +239,6 @@ function HopGuide.new(zone: Instance, options: { floatHelp: boolean?, onSwing: (
 		LightInfluence = 0,
 		AlwaysOnTop = false,
 		Brightness = 2,
-		ClipsDescendants = false,
 		Enabled = false,
 	}, part)
 	local scaler = make("Frame", {

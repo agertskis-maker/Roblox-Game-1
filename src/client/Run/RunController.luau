@@ -1698,7 +1698,7 @@ function RunController.getDebugState(self: any): DebugState
 			then (self._float :: Float).duration - (self._t - (self._float :: Float).startT)
 			else nil,
 		floatDuration = if self._float then (self._float :: Float).duration else nil, -- Round 8 (R-03): the HOP / DIVE button's drain ring
-		guide = self._guide:getDebugState(), -- Round 8 (R-04): the guidance's own counters and the dive log
+		guide = self._guide:getDebugState(), -- Round 8 (R-04): the guidance's own counters (the dive log is getGuideLog)
 	}
 end
 
