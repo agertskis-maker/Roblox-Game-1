@@ -19,6 +19,7 @@
 --   Trees         oak, blossom, birch and fruit trees framing paths, willows and birches by the
 --                 stream, bushes beneath; forest floor under each tree
 
+local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 
 local AssetIds = require(script.Parent.AssetIds)
@@ -444,6 +445,15 @@ local FOUNTAIN = {
 -- Falls back to the old mesh if the Gold Apex is missing. Everything is still, so Reduce Motion needs nothing.
 local STATUE_CAR = "Gold Apex"
 local STATUE_LENGTH = 15
+local NIGHT_LIGHT_TAG = "StatueNightLight" -- lights, beams and sign lights the client turns on after dark
+local NIGHT_SIGN_TAG = "StatueNightSign" -- the name signs' SurfaceGuis, which glow after dark
+local NIGHT_COLOURS = {
+	Color3.fromRGB(255, 70, 130),
+	Color3.fromRGB(255, 165, 40),
+	Color3.fromRGB(90, 225, 255),
+	Color3.fromRGB(120, 255, 140),
+	Color3.fromRGB(190, 110, 255),
+}
 local GAME_NAME = "CAR CATCHERS" -- the official name (Brian L, 2026-11-08; proposed decision 0043, needs Adam)
 
 function ParkDressing.decorateStatue(f: Instance)
@@ -538,6 +548,69 @@ function ParkDressing.decorateStatue(f: Instance)
 		model:SetAttribute("Hanging", true)
 		model.Parent = f
 		car = model
+		-- the back of the solid-gold body reads flat: tail lights, a dark diffuser and chrome exhausts give it depth.
+		-- Placed in the car's own frame (pivot: bottom centre, -Z is the nose), so they follow it.
+		local k = STATUE_LENGTH / math.max(size.Z, 0.1)
+		local w, h, back = size.X * k, size.Y * k, STATUE_LENGTH / 2
+		local pivot = model:GetPivot()
+		local function backPart(
+			name: string,
+			partSize: Vector3,
+			x: number,
+			up: number,
+			colour: Color3,
+			material: Enum.Material
+		)
+			local p = plainPart(name, partSize, pivot * CFrame.new(x, up, back - partSize.Z / 2 + 0.05), colour, model)
+			p.Material = material
+			solidify(p, false)
+			return p
+		end
+		for _, side in { -1, 1 } do
+			backPart(
+				"TailLight",
+				Vector3.new(w * 0.26, h * 0.09, 0.3),
+				side * w * 0.3,
+				h * 0.6,
+				Color3.fromRGB(255, 40, 50),
+				Enum.Material.Neon
+			)
+			backPart(
+				"TailLightRim",
+				Vector3.new(w * 0.29, h * 0.13, 0.22),
+				side * w * 0.3,
+				h * 0.6,
+				Color3.fromRGB(20, 20, 24),
+				Enum.Material.SmoothPlastic
+			)
+			local pipe = backPart(
+				"Exhaust",
+				Vector3.new(0.5, 0.5, 0.6),
+				side * w * 0.14,
+				h * 0.2,
+				Color3.fromRGB(205, 210, 220),
+				Enum.Material.Metal
+			)
+			pipe.Shape = Enum.PartType.Cylinder
+			pipe.Size = Vector3.new(0.6, 0.55, 0.55)
+			pipe.CFrame = pivot * CFrame.new(side * w * 0.14, h * 0.2, back - 0.2) * CFrame.Angles(0, math.pi / 2, 0)
+		end
+		backPart(
+			"Diffuser",
+			Vector3.new(w * 0.7, h * 0.14, 0.4),
+			0,
+			h * 0.13,
+			Color3.fromRGB(22, 22, 26),
+			Enum.Material.SmoothPlastic
+		)
+		backPart(
+			"RearGrille",
+			Vector3.new(w * 0.5, h * 0.08, 0.2),
+			0,
+			h * 0.42,
+			Color3.fromRGB(22, 22, 26),
+			Enum.Material.SmoothPlastic
+		)
 
 		-- the round pedestal: base, gold ring, navy shaft with a gold band, gold collar, cap
 		ring("PedestalBaseRound", 3.6, 2.5, 1.2, FOUNTAIN.Stone)
@@ -578,6 +651,16 @@ function ParkDressing.decorateStatue(f: Instance)
 		gui.PixelsPerStud = 40
 		gui.LightInfluence = 0.15
 		gui.Parent = board
+		CollectionService:AddTag(gui, NIGHT_SIGN_TAG) -- glows at night (Client/Home/Island/StatueNightLights)
+		local signLight = Instance.new("SurfaceLight")
+		signLight.Face = Enum.NormalId.Front
+		signLight.Range = 9
+		signLight.Angle = 110
+		signLight.Brightness = 2.5
+		signLight.Color = Color3.fromRGB(255, 220, 140)
+		signLight.Enabled = false
+		signLight.Parent = board
+		CollectionService:AddTag(signLight, NIGHT_LIGHT_TAG)
 		local text = Instance.new("TextLabel")
 		text.Size = UDim2.fromScale(0.94, 0.86)
 		text.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -662,6 +745,55 @@ function ParkDressing.decorateStatue(f: Instance)
 		beam.Brightness = 1.1
 		beam.Color = Color3.fromRGB(255, 226, 170)
 		beam.Parent = lamp
+	end
+
+	-- at night the hoop shoots coloured light down over the car: five lamps along the top of the hoop, each a spotlight on
+	-- the car and a soft light shaft (Beam). Built switched off and tagged; the client turns them on after dark.
+	local target = Instance.new("Attachment")
+	target.Name = "NightTarget"
+	target.Position = Vector3.new(0, half.Y * 0.4, 0)
+	target.Parent = glowHost
+	for n, colour in NIGHT_COLOURS do
+		local a = math.rad(15) + math.rad(150) * (n / (#NIGHT_COLOURS + 1))
+		local from = (carCf * CFrame.Angles(0, 0, a) * CFrame.new(radius - 0.5, 0, 0)).Position
+		local lamp = piece(
+			"NightLamp",
+			Vector3.new(0.7, 0.7, 0.4),
+			CFrame.lookAt(from, carCf.Position),
+			colour,
+			Enum.Material.Neon
+		)
+		local spot = Instance.new("SpotLight")
+		spot.Face = Enum.NormalId.Front
+		spot.Angle = 38
+		spot.Range = 20
+		spot.Brightness = 3
+		spot.Color = colour
+		spot.Shadows = false
+		spot.Enabled = false
+		spot.Parent = lamp
+		CollectionService:AddTag(spot, NIGHT_LIGHT_TAG)
+		local nightSource = Instance.new("Attachment")
+		nightSource.Name = "NightSource"
+		nightSource.Parent = lamp
+		local shaft = Instance.new("Beam")
+		shaft.Name = "NightShaft"
+		shaft.Attachment0 = nightSource
+		shaft.Attachment1 = target
+		shaft.Width0 = 0.5
+		shaft.Width1 = 3.5
+		shaft.FaceCamera = true
+		shaft.LightEmission = 1
+		shaft.LightInfluence = 0
+		shaft.Color = ColorSequence.new(colour)
+		shaft.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.35),
+			NumberSequenceKeypoint.new(1, 0.9),
+		})
+		shaft.Segments = 4
+		shaft.Enabled = false
+		shaft.Parent = lamp
+		CollectionService:AddTag(shaft, NIGHT_LIGHT_TAG)
 	end
 end
 
