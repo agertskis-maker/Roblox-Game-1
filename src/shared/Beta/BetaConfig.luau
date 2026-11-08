@@ -53,6 +53,9 @@ BetaConfig.Template = {
 	-- Stamina Shop upgrades bought, 0 to EconomyPreview.StaminaMaxLevel. NOT an agreed field: Adam approved it for the beta on
 	-- 2026-11-05; Brian L decides whether his save takes it (vault/design/specs/stamina-shop-for-brian-l.md).
 	StaminaLevel = 0,
+	-- Luck Station level, 1 to 10 (Brian L, 2026-11-08, feature/lane2-luck-in-beta). NOT an agreed field: a preview for the
+	-- beta; the real save takes it only after all three lanes write "Agreed".
+	LuckLevel = 1,
 	-- Round 6 (R-02, Adam's decision of 2026-11-05, brief section 0 item 6): the two beta-only Robux fields, proposed to all
 	-- three lanes in vault/design/specs/robux-fields-for-brian-l.md. No other field is added.
 	Purchases = {}, -- processed Developer Product receipt ids (PurchaseId strings), newest last, at most 200
@@ -66,6 +69,7 @@ BetaConfig.PurchasesKept = 200
 BetaConfig.RealPurchases = false
 BetaConfig.OwnedAttribute = "BetaOwned" -- Player: "vip,double-lap-pay" (read only; the server writes it)
 BetaConfig.StaminaAttribute = "BetaStaminaLevel" -- Player: the saved StaminaLevel (read only; the server writes it)
+BetaConfig.LuckAttribute = "BetaLuckLevel" -- Player: the saved LuckLevel (read only; the server writes it)
 BetaConfig.LineupAttribute = "BetaLineup" -- Player: the Lineup as "Putter,Minnow" (read only; the server writes it)
 BetaConfig.CashAttribute = "BetaCash" -- Player: the saved Cash (read only; the server writes it)
 BetaConfig.WorldsAttribute = "BetaWorldsUnlocked" -- Player: "Downtown,DustyHighway" (read only)

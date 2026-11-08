@@ -82,6 +82,7 @@ export type Session = {
 
 export type Options = {
 	seed: number?,
+	luck: number?, -- Rare, Epic and Legendary weight multiplier (1 = none); the beta passes the server's value
 	session: Session?,
 	profile: string?, -- "Highway" (default) or "Circuit"
 
@@ -249,7 +250,7 @@ function RunController.new(options: Options?): RunController
 	self._arrow = arrow
 	self._session = session
 	self._profile = RunConfig.profile(opts.profile)
-	self._sequence = RunSequence.new(seed, self._profile)
+	self._sequence = RunSequence.new(seed, self._profile, opts.luck)
 	self._road = trove:Add(RunRoad.new(zone, seed, self._profile.scenery), "destroy")
 	self._fx = trove:Add(RunFx.new(zone), "destroy")
 	self._input = trove:Add(RunInput.new(), "destroy")

@@ -20,6 +20,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local LuckTable = require(ReplicatedStorage.Shared.Catalog.LuckTable)
 local ProfileStore = require(ServerScriptService.Server.vendor.ProfileStore) :: any
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local Signal = require(ReplicatedStorage.Packages.Signal)
@@ -35,6 +36,7 @@ export type Data = {
 	WorldsUnlocked: { [string]: boolean }, -- agreed field (Round 5)
 	LastSeen: number, -- agreed field (Round 5): Unix time, 0 = never stamped
 	StaminaLevel: number, -- beta-only (Adam, 2026-11-05): Stamina Shop upgrades bought, not an agreed field
+	LuckLevel: number, -- beta-only (Brian L, 2026-11-08): Luck Station level 1 to 10, not an agreed field
 	Purchases: { string }, -- beta-only (Round 6, R-02): processed receipt ids, newest last, at most 200
 	Owned: { [string]: boolean }, -- beta-only (Round 6, R-02): bundle passes, the Starter Pack and its cosmetics
 }
@@ -123,6 +125,11 @@ function BetaData.sanitize(data: any): { string }
 		fix("StaminaLevel", t.StaminaLevel)
 	else
 		data.StaminaLevel = math.clamp(math.floor(data.StaminaLevel), 0, EconomyPreview.StaminaMaxLevel)
+	end
+	if not finite(data.LuckLevel) then
+		fix("LuckLevel", t.LuckLevel)
+	else
+		data.LuckLevel = LuckTable.clampLevel(data.LuckLevel)
 	end
 	-- Round 6 (R-02): receipt ids are strings, newest last, at most PurchasesKept; Owned is { [string]: true }
 	if type(data.Purchases) ~= "table" then

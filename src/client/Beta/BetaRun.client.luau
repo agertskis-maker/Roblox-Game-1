@@ -213,6 +213,7 @@ local function startRun(world: string): RunController.RunController
 	-- the server's seed and run id (a short wait; with no answer the run still plays, unpaid, and says so in Output)
 	local seed: number? = nil
 	local runId: string? = nil
+	local luck: number? = nil -- Lane 2 preview: the server's Luck multiplier for this run
 	local startFn = runRemote(BetaRunNet.Remotes.StartRun)
 	if startFn and startFn:IsA("RemoteFunction") then
 		local ok, reply = pcall(function()
@@ -220,6 +221,7 @@ local function startRun(world: string): RunController.RunController
 		end)
 		if ok and type(reply) == "table" and type(reply.seed) == "number" and type(reply.runId) == "string" then
 			seed, runId = reply.seed, reply.runId
+			luck = if type(reply.luck) == "number" then reply.luck else nil
 		else
 			warn("[CarHopBeta] the server did not start a run for " .. world .. ": this run is not paid")
 		end
@@ -247,7 +249,7 @@ local function startRun(world: string): RunController.RunController
 		end
 	end
 	session.owned = owned
-	local run = RunController.new({ session = session, profile = "Circuit", seed = seed })
+	local run = RunController.new({ session = session, profile = "Circuit", seed = seed, luck = luck })
 	current = run
 	if runId then
 		bridge(run, world, runId)

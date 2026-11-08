@@ -36,6 +36,7 @@ local BetaLineup = require(script.Parent.BetaLineup)
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta.BetaRunMap)
 local BetaRunNet = require(ReplicatedStorage.Shared.Beta.BetaRunNet)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
+local LuckTable = require(ReplicatedStorage.Shared.Catalog.LuckTable)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
 local RunSequence = require(ReplicatedStorage.Shared.Run.RunSequence)
@@ -88,6 +89,7 @@ type Run = {
 	player: Player,
 	world: string,
 	seed: number,
+	luck: number, -- the Luck Station multiplier this run was built with (Lane 2 preview)
 	sequence: any,
 	started: number, -- os.clock()
 	tutorial: boolean,
@@ -354,12 +356,15 @@ function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
 	end
 	nextId += 1
 	local seed = Random.new():NextInteger(1, 2 ^ 30)
+	-- Lane 2 preview (Brian L, 2026-11-08): the traffic is built with the save's Luck level, the same as the client's
+	local luck = LuckTable.multiplier(data.LuckLevel)
 	local run: Run = {
 		id = string.format("%d-%d", player.UserId, nextId),
 		player = player,
 		world = world,
 		seed = seed,
-		sequence = RunSequence.new(seed, RunConfig.profile(BetaRun.PROFILE)),
+		luck = luck,
+		sequence = RunSequence.new(seed, RunConfig.profile(BetaRun.PROFILE), luck),
 		started = os.clock(),
 		tutorial = data.TutorialDone ~= true,
 		lastD = 0,
@@ -382,7 +387,7 @@ function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
 		closed = false,
 	}
 	runs[player] = run
-	log(player, string.format("run %s started in %s (seed %d)", run.id, world, seed))
+	log(player, string.format("run %s started in %s (seed %d, luck x%.2f)", run.id, world, seed, luck))
 	return run
 end
 
@@ -512,7 +517,7 @@ function BetaRun.startRemotes(net: Folder, runNet: Folder)
 
 	local function onStart(player: Player, world: any, startCarId: any)
 		local run = BetaRun.start(player, world, startCarId)
-		return if run then { runId = run.id, seed = run.seed } else nil
+		return if run then { runId = run.id, seed = run.seed, luck = run.luck } else nil
 	end
 	startFn.OnServerInvoke = onStart
 	oldStart.OnServerInvoke = function(player: Player, world: any, startCarId: any)
