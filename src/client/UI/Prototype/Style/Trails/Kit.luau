@@ -63,6 +63,9 @@ local SPARKLE = P .. "sparkles_main.dds"
 -- Per-tier cap on particles alive at once, both exhausts, full quality, top speed. Phone halves emission on top of this.
 Kit.CAP = table.freeze({ 45, 90, 150, 220, 300, 380 })
 
+-- How much fuller the recipes emit than their written rates (Round 8 pass 2: the frames looked sparse; the caps above still hold).
+Kit.DENSITY = 1.7
+
 -- Small helpers --------------------------------------------------------------------------------------------------------------------
 
 function Kit.seq(...: Color3): ColorSequence
@@ -181,7 +184,7 @@ function Kit.emit(c: Ctx, spec: Emit): ParticleEmitter?
 			e.FlipbookStartRandom = true
 		end
 	end
-	local rate = spec.rate * c.rateMul
+	local rate = spec.rate * Kit.DENSITY * c.rateMul
 	e.Rate = rate
 	e.Lifetime = NumberRange.new(spec.life[1], spec.life[2] or spec.life[1])
 	e.Speed = NumberRange.new(spec.speed[1], spec.speed[2] or spec.speed[1])

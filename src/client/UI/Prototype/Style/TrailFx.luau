@@ -363,13 +363,42 @@ local function build(self: any)
 			wheel = frame.wheel,
 		}
 		c.at = Kit.attach(c, "Exhaust", CFrame.identity)
-		c.a = Kit.attach(c, "RibbonA", CFrame.new(0, 0.3 * s, 0))
-		c.b = Kit.attach(c, "RibbonB", CFrame.new(0, -0.3 * s, 0))
+		c.a = Kit.attach(c, "RibbonA", CFrame.new(0, 0.2 * s, 0))
+		c.b = Kit.attach(c, "RibbonB", CFrame.new(0, -0.2 * s, 0))
 		local out = if side == 0 then 0.3 else side
 		c.tip = Kit.tipAt(c, "Tip", Vector3.new(out * 0.4 * s, -0.18 * height, 7 * s))
 		c.tip2 = Kit.tipAt(c, "Tip2", Vector3.new(out * 0.8 * s, -0.35 * height, 11.5 * s))
 		c.ground = Kit.tipAt(c, "Ground", Vector3.new(out * 1.2 * s, -height + 0.1, 6 * s))
 		make(c :: Kit.Ctx)
+		-- every step up the ladder adds a glitter layer of its own (T-06): Legendary one, Robux and VIP two
+		local first, second = colours[1], colours[2] or colours[1]
+		if tier >= 5 then
+			Kit.emit(c, {
+				sheet = "flare",
+				rate = 8,
+				life = { 0.5, 0.9 },
+				speed = { 2, 6 },
+				size = Kit.num(0.8 * s, 0),
+				colour = Kit.seq(Color3.new(1, 1, 1), first),
+				spread = 60,
+				light = 1,
+				rot = true,
+			})
+		end
+		if tier >= 6 then
+			Kit.emit(c, {
+				sheet = "stars",
+				rate = 6,
+				life = { 0.7, 1.2 },
+				speed = { 2, 5 },
+				size = Kit.num(1.6 * s, 0.2 * s),
+				colour = Kit.seq(Color3.new(1, 1, 1), second),
+				spread = 50,
+				light = 1,
+				random = true,
+				mode = "Random",
+			})
+		end
 	end
 	Kit.applyCap(self._made, tier)
 	self._tier = tier

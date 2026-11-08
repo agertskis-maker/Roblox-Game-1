@@ -31,11 +31,11 @@ function Warm.flame(c: Kit.Ctx)
 		segments = 12,
 	})
 	Kit.emit(c, {
-		sheet = "smoke_puff",
-		rate = 14,
+		texture = "rbxasset://textures/particles/fire_main.dds",
+		rate = 16,
 		life = { 0.3, 0.45 },
 		speed = { 10, 14 },
-		size = curve({ { 0, 1.0 * s }, { 0.4, 2.0 * s }, { 1, 2.6 * s } }),
+		size = curve({ { 0, 1.3 * s }, { 0.4, 2.6 * s }, { 1, 3.2 * s } }),
 		rot = true,
 		spin = 60,
 		colour = seq(W, gold, red),

@@ -37,7 +37,6 @@ local entries: { [string]: Types.Entry } = {
 	r8_trail_fx_smoke_puff = sheet("smoke-poof", 64, 512), -- cartoon puff: Drift Smoke, Flame smoke, Bubble pop dust
 	r8_trail_fx_mist = sheet("cold-breath", 64, 512), -- soft grey mist: Frost Bite, Galaxy haze
 	r8_trail_fx_backfire = sheet("exhaust-backfire", 64, 512), -- exhaust pop with an orange flash
-	r8_trail_fx_jet_flame = sheet("jet-thruster-flame", 64, 512), -- a stretched flame jet
 	r8_trail_fx_stars = sheet("twinkling-stars", 64, 512), -- glitter of white four-point stars (tinted per trail)
 	r8_trail_fx_flare = sheet("crackling-spark", 64, 512), -- white glint with soft halo (tinted per trail)
 	r8_trail_fx_coin = sheet("spinning-gold-coin", 64, 512), -- a spinning gold coin (Loop)
@@ -54,7 +53,6 @@ local entries: { [string]: Types.Entry } = {
 	r8_trail_fx_beam_arc = sheet("electric-arc-beam", nil, 512),
 	r8_trail_fx_beam_energy = sheet("energy-beam", nil, 512),
 	r8_trail_fx_beam_strands = sheet("energy-strands-beam", nil, 512),
-	r8_trail_fx_beam_circuit = sheet("circuit-beam", nil, 512),
 	-- gap fillers drawn for this game
 	r8_trail_fx_flutter = own(
 		Vector2.new(512, 512),

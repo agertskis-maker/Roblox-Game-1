@@ -35,7 +35,6 @@ local FALLBACK: { [string]: string } = {
 	smoke_puff = SMOKE,
 	mist = SMOKE,
 	backfire = FIRE,
-	jet_flame = FIRE,
 	stars = SPARKLES,
 	flare = SOFT,
 	coin = SPARKLES,
@@ -58,7 +57,6 @@ local FALLBACK: { [string]: string } = {
 	beam_arc = "",
 	beam_energy = "",
 	beam_strands = "",
-	beam_circuit = "",
 }
 
 local LAYOUT: { [number]: Enum.ParticleFlipbookLayout } = {

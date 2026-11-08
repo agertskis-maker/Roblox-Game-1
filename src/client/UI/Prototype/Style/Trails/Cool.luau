@@ -76,10 +76,12 @@ function Cool.frost(c: Kit.Ctx)
 	local s, k = c.scale, c.k
 	local ice, deep = k[1], k[2] or k[1]
 	Kit.core(c, seq(W, ice), 0.4 * s)
-	Kit.ribbon(
-		c,
-		{ life = 0.6, colour = seq(W, deep), fade = curve({ { 0, 0.35 }, { 0.6, 0.6 }, { 1, 1 } }), width = num(0.7, 0) }
-	)
+	Kit.ribbon(c, {
+		life = 0.6,
+		colour = seq(W, deep),
+		fade = curve({ { 0, 0.35 }, { 0.6, 0.6 }, { 1, 1 } }),
+		width = num(0.7, 0),
+	})
 	Kit.beam(c, {
 		to = c.tip2,
 		colour = seq(ice, deep),

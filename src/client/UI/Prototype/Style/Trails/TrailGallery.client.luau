@@ -60,6 +60,92 @@ local cars: { Model } = {}
 local fxs: { any } = {}
 local items: { any } = {}
 
+if mode == "measure" then
+	-- T-11: one car at run speed with each trail in turn, full and phone quality; frame cost from the engine's own Stats
+	local Stats = game:GetService("Stats")
+	local camera = workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Scriptable
+	local car = ReplicatedStorage.Cars[CAR]:Clone()
+	anchorAll(car)
+	car.Parent = stage
+	local function stat(name: string): number?
+		local ok, v = pcall(function()
+			return (Stats :: any)[name]
+		end)
+		return if ok and type(v) == "number" then v else nil
+	end
+	local function run(id: string?, quality: string): string
+		local fx = TrailFx.attachModel(car, { quality = quality, reduceMotion = false })
+		fx:set(if id then Catalog.byId("Trails", id) else nil)
+		fx:setSpeed(1)
+		car:PivotTo(CFrame.new(0, 500, 0))
+		fx:clear()
+		local z, t0 = 0, os.clock()
+		local n, sum = 0, 0
+		local acc = { FrameTime = { 0, 0 }, RenderCPUFrameTime = { 0, 0 }, RenderGPUFrameTime = { 0, 0 } }
+		while os.clock() - t0 < 2.5 do
+			local dt = RunService.RenderStepped:Wait()
+			z -= 16 * dt
+			if z < -500 then
+				z = 0
+				fx:clear()
+			end
+			car:PivotTo(CFrame.new(0, 500, z))
+			camera.CFrame = CFrame.lookAt(Vector3.new(0, 509, z + 19), Vector3.new(0, 500, z + 3))
+			if os.clock() - t0 > 0.7 then
+				n += 1
+				sum += dt
+				for name, a in acc do
+					local v = stat(name)
+					if v then
+						a[1] += v
+						a[2] += 1
+					end
+				end
+			end
+		end
+		local s = fx:stats()
+		fx:destroy()
+		return string.format(
+			"%-14s %-5s dt %.2f ms  FrameTime %.2f  RenderCPU %.2f  RenderGPU %.2f | tier %d emitters %d alive %.0f beams %d ribbons %d",
+			id or "(no trail)",
+			quality,
+			sum / math.max(n, 1) * 1000,
+			acc.FrameTime[1] / math.max(acc.FrameTime[2], 1),
+			acc.RenderCPUFrameTime[1] / math.max(acc.RenderCPUFrameTime[2], 1),
+			acc.RenderGPUFrameTime[1] / math.max(acc.RenderGPUFrameTime[2], 1),
+			s.tier,
+			s.emitters,
+			s.alive,
+			s.beams,
+			s.ribbons
+		)
+	end
+	task.spawn(function()
+		local out = { run(nil, "full") }
+		for _, id in
+			{
+				"neon_ribbon",
+				"bubble_pop",
+				"drift_smoke",
+				"frost_bite",
+				"retro_grid",
+				"lightning",
+				"galaxy",
+				"flame_rush",
+				"vip_gradient",
+			}
+		do
+			table.insert(out, run(id, "full"))
+			table.insert(out, run(id, "phone"))
+		end
+		table.insert(out, run(nil, "full"))
+		print("WS5A_MEASURE\n" .. table.concat(out, "\n"))
+		request:SetAttribute("Done", true)
+	end)
+	return
+end
+
 if mode == "exhausts" then
 	local names = {}
 	for name in Exhausts do

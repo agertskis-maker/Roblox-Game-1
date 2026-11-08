@@ -44,7 +44,7 @@ function TrailSelfTest.run(): { string }
 	model.Parent = holder
 	model:PivotTo(CFrame.new(0, 800, 0))
 
-	local byTier: { [number]: { alive: number, layers: number } } = {}
+	local byTier: { [number]: { alive: number, layers: number, n: number } } = {}
 	for _, item in Catalog.Items.Trails do
 		if not item.isNone then
 			local fx = TrailFx.attachModel(model, { quality = "full", reduceMotion = false })
@@ -73,9 +73,10 @@ function TrailSelfTest.run(): { string }
 				(full.beams > 0 or item.key == "drift") and full.ribbons > 0
 			)
 			local layers = full.emitters + full.beams + full.ribbons + full.sounds + full.glows
-			local entry = byTier[tier] or { alive = 0, layers = 0 }
-			entry.alive = math.max(entry.alive, full.alive)
-			entry.layers = math.max(entry.layers, layers)
+			local entry = byTier[tier] or { alive = 0, layers = 0, n = 0 }
+			entry.alive += full.alive
+			entry.layers += layers
+			entry.n += 1
 			byTier[tier] = entry
 			if tier >= 4 then
 				expect(item.id .. ": Epic and up has road glow and a loop", full.glows >= 1 and full.sounds >= 1)
@@ -106,14 +107,15 @@ function TrailSelfTest.run(): { string }
 			fx:destroy()
 		end
 	end
-	-- each tier is a visible step up: more layers than the tier below
+	-- each tier is a visible step up: on average more layers than the tier below
 	for tier = 2, 6 do
 		local lower, this = byTier[tier - 1], byTier[tier]
 		if lower and this then
+			local a, b = this.layers / this.n, lower.layers / lower.n
 			expect(
-				"tier " .. tier .. " has more layers than tier " .. (tier - 1),
-				this.layers > lower.layers,
-				string.format("%d vs %d", this.layers, lower.layers)
+				"tier " .. tier .. " has more layers on average than tier " .. (tier - 1),
+				a > b,
+				string.format("%.1f vs %.1f", a, b)
 			)
 		end
 	end
