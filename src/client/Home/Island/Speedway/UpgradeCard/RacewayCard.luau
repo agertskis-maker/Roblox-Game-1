@@ -347,7 +347,8 @@ local function buttonSpec(card: Card): (string, { [string]: any })
 		return "max", { maxText = "MAX LEVEL", maxStyle = "rosette" }
 	end
 	local price = EconomyPreview.racewayPrice(card.shown + 1)
-	local info = { label = "UPGRADE", price = if price then Format.cash(price) else "?", icon = "cash" }
+	local info: { [string]: any } =
+		{ label = "UPGRADE", price = if price then Format.cash(price) else "?", icon = "cash" }
 	if card.locked then
 		return "busy", info
 	end
@@ -514,13 +515,16 @@ local function onPressed(card: Card)
 	if buy == nil then
 		return
 	end
+	-- the button went busy by itself on the press: every early return must put it back, so the key is cleared first
 	local current = safeCurrent(card)
 	if current ~= card.shown or current >= card.max or safeBusy(card) then
+		card.buttonKey = ""
 		refreshButton(card)
 		return
 	end
 	local short = shortBy(card)
 	if short and short > 0 then
+		card.buttonKey = ""
 		refreshButton(card)
 		return
 	end
