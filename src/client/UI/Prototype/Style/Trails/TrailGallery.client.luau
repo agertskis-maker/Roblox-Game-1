@@ -122,6 +122,8 @@ if mode == "measure" then
 		)
 	end
 	task.spawn(function()
+		local lines = require(script.Parent.TrailSelfTest).run()
+		print("WS5A_SELFTEST\n" .. table.concat(lines, "\n"))
 		local out = { run(nil, "full") }
 		for _, id in
 			{
