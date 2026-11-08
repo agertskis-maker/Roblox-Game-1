@@ -127,7 +127,7 @@ local function runSheet(page: number)
 				local p = hub.cframe.Position
 				local axle = hub.cframe.XVector
 				cam.CFrame =
-					CFrame.lookAt(p + axle * hub.radius * 4.6 + Vector3.new(0, hub.radius * 0.7, -hub.radius * 2.2), p)
+					CFrame.lookAt(p + axle * hub.radius * 3.1 + Vector3.new(0, hub.radius * 0.5, -hub.radius * 1.5), p)
 			end
 			cam.Parent = vp
 			vp.CurrentCamera = cam
