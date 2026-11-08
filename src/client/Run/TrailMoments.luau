@@ -8,7 +8,8 @@
 --   local moments = TrailMoments.attach(handle, run, options?)     moments:destroy()
 --       handle   the run car's CarLookApplier handle (needs .model, .look, :setTrailSpeed(0..1), :moveTrailTo(model))
 --       run      the RunController (or anything with the same signals): .Boarded(model), .Bonk(kind, at),
---                .Moment(kind, model?) with kind "leap" | "dive", :getSpeed01() -> 0..1, and optionally .Ended()
+--                .Moment(kind, model?) with kind "leap" | "dive", :getSpeed01() -> 0..1, and optionally .Ended() and
+--                :getDebugState() (read 4 times a second only while airborne, to notice END RUN in the air)
 --       options  { reduceMotion: boolean? } nil follows the player's Reduce Motion setting
 --   Call it once the handle exists (before or after run:start(); a Boarded that arrives before the first leap is ignored: the code
 --   that made the handle decides where the trail starts). destroy() it with the handle, when the run ends.
@@ -52,6 +53,7 @@ export type Source = {
 	Moment: any?, -- Signal(kind: "leap" | "dive", model: Model?)
 	Ended: any?, -- Signal(results)
 	getSpeed01: ((self: any) -> number)?,
+	getDebugState: ((self: any) -> any)?, -- only read (4 times a second) while airborne, to notice END RUN in the air
 }
 
 export type Options = { reduceMotion: boolean? }
@@ -393,8 +395,20 @@ function TrailMoments.attach(handle: TrailHandle, source: Source, options: Optio
 	end
 
 	-- once a frame: the speed number, smoothed, and the top-speed flare
+	local airClock = 0
 	trove:Connect(RunService.Heartbeat, function(dt: number)
 		st.flare = math.max(st.flare - dt / TrailMoments.FLARE_SECONDS, 0)
+		if st.mode == "float" or st.mode == "dive" then
+			-- END RUN pressed in the air ends the run with no Boarded or Bonk: notice it, so the stream does not hang there
+			airClock += dt
+			local debugState = source.getDebugState
+			if airClock >= 0.25 and debugState then
+				airClock = 0
+				if debugState(source).mode == "Ended" then
+					onBonk("Ended")
+				end
+			end
+		end
 		local u = speed01()
 		if not st.topFlared and u >= TrailMoments.TOP_AT then
 			st.topFlared = true
