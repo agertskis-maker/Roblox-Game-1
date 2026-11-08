@@ -31,11 +31,13 @@ function Warm.flame(c: Kit.Ctx)
 		segments = 12,
 	})
 	Kit.emit(c, {
-		sheet = "jet_flame",
-		rate = 12,
+		sheet = "smoke_puff",
+		rate = 14,
 		life = { 0.3, 0.45 },
-		speed = { 12, 16 },
-		size = curve({ { 0, 2.4 * s }, { 1, 5.5 * s } }),
+		speed = { 10, 14 },
+		size = curve({ { 0, 1.0 * s }, { 0.4, 2.0 * s }, { 1, 2.6 * s } }),
+		rot = true,
+		spin = 60,
 		colour = seq(W, gold, red),
 		fade = curve({ { 0, 0.1 }, { 0.7, 0.45 }, { 1, 1 } }),
 		spread = 4,
@@ -126,10 +128,13 @@ function Warm.comet(c: Kit.Ctx)
 		w1 = 0.18 * s,
 		segments = 14,
 	})
-	Kit.ribbon(
-		c,
-		{ life = 1.1, colour = seq(W, light, deep), light = 1, fade = curve({ { 0, 0 }, { 0.6, 0.4 }, { 1, 1 } }) }
-	)
+	Kit.ribbon(c, {
+		life = 1.1,
+		colour = seq(W, light, deep),
+		light = 1,
+		fade = curve({ { 0, 0.3 }, { 0.6, 0.65 }, { 1, 1 } }),
+		width = curve({ { 0, 0.5 }, { 1, 0 } }),
+	})
 	Kit.emit(c, { -- stars shed along the tail
 		sheet = "stars",
 		tier = 2,

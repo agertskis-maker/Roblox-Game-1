@@ -244,7 +244,7 @@ function Kit.ribbon(c: Ctx, spec: Ribbon): Trail
 	t.Attachment1 = spec.b or c.b
 	t.Lifetime = spec.life or 0.5
 	t.Color = spec.colour
-	t.Transparency = spec.fade or Kit.curve({ { 0, 0.1 }, { 1, 1 } })
+	t.Transparency = spec.fade or Kit.curve({ { 0, 0.25 }, { 1, 1 } })
 	t.WidthScale = spec.width or Kit.num(1, 0)
 	t.LightEmission = spec.light or 0.7
 	t.LightInfluence = 0
