@@ -10,8 +10,8 @@
 --       "flare"  a brief brighter flare from the back of the car (top speed, right after a dive)
 --       With no trail in the look (nil, "no_trail") nothing plays and nil comes back. Effect:stop() ends it early.
 --   TrailBursts.stream(target, look, reduceMotion?) -> Stream?   a thin version of the trail from the floating avatar
---   TrailBursts.chain(target, look, reduceMotion?) -> Chain?      T-05: extra layers on the car while a hop chain runs
 --   TrailBursts.destroyAll()                                       drop everything (a run ends, a test finishes)
+--   (The hop chain, T-05, and the trail's own flare are TrailFx's: fx:setLevel and fx:flare; TrailMoments drives them.)
 --
 -- Everything follows its target (a car moves by PivotTo, the avatar by CFrame) from one render-step connection that exists only
 -- while an effect is alive; each effect owns a Trove and goes away with its target. Per effect budget: a burst is at most about
@@ -44,30 +44,15 @@ export type Stream = {
 	stop: (self: Stream) -> (),
 	destroy: (self: Stream) -> (),
 }
-export type Chain = {
-	setStep: (self: Chain, step: number) -> (),
-	setTarget: (self: Chain, target: Instance?) -> (),
-	destroy: (self: Chain) -> (),
-}
 
 local MAX_ONE_SHOTS = 5
 local LOST_GRACE = 6 -- seconds a kept effect waits when its target is gone (the car you left is retired while you float)
 local FOLLOW = "TrailBurstsFollow"
 local LOW_OVERRIDE = "Lane3LowGraphicsOverride"
 
--- T-05 (recorded values): the extra layers while a hop chain runs. Index = chain step 0 to 3 (0 = none).
---   rate   extra particles per second from EACH of the two exhaust points
---   size   particle size multiplier
---   light  brightness of a soft light behind the car (never at step 1; off under Reduce Motion)
---   life   particle lifetime in seconds
---   stream avatar stream: width and rate multiplier while floating
-TrailBursts.CHAIN = table.freeze({
-	rate = table.freeze({ 0, 8, 16, 26 }),
-	size = table.freeze({ 0, 1.0, 1.35, 1.7 }),
-	light = table.freeze({ 0, 0, 0.6, 1.2 }),
-	life = table.freeze({ 0, 0.32, 0.4, 0.5 }),
-	stream = table.freeze({ 1, 1.3, 1.6, 2.0 }),
-})
+-- T-05 (recorded value): the avatar stream's width and particle-rate multiplier at hop-chain step 0 to 3 (the trail on the car grows
+-- through TrailFx's own fx:setLevel, WS-5a).
+local STREAM_WIDTH = table.freeze({ 1, 1.3, 1.6, 2.0 })
 
 local P = "rbxasset://textures/particles/"
 local SPARKLE = P .. "sparkles_main.dds"
@@ -310,7 +295,7 @@ local function follow()
 		elseif fx.counted then
 			fx:destroy() -- a burst goes with its car
 		else
-			-- an effect its owner keeps (the stream, the chain) waits a few seconds for a new target before giving up
+			-- an effect its owner keeps (the stream) waits a few seconds for a new target before giving up
 			local now = os.clock()
 			local since = fx.lostAt or now
 			fx.lostAt = since
@@ -791,7 +776,7 @@ function TrailBursts.stream(target: Instance, look: CarLook.Look?, reduceMotion:
 	end)
 	local handle = {}
 	function handle.setStep(_self: Stream, step: number)
-		local s = TrailBursts.CHAIN.stream[math.clamp(math.floor(step), 0, 3) + 1]
+		local s = STREAM_WIDTH[math.clamp(math.floor(step), 0, 3) + 1]
 		ribbon.WidthScale = NumberSequence.new(s, 0.1)
 		ribbon.Lifetime = 0.55 + 0.08 * (s - 1)
 		bits.Rate = baseRate * s
@@ -801,102 +786,6 @@ function TrailBursts.stream(target: Instance, look: CarLook.Look?, reduceMotion:
 		fx:stop()
 	end
 	function handle.destroy(_self: Stream)
-		fx:destroy()
-	end
-	return handle :: any
-end
-
--- The hop chain's extra layers on the car (T-05) ----------------------------------------------------------------------------------
-
--- While the chain is at step 1 to 3, extra puffs in the trail's colours from both exhaust points, bigger, longer and brighter at
--- every step (TrailBursts.CHAIN holds the numbers). setTarget moves it to the next car (nil parks it, for the float); step 0
--- switches it off.
-function TrailBursts.chain(target: Instance, look: CarLook.Look?, reduceMotion: boolean?): Chain?
-	local p = paletteOf(look)
-	if not p or not target:IsDescendantOf(Workspace) then
-		return nil
-	end
-	local c = comfort(reduceMotion)
-	local st = styleOf(p)
-	local fx = newFx(target, CFrame.identity, nil, nil, false)
-	local tex, flip = sheet(p, st.tex)
-	local left = attachment(fx.anchor, CFrame.identity)
-	local right = attachment(fx.anchor, CFrame.identity)
-	local function make(att: Attachment, colour: Color3): ParticleEmitter
-		return emitter(att, {
-			tex = tex,
-			flip = flip,
-			color = seq(p.core, colour, p.b),
-			size = num(0.9, 0.1),
-			life = { 0.3, 0.4 },
-			speed = { 9, 14 },
-			spread = Vector2.new(12, 12),
-			rate = 0,
-			dir = Enum.NormalId.Back,
-		})
-	end
-	local emitters = { make(left, p.a), make(right, p.list[2] or p.a) }
-	local light = Instance.new("PointLight")
-	light.Color = p.a:Lerp(WHITE, 0.3)
-	light.Range = 12
-	light.Brightness = 0
-	light.Shadows = false
-	light.Enabled = not c.reduce and c.k >= 1
-	light.Parent = fx.anchor
-	local step = 0
-	local parked = false
-	local function apply()
-		local i = math.clamp(step, 0, 3) + 1
-		local on = step > 0 and not parked
-		local size = TrailBursts.CHAIN.size[i]
-		for _, e in emitters do
-			e.Rate = if on then TrailBursts.CHAIN.rate[i] * c.k else 0
-			e.Size = num(0.9 * size, 0.1)
-			e.Lifetime = NumberRange.new(TrailBursts.CHAIN.life[i] * 0.75, TrailBursts.CHAIN.life[i])
-		end
-		light.Brightness = if on then TrailBursts.CHAIN.light[i] else 0
-	end
-	local function place(t: Instance)
-		local box, size = measure(t)
-		local x = math.clamp(size.X, 2, 10) * 0.28
-		fx.offset = box * CFrame.new(0, -size.Y * 0.2, size.Z / 2 + 0.2)
-		left.CFrame = CFrame.new(-x, 0, 0)
-		right.CFrame = CFrame.new(x, 0, 0)
-	end
-	place(target)
-	apply()
-	local handle = {}
-	function handle.setStep(_self: Chain, value: number)
-		step = math.clamp(math.floor(value), 0, 3)
-		apply()
-	end
-	function handle.setTarget(_self: Chain, newTarget: Instance?)
-		if fx.dead then
-			return
-		end
-		parked = newTarget == nil
-		if newTarget then
-			-- no emission while the anchor jumps to the next car, so no line of particles is drawn across the road
-			local was = step
-			step = 0
-			apply()
-			fx.target = newTarget
-			place(newTarget)
-			local frame = frameOf(newTarget)
-			if frame then
-				fx.anchor.CFrame = frame * fx.offset
-			end
-			task.delay(0.06, function()
-				if not fx.dead then
-					step = was
-					apply()
-				end
-			end)
-		else
-			apply()
-		end
-	end
-	function handle.destroy(_self: Chain)
 		fx:destroy()
 	end
 	return handle :: any

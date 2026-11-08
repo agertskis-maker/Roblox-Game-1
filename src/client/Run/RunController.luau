@@ -31,6 +31,7 @@ local RunInput = require(script.Parent.RunInput)
 local RunOverlay = require(script.Parent.RunOverlay)
 local RunReport = require(script.Parent.RunReport)
 local RunRoad = require(script.Parent.RunRoad)
+local TrailMoments = require(script.Parent.TrailMoments) -- Round 8 (T-03 to T-05)
 
 -- Round 7 (R-01): Riding -> Float -> Dive -> Riding; Float -> Recover (a bonk) -> Riding; any -> Ended. "Hopping" and "FootDash" are
 -- Brian R's earlier one-press Hop; they are no longer entered (kept so his debug tools still read).
@@ -365,6 +366,7 @@ function RunController.new(options: Options?): RunController
 	-- Round 7 (C-08): (model) whenever the rider lands on a car, so the car you ride can wear your Style Shop look
 	self.Boarded = trove:Add(Signal.new())
 	self.Moment = trove:Add(Signal.new()) -- Round 8 (T-04): "leap" and "dive", for TrailMoments
+	trove:Add(TrailMoments.attachToRun(self), "destroy") -- Round 8 (T-03 to T-05): the trail reacts to this run
 	-- the warning on the car itself at full Heat (R-02): a red outline and a red "!" over the car
 	local warnLight = Instance.new("Highlight")
 	warnLight.Name = "HeatWarning"
