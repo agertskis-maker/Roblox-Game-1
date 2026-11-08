@@ -76,9 +76,14 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		CarKit.setStrokeScale(ctx.screen:uiScale())
 		local D = overlay:designSize()
 		local h = math.min(D.Y - 16, 620)
-		-- wide screens get a second column for the car's name and what it wears (R8-IMG-25); a tall phone stacks them
-		local wide = D.X - 24 >= h * 1.3
-		local w = if wide then math.min(D.X - 24, h * 1.62) else math.min(D.X - 24, h * 0.98)
+		-- wide screens get a second column for the car's name and what it wears (R8-IMG-25); a tall phone stacks them; a SHORT screen (phone
+		-- landscape, under 420 design px high) squeezes the card into two columns and one row of three buttons
+		local short = D.Y < 420
+		local wide = short or D.X - 24 >= h * 1.3
+		local w = if short
+			then math.min(D.X - 24, h * 2.4)
+			elseif wide then math.min(D.X - 24, h * 1.62)
+			else math.min(D.X - 24, h * 0.98)
 		local k = h / 620
 		local card = buildTrove:Add(CarKit.board(overlay.content, {
 			size = UDim2.fromOffset(w, h),
@@ -91,10 +96,10 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			bolts = true,
 			name = "Card",
 		})) :: Frame
-		local titlePx = math.max(math.round(76 * k), 36)
+		local titlePx = math.max(math.round(76 * k), if short then 24 else 36)
 		CarKit.title(card, title, titlePx, {
 			align = Enum.TextXAlignment.Center,
-			position = UDim2.fromOffset(8, 14),
+			position = UDim2.fromOffset(8, if short then 4 else 14),
 			size = UDim2.new(1, -16, 0, titlePx * 1.06),
 			top = CarKit.Yellow,
 			bottom = CarKit.Orange,
@@ -102,9 +107,9 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			name = "World",
 		})
 		CarKit.pattern(card, "speed", { color = Color3.fromRGB(170, 210, 255), transparency = 0.86, z = 3 })
-		local stageY = titlePx * 1.1 + 14
+		local stageY = titlePx * 1.1 + (if short then 6 else 14)
 		-- the red X, top right, clear of the title's letters
-		local closePx = 48
+		local closePx = if short then 44 else 48
 		local closeButton = make("ImageButton", {
 			Name = "CloseX",
 			BackgroundTransparency = 1,
@@ -118,7 +123,8 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		buildTrove:Connect(closeButton.Activated, function()
 			self:close()
 		end)
-		local bottom = math.round(190 * k)
+		local btnH = math.max(math.round(64 * k), 38) -- the one row of buttons on a short card
+		local bottom = if short then btnH + 12 else math.round(190 * k)
 		local stageH = h - stageY - bottom
 		-- the turntable: the left column on a wide card, the whole width (and a shorter stage) on a stacked one
 		local viewW = if wide then math.round(w * 0.5) - 10 else w - 12
@@ -183,21 +189,23 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			Size = UDim2.fromOffset(infoW, infoH),
 			ZIndex = 6,
 		}, card) :: Frame
-		local namePx = math.max(math.round((if wide then 40 else 30) * k), 22)
+		local namePx = math.max(math.round((if wide then 40 else 30) * k), if short then 16 else 22)
 		local nameLabel = CarKit.title(info, "", namePx, {
-			align = Enum.TextXAlignment.Center,
-			size = UDim2.new(1, 0, 0, namePx * 1.1),
+			align = if short then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
+			size = UDim2.new(if short then 0.6 else 1, 0, 0, namePx * 1.1),
 			top = CarKit.White,
 			bottom = CarKit.Soft,
 			z = 7,
 			name = "CarName",
 		})
-		local tagH = math.max(math.round(26 * k), 20)
+		local tagH = math.max(math.round(26 * k), if short then 16 else 20)
 		local tag = make("Frame", {
 			Name = "RarityTag",
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, namePx * 1.1 + 4),
-			Size = UDim2.fromOffset(math.max(math.round(150 * k), 100), tagH),
+			AnchorPoint = if short then Vector2.new(1, 0) else Vector2.new(0.5, 0),
+			Position = if short
+				then UDim2.new(1, 0, 0, (namePx * 1.1 - tagH) / 2)
+				else UDim2.new(0.5, 0, 0, namePx * 1.1 + 4),
+			Size = UDim2.fromOffset(if short then 84 else math.max(math.round(150 * k), 100), tagH),
 			BackgroundColor3 = Color3.fromRGB(226, 230, 240),
 			ZIndex = 7,
 		}, info) :: Frame
@@ -207,16 +215,16 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			{ Thickness = 2.5, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
 			tag
 		) :: UIStroke
-		local tagLabel = CarKit.text(tag, "", math.max(math.round(17 * k), 13), {
+		local tagLabel = CarKit.text(tag, "", math.max(math.round(17 * k), if short then 11 else 13), {
 			align = Enum.TextXAlignment.Center,
 			color = CarKit.Ink,
 			z = 8,
 			name = "Rarity",
 		})
 		tagLabel.FontFace = CarKit.display()
-		local rowTop = namePx * 1.1 + 4 + tagH + math.round(10 * k)
+		local rowTop = if short then namePx * 1.1 + 4 else namePx * 1.1 + 4 + tagH + math.round(10 * k)
 		local rowAreaH = infoH - rowTop
-		local rowGap = math.max(math.round(6 * k), 3)
+		local rowGap = if short then 3 else math.max(math.round(6 * k), 3)
 		local cols = if wide then 1 else 2
 		local rowsPerCol = 4 // cols
 		local rowH = math.floor((rowAreaH - rowGap * (rowsPerCol - 1)) / rowsPerCol)
@@ -236,11 +244,12 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			}, info) :: Frame
 			make("UICorner", { CornerRadius = UDim.new(0, math.max(math.round(10 * k), 6)) }, row)
 			make("UIStroke", { Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, row)
+			local swatchPx = if short then math.max(rowH - 8, 8) else math.max(rowH - 14, 14)
 			local swatch = make("Frame", {
 				Name = "Swatch",
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.new(0, 8, 0.5, 0),
-				Size = UDim2.fromOffset(math.max(rowH - 14, 14), math.max(rowH - 14, 14)),
+				Size = UDim2.fromOffset(swatchPx, swatchPx),
 				BackgroundColor3 = CarKit.Soft,
 				ZIndex = 8,
 			}, row) :: Frame
@@ -250,19 +259,19 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				{ Thickness = 2, Color = CarKit.Ink, ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
 				swatch
 			)
-			local textX = 8 + math.max(rowH - 14, 14) + 8
-			CarKit.text(row, label .. ":", math.max(math.round(15 * k), 11), {
+			local textX = 8 + swatchPx + 8
+			CarKit.text(row, label .. ":", math.max(math.round(15 * k), if short then 10 else 11), {
 				align = Enum.TextXAlignment.Left,
 				color = CarKit.Gold,
-				size = UDim2.new(1, -textX - 4, 0.4, 0),
-				position = UDim2.new(0, textX, 0.06, 0),
+				size = if short then UDim2.new(0.38, -textX, 1, 0) else UDim2.new(1, -textX - 4, 0.4, 0),
+				position = if short then UDim2.fromOffset(textX, 0) else UDim2.new(0, textX, 0.06, 0),
 				z = 8,
 				name = "Label",
 			})
-			local value = CarKit.title(row, "", math.max(math.round(21 * k), 13), {
+			local value = CarKit.title(row, "", math.max(math.round(21 * k), if short then 11 else 13), {
 				align = Enum.TextXAlignment.Left,
-				size = UDim2.new(1, -textX - 4, 0.52, 0),
-				position = UDim2.new(0, textX, 0.42, 0),
+				size = if short then UDim2.new(0.62, -8, 1, 0) else UDim2.new(1, -textX - 4, 0.52, 0),
+				position = if short then UDim2.fromScale(0.38, 0) else UDim2.new(0, textX, 0.42, 0),
 				shadow = false,
 				stroke = 1.5,
 				z = 8,
@@ -313,17 +322,19 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		end)
 
 		-- the buttons -------------------------------------------------------------------------------------------------------
-		local small = math.max(math.round(52 * k), 46)
-		local smallW = (w - 44 * k) / 2
-		local portraitPx = math.max(small - 8, 38)
+		local small = if short then btnH else math.max(math.round(52 * k), 46)
+		local gap = 8
+		local sideW = if short then math.floor((w - 16 - gap * 2) * 0.27) else 0
+		local smallW = if short then sideW else (w - 44 * k) / 2
+		local portraitPx = if short then small - 6 else math.max(small - 8, 38)
 		local changeCar = CarKit.button(card, {
 			text = "CHANGE CAR",
 			tone = "Navy",
-			px = math.max(math.round(26 * k), 18),
+			px = math.max(math.round(26 * k), if short then 12 else 18),
 			icon = "garage",
 			iconPx = portraitPx,
 			size = UDim2.fromOffset(smallW, small),
-			position = UDim2.new(0, 16 * k, 1, -math.round(124 * k) - 12),
+			position = if short then UDim2.new(0, 8, 1, -8) else UDim2.new(0, 16 * k, 1, -math.round(124 * k) - 12),
 			anchor = Vector2.new(0, 1),
 			z = 7,
 			name = "ChangeCar",
@@ -360,11 +371,13 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		CarKit.button(card, {
 			text = "CHANGE TRAIL",
 			tone = "Navy",
-			px = math.max(math.round(26 * k), 18),
+			px = math.max(math.round(26 * k), if short then 12 else 18),
 			icon = "trail",
 			size = UDim2.fromOffset(smallW, small),
-			position = UDim2.new(1, -16 * k, 1, -math.round(124 * k) - 12),
-			anchor = Vector2.new(1, 1),
+			position = if short
+				then UDim2.new(0, 8 + sideW + gap, 1, -8)
+				else UDim2.new(1, -16 * k, 1, -math.round(124 * k) - 12),
+			anchor = if short then Vector2.new(0, 1) else Vector2.new(1, 1),
 			z = 7,
 			name = "ChangeTrail",
 			onPress = options.onChangeTrail,
@@ -372,12 +385,14 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		local start = CarKit.button(card, {
 			text = "START!",
 			tone = "Orange", -- A-07: START stays the big orange button
-			px = math.max(math.round(74 * k), 40),
-			size = UDim2.new(1, -math.round(36 * k), 0, math.round(112 * k)),
-			position = UDim2.new(0.5, 0, 1, -math.round(14 * k)),
-			anchor = Vector2.new(0.5, 1),
+			px = if short then math.max(math.round(74 * k), 24) else math.max(math.round(74 * k), 40),
+			size = if short
+				then UDim2.new(1, -(16 + sideW * 2 + gap * 3), 0, btnH)
+				else UDim2.new(1, -math.round(36 * k), 0, math.round(112 * k)),
+			position = if short then UDim2.new(1, -8, 1, -8) else UDim2.new(0.5, 0, 1, -math.round(14 * k)),
+			anchor = if short then Vector2.new(1, 1) else Vector2.new(0.5, 1),
 			z = 7,
-			radius = 22,
+			radius = if short then 12 else 22,
 			name = "Start",
 			onPress = function()
 				self:press()
@@ -400,10 +415,10 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			end)
 		end
 		if hint then
-			CarKit.title(card, hint, math.max(math.round(30 * k), 20), {
+			CarKit.title(card, hint, math.max(math.round(30 * k), if short then 12 else 20), {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, 0, 0, 34),
-				position = UDim2.new(0, 0, 1, -math.round(190 * k) - 30),
+				position = UDim2.new(0, 0, 1, -(if short then btnH + 12 else math.round(190 * k)) - 30),
 				color = CarKit.Yellow,
 				stroke = 2.5,
 				z = 8,

@@ -17,6 +17,8 @@
 --   h:setItem(tab, item?)       dress one tab with a catalog item (an ad-hoc item is fine), nil = the car as it was made
 --   h:tick(phase)               a colour-only paint on a car with no paint mask (the see-through wash) follows `phase`
 --   h:tail() -> CFrame          the back of the model, +Z pointing away from it: where a trail starts
+--   h:setTrailLevel(0..3)  h:flareTrail(seconds?)  h:getTrailFx()   forwarded to the TrailFx handle (the run's trail moments, WS-5b)
+--   CarLookApplier.runHandle() -> Handle?   the handle that carries the player's trail in the current run (BetaRun.client sets it)
 --
 -- Options: ghost (H-03: see-through, no collision, no shadow, no trail, a rarity outline when `outline` is given), lod ("full" |
 -- "low": tiles and ghosts use "low": no particles and no animated paint redraw), trail (default true), reduceMotion.
@@ -65,6 +67,9 @@ export type Handle = {
 	tick: (self: Handle, phase: number) -> (),
 	tail: (self: Handle) -> CFrame,
 	clearTrail: (self: Handle) -> (),
+	setTrailLevel: (self: Handle, level: number) -> (),
+	flareTrail: (self: Handle, seconds: number?) -> (),
+	getTrailFx: (self: Handle) -> any?,
 }
 
 local WASH = 0.45 -- the see-through colour wash on a car with no paint mask
@@ -666,6 +671,26 @@ function Applied.clearTrail(self: any)
 	if self._trail then
 		self._trail:clear()
 	end
+end
+
+-- The trail's own hooks for the run's trail moments (WS-5b, src/client/Run/TrailMoments): forwarded to the TrailFx handle when it has them
+-- (WS-5a: fx:setLevel(0..3) for a hop chain, fx:flare(seconds) for a brief brighter moment); a TrailFx without them changes nothing.
+function Applied.setTrailLevel(self: any, level: number)
+	local fx = self._trail
+	if fx and fx.setLevel then
+		fx:setLevel(math.clamp(level, 0, 3))
+	end
+end
+
+function Applied.flareTrail(self: any, seconds: number?)
+	local fx = self._trail
+	if fx and fx.flare then
+		fx:flare(seconds)
+	end
+end
+
+function Applied.getTrailFx(self: any): any?
+	return self._trail
 end
 
 function Applied.setTrailSpeed(self: any, speed: number)
