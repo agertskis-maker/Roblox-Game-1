@@ -80,9 +80,9 @@ function Cool.frost(c: Kit.Ctx)
 	Kit.beam(c, {
 		to = c.tip2,
 		colour = seq(ice, deep),
-		fade = curve({ { 0, 0.25 }, { 0.6, 0.6 }, { 1, 1 } }),
-		w0 = 0.9 * s,
-		w1 = 1.8 * s,
+		fade = curve({ { 0, 0.4 }, { 0.6, 0.6 }, { 1, 1 } }),
+		w0 = 0.50 * s,
+		w1 = 1.08 * s,
 		light = 0.7,
 	})
 	Kit.emit(c, { -- shards
@@ -265,8 +265,8 @@ function Cool.aurora(c: Kit.Ctx)
 			b = bot,
 			life = 1.2,
 			colour = seq(from, teal, to),
-			fade = curve({ { 0, 0.15 }, { 0.5, 0.45 }, { 1, 1 } }),
-			faceCamera = false,
+			fade = curve({ { 0, 0.05 }, { 0.5, 0.3 }, { 1, 1 } }),
+			faceCamera = true,
 			sheet = "aurora",
 			light = 1,
 			brightness = 1.6,

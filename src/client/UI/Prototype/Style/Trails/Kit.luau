@@ -327,12 +327,12 @@ end
 function Kit.core(c: Ctx, colour: ColorSequence, w0: number, w1: number?): Beam
 	return Kit.beam(c, {
 		colour = colour,
-		fade = Kit.curve({ { 0, 0 }, { 0.6, 0.25 }, { 1, 1 } }),
-		w0 = w0,
-		w1 = w1 or w0 * 0.15,
+		fade = Kit.curve({ { 0, 0.1 }, { 0.4, 0.4 }, { 0.75, 0.88 }, { 1, 1 } }),
+		w0 = w0 * 0.5,
+		w1 = (w1 or w0 * 0.15) * 0.5,
 		segments = 12,
 		light = 1,
-		brightness = 2,
+		brightness = 1.4,
 	})
 end
 

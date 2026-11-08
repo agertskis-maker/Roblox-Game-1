@@ -24,9 +24,9 @@ function Wild.galaxy(c: Kit.Ctx)
 		sheet = "beam_energy",
 		speed = 2,
 		colour = seq(Kit.hot(purple, 0.3), pink, cyan),
-		fade = curve({ { 0, 0.2 }, { 0.6, 0.5 }, { 1, 1 } }),
-		w0 = 1.2 * s,
-		w1 = 3.0 * s,
+		fade = curve({ { 0, 0.4 }, { 0.6, 0.5 }, { 1, 1 } }),
+		w0 = 0.66 * s,
+		w1 = 1.80 * s,
 		segments = 12,
 	})
 	Kit.emit(c, { -- spiral nebulae
@@ -221,9 +221,9 @@ function Wild.vip(c: Kit.Ctx)
 		sheet = "beam_strands",
 		speed = 3,
 		colour = seq(gold, purple),
-		fade = curve({ { 0, 0.1 }, { 0.6, 0.4 }, { 1, 1 } }),
-		w0 = 1.1 * s,
-		w1 = 2.4 * s,
+		fade = curve({ { 0, 0.4 }, { 0.6, 0.4 }, { 1, 1 } }),
+		w0 = 0.61 * s,
+		w1 = 1.44 * s,
 		segments = 14,
 	})
 	Kit.emit(c, {
@@ -354,7 +354,7 @@ function Wild.drift(c: Kit.Ctx)
 		rate = 14,
 		life = { 0.8, 1.2 },
 		speed = { 4, 7 },
-		size = curve({ { 0, 1.8 * s }, { 1, 4.6 * s } }),
+		size = curve({ { 0, 1.2 * s }, { 1, 3.4 * s } }),
 		colour = seq(colour:Lerp(W, 0.15), colour),
 		fade = curve({ { 0, 0.25 }, { 0.5, 0.35 }, { 1, 1 } }),
 		accel = Vector3.new(0, 1.5, 0),
