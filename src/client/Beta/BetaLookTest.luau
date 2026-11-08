@@ -269,8 +269,22 @@ function BetaLookTest.run(ctx: Context): { string }
 	)
 
 	-- 3. the look on the run car ---------------------------------------------------------------------------------------------
-	local shell = rcModel:FindFirstChild("BodyPaint") :: MeshPart?
-	check("C-02 paint: the paint shell is on the run car", shell ~= nil, nil)
+	-- the paint shell is made beside the car's body mesh (which may sit in a sub-model), so it is looked for all the way down; a car with
+	-- no paint mask is washed instead (PaintWash)
+	local shell = rcModel:FindFirstChild("BodyPaint", true) :: MeshPart?
+	local wash = rcModel:FindFirstChild("PaintWash", true) :: MeshPart?
+	check(
+		"C-02 paint: the paint shell (or the wash, on a car with no mask) is on the run car",
+		shell ~= nil or (wash ~= nil and wash.Transparency < 1),
+		if shell then "shell" elseif wash then "wash" else nil
+	)
+	if not shell and wash then
+		local want = (Catalog.byId("Paint", "fresh_lime") :: Catalog.Item).colours[1]
+		local h1 = wash.Color:ToHSV()
+		local h2 = want:ToHSV()
+		local diff = math.min(math.abs(h1 - h2), 1 - math.abs(h1 - h2))
+		check("C-02 paint: the wash is Fresh Lime", diff < 0.06, string.format("hue off by %.3f", diff))
+	end
 	if shell then
 		local colour, why = paintColour(shell)
 		local want = (Catalog.byId("Paint", "fresh_lime") :: Catalog.Item).colours[1]
@@ -346,7 +360,11 @@ function BetaLookTest.run(ctx: Context): { string }
 		local left, _ = trailParts(first)
 		check("... and the car you left has no trail", left == 0, left)
 		if rc2 then
-			check("a caught car keeps its own paint (no paint shell)", rc2:FindFirstChild("BodyPaint") == nil, nil)
+			check(
+				"a caught car keeps its own paint (no paint shell, no wash)",
+				rc2:FindFirstChild("BodyPaint", true) == nil and (rc2:FindFirstChild("PaintWash", true) == nil),
+				nil
+			)
 			local decals2 = 0
 			for _, d in rc2:GetDescendants() do
 				if d.Name == "StyleDecal" then
