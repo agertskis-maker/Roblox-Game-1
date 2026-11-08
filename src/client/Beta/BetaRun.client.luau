@@ -28,7 +28,11 @@ local PortalPreviewState =
 	require(script.Parent.Parent:WaitForChild("Home"):WaitForChild("Island"):WaitForChild("PortalPreviewState"))
 local UI = script.Parent.Parent:WaitForChild("UI")
 local RealCar = require(UI:WaitForChild("Prototype"):WaitForChild("RealCar"))
+local RidePick = require(UI.Prototype:WaitForChild("RidePick"))
 local StyleState = require(UI.Prototype:WaitForChild("StyleState"))
+local CarLookApplier = require(UI.Prototype:WaitForChild("Style"):WaitForChild("CarLookApplier"))
+local CarLook = require(ReplicatedStorage.Shared:WaitForChild("Style"):WaitForChild("CarLook"))
+local Trove = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("Trove"))
 local RunScenery = require(UI:WaitForChild("WorldsUnderRoad"):WaitForChild("RunScenery"))
 local Tutorial = require(UI:WaitForChild("Tutorial"))
 local LaunchPad = require(UI:WaitForChild("LaunchPad"))
@@ -66,6 +70,7 @@ local session: RunController.Session = {
 }
 
 local current: RunController.RunController? = nil
+local lookTrove = Trove.new() -- Round 8 (C-02): the cosmetics of the run on the road (the player's trail, the wheel spin), cleaned when it ends
 local runsThisSession = 0
 local scenery: RunScenery.Handle? = nil -- the World beside the road (big round M8)
 local extras: any = nil -- Round 7: HOP button, END RUN, IT'S YOURS, SECURED, distance, WRECKED (UI/RunHud/RunExtras)
@@ -96,6 +101,7 @@ local function stopRun(again: boolean?)
 		extras:destroy()
 		extras = nil
 	end
+	lookTrove:Clean()
 	if run then
 		run:destroy()
 	end
@@ -231,14 +237,20 @@ local function startRun(world: string): RunController.RunController
 	local seed: number? = nil
 	local runId: string? = nil
 	local luck: number? = nil -- Round 7 (L-02, R-12): the server's Luck snapshot for this run
+	-- Round 8 (C-03): the car this run starts on. The client asks with the card's pick; the server answers with the car it checked
+	-- (owned, of this World, else the saved RideCar, else the World's Loaner).
+	local startCar: string = StyleState.car()
 	local startFn = runRemote(BetaRunNet.Remotes.StartRun)
 	if startFn and startFn:IsA("RemoteFunction") then
 		local ok, reply = pcall(function()
-			return startFn:InvokeServer(world, nil)
+			return startFn:InvokeServer(world, StyleState.car())
 		end)
 		if ok and type(reply) == "table" and type(reply.seed) == "number" and type(reply.runId) == "string" then
 			seed, runId = reply.seed, reply.runId
 			luck = if type(reply.luck) == "number" then reply.luck else nil
+			if type(reply.startCar) == "string" and #reply.startCar > 0 then
+				startCar = reply.startCar
+			end
 		else
 			warn("[CarHopBeta] the server did not start a run for " .. world .. ": this run is not paid")
 		end
@@ -280,40 +292,57 @@ local function startRun(world: string): RunController.RunController
 		quietClaims = true,
 	})
 	current = run
-	-- Round 7 (C-08): the car you ride wears your Style Shop look (paint, decal, wheels and trail), its wheels turning; the car
-	-- you leave goes back to how Brian L made it
-	local styleRigs: { [Model]: any } = {}
-	local wearing: any = nil
+	-- Round 8 (C-02, C-01): ONE look for the whole run, through Style.CarLookApplier. The car you START on wears your paint, decal and
+	-- wheels from its first frame (dressed in this same frame as run:start(), before anything is drawn); your TRAIL belongs to you and
+	-- goes with you to every car you hop onto; a car you catch keeps the paint, decals and wheels it was made with.
+	-- Round 7 dressed the car after the fact and moved the whole look onto each caught car; nothing asserted the result on the car in a
+	-- real run (the self-test only read the save), see vault/decisions/0044-lane3-round8.md for what was found.
+	lookTrove:Clean()
+	local rigs: { [Model]: any } = {} -- every dressed car on the road, by its stand-in model
 	local riddenModel: Model? = nil
-	local function wear(rig: any, on: boolean)
-		rig:setPaint(if on then StyleState.item("Paint") else nil)
-		rig:setDecal(if on then StyleState.item("Decals") else nil)
-		rig:setWheels(if on then StyleState.item("Wheels") else nil)
-		rig:setTrail(if on then StyleState.item("Trails") else nil)
-	end
-	run.Boarded:Connect(function(model: Model)
-		riddenModel = model
-		if wearing then
-			wear(wearing, false)
-		end
-		wearing = styleRigs[model]
-		if wearing then
-			wear(wearing, true)
-			wearing:clearTrail()
-		end
-	end)
-	local spinner: RBXScriptConnection? = nil
-	spinner = RunService.Heartbeat:Connect(function(dt: number)
-		if current ~= run then
-			if spinner then
-				spinner:Disconnect()
-			end
+	local trailHandle: any = nil
+	local booted = false -- the first dressing pass has run
+	local ownLook = CarLook.fromEquipped(startCar, StyleState.get().equipped)
+	local function followTrail(model: Model)
+		if ownLook.trail == nil then
 			return
 		end
-		if wearing then
-			wearing:spin(dt * 18)
+		local rig = rigs[model]
+		local target = (rig and rig:model()) or model
+		if trailHandle then
+			trailHandle:moveTrailTo(target)
+		else
+			trailHandle = CarLookApplier.apply(
+				target,
+				{ car = ownLook.car, trail = ownLook.trail, matchPaint = ownLook.matchPaint },
+				{}
+			)
+			lookTrove:Add(function()
+				if trailHandle then
+					trailHandle:destroy()
+					trailHandle = nil
+				end
+			end)
+		end
+	end
+	run.Boarded:Connect(function(model: Model)
+		if riddenModel and riddenModel.Parent then
+			riddenModel:SetAttribute("Lane3Ridden", nil)
+		end
+		riddenModel = model
+		model:SetAttribute("Lane3Ridden", true)
+		if booted then
+			followTrail(model)
 		end
 	end)
+	lookTrove:Connect(RunService.Heartbeat, function(dt: number)
+		local rig = if riddenModel then rigs[riddenModel] else nil
+		if rig then
+			rig:spin(dt * 18)
+		end
+	end)
+	-- the car you start on is loaded before the lights go green (C-02: it must not pop in)
+	RealCar.preload(startCar)
 	if runId then
 		bridge(run, world, runId)
 	else
@@ -378,9 +407,9 @@ local function startRun(world: string): RunController.RunController
 			if type(family) ~= "string" or type(rarity) ~= "string" then
 				return
 			end
-			local carId = if model:FindFirstChild("Tag", true)
-				then BetaRunMap.carFor(world, family, rarity)
-				else StyleState.car()
+			-- a car with no tag is yours (the one you start on, or the Loaner a miss puts you on); the others are the road's, as made
+			local yours = model:FindFirstChild("Tag", true) == nil
+			local carId = if yours then startCar else BetaRunMap.carFor(world, family, rarity)
 			if not carId then
 				return
 			end
@@ -402,18 +431,21 @@ local function startRun(world: string): RunController.RunController
 				for p, was in hidden do
 					p.Transparency = was
 				end
+				if model == riddenModel then
+					followTrail(model) -- the trail still goes with you, onto the placeholder
+				end
 				return
 			end
-			styleRigs[model] = rig
+			rigs[model] = rig
+			if yours then
+				-- your paint, decal and wheels (the trail is carried on its own, above)
+				rig:setLook({ car = carId, paint = ownLook.paint, decal = ownLook.decal, wheels = ownLook.wheels })
+			end
 			if model == riddenModel then
-				wearing = rig
-				wear(rig, true)
+				followTrail(model)
 			end
 			model.Destroying:Connect(function()
-				styleRigs[model] = nil
-				if wearing == rig then
-					wearing = nil
-				end
+				rigs[model] = nil
 				rig:destroy()
 			end)
 			-- his tag names the family ("Van"): it names the real car instead. Round 7 (R-10): the rarity word is the real car's
@@ -436,6 +468,7 @@ local function startRun(world: string): RunController.RunController
 			dress(d)
 		end
 		traffic.ChildAdded:Connect(dress)
+		booted = true
 	end
 	extras = RunExtras.attach(run, { world = world, floatHelp = help })
 	Tutorial.attachRun(run) -- the tutorial's run steps read the run, they never change it
@@ -445,6 +478,12 @@ local function startRun(world: string): RunController.RunController
 	print(string.format("[CarHopBeta] %s run started (seed %d)", world, run.seed))
 	return run
 end
+
+-- Round 8 (C-03): the launch card's car follows the car the server saved (PickRideCar answers through the BetaRideCar attribute)
+task.spawn(function()
+	ReplicatedStorage:WaitForChild(BetaConfig.NetName, 30)
+	RidePick.follow()
+end)
 
 LaunchPad.configure({
 	startRun = startRun,
@@ -675,6 +714,11 @@ if RunService:IsStudio() then
 				end
 			end
 			return n
+		elseif command == "end" then
+			if current then
+				current:finish("Ended by you")
+			end
+			return "ended"
 		elseif command == "style" and type(arg) == "string" then
 			-- Round 7 (C-08): "Paint/galaxy" buys (through the server) and wears an item
 			local tab, id = string.match(arg, "^(%a+)/(.+)$")
@@ -728,6 +772,41 @@ if RunService:IsStudio() then
 				"CarHopBetaCmdResult",
 				if encoded then HttpService:JSONEncode({ ok = ok, result = result }) else tostring(result)
 			)
+		end)
+	end)
+	-- Round 8 (C-02, C-03): the end-to-end look test. ServerStorage.CarHopBetaSelfTest "look" (src/server/Beta/BetaLookTest) asks for it
+	-- through the Player attribute BetaLookTestRequest; the client half (BetaLookTest) goes through the real remotes and the real launch,
+	-- and the answer goes back on CarHopBetaNet.BetaLookTestReport. Studio only; it is idle unless the server asks.
+	local BetaLookTest = require(script.Parent:WaitForChild("BetaLookTest")) :: any
+	player:GetAttributeChangedSignal("BetaLookTestRequest"):Connect(function()
+		local nonce = player:GetAttribute("BetaLookTestRequest")
+		if type(nonce) ~= "string" or nonce == "" then
+			return
+		end
+		task.spawn(function()
+			local ok, lines = pcall(function(): any
+				return BetaLookTest.run({
+					control = function(command: string, arg: any?): any
+						return handleCommand(command, arg)
+					end,
+					debugState = function(): any?
+						return if current then current:getDebugState() else nil
+					end,
+					hop = function()
+						if current then
+							current:requestHop()
+						end
+					end,
+				})
+			end)
+			local list = if ok and type(lines) == "table"
+				then lines
+				else { "FAIL the look test errored: " .. tostring(lines) }
+			local net = ReplicatedStorage:WaitForChild(BetaConfig.NetName, 10)
+			local report = net and net:WaitForChild("BetaLookTestReport", 10)
+			if report and report:IsA("RemoteEvent") then
+				report:FireServer(nonce, game:GetService("HttpService"):JSONEncode(list))
+			end
 		end)
 	end)
 	RunService.Heartbeat:Connect(function()
