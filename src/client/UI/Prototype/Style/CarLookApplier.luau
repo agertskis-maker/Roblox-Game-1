@@ -47,6 +47,7 @@ export type Options = {
 	lod: ("full" | "low")?,
 	trail: boolean?,
 	reduceMotion: boolean?,
+	paintColour: Color3?, -- additive: the paint colour a MATCH MY PAINT trail takes when this handle itself paints nothing (the run's trail handle)
 }
 
 export type Moment = "leap" | "dive" | "catch" | "flare"
@@ -220,7 +221,7 @@ function CarLookApplier.apply(model: Model, look: CarLook.Look, options: Options
 		_dead = false,
 		_ghost = ghost,
 		_still = lowDetail or ghost, -- no animated paint redraw
-		_trailOn = o.trail ~= false and not ghost and not lowDetail,
+		_trailOn = o.trail ~= false and not ghost,
 	}, Applied)
 	-- what the handle made outside the Trove's reach is let go with it
 	self.trove:Add(function()
@@ -252,8 +253,8 @@ function Applied.update(self: any, look: CarLook.Look)
 			self:setItem(tab, itemFor(tab, id))
 		end
 	end
-	if first == false and look.matchPaint ~= before.matchPaint and self._trail then
-		self._trail:set(self._items.Trails)
+	if first == false and look.matchPaint ~= before.matchPaint then
+		self:_syncMatchPaint()
 	end
 end
 
@@ -268,6 +269,7 @@ function Applied.setItem(self: any, tab: Catalog.TabId, item: Catalog.Item?)
 	self._items[tab] = item
 	if tab == "Paint" then
 		self:_paint(item)
+		self:_syncMatchPaint() -- a trail that matches the paint follows the paint
 	elseif tab == "Decals" then
 		self:_decal(item)
 	elseif tab == "Wheels" then
@@ -498,13 +500,22 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		end
 		local anchors = anchorsFor("Wheels", self.look.car)
 		local ok, handle = pcall(function()
-			return kit.fit(self.model, id, anchors)
+			return kit.fit(
+				self.model,
+				id,
+				anchors,
+				{ lod = self.options.lod, reduceMotion = self.options.reduceMotion }
+			)
 		end)
 		if ok and handle then
 			self._kitHandle = handle
 			if self._spin ~= 0 then
 				pcall(function()
-					handle:spin(self._spin)
+					if handle.setSpin then
+						handle:setSpin(self._spin) -- WheelKit: the total roll angle
+					else
+						handle:spin(self._spin)
+					end
 				end)
 			end
 			return
@@ -550,7 +561,12 @@ function Applied.setWheelSpin(self: any, radians: number)
 	self._spin = radians
 	if self._kitHandle then
 		pcall(function()
-			self._kitHandle:spin(radians)
+			local kit = self._kitHandle
+			if kit.setSpin then
+				kit:setSpin(radians) -- WheelKit: sets the roll angle outright (spin() would add)
+			else
+				kit:spin(delta)
+			end
 		end)
 		return
 	end
@@ -591,12 +607,38 @@ function Applied._attachTrail(self: any, model: Model)
 		return
 	end
 	local tail, width = tailOf(model)
-	local fx = TrailFx.attach(holder, tail, math.max(width, 3))
+	-- TrailFx (WS-5a) finds the car's exhaust points itself from the CarName attribute up the model tree; the car name here is for a
+	-- model that carries none. The old four-argument-free call still works (the options are ignored by a TrailFx without them).
+	local fx = (TrailFx :: any).attach(holder, tail, math.max(width, 3), { model = model, car = self.look.car }) :: any
+	if self.options.lod == "low" and fx.setQuality then
+		fx:setQuality("low") -- beams and ribbons only: no particles, no glow, no sound
+	end
+	if self.options.reduceMotion ~= nil and fx.setReduceMotion then
+		fx:setReduceMotion(self.options.reduceMotion)
+	end
 	fx:setSpeed(self._speed)
 	self._trail = fx
 	self._trailHolder = holder
 	self._trailOn_model = model
 	holder:SetAttribute("CarLookTrail", "") -- marks the part the trail hangs on (the end-to-end look test reads it)
+end
+
+-- T-08: the colour a MATCH MY PAINT trail takes: this car's worn paint, else the colour the caller gave (the run's trail handle).
+function Applied._syncMatchPaint(self: any)
+	local fx = self._trail
+	if not (fx and fx.setMatchPaint) then
+		return
+	end
+	local colour: Color3? = nil
+	if self.look.matchPaint then
+		local trail: Catalog.Item? = self._items.Trails
+		local supports = (TrailFx :: any).supportsMatchPaint
+		if trail == nil or supports == nil or supports(trail) then
+			local paint: Catalog.Item? = self._items.Paint
+			colour = if paint and paint.colours[1] then paint.colours[1] else self.options.paintColour
+		end
+	end
+	fx:setMatchPaint(colour)
 end
 
 function Applied._trailFor(self: any, item: Catalog.Item?)
@@ -615,6 +657,7 @@ function Applied._trailFor(self: any, item: Catalog.Item?)
 		if self._trailHolder then
 			(self._trailHolder :: BasePart):SetAttribute("CarLookTrail", item.id)
 		end
+		self:_syncMatchPaint()
 	end
 end
 

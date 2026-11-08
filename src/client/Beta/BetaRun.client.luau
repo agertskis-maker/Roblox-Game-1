@@ -312,10 +312,11 @@ local function startRun(world: string): RunController.RunController
 		if trailHandle then
 			trailHandle:moveTrailTo(target)
 		else
+			local paintItem = StyleState.item("Paint") -- a MATCH MY PAINT trail takes this colour (the car is painted by its own handle)
 			trailHandle = CarLookApplier.apply(
 				target,
 				{ car = ownLook.car, trail = ownLook.trail, matchPaint = ownLook.matchPaint },
-				{}
+				{ paintColour = if paintItem then paintItem.colours[1] else nil }
 			)
 			CarLookApplier.setRunHandle(trailHandle)
 			lookTrove:Add(function()
