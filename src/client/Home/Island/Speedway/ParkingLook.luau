@@ -50,6 +50,40 @@ function ParkingLook.resolve(plot: Model, index: number): number
 	return Parking.StartSpots
 end
 
+-- Round 8 (H-03): where a bay is, for the ghost cars and the markings painted on the ground (ParkingGhosts.client.luau). The same
+-- layout Parking.build draws the lines from (the 15-bay one, or the 18-bay one when the plot has the Expanded Paddock pass).
+--   car     bottom centre of a parked car's pivot, front toward the back wall (a car parks nose-in, as the layout says)
+--   plate   a flat plate's pose just over the paddock floor and under the bay lines: its front (-Z) points to the back wall
+--   width   the painted bay, inside the lines          depth  mouth to back wall
+ParkingLook.CarHeight = 0.28
+ParkingLook.PlateHeight = 0.255
+export type BayPose = { car: CFrame, plate: CFrame, width: number, depth: number }
+
+function ParkingLook.bayPose(plot: Model, bearing: number, bayIndex: number): BayPose?
+	local extended = Parking.maxFor(plot) > Parking.MaxSpots
+	local bay = Parking.bay(bayIndex, extended)
+	if bay == nil then
+		return nil
+	end
+	local ctx = Ctx.new(plot, 0, bearing, 1, "")
+	local u = (bay.back + bay.mouth) / 2
+	local toBack = -Ctx.dir(ctx, Parking.opening(bay))
+	local carAt = Ctx.at(ctx, bay.x, u, ParkingLook.CarHeight)
+	local plateAt = Ctx.at(ctx, bay.x, u, ParkingLook.PlateHeight)
+	return {
+		car = CFrame.lookAt(carAt, carAt + toBack),
+		plate = CFrame.lookAt(plateAt, plateAt + toBack),
+		width = 2 * Parking.BayHalfWidth,
+		depth = math.abs(bay.back - bay.mouth),
+	}
+end
+
+-- The middle of the Paddock (both rows and the aisle between them), on the floor: the distance the ghosts and markings are built by.
+function ParkingLook.paddockCentre(plot: Model, bearing: number): Vector3
+	local ctx = Ctx.new(plot, 0, bearing, 1, "")
+	return Ctx.at(ctx, 0, (Parking.RowA[1] + Parking.RowB[2]) / 2, 0)
+end
+
 local function fade(parts: { BasePart }, value: number)
 	for _, p in parts do
 		p.LocalTransparencyModifier = value

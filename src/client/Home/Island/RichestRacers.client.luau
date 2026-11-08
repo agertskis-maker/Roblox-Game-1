@@ -13,6 +13,7 @@ if not BetaConfig.enabled() then
 	return
 end
 local Format = require(ReplicatedStorage.Shared:WaitForChild("UI"):WaitForChild("Format"))
+local Headshot = require(script.Parent.Headshot)
 
 local player = Players.LocalPlayer
 local GOLD = Color3.fromRGB(255, 196, 46)
@@ -57,34 +58,51 @@ if pill then
 	end
 end
 
--- each row keeps its own look; a headshot goes in front of the name, the original colours are kept for the highlight's undo
-type Row = { frame: Frame, name: TextLabel?, value: TextLabel?, face: ImageLabel, colour: Color3, transparency: number }
+-- each row keeps its own look; a headshot goes in front of the name, the original colours are kept for the highlight's undo.
+-- Round 8 (H-01): the face comes from Headshot.luau (the client-side thumbnail with a fallback, and a designed letter placeholder
+-- for players without a face, such as the negative ids of local test players; never a blank square).
+type Row = {
+	frame: Frame,
+	name: TextLabel?,
+	value: TextLabel?,
+	face: Frame,
+	colour: Color3,
+	transparency: number,
+	boundId: number?,
+	boundName: string?,
+	cancel: (() -> ())?,
+}
 local rows: { Row } = {}
 for i = 1, BetaConfig.RichestRows do
 	local frame = board:FindFirstChild("Row" .. i)
 	if frame and frame:IsA("Frame") then
 		local name = frame:FindFirstChild("Name")
 		local value = frame:FindFirstChild("Value")
-		local faceImg = Instance.new("ImageLabel")
-		faceImg.Name = "Headshot"
-		faceImg.BackgroundTransparency = 1
-		faceImg.AnchorPoint = Vector2.new(1, 0.5)
-		faceImg.SizeConstraint = Enum.SizeConstraint.RelativeYY
-		faceImg.Size = UDim2.fromScale(0.86, 0.86)
+		local faceHolder = Instance.new("Frame")
+		faceHolder.Name = "Headshot"
+		faceHolder.BackgroundTransparency = 1
+		faceHolder.BorderSizePixel = 0
+		faceHolder.ClipsDescendants = true
+		faceHolder.AnchorPoint = Vector2.new(1, 0.5)
+		faceHolder.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		faceHolder.Size = UDim2.fromScale(0.86, 0.86)
 		if name and name:IsA("TextLabel") then
-			faceImg.Position = UDim2.new(name.Position.X.Scale, name.Position.X.Offset - 4, 0.5, 0)
+			faceHolder.Position = UDim2.new(name.Position.X.Scale, name.Position.X.Offset - 4, 0.5, 0)
 		end
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(1, 0)
-		corner.Parent = faceImg
-		faceImg.Parent = frame
+		corner.Parent = faceHolder
+		faceHolder.Parent = frame
 		table.insert(rows, {
 			frame = frame,
 			name = if name and name:IsA("TextLabel") then name else nil,
 			value = if value and value:IsA("TextLabel") then value else nil,
-			face = faceImg,
+			face = faceHolder,
 			colour = frame.BackgroundColor3,
 			transparency = frame.BackgroundTransparency,
+			boundId = nil,
+			boundName = nil,
+			cancel = nil,
 		})
 	end
 end
@@ -109,8 +127,29 @@ local function refresh()
 			row.value.Text = if e then Format.cash(e.cash) else ""
 		end
 		row.face.Visible = e ~= nil
-		if e then
-			row.face.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", e.userId)
+		if e == nil then
+			if row.cancel then
+				row.cancel()
+				row.cancel = nil
+			end
+			row.boundId = nil
+			row.boundName = nil
+		elseif row.boundId ~= e.userId or row.boundName ~= e.name then
+			-- a different player in this row (or a new name): a fresh face, never the old one
+			if row.cancel then
+				row.cancel()
+			end
+			for _, child in row.face:GetChildren() do
+				if not child:IsA("UICorner") then
+					child:Destroy()
+				end
+			end
+			row.boundId = e.userId
+			row.boundName = e.name
+			local wanted = e.userId
+			row.cancel = Headshot.attach(row.face, e.userId, e.name, function(): boolean
+				return row.boundId == wanted
+			end)
 		end
 		local mine = e ~= nil and e.userId == player.UserId
 		row.frame.BackgroundColor3 = if mine then HIGHLIGHT else row.colour
