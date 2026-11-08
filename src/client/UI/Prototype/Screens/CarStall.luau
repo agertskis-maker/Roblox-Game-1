@@ -1,9 +1,9 @@
 --!strict
 -- CarStall: the Launch Pad's Car stall (Lane 3, Round 3 N6-04): choose the car you start in. Round 4 (E-05): only this pad's
 -- World's nine cars (RealCar.forWorld), the Loaner first and always free to pick, then the cars you own, then the ones you have
--- not found yet, shown dark with a lock and not pickable. Ownership is the example collection until Brian L's save reaches the
--- client. The run still starts in Brian R's Loaner until his RunController takes a start car, and the panel says so; the choice
--- is kept in StyleState and shows on the other screens.
+-- not found yet, shown dark with a lock and not pickable. Ownership is the server's Cars attribute (the example collection where there is
+-- no server). Round 8 (C-03): a pick is saved by the server (PickRideCar) and the run starts on it; the panel closes on the pick and
+-- the launch card answers with its confirmation.
 -- Each card's picture is built only as it scrolls near the view, so opening the stall does not load all 27.
 --
 --   local c = CarStall.new(ctx, { onClose = fn? })
@@ -13,6 +13,7 @@ local Prototype = script.Parent.Parent
 local CarKit = require(Prototype.CarKit)
 local Overlay = require(script.Parent.Overlay)
 local RealCar = require(Prototype.RealCar)
+local RidePick = require(Prototype.RidePick)
 local StyleState = require(Prototype.StyleState)
 
 local make = CarKit.make
@@ -170,9 +171,16 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 					return
 				end
 				StyleState.setCar(car.name)
+				RidePick.ask(car.name) -- Round 8 (C-03): the server saves the pick; the client only asks
 				for name, r in rings do
 					r.Visible = name == car.name
 				end
+				-- back to the launch card, which answers with its confirmation (sparkles, check, "READY TO RIDE")
+				task.delay(0.3, function()
+					if isOpen and StyleState.car() == car.name then
+						self:close()
+					end
+				end)
 			end)
 		end
 		local function buildNear()
@@ -188,7 +196,7 @@ function CarStall.new(ctx: Overlay.Ctx, options: { onClose: (() -> ())? }?): { [
 		buildTrove:Connect(grid:GetPropertyChangedSignal("CanvasPosition"), buildNear)
 		buildTrove:Connect(grid:GetPropertyChangedSignal("AbsoluteSize"), buildNear)
 		task.defer(buildNear)
-		CarKit.text(panel, "For now every run starts in the Loaner. Your pick starts working soon.", 15, {
+		CarKit.text(panel, "Tap a car to ride it. Your run starts on it.", 15, {
 			align = Enum.TextXAlignment.Center,
 			size = UDim2.new(1, -24, 0, 24),
 			position = UDim2.new(0, 12, 1, -32),
