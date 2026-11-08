@@ -118,7 +118,7 @@ function Chip.new(parent: GuiObject, props: Props): Chip
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.05),
-		Size = UDim2.fromScale(0.66, 0.5),
+		Size = UDim2.fromScale(0.66, 0.44),
 		BackgroundTransparency = 1,
 		ScaleType = Enum.ScaleType.Fit,
 		ZIndex = 2,
@@ -144,7 +144,7 @@ function Chip.new(parent: GuiObject, props: Props): Chip
 	local label = Build.label(frame, "Label", props.label, {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 0.97),
-		Size = UDim2.fromScale(0.94, 0.44),
+		Size = UDim2.fromScale(0.94, 0.5),
 		ZIndex = 2,
 		TextColor3 = Palette.Navy,
 		TextWrapped = true,
