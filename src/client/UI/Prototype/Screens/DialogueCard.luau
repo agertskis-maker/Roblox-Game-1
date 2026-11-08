@@ -636,8 +636,6 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 	local speech: TextLabel = make("TextLabel", {
 		Name = "Speech",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
 		FontFace = Tokens.font(),
 		Text = "",
 		TextSize = 24,
@@ -886,7 +884,10 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		bubblePad.PaddingRight = pad
 		bubblePad.PaddingTop = pad
 		bubblePad.PaddingBottom = pad
+		-- the line sits at a plain offset (centred in the bubble's padded area): an AutomaticSize frame must not hold a child
+		-- placed by Scale, or it can feed its own size back
 		speech.Size = UDim2.fromOffset(g.text.X, g.text.Y)
+		speech.Position = UDim2.fromOffset(math.max(0, (b.w - 2 * g.pad - g.text.X) / 2), 0)
 		speech.TextSize = g.textSize
 		speechHit.Position = bubble.Position
 		speechHit.Size = bubble.Size
