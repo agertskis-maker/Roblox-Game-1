@@ -12,16 +12,26 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local Tokens = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UI"):WaitForChild("Tokens"))
 
 local Reveal = {}
 
 Reveal.Seconds = 1.5 -- Tunable
-local DROP = 7 -- studs the pieces fall from (Tunable)
+local DROP = 3 -- studs the pieces fall from while they grow (Tunable)
 local STAGGER = 0.45 -- spread of start times across the pieces (Tunable)
+local SCALE_FROM = 0.25 -- Round 8 (U-05): a new piece grows from this fraction of its size, with one small overshoot
 
-type Item = { part: BasePart, final: CFrame, transparency: number, delay: number, collide: boolean }
+type Item = {
+	part: BasePart,
+	final: CFrame,
+	transparency: number,
+	delay: number,
+	collide: boolean,
+	size: Vector3,
+	pivot: Vector3,
+}
 type Run = {
 	items: { Item },
 	removed: { Folder },
@@ -33,6 +43,76 @@ type Run = {
 
 local runs: { [Model]: Run } = {}
 
+-- Round 8 (U-05): the upgrade card holds the reveal back while its own celebration plays (confetti, the stamp), then the card
+-- closes, the camera eases to the Raceway and the new pieces build in. `hold` is asked for when BUY is pressed; the next play()
+-- starts after it ends, hides the new pieces until then, and (when asked) eases the camera. A refused purchase cancels it.
+local holdUntil = 0
+local holdCamera = false
+local cameraToken = 0
+
+function Reveal.hold(seconds: number, camera: boolean?)
+	holdUntil = math.max(holdUntil, os.clock() + seconds)
+	if camera == true then
+		holdCamera = true
+	end
+end
+
+function Reveal.holdRemaining(): number
+	return math.max(holdUntil - os.clock(), 0)
+end
+
+function Reveal.cancelHold()
+	holdUntil = 0
+	holdCamera = false
+end
+
+local function easeInOut(x: number): number
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+
+-- Eases the camera from where it is to a view of `focus` (the new pieces) and back (about 2.7 s). Only a normal follow camera moves;
+-- a camera another script owns is left alone. Reduce Motion never calls this.
+local function easeCamera(focus: Vector3, wait: number)
+	cameraToken += 1
+	local token = cameraToken
+	task.delay(wait, function()
+		local camera = Workspace.CurrentCamera
+		if token ~= cameraToken or camera == nil then
+			return
+		end
+		if camera.CameraType ~= Enum.CameraType.Custom then
+			return
+		end
+		local startType = camera.CameraType
+		local startCF = camera.CFrame
+		local look = focus + Vector3.new(0, 4, 0)
+		local away = Vector3.new(startCF.Position.X - look.X, 0, startCF.Position.Z - look.Z)
+		if away.Magnitude < 1 then
+			away = Vector3.new(0, 0, 1)
+		end
+		local goalCF = CFrame.lookAt(look + away.Unit * 72 + Vector3.new(0, 36, 0), look)
+		camera.CameraType = Enum.CameraType.Scriptable
+		local t0 = os.clock()
+		local connection: RBXScriptConnection? = nil
+		connection = RunService.RenderStepped:Connect(function()
+			local t = os.clock() - t0
+			if token ~= cameraToken or t >= 2.7 or not camera.Parent then
+				if connection then
+					connection:Disconnect()
+				end
+				if camera.Parent then
+					camera.CFrame = startCF
+					camera.CameraType = startType
+				end
+				return
+			end
+			local alpha = if t < 0.6 then easeInOut(t / 0.6) elseif t < 2.0 then 1 else 1 - easeInOut((t - 2.0) / 0.7)
+			camera.CFrame = startCF:Lerp(goalCF, alpha)
+		end)
+	end)
+end
+
 local function finish(run: Run)
 	if run.done then
 		return
@@ -43,6 +123,9 @@ local function finish(run: Run)
 	end
 	for _, it in run.items do
 		if it.part.Parent then
+			if it.transparency >= 0 then
+				it.part.Size = it.size
+			end
 			it.part.CFrame = it.final
 			it.part.LocalTransparencyModifier = 0
 			if it.collide then
@@ -165,23 +248,40 @@ end
 -- where transient effect parts go. Returns when the animation has been set up (it runs on).
 function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: boolean, fx: Instance)
 	Reveal.finish(plot)
+	-- Round 8: the upgrade card's celebration comes first (Reveal.hold); the pieces stay hidden until it ends
+	local wait = Reveal.holdRemaining()
+	local wantCamera = holdCamera
+	holdCamera = false
 	local items: { Item } = {}
 	local centres: { Vector3 } = {}
 	for _, folder in added do
 		local sum, n = Vector3.zero, 0
+		local low = math.huge
+		local first = #items + 1
 		for _, d in folder:GetDescendants() do
 			if d:IsA("BasePart") then
-				table.insert(
-					items,
-					{ part = d, final = d.CFrame, transparency = d.Transparency, delay = 0, collide = d.CanCollide }
-				)
+				table.insert(items, {
+					part = d,
+					final = d.CFrame,
+					transparency = d.Transparency,
+					delay = 0,
+					collide = d.CanCollide,
+					size = d.Size,
+					pivot = Vector3.zero,
+				})
 				d.CanCollide = false
 				sum += d.Position
+				low = math.min(low, d.Position.Y - d.Size.Y / 2)
 				n += 1
 			end
 		end
 		if n > 0 then
-			table.insert(centres, sum / n)
+			local centre = sum / n
+			table.insert(centres, centre)
+			local pivot = Vector3.new(centre.X, low, centre.Z)
+			for i = first, #items do
+				items[i].pivot = pivot
+			end
 		end
 	end
 	-- stagger: pieces nearer the ground first, so things build up
@@ -200,24 +300,52 @@ function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: 
 	for _, f in removed do
 		for _, d in f:GetDescendants() do
 			if d:IsA("BasePart") then
-				table.insert(items, { part = d, final = d.CFrame, transparency = -1, delay = 0, collide = false })
+				table.insert(items, {
+					part = d,
+					final = d.CFrame,
+					transparency = -1,
+					delay = 0,
+					collide = false,
+					size = d.Size,
+					pivot = Vector3.zero,
+				})
 			end
 		end
 	end
+	local mid = Vector3.zero
+	for _, c in centres do
+		mid += c
+	end
+	if #centres > 0 then
+		mid /= #centres
+	end
 	if not calm then
-		for _, c in centres do
-			burst(c, Color3.fromRGB(226, 196, 150), 14, fx)
+		-- the dust puffs and the confetti come with the pieces, after the card's own celebration
+		local function emit()
+			for _, c in centres do
+				burst(c, Color3.fromRGB(226, 196, 150), 14, fx)
+			end
+			if #centres > 0 then
+				confetti(mid + Vector3.yAxis * 6, fx)
+			end
 		end
-		local mid = Vector3.zero
-		for _, c in centres do
-			mid += c
+		if wait > 0 then
+			task.delay(wait, emit)
+		else
+			emit()
 		end
-		if #centres > 0 then
-			confetti(mid / #centres + Vector3.yAxis * 6, fx)
+		if wantCamera and #centres > 0 then
+			easeCamera(mid, wait)
 		end
 	end
-	local run: Run =
-		{ items = items, removed = removed, started = os.clock(), calm = calm, connection = nil, done = false }
+	local run: Run = {
+		items = items,
+		removed = removed,
+		started = os.clock() + wait,
+		calm = calm,
+		connection = nil,
+		done = false,
+	}
 	runs[plot] = run
 	local parts: { BasePart } = {}
 	local cframes: { CFrame } = {}
@@ -238,8 +366,13 @@ function Reveal.play(plot: Model, added: { Folder }, removed: { Folder }, calm: 
 			local x = math.clamp((t - it.delay) / span, 0, 1)
 			it.part.LocalTransparencyModifier = 1 - math.clamp(x * 2.5, 0, 1)
 			if not calm then
+				-- grows from a quarter of its size with one small overshoot, dropping the last few studs
+				local grow = SCALE_FROM + (1 - SCALE_FROM) * math.min(backOut(x), 1.12)
+				it.part.Size = it.size * grow
+				local rotation = it.final - it.final.Position
+				local at = it.pivot + (it.final.Position - it.pivot) * grow
 				table.insert(parts, it.part)
-				table.insert(cframes, it.final + Vector3.yAxis * DROP * (1 - backOut(x)))
+				table.insert(cframes, CFrame.new(at + Vector3.yAxis * DROP * (1 - backOut(x))) * rotation)
 			end
 		end
 		if #parts > 0 then
@@ -397,6 +530,16 @@ function Reveal.banner(level: number, calm: boolean)
 	end
 	bannerToken += 1
 	local token = bannerToken
+	-- Round 8: the upgrade card's celebration comes first; the banner (the new level only) waits for it
+	local wait = Reveal.holdRemaining()
+	if wait > 0.02 then
+		task.delay(wait + 0.05, function()
+			if bannerToken == token then
+				Reveal.banner(level, calm)
+			end
+		end)
+		return
+	end
 	local b = banner
 	if b then
 		stopTweens(b)

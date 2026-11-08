@@ -1,8 +1,13 @@
 --!strict
 -- The Raceway shop cards (Lane 3, client presentation only; Raceway round 2, Adam 2026-10-29): the
--- RACEWAY UPGRADES card and the PARKING SPOTS card, one ScreenGui "Lane3RacewayPanel" with one card
+-- RACEWAY LEVEL card and the PARKING SPOTS card, one ScreenGui "Lane3RacewayPanel" with one card
 -- open at a time. Each card shows the level (or parking count) the world shows now, what the next
 -- one gives, its PREVIEW price (Round 4: Brian L's economy v1 numbers from src/shared/UI/EconomyPreview) and a BUY button.
+--
+-- Round 8 (U-01, U-02): this module is now the one DOOR. The Raceway card is UpgradeCard/RacewayCard.luau (WS-6a, built to R8-IMG-01
+-- to 03 from the R8Kit pieces) and the Parking card is UpgradeCard/ParkingCard.luau (WS-6b) when that module exists. Their contract
+-- (open, close, isOpen, plot, refresh, state) is UpgradeCard/CardTypes.luau. Until ParkingCard exists the Round 7 parking card below
+-- still draws (the "paddock" code in this file); the old Raceway card code is gone.
 -- When ShopPanel.cashOf is set and returns a number, the price is compared with it (numbers, never text): short of Cash,
 -- BUY reads NEED $X MORE and does nothing. With no Cash source (the beta today: purchases are free) nothing is compared.
 --
@@ -34,7 +39,6 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Speedway = Shared:WaitForChild("Island"):WaitForChild("Speedway")
-local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Parking = require(Speedway:WaitForChild("Parking"))
 local EconomyPreview = require(Shared:WaitForChild("UI"):WaitForChild("EconomyPreview"))
 local Format = require(Shared:WaitForChild("UI"):WaitForChild("Format"))
@@ -71,7 +75,6 @@ ShopPanel.openHome = nil :: ((kind: any) -> boolean)?
 
 -- Layout numbers from the specs (design px).
 local CARD_W = 520
-local CARD_H_UPGRADE = 360
 local CARD_H_PARKING = 300
 local MIN_CARD_H = 230 -- never shorter than this, so the scrolling body keeps a usable window
 local PAD_DESKTOP = 20
@@ -90,7 +93,6 @@ local LIP = 5 -- the BUY button's lower lip
 local ARROW_STROKE = 4.5
 
 -- Rows under the header, in canvas pixels measured from BODY_TOP.
-local UPGRADE_ROWS = { hero = 56, newLine = 108, price = 140, canvas = 172 }
 local PARKING_ROWS = { price = 80, canvas = 112 }
 
 -- Timing and opacity.
@@ -290,34 +292,6 @@ local function rightArrow(parent: Instance, name: string): Frame
 	return arrow
 end
 
--- The up-arrow cue, 22 x 26: solid teal with a 2 px navy outline.
-local function upArrow(parent: Instance, name: string): Frame
-	local cue = frame(parent, name, 0, 0, 22, 26, nil)
-	-- the fill: the stem, then the head in thin slices (the outline hides their stepped edge)
-	frame(cue, "Stem", 7.5, 13, 7, 10.5, C.Teal)
-	local slices = 11
-	local sliceH = 10.5 / slices
-	for i = 0, slices - 1 do
-		local top = 2.5 + i * sliceH
-		local half = 8.5 * (top + sliceH / 2 - 2.5) / 10.5
-		frame(cue, "Head", 11 - half, top, half * 2, sliceH + 0.3, C.Teal)
-	end
-	local path = {
-		Vector2.new(11, 2.5),
-		Vector2.new(19.5, 13),
-		Vector2.new(14.5, 13),
-		Vector2.new(14.5, 23.5),
-		Vector2.new(7.5, 23.5),
-		Vector2.new(7.5, 13),
-		Vector2.new(2.5, 13),
-		Vector2.new(11, 2.5),
-	}
-	for i = 2, #path do
-		lineBetween(cue, "Outline", path[i - 1].X, path[i - 1].Y, path[i].X, path[i].Y, 2, C.Stroke)
-	end
-	return cue
-end
-
 -- The close X: two 4.5 px strokes in a 20 x 20 area.
 local function closeX(parent: Instance): Frame
 	local icon = frame(parent, "X", 0, 0, 20, 20, nil)
@@ -463,7 +437,7 @@ end
 -- Closes the open card: fades out (0.2 s, or 0.1 s opacity only with Reduced Motion). `instant`
 -- destroys at once (used when ownership changes); either way a Locked state is dropped and a late
 -- result is ignored, and closing never changes any value.
-function ShopPanel.close(instant: boolean?)
+local function closeOld(instant: boolean?)
 	local p = active
 	if p == nil then
 		if instant == true and leaving then
@@ -563,15 +537,11 @@ end
 ----------------------------------------------------------------------------------------------------
 
 -- The texts that change with the value (the rest of the card is fixed).
-type UpgradeTexts = { current: string, nextTile: string, lapNow: string, lapNext: string, newLine: string }
 type ParkingTexts = { owned: string, nextSpot: string }
 
--- The PREVIEW price of the next step: Raceway level `shown + 1`, or the next BOUGHT parking spot. With the Expanded Paddock
--- pass the shown count includes the pass's 3 bays, so the spot being bought is `shown - 3 + 1` (the same price ladder).
+-- The PREVIEW price of the next BOUGHT parking spot. With the Expanded Paddock pass the shown count includes the pass's 3 bays,
+-- so the spot being bought is `shown - 3 + 1` (the same price ladder).
 local function nextPrice(p: Panel): number?
-	if p.kind == "upgrade" then
-		return EconomyPreview.racewayPrice(p.shown + 1)
-	end
 	local extra = if Parking.hasExpanded(p.source.plot) then Parking.ExpandedSpots else 0
 	return EconomyPreview.spotPrice(p.shown - extra + 1)
 end
@@ -595,16 +565,6 @@ shortBy = function(p: Panel): number?
 	return math.max(0, price - cash)
 end
 
-local function upgradeTexts(level: number): UpgradeTexts
-	return {
-		current = string.format("CURRENT LEVEL %d", level),
-		nextTile = string.format("NEXT LEVEL %d", level + 1),
-		lapNow = Ladder.lapPayText(level),
-		lapNext = Ladder.lapPayText(level + 1),
-		newLine = Ladder.newText(level + 1) or "",
-	}
-end
-
 local function parkingTexts(owned: number, max: number): ParkingTexts
 	return {
 		owned = string.format("%d / %d", owned, max),
@@ -620,20 +580,10 @@ local function setText(p: Panel, key: string, value: string)
 end
 
 local function applyTexts(p: Panel)
-	if p.kind == "upgrade" then
-		local t = upgradeTexts(p.shown)
-		setText(p, "current", t.current)
-		setText(p, "nextTile", t.nextTile)
-		setText(p, "lapNow", t.lapNow)
-		setText(p, "lapNext", t.lapNext)
-		setText(p, "newLine", t.newLine)
-		setText(p, "price", priceText(p))
-	else
-		local t = parkingTexts(p.shown, p.max)
-		setText(p, "owned", t.owned)
-		setText(p, "nextSpot", t.nextSpot)
-		setText(p, "price", priceText(p))
-	end
+	local t = parkingTexts(p.shown, p.max)
+	setText(p, "owned", t.owned)
+	setText(p, "nextSpot", t.nextSpot)
+	setText(p, "price", priceText(p))
 end
 
 -- The Y-only scrolling body between the header and the BUY row. The bar shows only when the rows
@@ -661,14 +611,7 @@ local function scrollBody(parent: Instance, y: number, w: number, viewH: number,
 end
 
 local function buildHeader(p: Panel, inner: Frame, width: number)
-	local title = text(
-		inner,
-		"Title",
-		if p.kind == "upgrade" then "RACEWAY UPGRADES" else "PARKING SPOTS",
-		Tokens.TextSize.Value,
-		C.Text,
-		0
-	)
+	local title = text(inner, "Title", "PARKING SPOTS", Tokens.TextSize.Value, C.Text, 0)
 	title.Size = UDim2.fromOffset(width - Tokens.Touch.Minimum - Tokens.Space.S, HEADER_H)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -713,77 +656,6 @@ local function buildPriceStrip(p: Panel, parent: Instance, y: number, width: num
 	fadable(p, label)
 end
 
-local function buildUpgradeRows(p: Panel, body: Frame, width: number)
-	local texts = upgradeTexts(p.shown)
-	local x0 = math.floor((width - TILE_ROW_W) / 2)
-
-	-- row 2: CURRENT tile, arrow, NEXT tile (the stronger one)
-	local currentTile = box(body, "CurrentTile", x0, 4, 196, 40, C.CardInset, Tokens.Stroke.Thin, Tokens.Radius.Card)
-	local currentText = text(currentTile, "Text", texts.current, Tokens.TextSize.Label, C.Text, 0)
-	scaled(currentText, Tokens.TextSize.Minimum, Tokens.TextSize.Label)
-	rightArrow(body, "Arrow").Position = UDim2.fromOffset(x0 + 196 + 8, 14)
-	local nextTile = box(body, "NextTile", x0 + 240, 0, 240, 48, C.Teal, Tokens.Stroke.Thick, Tokens.Radius.Card)
-	local nextText = text(nextTile, "Text", texts.nextTile, Tokens.TextSize.Value, C.Card, 2)
-	scaled(nextText, Tokens.TextSize.Minimum, Tokens.TextSize.Value)
-
-	-- row 3: the hero stat, "LAP PAY x1.35 -> x1.50"
-	local hero = box(body, "Hero", 0, UPGRADE_ROWS.hero, width, 48, C.Track, Tokens.Stroke.Regular, Tokens.Radius.Card)
-	local row = frame(hero, "Row", 0, 0, 0, 0, nil)
-	row.Size = UDim2.fromScale(1, 1)
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = row,
-	})
-	local order = 0
-	local function nextOrder(): number
-		order += 1
-		return order
-	end
-	local function item(child: GuiObject)
-		child.LayoutOrder = nextOrder()
-	end
-	local function spacer(w: number)
-		local gap = frame(row, "Gap", 0, 0, w, 1, nil)
-		item(gap)
-	end
-	local function bigNumber(name: string, value: string, color: Color3): TextLabel
-		local label = text(row, name, value, Tokens.TextSize.Display, color, 0)
-		label.AutomaticSize = Enum.AutomaticSize.X
-		label.Size = UDim2.fromOffset(0, 42)
-		item(label)
-		return label
-	end
-	local caption = text(row, "Caption", "LAP PAY", Tokens.TextSize.Label, C.Text, 0)
-	caption.AutomaticSize = Enum.AutomaticSize.X
-	caption.Size = UDim2.fromOffset(0, 42)
-	item(caption)
-	spacer(12)
-	local lapNow = bigNumber("LapNow", texts.lapNow, C.Text)
-	spacer(10)
-	item(rightArrow(row, "Arrow"))
-	spacer(10)
-	item(upArrow(row, "Cue"))
-	spacer(4)
-	local lapNext = bigNumber("LapNext", texts.lapNext, C.Teal)
-
-	-- row 4: what the next level adds
-	local newLine = text(body, "NewLine", texts.newLine, Tokens.TextSize.Label, C.Text, 0)
-	newLine.Position = UDim2.fromOffset(0, UPGRADE_ROWS.newLine)
-	newLine.Size = UDim2.fromOffset(width, 24)
-
-	-- row 5: the fixed price label
-	buildPriceStrip(p, body, UPGRADE_ROWS.price, width)
-
-	p.refs.current, p.refs.nextTile = currentText, nextText
-	p.refs.lapNow, p.refs.lapNext, p.refs.newLine = lapNow, lapNext, newLine
-	for _, label in { currentText, nextText, lapNow, lapNext, newLine } do
-		fadable(p, label)
-	end
-end
-
 local function buildParkingRows(p: Panel, body: Frame, width: number)
 	local texts = parkingTexts(p.shown, p.max)
 	local x0 = math.floor((width - TILE_ROW_W) / 2)
@@ -822,7 +694,7 @@ end
 -- claim about which bays have a car in them), then the one way to more: the Expanded Paddock pass in the Shop.
 local function buildMaxBody(p: Panel, inner: Frame, width: number, height: number)
 	local viewH = height - HEADER_H
-	local parking = p.kind ~= "upgrade"
+	local parking = true
 	-- the pass is the one way past 15; a plot that has it is at its true top and is offered nothing
 	local more = if Parking.hasExpanded(p.source.plot) then nil else ShopPanel.onMoreSpots
 	local contentH = if parking then 84 + 8 + 26 + 8 + (if more then 60 else 0) else 84 + 12 + 56
@@ -996,12 +868,8 @@ local function buildFooter(p: Panel, inner: Frame, width: number, y: number)
 	end
 end
 
--- Builds (or rebuilds) everything inside the card for the shown value and the current layout.
--- Round 7 (U-01, Adam: the upgrade screens "look really bad"; to R7-IMG-02 and R7-IMG-03): the card's frame says which shop it
--- is. The Raceway card is framed by a racetrack: red and white kerbs, chequered corners and a little car lapping the border
--- (Reduce Motion: it waits on the start line). The parking card is a paddock: an asphalt edge with white bay lines and a big P
--- sign. Drawn in the card's padding, so the rows, the price and BUY are untouched.
-local KERB_RED = Color3.fromRGB(226, 48, 52)
+-- Round 7 (U-01): the parking card is a paddock: an asphalt edge with white bay lines and a big P sign, drawn in the card's
+-- padding, so the rows, the price and BUY are untouched. (The Raceway card is RacewayCard now; ParkingCard replaces this one.)
 local KERB_WHITE = Color3.fromRGB(250, 250, 250)
 local ASPHALT = Color3.fromRGB(52, 56, 66)
 local BAY_LINE = Color3.fromRGB(245, 245, 245)
@@ -1018,94 +886,29 @@ local function buildBorder(p: Panel)
 		f.ZIndex = 3
 		return f
 	end
-	if p.kind == "upgrade" then
-		local block = t * 2.2
-		local function kerbs(x0: number, y0: number, length: number, across: boolean)
-			local n = math.max(math.floor(length / block), 1)
-			local size = length / n
-			for i = 0, n - 1 do
-				local fill = if i % 2 == 0 then KERB_RED else KERB_WHITE
-				if across then
-					strip("Kerb", x0 + i * size, y0, size, t, fill)
-				else
-					strip("Kerb", x0, y0 + i * size, t, size, fill)
-				end
-			end
-		end
-		local span = 2 * t
-		kerbs(inset + span, inset, w - 2 * (inset + span), true)
-		kerbs(inset + span, h - inset - t, w - 2 * (inset + span), true)
-		kerbs(inset, inset + span, h - 2 * (inset + span), false)
-		kerbs(w - inset - t, inset + span, h - 2 * (inset + span), false)
-		-- chequered corners
-		for _, c in
-			{
-				{ inset, inset },
-				{ w - inset - span, inset },
-				{ inset, h - inset - span },
-				{ w - inset - span, h - inset - span },
-			}
-		do
-			for i = 0, 3 do
-				local cx, cy = i % 2, i // 2
-				strip("Chequer", c[1] + cx * t, c[2] + cy * t, t, t, if (cx + cy) % 2 == 0 then ASPHALT else KERB_WHITE)
-			end
-		end
-		-- the little car lapping the border
-		local car = strip("LapCar", 0, 0, t * 3.2, t * 1.8, Color3.fromRGB(255, 170, 30))
-		car.AnchorPoint = Vector2.new(0.5, 0.5)
-		car.ZIndex = 4
-		corner(car, UDim.new(0, math.floor(t * 0.6)))
-		stroke(car, 1.5, Color3.fromRGB(30, 30, 40), Enum.ApplyStrokeMode.Border)
-		local mid = inset + t / 2
-		local lw, lh = w - 2 * mid, h - 2 * mid
-		local perimeter = 2 * (lw + lh)
-		local function place(d: number)
-			d = d % perimeter
-			local x, y, r
-			if d < lw then
-				x, y, r = mid + d, mid, 0
-			elseif d < lw + lh then
-				x, y, r = w - mid, mid + (d - lw), 90
-			elseif d < 2 * lw + lh then
-				x, y, r = w - mid - (d - lw - lh), h - mid, 180
-			else
-				x, y, r = mid, h - mid - (d - 2 * lw - lh), 270
-			end
-			car.Position = UDim2.fromOffset(x, y)
-			car.Rotation = r
-		end
-		place(lw * 0.5)
-		local started = os.clock()
-		p.content:Add(RunService.Heartbeat:Connect(function()
-			if not Calm() then
-				place(lw * 0.5 + (os.clock() - started) * 160)
-			end
-		end))
-	else
-		-- the paddock: an asphalt edge with white bay lines, and a P sign
-		strip("Asphalt", inset, inset, w - 2 * inset, t, ASPHALT)
-		strip("Asphalt", inset, h - inset - t, w - 2 * inset, t, ASPHALT)
-		strip("Asphalt", inset, inset, t, h - 2 * inset, ASPHALT)
-		strip("Asphalt", w - inset - t, inset, t, h - 2 * inset, ASPHALT)
-		local gap = math.max(t * 3, 22)
-		for x = inset + gap, w - inset - gap, gap do
-			strip("BayLine", x, inset, 2, t, BAY_LINE)
-			strip("BayLine", x, h - inset - t, 2, t, BAY_LINE)
-		end
-		for y = inset + gap, h - inset - gap, gap do
-			strip("BayLine", inset, y, t, 2, BAY_LINE)
-			strip("BayLine", w - inset - t, y, t, 2, BAY_LINE)
-		end
-		local sign = strip("ParkingSign", inset - 2, inset - 2, 30, 30, Color3.fromRGB(28, 102, 214))
-		sign.ZIndex = 5
-		corner(sign, UDim.new(0, 6))
-		stroke(sign, 2, KERB_WHITE, Enum.ApplyStrokeMode.Border)
-		local letter = text(sign, "P", "P", 24, KERB_WHITE, 0)
-		letter.ZIndex = 6
+	-- the paddock: an asphalt edge with white bay lines, and a P sign
+	strip("Asphalt", inset, inset, w - 2 * inset, t, ASPHALT)
+	strip("Asphalt", inset, h - inset - t, w - 2 * inset, t, ASPHALT)
+	strip("Asphalt", inset, inset, t, h - 2 * inset, ASPHALT)
+	strip("Asphalt", w - inset - t, inset, t, h - 2 * inset, ASPHALT)
+	local gap = math.max(t * 3, 22)
+	for x = inset + gap, w - inset - gap, gap do
+		strip("BayLine", x, inset, 2, t, BAY_LINE)
+		strip("BayLine", x, h - inset - t, 2, t, BAY_LINE)
 	end
+	for y = inset + gap, h - inset - gap, gap do
+		strip("BayLine", inset, y, t, 2, BAY_LINE)
+		strip("BayLine", w - inset - t, y, t, 2, BAY_LINE)
+	end
+	local sign = strip("ParkingSign", inset - 2, inset - 2, 30, 30, Color3.fromRGB(28, 102, 214))
+	sign.ZIndex = 5
+	corner(sign, UDim.new(0, 6))
+	stroke(sign, 2, KERB_WHITE, Enum.ApplyStrokeMode.Border)
+	local letter = text(sign, "P", "P", 24, KERB_WHITE, 0)
+	letter.ZIndex = 6
 end
 
+-- Builds (or rebuilds) everything inside the card for the shown value and the current layout.
 local function buildContent(p: Panel)
 	local reselect = selectionInside(p)
 	p.content:Clean()
@@ -1117,9 +920,7 @@ local function buildContent(p: Panel)
 
 	-- the Paddock's maximum follows the plot (15, or 18 with the Expanded Paddock pass), so a pass bought while the card is
 	-- open counts at once
-	if p.kind ~= "upgrade" then
-		p.max = Parking.maxFor(p.source.plot)
-	end
+	p.max = Parking.maxFor(p.source.plot)
 	local layout = p.layout
 	local width = layout.cardW - 2 * layout.pad
 	local height = layout.cardH - 2 * layout.pad
@@ -1131,7 +932,7 @@ local function buildContent(p: Panel)
 	if p.shown >= p.max then
 		buildMaxBody(p, inner, width, height)
 	else
-		local rows = if p.kind == "upgrade" then UPGRADE_ROWS else PARKING_ROWS
+		local rows = PARKING_ROWS
 		-- rows 2 to 5 scroll if the card is shorter than they need; the BUY row and the preview line
 		-- stay at the bottom, fixed
 		local needed = BODY_TOP + rows.canvas + ROW_GAP + BUY_H + Tokens.Space.XS + PREVIEW_LINE_H
@@ -1139,11 +940,7 @@ local function buildContent(p: Panel)
 		local viewH = buyY - ROW_GAP - BODY_TOP
 		local body = scrollBody(inner, BODY_TOP, width, viewH, rows.canvas)
 		p.scrolls = rows.canvas > viewH + 0.5
-		if p.kind == "upgrade" then
-			buildUpgradeRows(p, body, width)
-		else
-			buildParkingRows(p, body, width)
-		end
+		buildParkingRows(p, body, width)
 		buildFooter(p, inner, width, buyY)
 	end
 
@@ -1308,7 +1105,7 @@ local function computeLayout(p: Panel): Layout
 	if safeHeight <= 0 then
 		safeHeight = viewport.Y
 	end
-	local wanted = if p.kind == "upgrade" then CARD_H_UPGRADE else CARD_H_PARKING
+	local wanted = CARD_H_PARKING
 	local cardH = math.max(MIN_CARD_H, math.floor(math.min(wanted, safeHeight / scale - 32)))
 	return { scale = scale, pad = pad, cardW = CARD_W, cardH = cardH }
 end
@@ -1348,9 +1145,6 @@ end
 ----------------------------------------------------------------------------------------------------
 
 local function rangeOf(source: Source): (number, number)
-	if source.kind == "upgrade" then
-		return Ladder.MinLevel, Ladder.MaxLevel
-	end
 	return Parking.StartSpots, Parking.maxFor(source.plot)
 end
 
@@ -1373,7 +1167,7 @@ local function createPanel(source: Source, playerGui: PlayerGui): Panel
 	scrim.BackgroundTransparency = SCRIM_TRANSPARENCY
 	scrim.Active = false
 
-	local holder = frame(gui, "Holder", 0, 0, CARD_W, CARD_H_UPGRADE, nil)
+	local holder = frame(gui, "Holder", 0, 0, CARD_W, CARD_H_PARKING, nil)
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
 	holder.Position = UDim2.fromScale(0.5, 0.5)
 	local viewScale: UIScale = make("UIScale", { Parent = holder })
@@ -1421,7 +1215,7 @@ local function createPanel(source: Source, playerGui: PlayerGui): Panel
 		pop = popScale,
 		card = card,
 		shadow = shadow,
-		layout = { scale = 1, pad = PAD_DESKTOP, cardW = CARD_W, cardH = CARD_H_UPGRADE },
+		layout = { scale = 1, pad = PAD_DESKTOP, cardW = CARD_W, cardH = CARD_H_PARKING },
 		shown = minValue,
 		locked = false,
 		completing = false,
@@ -1453,7 +1247,7 @@ end
 
 -- Builds and shows the card for `source`, replacing any open card (no fade-in then, and nothing is
 -- replayed). The card only reads `source.current()`; it never changes the world except through `buy`.
-function ShopPanel.open(source: Source)
+local function openOld(source: Source)
 	local player = Players.LocalPlayer
 	local playerGui = player and player:FindFirstChildOfClass("PlayerGui")
 	if playerGui == nil then
@@ -1524,19 +1318,18 @@ function ShopPanel.open(source: Source)
 	end
 end
 
-function ShopPanel.isOpen(): boolean
+local function isOpenOld(): boolean
 	return active ~= nil
 end
 
--- The plot of the open card.
-function ShopPanel.openPlot(): Model?
+local function openPlotOld(): Model?
 	local p = active
 	return if p then p.source.plot else nil
 end
 
 -- Re-reads `source.current()` and redraws the texts (the world calls it when the level or the spot
 -- count changes). A Locked card ignores it: its own wait shows the new value when the world is done.
-function ShopPanel.refresh()
+local function refreshOld()
 	local p = active
 	if p == nil then
 		return
@@ -1550,7 +1343,7 @@ function ShopPanel.refresh()
 	end
 	local latest = safeCurrent(p)
 	-- the Expanded Paddock pass changes the maximum (and the count jumps by 3): rebuild the card for both at once
-	if p.kind ~= "upgrade" and Parking.maxFor(p.source.plot) ~= p.max then
+	if Parking.maxFor(p.source.plot) ~= p.max then
 		p.shown = latest
 		buildContent(p)
 		return
@@ -1560,8 +1353,7 @@ function ShopPanel.refresh()
 	end
 end
 
--- For Studio tests.
-function ShopPanel.state(): { [string]: any }
+local function stateOld(): { [string]: any }
 	local p = active
 	if p == nil then
 		return {
@@ -1588,6 +1380,138 @@ function ShopPanel.state(): { [string]: any }
 			cardSize = Vector2.new(p.layout.cardW, p.layout.cardH),
 		},
 	}
+end
+
+----------------------------------------------------------------------------------------------------
+-- The door (Round 8): forwards to the card of the source's kind
+----------------------------------------------------------------------------------------------------
+
+type CardModule = {
+	open: (source: Source, host: any) -> (),
+	close: (instant: boolean?) -> (),
+	isOpen: () -> boolean,
+	plot: () -> Model?,
+	refresh: () -> (),
+	state: () -> { [string]: any },
+}
+
+local loaded: { [string]: CardModule? } = {}
+
+-- The card module `name` in UpgradeCard/ (nil when it is not there, or fails to load).
+local function loadCard(name: string): CardModule?
+	local cached = loaded[name]
+	if cached ~= nil then
+		return cached
+	end
+	local folder = script.Parent:FindFirstChild("UpgradeCard")
+	local module = folder and folder:FindFirstChild(name)
+	if module and module:IsA("ModuleScript") then
+		local ok, card = pcall(require, module)
+		if ok then
+			loaded[name] = card :: any
+			return card :: any
+		end
+		warn("ShopPanel: the " .. name .. " card failed to load: " .. tostring(card))
+	end
+	return nil
+end
+
+-- The Raceway card is always RacewayCard; the Parking card is ParkingCard once WS-6b's module exists, else the Round 7 code above.
+local function cardFor(kind: Kind): CardModule?
+	return loadCard(if kind == "upgrade" then "RacewayCard" else "ParkingCard")
+end
+
+-- Set by the Launch Pad shell (LaunchPad/init.luau): the green "+" of a cannot-afford button opens the Shop on its Cash page.
+ShopPanel.onCashShop = nil :: (() -> ())?
+
+local function hostFor(): any
+	return {
+		cashOf = function(): number?
+			local cashOf = ShopPanel.cashOf
+			return if cashOf then cashOf() else nil
+		end,
+		onMoreSpots = ShopPanel.onMoreSpots,
+		onCashShop = ShopPanel.onCashShop,
+		closeDistance = ShopPanel.CloseDistance,
+		closeAll = function(instant: boolean?)
+			ShopPanel.close(instant)
+		end,
+	}
+end
+
+local function eachCard(fn: (CardModule) -> ())
+	for _, name in { "RacewayCard", "ParkingCard" } do
+		local card = loadCard(name)
+		if card then
+			fn(card)
+		end
+	end
+end
+
+-- Builds and shows the card for `source`, replacing any open card.
+function ShopPanel.open(source: Source)
+	local mine = cardFor(source.kind)
+	-- one card at a time: whatever else is open goes at once
+	eachCard(function(card: CardModule)
+		if card ~= mine and card.isOpen() then
+			card.close(true)
+		end
+	end)
+	if mine == nil then
+		closeOld(true)
+		openOld(source)
+		return
+	end
+	if isOpenOld() then
+		closeOld(true)
+	end
+	mine.open(source, hostFor())
+end
+
+-- Closes the open card (fades out; `instant` destroys at once). Closing never changes any value.
+function ShopPanel.close(instant: boolean?)
+	eachCard(function(card: CardModule)
+		card.close(instant)
+	end)
+	closeOld(instant)
+end
+
+function ShopPanel.isOpen(): boolean
+	local open = isOpenOld()
+	eachCard(function(card: CardModule)
+		open = open or card.isOpen()
+	end)
+	return open
+end
+
+-- The plot of the open card.
+function ShopPanel.openPlot(): Model?
+	local plot = openPlotOld()
+	eachCard(function(card: CardModule)
+		plot = plot or card.plot()
+	end)
+	return plot
+end
+
+-- Re-reads source.current() and redraws the open card (the world calls it when the level or the spot count changes).
+function ShopPanel.refresh()
+	refreshOld()
+	eachCard(function(card: CardModule)
+		if card.isOpen() then
+			card.refresh()
+		end
+	end)
+end
+
+-- For Studio tests.
+function ShopPanel.state(): { [string]: any }
+	local result: { [string]: any }? = nil
+	eachCard(function(card: CardModule)
+		if card.isOpen() then
+			result = card.state()
+		end
+	end)
+	return result or stateOld()
 end
 
 return ShopPanel

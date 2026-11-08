@@ -106,6 +106,8 @@ end
 function StatPill.new(parent: GuiObject, props: Props): StatPill
 	local trove = Trove.new()
 	local metrics = props.metrics or Metrics.new(Vector2.new(988, 527))
+	-- a pill wider than the 443 px design stretches its number columns with it (the stopwatch and caption stay at the left)
+	local kx = if props.size and props.size.X.Offset > 0 then props.size.X.Offset / 443 else 1
 	local frame: Frame = trove:Add(Build.make("Frame", {
 		Name = "StatPill",
 		Size = props.size or UDim2.fromOffset(443, 97),
@@ -187,6 +189,7 @@ function StatPill.new(parent: GuiObject, props: Props): StatPill
 		content = content,
 		trove = trove,
 		metrics = metrics,
+		kx = kx,
 		fromLabel = nil,
 		toLabel = nil,
 		arrow = nil,
@@ -217,7 +220,7 @@ function StatPill.new(parent: GuiObject, props: Props): StatPill
 	)
 	local arrow: ImageLabel = Build.make("ImageLabel", {
 		Name = "Arrow",
-		Position = UDim2.fromOffset(238, 44),
+		Position = UDim2.fromOffset(238 * kx, 44),
 		Size = UDim2.fromOffset(52, 38),
 		BackgroundTransparency = 1,
 		ZIndex = 3,
@@ -249,8 +252,8 @@ function StatPill.new(parent: GuiObject, props: Props): StatPill
 	end
 	s.arrow = arrow
 	s.toLabel = StatPill.bigNumber(content, props.to or "", {
-		size = UDim2.fromOffset(136, 72),
-		position = UDim2.fromOffset(294, 12),
+		size = UDim2.fromOffset(136 * kx, 72),
+		position = UDim2.fromOffset(294 * kx, 12),
 		designSize = 70,
 		tone = "green",
 		zIndex = 3,
@@ -267,15 +270,15 @@ function Obj.setValues(self: any, from: string?, to: string?)
 		self.arrow.Visible = true
 		self.fromLabel.Text = from
 		self.toLabel.Text = to
-		self.toLabel.Position = UDim2.fromOffset(294, 12)
-		self.toLabel.Size = UDim2.fromOffset(136, 72)
+		self.toLabel.Position = UDim2.fromOffset(294 * self.kx, 12)
+		self.toLabel.Size = UDim2.fromOffset(136 * self.kx, 72)
 	else
 		-- the top level: one big number to the right of the caption
 		self.fromLabel.Visible = false
 		self.arrow.Visible = false
 		self.toLabel.Text = to or from or ""
-		self.toLabel.Position = UDim2.fromOffset(196, 12)
-		self.toLabel.Size = UDim2.fromOffset(234, 72)
+		self.toLabel.Position = UDim2.fromOffset(196 * self.kx, 12)
+		self.toLabel.Size = UDim2.fromOffset(234 * self.kx, 72)
 	end
 end
 
