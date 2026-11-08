@@ -510,6 +510,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 	if not own and #self._rims == 0 then
 		buildRims(self)
 	end
+	self._hid = not own -- the car's own wheels are hidden by this handle (given back in destroy)
 	for _, wheel in self._wheels do
 		wheel.Transparency = if own then 0 else 1
 	end
@@ -695,10 +696,12 @@ function Applied.destroy(self: any)
 		return
 	end
 	self._dead = true
-	-- the car's own wheels come back
-	for _, wheel in self._wheels do
-		if wheel.Parent then
-			wheel.Transparency = 0
+	-- the car's own wheels come back (only if this handle hid them)
+	if self._hid then
+		for _, wheel in self._wheels do
+			if wheel.Parent then
+				wheel.Transparency = 0
+			end
 		end
 	end
 	if self._painter then
