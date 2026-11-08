@@ -548,73 +548,8 @@ function ParkDressing.decorateStatue(f: Instance)
 		model:SetAttribute("Hanging", true)
 		model.Parent = f
 		car = model
-		-- the back of the solid-gold body reads flat: tail lights, a dark diffuser and chrome exhausts give it depth.
-		-- Placed in the car's own frame (pivot: bottom centre, -Z is the nose), so they follow it.
-		local k = STATUE_LENGTH / math.max(size.Z, 0.1)
-		local w, h, back = size.X * k, size.Y * k, STATUE_LENGTH / 2
-		local pivot = model:GetPivot()
-		local function backPart(
-			name: string,
-			partSize: Vector3,
-			x: number,
-			up: number,
-			colour: Color3,
-			material: Enum.Material,
-			proud: number?
-		)
-			-- `proud`: how far this part's face stands out past the others, so faces never share a plane (no flicker)
-			local z = back - partSize.Z / 2 + 0.05 + (proud or 0)
-			local p = plainPart(name, partSize, pivot * CFrame.new(x, up, z), colour, model)
-			p.Material = material
-			solidify(p, false)
-			return p
-		end
-		for _, side in { -1, 1 } do
-			backPart(
-				"TailLight",
-				Vector3.new(w * 0.26, h * 0.09, 0.3),
-				side * w * 0.3,
-				h * 0.6,
-				Color3.fromRGB(255, 40, 50),
-				Enum.Material.Neon,
-				0.12
-			)
-			backPart(
-				"TailLightRim",
-				Vector3.new(w * 0.29, h * 0.13, 0.22),
-				side * w * 0.3,
-				h * 0.6,
-				Color3.fromRGB(20, 20, 24),
-				Enum.Material.SmoothPlastic
-			)
-			local pipe = backPart(
-				"Exhaust",
-				Vector3.new(0.5, 0.5, 0.6),
-				side * w * 0.14,
-				h * 0.2,
-				Color3.fromRGB(205, 210, 220),
-				Enum.Material.Metal
-			)
-			pipe.Shape = Enum.PartType.Cylinder
-			pipe.Size = Vector3.new(0.6, 0.55, 0.55)
-			pipe.CFrame = pivot * CFrame.new(side * w * 0.14, h * 0.2, back - 0.2) * CFrame.Angles(0, math.pi / 2, 0)
-		end
-		backPart(
-			"Diffuser",
-			Vector3.new(w * 0.7, h * 0.14, 0.4),
-			0,
-			h * 0.13,
-			Color3.fromRGB(22, 22, 26),
-			Enum.Material.SmoothPlastic
-		)
-		backPart(
-			"RearGrille",
-			Vector3.new(w * 0.5, h * 0.08, 0.2),
-			0,
-			h * 0.42,
-			Color3.fromRGB(22, 22, 26),
-			Enum.Material.SmoothPlastic
-		)
+		-- (2026-11-08: the extra tail lights and exhausts are gone; the rebuilt Gold Apex has its own, as separate parts)
+
 		-- the round pedestal: base, gold ring, navy shaft with a gold band, gold collar, cap
 		ring("PedestalBaseRound", 3.6, 2.5, 1.2, FOUNTAIN.Stone)
 		ring("PedestalBaseRing", 3.75, 3.55, 0.3, FOUNTAIN.Gold, Enum.Material.Metal)
