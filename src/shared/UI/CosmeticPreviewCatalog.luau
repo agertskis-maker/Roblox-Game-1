@@ -10,8 +10,8 @@
 -- Showpiece), shown as words as well as colour. The medal conditions are PRESENTATION states: Brian R supplies the achievement
 -- evidence, Brian L approves the entitlement. An unknown medal stays locked; nothing is unlocked by a made-up race result.
 --
---   Counts (Round 7, C-03 to C-06): 34 paints plus Factory Paint, 20 decals (plus "No decal"), 14 wheels, 13 trails (plus
---   "No trail"). The server (BetaStyle) prices every Cash item from this table and saves what a player owns and wears.
+--   Counts (Round 7, C-03 to C-06): 34 paints plus Factory Paint, 20 decals (plus "No decal"), 14 wheels, 18 trails (Round 8:
+--   13 plus Money Rain, Aurora Veil, Retro Grid, Petal Storm, Drift Smoke; plus "No trail"). The server (BetaStyle) prices every Cash item from this table and saves what a player owns and wears.
 --   CosmeticPreviewCatalog.Items[tab] / .Tiers[tab] / .byId(tab, id) / .counts() / .tierItems(tab, tierId)
 --   CosmeticPreviewCatalog.defaultOwnership() / .defaultEquipped() / .stateOf(item, ownership, equippedId)
 --
@@ -69,6 +69,7 @@ export type Item = {
 	key: string?, -- the texture or mesh this item uses
 	robux: number?, -- a Robux item: never sold for Cash, and not on sale while its real product price is unknown
 	vip: boolean?, -- Round 7: free with the VIP pass
+	matchPaint: boolean?, -- Round 8 (T-08): a trail that MATCH MY PAINT may colour from the equipped paint
 }
 
 CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels", "Trails" } :: { TabId })
@@ -105,11 +106,14 @@ CosmeticPreviewCatalog.Tiers = table.freeze({
 		tier("street", "STREET", "Rare"),
 		tier("animated", "ANIMATED", "Epic"),
 	}),
-	-- Round 7 (C-06): Cash trails, the four Robux trails, the VIP trail
+	-- Round 8 (T-06): five Cash tiers you can see (a clean ribbon, plus particles, plus sparks, plus road glow and sound, everything),
+	-- the four Robux trails, the VIP trail
 	Trails = table.freeze({
+		tier("starter", "STARTER", "Common"),
 		tier("street", "STREET", "Uncommon"),
 		tier("track", "TRACK", "Rare"),
 		tier("elite", "ELITE", "Epic"),
+		tier("legendary", "LEGENDARY", "Legendary"),
 		tier("robux", "ROBUX", "Legendary"),
 		tier("vip", "VIP", "Legendary"),
 	}),
@@ -437,9 +441,13 @@ local wheels: { Item } = {
 	),
 }
 
--- TRAILS (12 plus VIP, plus "No trail") ------------------------------------------------------------------------------------------
--- Round 7 (C-06): each a layered effect from two exhaust points (CarStyle's TrailFx): a hot core, a body, breakup particles and a
--- fading tail. Cosmetic only: a trail never changes Heat, Keys, Stamina or a race. The four Robux trails of earlier decisions stay.
+-- TRAILS (13 plus 5 new, plus "No trail") -------------------------------------------------------------------------------------------
+-- Round 8 (T-06, T-07): 18 trails, each built in layers from the car's exhaust points (Style/TrailFx and Style/Trails): a hot core, a
+-- body, particles, a fading tail, and from Epic up a road glow and a soft loop. The tier says how many layers: STARTER (Common) a
+-- clean ribbon; STREET (Uncommon) plus light particles; TRACK (Rare) plus sparks and a second layer; ELITE (Epic) plus an animated
+-- texture, road glow and sound; LEGENDARY everything; ROBUX and VIP the flashiest. Cosmetic only: a trail never changes Heat, Keys,
+-- Stamina or a race. PREVIEW Cash ladder (each step about 2 to 3 times the one before): $5K, $20K, $60K, $150K, $400K, $900K, $2M,
+-- $6M, $12M, $25M, $40M, $100M, $250M; the Robux trails are never sold for Cash. `matchPaint`: MATCH MY PAINT may colour it (T-08).
 
 local function trail(
 	name: string,
@@ -449,7 +457,8 @@ local function trail(
 	key: string,
 	colours: { Color3 },
 	note: string,
-	vip: boolean?
+	vip: boolean?,
+	matchPaint: boolean?
 ): Item
 	return {
 		id = slug(name),
@@ -463,6 +472,7 @@ local function trail(
 		colours = colours,
 		render = "car",
 		note = note,
+		matchPaint = matchPaint,
 	}
 end
 
@@ -471,17 +481,30 @@ local trails: { Item } = {
 		id = "no_trail",
 		name = "No trail",
 		tab = "Trails",
-		tier = "street",
+		tier = "starter",
 		price = 0,
 		colours = { rgb(150, 160, 190) },
 		render = "car",
 		note = "No trail behind your car.",
 		isNone = true,
 	},
+	-- STARTER (Common): a clean ribbon
+	trail(
+		"Neon Ribbon",
+		"starter",
+		5000,
+		nil,
+		"neon",
+		{ rgb(70, 240, 255), rgb(255, 70, 220) },
+		"Two ribbons of light twisting. Can match your paint.",
+		nil,
+		true
+	),
+	-- STREET (Uncommon): ribbon plus light particles
 	trail(
 		"Bubble Pop",
 		"street",
-		5000,
+		20000,
 		nil,
 		"bubble",
 		{ rgb(150, 230, 255), rgb(255, 170, 230) },
@@ -490,25 +513,37 @@ local trails: { Item } = {
 	trail(
 		"Pixel Blast",
 		"street",
-		20000,
+		60000,
 		nil,
 		"pixel",
 		{ rgb(255, 60, 120), rgb(60, 220, 255), rgb(255, 230, 60) },
 		"Arcade squares."
 	),
 	trail(
-		"Neon Ribbon",
+		"Drift Smoke",
 		"street",
-		60000,
+		150000,
 		nil,
-		"neon",
-		{ rgb(70, 240, 255), rgb(255, 70, 220) },
-		"Two ribbons of light twisting."
+		"drift",
+		{ rgb(150, 70, 255), rgb(40, 220, 210) },
+		"Thick coloured tyre smoke from the rear wheels. Can match your paint.",
+		nil,
+		true
+	),
+	-- TRACK (Rare): full layers with sparks
+	trail(
+		"Petal Storm",
+		"track",
+		400000,
+		nil,
+		"petal",
+		{ rgb(255, 150, 190), rgb(255, 228, 238) },
+		"Flower petals swirling behind you."
 	),
 	trail(
 		"Frost Bite",
 		"track",
-		250000,
+		900000,
 		nil,
 		"frost",
 		{ rgb(200, 240, 255), rgb(120, 200, 255) },
@@ -517,25 +552,54 @@ local trails: { Item } = {
 	trail(
 		"Toxic Slime",
 		"track",
-		900000,
+		2000000,
 		nil,
 		"slime",
 		{ rgb(120, 255, 60), rgb(30, 160, 40) },
 		"Green goo and glowing bubbles."
 	),
+	-- ELITE (Epic): layers, an animated texture, road glow and its own soft sound
+	trail(
+		"Retro Grid",
+		"elite",
+		6000000,
+		nil,
+		"retro",
+		{ rgb(255, 50, 200), rgb(60, 230, 255), rgb(255, 150, 60) },
+		"A glowing synthwave grid on the road."
+	),
+	trail(
+		"Aurora Veil",
+		"elite",
+		12000000,
+		nil,
+		"aurora",
+		{ rgb(80, 255, 160), rgb(255, 110, 220), rgb(60, 230, 220) },
+		"Wavy green and pink curtains of light."
+	),
 	trail(
 		"Lightning",
-		"track",
-		3000000,
+		"elite",
+		25000000,
 		nil,
 		"lightning",
 		{ rgb(120, 200, 255), rgb(255, 255, 255) },
-		"Crackling bolts to the road."
+		"Crackling bolts that jump to the road."
 	),
 	trail(
-		"Galaxy",
+		"Money Rain",
 		"elite",
-		12000000,
+		40000000,
+		nil,
+		"money",
+		{ rgb(90, 220, 110), rgb(255, 210, 60) },
+		"Bills and coins flutter out behind you."
+	),
+	-- LEGENDARY: everything, plus its own sound
+	trail(
+		"Galaxy",
+		"legendary",
+		100000000,
 		nil,
 		"galaxy",
 		{ rgb(120, 70, 255), rgb(255, 90, 220), rgb(100, 220, 255) },
@@ -543,12 +607,12 @@ local trails: { Item } = {
 	),
 	trail(
 		"Golden Glory",
-		"elite",
-		60000000,
+		"legendary",
+		250000000,
 		nil,
 		"gold",
 		{ rgb(255, 210, 60), rgb(255, 250, 200) },
-		"Gold sparks and coins."
+		"Gold sparks and spinning coins."
 	),
 	-- the four Robux trails (earlier decisions): never on sale while the product price is unknown
 	trail("Flame Rush", "robux", 0, 99, "flame", { rgb(255, 210, 60), rgb(240, 50, 20) }, "Flames, embers and sparks."),
@@ -576,7 +640,9 @@ local trails: { Item } = {
 		249,
 		"comet",
 		{ rgb(180, 230, 255), rgb(90, 140, 255) },
-		"A glowing head and a long tail of light."
+		"A glowing head and a long tail of light. Can match your paint.",
+		nil,
+		true
 	),
 	-- VIP (decision 0042 item 12)
 	trail(
@@ -586,7 +652,7 @@ local trails: { Item } = {
 		nil,
 		"vip",
 		{ rgb(255, 196, 40), rgb(170, 60, 255) },
-		"VIP PASS: a gold-to-purple ribbon.",
+		"VIP PASS: a gold-to-purple ribbon with a tiny crown.",
 		true
 	),
 }
