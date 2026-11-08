@@ -125,9 +125,10 @@ local function ease(x: number): number
 	return x * x * (3 - 2 * x)
 end
 
--- A frame sloping up toward +Z (the back of the stall) through `centre`, for roof boards.
-local function sloped(centre: Vector3, rise: number, run: number): CFrame
-	return CFrame.lookAt(centre, centre + V3(0, rise, run))
+-- A frame through `frame`'s position sloping up toward its +Z (the back of the stall), for roof boards and awning stripes.
+local function sloped(frame: CFrame, rise: number, run: number): CFrame
+	local from = frame.Position
+	return CFrame.lookAt(from, from + frame:VectorToWorldSpace(V3(0, rise, run)))
 end
 
 function CloverStand.build(
@@ -201,7 +202,7 @@ function CloverStand.build(
 		k:box("BackBoard", V3(1, 11.8, 0.3), S * CF(-5 + i, 6.85, 4.2), stripe, Enum.Material.SmoothPlastic)
 	end
 	local rise, run = 2.0, 8.4
-	local roofAt = sloped((S * CF(0, 12.1, 0)).Position, rise, run)
+	local roofAt = sloped(S * CF(0, 12.1, 0), rise, run)
 	k:box("RoofSlab", V3(13.8, 0.5, math.sqrt(run * run + rise * rise) + 0.6), roofAt, wood.mid, wood.material)
 	k:box("RoofBeam", V3(14.2, 0.7, 0.8), S * CF(0, 11.05, -4.3), wood.dark, wood.material)
 	k:box("RoofRidge", V3(14.2, 0.5, 0.9), S * CF(0, 13.15, 4.2), wood.dark, wood.material)
@@ -223,7 +224,7 @@ function CloverStand.build(
 		for i = 0, 7 do
 			local x = -5.6 + i * 1.6
 			local c = if i % 2 == 0 then rgb(61, 178, 77) else rgb(255, 248, 238)
-			local strip = sloped((awningFrame * CF(x, -0.85, -2.3)).Position, 1.7, 4.6)
+			local strip = sloped(awningFrame * CF(x, -0.85, -2.3), 1.7, 4.6)
 			k:box("AwningStripe", V3(1.6, 0.22, 5.0), strip, c)
 			k:cyl("AwningHem", 1.6, 0.22, awningFrame * CF(x, -2.2, -4.7) * upright, c)
 		end
@@ -347,7 +348,7 @@ function CloverStand.build(
 	-- === the mascot, behind the counter. Its mesh frame faces +Z; the stall faces -Z, so the rig is turned by FACING.
 	local rigAt = S * CF(0, 5.5, 1.2) * FACING
 	local P = CloverMeshes.Pivots
-	local pivots = if meshes
+	local pivots: { [string]: Vector3 } = if meshes
 		then { eyeL = P.eyeL, eyeR = P.eyeR, hat = P.hat, armL = P.armL, armR = P.armR }
 		else {
 			eyeL = V3(-0.68, 0.5, 0.85),
@@ -513,7 +514,7 @@ function CloverStand.build(
 			local u = (t - waveStart) / WAVE
 			local lift = math.min(1, u * 6, (1 - u) * 6)
 			armR = math.rad(-4)
-				+ (math.rad(128) + math.sin((t - waveStart) * 9) * math.rad(16) - math.rad(-4)) * ease(lift)
+				+ (math.rad(108) + math.sin((t - waveStart) * 9) * math.rad(16) - math.rad(-4)) * ease(lift)
 			roll += math.sin((t - waveStart) * 3) * math.rad(3) * lift
 		end
 		if t - spinStart < SPIN then

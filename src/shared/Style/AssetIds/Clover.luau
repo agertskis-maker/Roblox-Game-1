@@ -7,7 +7,14 @@
 local Types = require(script.Parent.Types)
 
 local entries: { [string]: Types.Entry } = {
-	r8_clover_palette = { kind = "Image", size = Vector2.new(256, 128), source = "upload-round8/r8_clover_palette.png" },
+	-- uploaded 2026-11-08 by the lead (group 74306252, Approved): the palette is an Image asset, the FBX went up as Model assets
+	-- (the Model asset ids are in the comments; each mesh's `id` is its Model's MeshPart.MeshId, read in Studio)
+	r8_clover_palette = {
+		id = 72951135578149,
+		kind = "Image",
+		size = Vector2.new(256, 128),
+		source = "upload-round8/r8_clover_palette.png",
+	},
 	r8_clover_body = { kind = "Mesh", source = "upload-round8/r8_clover_body.fbx" }, -- mascot: leaves, stem, face, coin badge
 	r8_clover_eye = { kind = "Mesh", source = "upload-round8/r8_clover_eye.fbx" }, -- used for both eyes
 	r8_clover_hat = { kind = "Mesh", source = "upload-round8/r8_clover_hat.fbx" }, -- bowler with the gold band
