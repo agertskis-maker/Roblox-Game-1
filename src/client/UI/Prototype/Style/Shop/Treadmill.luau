@@ -26,7 +26,6 @@ local KERB_RED = Color3.fromRGB(231, 72, 67)
 local KERB_WHITE = Color3.fromRGB(255, 248, 238)
 local MARK = Color3.fromRGB(236, 238, 246)
 local ROLLER = Color3.fromRGB(28, 34, 54)
-local GLOW = Color3.fromRGB(255, 170, 40)
 
 type Moving = { part: Part, base: number, x: number, y: number, speed: number }
 
@@ -63,6 +62,11 @@ function Treadmill.new(world: Instance): any
 		table.insert(self._fixed, { part = part, at = at })
 	end
 
+	-- a dark base under the belt, so it stands on the stage instead of floating
+	fixed(
+		plain(model, "Base", Vector3.new(WIDTH + 2.6, 1.1, LENGTH + 1.4), Color3.fromRGB(34, 40, 60)),
+		CFrame.new(0, TOP - 1.15, MID)
+	)
 	-- the belt, its two edge lines and the kerb blocks along both sides
 	fixed(plain(model, "Belt", Vector3.new(WIDTH, 0.6, LENGTH), ASPHALT), CFrame.new(0, TOP - 0.3, MID))
 	for _, side in { -1, 1 } do
@@ -78,14 +82,11 @@ function Treadmill.new(world: Instance): any
 			)
 		end
 	end
-	-- the two rollers at the ends, with a warm glow on their inner side
-	for _, end_ in { -1, 1 } do
+	-- the two rollers at the ends
+	for _, endSide in { -1, 1 } do
 		local roller = plain(model, "Roller", Vector3.new(WIDTH + 1.4, 1.5, 1.5), ROLLER)
 		roller.Shape = Enum.PartType.Cylinder
-		fixed(roller, CFrame.new(0, TOP - 0.5, MID + end_ * (LENGTH / 2)))
-		local glow = plain(model, "RollerGlow", Vector3.new(WIDTH - 0.4, 0.12, 0.35), GLOW)
-		glow.Material = Enum.Material.Neon
-		fixed(glow, CFrame.new(0, TOP + 0.03, MID + end_ * (LENGTH / 2 - 0.9)))
+		fixed(roller, CFrame.new(0, TOP - 0.5, MID + endSide * (LENGTH / 2)))
 	end
 
 	-- lane marks that scroll toward the trail side

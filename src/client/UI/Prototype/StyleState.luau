@@ -14,6 +14,8 @@
 --   StyleState.item(tab) -> Item?       the worn item of a tab
 --   StyleState.car() -> string          the picked car's model name   StyleState.setCar(name)
 --   StyleState.look() -> CarLook.Look   the player's whole look on the picked car (Round 8, C-01)
+--   StyleState.matchPaint() -> boolean  StyleState.setMatchPaint(on)   T-08: a trail that takes its colour from the paint (this
+--                                       client only until the team agrees a save field for it)
 --   StyleState.live() -> boolean        true when the server's style is being followed
 
 local HttpService = game:GetService("HttpService")
@@ -35,6 +37,7 @@ local state: State = {
 	car = "Putter", -- Round 4: the Downtown Loaner (the first World's starting car)
 }
 local following = false
+local matchPaint = false
 local RIDE_ATTRIBUTE = "BetaRideCar" -- Player: the saved ride car (the contract in vault/design/specs/lane3-round8-contracts.md)
 
 StyleState.Changed = Signal.new()
@@ -92,7 +95,20 @@ end
 
 -- The player's whole look on the picked car: the one value every place that shows the car hands to CarLookApplier.
 function StyleState.look(): CarLook.Look
-	return CarLook.fromEquipped(state.car, state.equipped :: any)
+	local equipped: { [string]: any } = table.clone(state.equipped :: any)
+	equipped.MatchPaint = if matchPaint then true else nil
+	return CarLook.fromEquipped(state.car, equipped)
+end
+
+function StyleState.matchPaint(): boolean
+	return matchPaint
+end
+
+function StyleState.setMatchPaint(on: boolean)
+	if matchPaint ~= on then
+		matchPaint = on
+		StyleState.Changed:Fire("matchPaint", on)
+	end
 end
 
 function StyleState.item(tab: string): Catalog.Item?

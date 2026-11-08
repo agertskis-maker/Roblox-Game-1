@@ -26,6 +26,8 @@ type Spark = {
 }
 
 local SPARKS = 18
+local STREAKS = 22 -- at most this many streaks of light streaming back at once
+local STREAK_REACH = 15 -- studs a streak travels at full speed
 local BURST_LIFE = 0.75
 
 local function plain(parent: Instance, size: number, color: Color3): Part
@@ -51,12 +53,21 @@ function ShopTrail.new(world: Instance, length: number): any
 	self._speed = 0
 	self._colours = { Color3.new(1, 1, 1) }
 	self._sparks = {} :: { Spark }
+	self._streaks = {} :: { Spark }
+	self._streamOn = false
+	self._emit = 0
+	self._seed = 0
 	return self
 end
 
 function ShopTrail.set(self: any, item: any?)
 	self._preview:set(item)
 	self._colours = if item and item.colours and #item.colours > 0 then item.colours else { Color3.new(1, 1, 1) }
+	self._streamOn = item ~= nil and item.isNone ~= true
+	for _, s in self._streaks do
+		s.part:Destroy()
+	end
+	table.clear(self._streaks)
 end
 
 function ShopTrail.setSpeed(self: any, speed: number)
@@ -98,9 +109,52 @@ function ShopTrail.burst(self: any, moment: string, tail: CFrame, reduced: boole
 	end
 end
 
+-- Streaks of light in the trail's colours stream back from the tail, longer and faster at speed: the look of a trail in a run.
+local function streak(self: any)
+	self._seed += 1
+	local n = self._seed
+	local width = 0.14 + 0.1 * ((n * 7) % 4) / 3
+	local part = plain(self._world, width, self._colours[(n % #self._colours) + 1])
+	part.Shape = Enum.PartType.Block
+	part.Name = "TrailStreak"
+	local length = 1.4 + 1.8 * ((n * 5) % 5) / 4
+	part.Size = Vector3.new(width, width, length)
+	local side = (((n * 13) % 9) - 4) / 4 -- -1 to 1
+	local lift = (((n * 11) % 7) - 3) / 3
+	table.insert(self._streaks, {
+		part = part,
+		age = 0,
+		life = 0.6 + 0.35 * ((n * 3) % 4) / 3,
+		dir = Vector3.new(side * 0.95, lift * 0.55, 0), -- where it starts, across the tail
+		speed = 0.8 + 0.5 * ((n * 17) % 5) / 4,
+		size = length,
+	})
+end
+
 function ShopTrail.step(self: any, dt: number, tail: CFrame, reduced: boolean)
 	-- time runs faster at speed: the ribbon sways quicker and the pieces stream and refill sooner
 	self._preview:step(dt * (1 + 1.1 * self._speed), tail)
+	if self._streamOn and not reduced and self._speed > 0 then
+		self._emit += dt * (8 + 26 * self._speed)
+		while self._emit >= 1 and #self._streaks < STREAKS do
+			self._emit -= 1
+			streak(self)
+		end
+		self._emit = math.min(self._emit, 1)
+	end
+	for i = #self._streaks, 1, -1 do
+		local s = self._streaks[i]
+		s.age += dt
+		local u = s.age / s.life
+		if u >= 1 or reduced or not self._streamOn then
+			s.part:Destroy()
+			table.remove(self._streaks, i)
+		else
+			local back = STREAK_REACH * s.speed * (0.25 + 0.75 * self._speed) * u
+			s.part.CFrame = tail * CFrame.new(s.dir.X, s.dir.Y, s.size / 2 + back)
+			s.part.Transparency = 0.12 + 0.88 * u * u
+		end
+	end
 	for i = #self._sparks, 1, -1 do
 		local s = self._sparks[i]
 		s.age += dt
@@ -119,6 +173,10 @@ end
 
 function ShopTrail.destroy(self: any)
 	clearSparks(self)
+	for _, s in self._streaks do
+		s.part:Destroy()
+	end
+	table.clear(self._streaks)
 	self._preview:destroy()
 end
 

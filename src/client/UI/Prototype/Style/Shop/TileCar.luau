@@ -37,7 +37,7 @@ export type Tile = {
 }
 
 local LENGTH = 12.6 -- every car is scaled to one length, as on the turntable
-local HEIGHT = 6
+local HEIGHT = 7.5
 local FOV = 24
 local REST_YAW = math.rad(118) -- front toward the lower left, like the reference tiles
 local TURN_RATE = math.rad(48) -- how fast the one hovered or selected tile turns
@@ -98,8 +98,9 @@ end
 -- Back off until the whole car, turned any way, fits the frame.
 local function place(camera: Camera, size: Vector3, aspect: number)
 	local tanHalf = math.tan(math.rad(FOV) / 2)
-	local half = math.max(size.X, size.Z) * 0.5
-	local distance = math.max((half * 1.18) / (tanHalf * math.min(aspect, 1.6)), (size.Y * 0.8) / tanHalf, 14)
+	local across = math.max(size.X, size.Z)
+	local distance =
+		math.max((across * 1.1) / (2 * tanHalf * math.min(aspect, 1.8)), (size.Y * 1.3) / (2 * tanHalf), 12)
 	local centre = Vector3.new(0, size.Y * 0.42, 0)
 	camera.FieldOfView = FOV
 	camera.CFrame = CFrame.lookAt(centre + Vector3.new(0, distance * 0.3, distance), centre)

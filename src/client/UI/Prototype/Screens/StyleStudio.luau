@@ -36,6 +36,7 @@ local ShopGrid = require(Prototype.Style.Shop.ShopGrid)
 local ShopLook = require(Prototype.Style.Shop.ShopLook)
 local ShopTrail = require(Prototype.Style.Shop.ShopTrail)
 local TileCar = require(Prototype.Style.Shop.TileCar)
+local TrailFx = require(Prototype.Style.TrailFx) :: any
 local Toast = require(Prototype.Style.Shop.Toast)
 local Treadmill = require(Prototype.Style.Shop.Treadmill)
 local WheelCam = require(Prototype.Style.Shop.WheelCam)
@@ -132,7 +133,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		ZIndex = 3,
 	}, host)) :: Frame
 
-	local leftW = math.floor(size.X * 0.42)
+	local leftW = math.floor(size.X * 0.45)
 	local rightW = size.X - leftW - 10
 	local stageH = size.Y - 6
 
@@ -182,7 +183,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	trove:Add(function()
 		trailView:destroy()
 	end)
-	local rig = RealCar.mount(world)
+	local rig = RealCar.mount(world, { height = 8 }) -- a tall truck (the pizza sign) still fills the stage
 	rig:setCar(ShopLook.baseCar(StyleState.car()))
 	trove:Add(function()
 		rig:destroy()
@@ -228,12 +229,12 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		wheelCam:cancel()
 		camera.FieldOfView = math.clamp(29 / stageAspect, 19, 36)
 		local tanHalf = math.tan(math.rad(camera.FieldOfView) / 2)
-		local focus = Vector3.new(0, 2.2, 0)
-		local reach = 8.2
+		local focus = Vector3.new(0, 2.9, 0)
+		local reach = 7.6
 		if tab == "Trails" then
 			local back = CFrame.Angles(0, TRAIL_YAW, 0).LookVector * -1
-			focus = Vector3.new(0, 1.9, 0) + back * 3.4
-			reach = 12.6
+			focus = Vector3.new(0, 2.2, 0) + back * 3.6
+			reach = 10.4
 		end
 		local distance = math.max(31, 5.4 / tanHalf, reach / (tanHalf * stageAspect))
 		camera.CFrame = CFrame.lookAt(focus + Vector3.new(0, distance * 0.24, distance), focus)
@@ -323,6 +324,60 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		name = "Note",
 	})
 	plateNote.Visible = not phone
+
+	-- T-08: MATCH MY PAINT, shown on the Trails tab for a trail that can take its colour from the paint (TrailFx says which)
+	local function supportsMatch(item: Catalog.Item?): boolean
+		local check = TrailFx.supportsMatchPaint
+		return item ~= nil and type(check) == "function" and check(item) == true
+	end
+	local matchButton = make("TextButton", {
+		Name = "MatchPaint",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = CREAM,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -(plateH + 18)),
+		Size = UDim2.fromOffset(if phone then 176 else 220, if phone then 28 else 34),
+		ZIndex = 9,
+		Visible = false,
+		Selectable = true,
+	}, stage) :: TextButton
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, matchButton)
+	make("UIStroke", { Thickness = 2.5, Color = NAVY, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, matchButton)
+	local matchBox = make("Frame", {
+		Name = "Box",
+		BackgroundColor3 = WHITE,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 10, 0.5, 0),
+		Size = UDim2.fromOffset(20, 20),
+		ZIndex = 10,
+	}, matchButton) :: Frame
+	make("UICorner", { CornerRadius = UDim.new(0, 5) }, matchBox)
+	make("UIStroke", { Thickness = 2, Color = NAVY, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, matchBox)
+	local matchTick = make(
+		"Frame",
+		{ Name = "Tick", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 11 },
+		matchBox
+	) :: Frame
+	for _, leg in { { 0.31, 0.6, 0.3, 45 }, { 0.58, 0.5, 0.55, -52 } } do
+		local bar = make("Frame", {
+			BackgroundColor3 = WHITE,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(leg[1], leg[2]),
+			Size = UDim2.fromScale(leg[3], 0.14),
+			Rotation = leg[4],
+			ZIndex = 11,
+		}, matchTick)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
+	end
+	CarKit.text(matchButton, "MATCH MY PAINT", if phone then 14 else 17, {
+		align = Enum.TextXAlignment.Center,
+		position = UDim2.fromOffset(34, 0),
+		size = UDim2.new(1, -42, 1, 0),
+		color = NAVY,
+		z = 10,
+		name = "Words",
+	})
 
 	-- THE PICKER --------------------------------------------------------------------------------------------------------
 	local right = make("Frame", {
@@ -507,7 +562,15 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 
 	-- the car on the stage ------------------------------------------------------------------------------------------------
 	local function applyTrail(item: Catalog.Item?)
-		trailView:set(item)
+		local shown = item
+		if item and StyleState.matchPaint() and supportsMatch(item) then
+			local paint = shownItem("Paint")
+			if paint and paint.id ~= "factory_paint" then
+				shown = table.clone(item)
+				shown.colours = paint.colours -- the trail takes the paint's colours
+			end
+		end
+		trailView:set(shown)
 	end
 
 	local function applyToCar()
@@ -525,6 +588,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local function refreshAction()
 		local item = shownItem(tab)
 		refreshLine()
+		matchButton.Visible = tab == "Trails" and supportsMatch(shownItem("Trails"))
+		matchBox.BackgroundColor3 = if StyleState.matchPaint() then Color3.fromRGB(73, 200, 87) else WHITE
+		matchTick.Visible = StyleState.matchPaint()
 		if not item then
 			return
 		end
@@ -859,7 +925,13 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if reduced then
 			return
 		end
-		if tab ~= "Trails" and not dragging and not yawGoal and os.clock() >= spinRestUntil then
+		if
+			tab ~= "Trails"
+			and not dragging
+			and not yawGoal
+			and not wheelCam:active()
+			and os.clock() >= spinRestUntil
+		then
 			setYaw(yaw + dt * math.rad(14))
 		end
 		accumulate += dt
@@ -884,6 +956,9 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		end
 	end)
 
+	trove:Connect(matchButton.Activated, function()
+		StyleState.setMatchPaint(not StyleState.matchPaint())
+	end)
 	trove:Connect(StyleState.Changed, function()
 		-- an equip the server accepted: the previewed item is now the worn one
 		for key, id in previewed do

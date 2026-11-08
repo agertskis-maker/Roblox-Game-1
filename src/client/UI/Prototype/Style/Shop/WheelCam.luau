@@ -9,13 +9,30 @@
 --   cam:active() -> boolean        cam:cancel()
 --   WheelCam.frontWheel(model: Model, left: Vector3) -> Vector3?    the car's front wheel on the side facing `left`
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
 local WheelCam = {}
 WheelCam.__index = WheelCam
 
 local EASE_IN = 0.45
 local HOLD = 1.1
+-- STUDIO TEST HOOK: in Studio only, the LocalPlayer attribute Lane3WheelCamHold (seconds) holds the close shot longer, so a
+-- slow screenshot can catch it. Players never have it.
+local HOLD_ATTRIBUTE = "Lane3WheelCamHold"
 local EASE_OUT = 0.45
 WheelCam.SECONDS = EASE_IN + HOLD + EASE_OUT -- 2.0
+
+local function holdSeconds(): number
+	if RunService:IsStudio() then
+		local player = Players.LocalPlayer
+		local extra = player and player:GetAttribute(HOLD_ATTRIBUTE)
+		if type(extra) == "number" then
+			return math.clamp(extra, 0, 60)
+		end
+	end
+	return HOLD
+end
 
 local DISTANCE = 6.2 -- from the wheel to the lens
 local CLOSE_FOV = 26
@@ -38,6 +55,8 @@ function WheelCam.start(self: any, base: CFrame, fov: number, wheel: Vector3, si
 	self._baseFov = fov
 	self._shot = CFrame.lookAt(eye, wheel + Vector3.new(0, 0.1, 0))
 	self._t = 0
+	self._hold = holdSeconds()
+	self._total = EASE_IN + self._hold + EASE_OUT
 end
 
 function WheelCam.active(self: any): boolean
@@ -58,7 +77,7 @@ function WheelCam.step(self: any, dt: number): boolean
 		return false
 	end
 	t += dt
-	if t >= WheelCam.SECONDS then
+	if t >= self._total then
 		self._t = nil
 		self._camera.CFrame = self._base
 		self._camera.FieldOfView = self._baseFov
@@ -67,8 +86,8 @@ function WheelCam.step(self: any, dt: number): boolean
 	self._t = t
 	local amount = if t < EASE_IN
 		then smooth(t / EASE_IN)
-		elseif t < EASE_IN + HOLD then 1
-		else 1 - smooth((t - EASE_IN - HOLD) / EASE_OUT)
+		elseif t < EASE_IN + self._hold then 1
+		else 1 - smooth((t - EASE_IN - self._hold) / EASE_OUT)
 	self._camera.CFrame = self._base:Lerp(self._shot, amount)
 	self._camera.FieldOfView = self._baseFov + (CLOSE_FOV - self._baseFov) * amount
 	return true
