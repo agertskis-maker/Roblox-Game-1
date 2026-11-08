@@ -101,14 +101,14 @@ end
 local BUILTIN_SOUND = "rbxasset://sounds/action_falling.ogg"
 
 function Textures.sound(name: string): string
-	local key = "r8_trail_snd_" .. name
-	local entry = AssetIds.entry(key)
+	local soundKey = "r8_trail_snd_" .. name
+	local entry = AssetIds.entry(soundKey)
 	if entry and entry.id then
 		return "rbxassetid://" .. tostring(entry.id)
 	end
 	-- a local Studio test place (ReplicatedStorage.Lane3_LocalArt) plays the file straight from the content folder
 	if RunService:IsStudio() and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") ~= nil then
-		return "rbxasset://carhop/r8/" .. key .. ".ogg"
+		return "rbxasset://carhop/r8/" .. soundKey .. ".ogg"
 	end
 	return BUILTIN_SOUND
 end
