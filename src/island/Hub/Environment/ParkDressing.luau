@@ -615,6 +615,36 @@ function ParkDressing.decorateStatue(f: Instance)
 			Color3.fromRGB(22, 22, 26),
 			Enum.Material.SmoothPlastic
 		)
+		-- black glass over the windows (Brian L: the solid-gold body has no window colour). Measured on the Gold Apex at
+		-- this statue size (15 studs long) by raycasting its body: the windshield rises from the hood (3.66 high, 3 studs
+		-- ahead of the middle) to the roof (4.8 high); the roof is flat to 3 studs behind; the cabin sides lean in from
+		-- 3.78 to 3.1 studs out. Only right for the Gold Apex: another statue car would need new numbers.
+		if STATUE_CAR == "Gold Apex" then
+			local glassColour = Color3.fromRGB(8, 9, 12)
+			local function glass(name: string, partSize: Vector3, local_: CFrame)
+				local p = plainPart(name, partSize, pivot * local_, glassColour, model)
+				p.Reflectance = 0.04
+				solidify(p, false)
+			end
+			local function slope(name: string, a: Vector2, b: Vector2, width: number)
+				-- a and b are (height, along) on the centreline; the panel sits just off the body
+				local from, to = Vector3.new(0, a.X, a.Y), Vector3.new(0, b.X, b.Y)
+				local middle = (from + to) / 2
+				local cf = CFrame.lookAt(middle, middle + (to - from).Unit, Vector3.yAxis)
+				glass(name, Vector3.new(width, 0.08, (to - from).Magnitude), cf * CFrame.new(0, 0.16, 0))
+			end
+			slope("Windshield", Vector2.new(3.6, -3.3), Vector2.new(4.82, -0.35), 5.0)
+			slope("RearWindow", Vector2.new(4.72, 3.05), Vector2.new(4.3, 4.55), 3.6)
+			for _, side in { -1, 1 } do
+				local lower, upper = Vector3.new(side * 3.85, 3.72, 0.1), Vector3.new(side * 3.15, 4.6, 0.1)
+				local cf = CFrame.fromMatrix((lower + upper) / 2, Vector3.zAxis, (upper - lower).Unit)
+				glass(
+					"SideWindow",
+					Vector3.new(4.4, (upper - lower).Magnitude, 0.08),
+					cf + Vector3.new(side * 0.16, 0, 0)
+				)
+			end
+		end
 
 		-- the round pedestal: base, gold ring, navy shaft with a gold band, gold collar, cap
 		ring("PedestalBaseRound", 3.6, 2.5, 1.2, FOUNTAIN.Stone)
