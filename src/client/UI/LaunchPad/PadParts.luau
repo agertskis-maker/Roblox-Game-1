@@ -10,6 +10,7 @@ local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local KioskSign = require(script.Parent.Parent.Prototype.World.KioskSign)
+local CloverStand = require(script.Parent.CloverStand)
 local Motion = require(script.Parent.Parent.Prototype.Motion)
 local RealCar = require(script.Parent.Parent.Prototype.RealCar)
 local StyleState = require(script.Parent.Parent.Prototype.StyleState)
@@ -409,25 +410,41 @@ function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 end
 
 -- One kiosk. Its open side faces the middle of the floor; `stand` is the glowing circle in front of it.
-local function kioskShell(k: any, theme: any, key: string, label: string, at: CFrame): (Part, number)
+local RING_Y = 0.33 -- the height of a stand's glowing circle, where its floating sign hangs from
+
+-- `bodyless`: only the plinth and the glowing circle (the Lucky Clover builds its own stall, CloverStand).
+local function kioskShell(
+	k: any,
+	theme: any,
+	key: string,
+	label: string,
+	at: CFrame,
+	bodyless: boolean?
+): (Part, number)
 	local colours = theme.kiosk[key]
 	local main, second = colours[1], colours[2]
 	k:cyl("KioskBase", 17, 0.7, at * CFrame.new(0, 0.35, 1), theme.trim)
-	k:cyl("KioskFloor", 15.6, 0.3, at * CFrame.new(0, 0.7, 1), INK)
+	if not bodyless then
+		k:cyl("KioskFloor", 15.6, 0.3, at * CFrame.new(0, 0.7, 1), INK)
+	end
 	for _, sx in { 1, -1 } do
 		for _, sz in { 1, -1 } do
-			k:cyl(
-				"KioskPost",
-				1.5,
-				9,
-				at * CFrame.new(sx * 6.4, 5, 1 + sz * 5.2),
-				theme.pillar,
-				if theme.roof == "Chalet" then Enum.Material.Wood else nil
-			)
+			if not bodyless then
+				k:cyl(
+					"KioskPost",
+					1.5,
+					9,
+					at * CFrame.new(sx * 6.4, 5, 1 + sz * 5.2),
+					theme.pillar,
+					if theme.roof == "Chalet" then Enum.Material.Wood else nil
+				)
+			end
 		end
 	end
 	local top = 9.5
-	if theme.roof == "Awning" then
+	if bodyless then
+		top = 13.4
+	elseif theme.roof == "Awning" then
 		-- a shop awning: straight stripes down four sloped sides, a flat top and a clean edge
 		k:box("AwningTop", Vector3.new(9, 0.8, 9), at * CFrame.new(0, top + 2.7, 1), second)
 		for side = 0, 3 do
@@ -473,19 +490,21 @@ local function kioskShell(k: any, theme: any, key: string, label: string, at: CF
 		top += 3
 	end
 	local chalet = theme.roof == "Chalet"
-	SignKit.sign(
-		k.parent,
-		k.origin * at * CFrame.new(0, if chalet then top - 3.6 else top + 1, if chalet then -6 else -5.2),
-		{
-			style = theme.sign,
-			text = label,
-			width = 10,
-			height = 2.8,
-			accent = main,
-		}
-	)
+	if not bodyless then
+		SignKit.sign(
+			k.parent,
+			k.origin * at * CFrame.new(0, if chalet then top - 3.6 else top + 1, if chalet then -6 else -5.2),
+			{
+				style = theme.sign,
+				text = label,
+				width = 10,
+				height = 2.8,
+				accent = main,
+			}
+		)
+	end
 	-- the circle to stand on
-	local stand = k:cyl("KioskRing", 8, 0.1, at * CFrame.new(0, 0.33, -11), main, Enum.Material.Neon)
+	local stand = k:cyl("KioskRing", 8, 0.1, at * CFrame.new(0, RING_Y, -11), main, Enum.Material.Neon)
 	k:cyl("KioskRingCore", 6.8, 0.1, at * CFrame.new(0, 0.41, -11), INK)
 	local word = k:box(
 		"KioskWord",
@@ -618,7 +637,24 @@ function PadParts.lightningBolt(k: any, at: CFrame, size: number, colour: Color3
 	return model
 end
 
-function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [string]: BasePart }, () -> ())
+-- H-06 (Round 8): the Pit Stop's floating sign and the Lucky Clover's float at ONE height, clear of the bolt on the Pit Stop's roof.
+-- The bolt: centre BOLT_RISE above the roof's top, BOLT_SIZE tall, its dark edge drawn 10% bigger, bobbing 0.5 either way
+-- (`bobbing`). The sign: KioskSign's plate is 4.8 studs tall and hangs `height` above the stand's circle. The brief wants the sign's
+-- bottom at least 2 studs over the bolt's top; SIGN_CLEARANCE adds a margin. Measured in Studio on all three pads.
+local BOLT_RISE = 6.2
+local BOLT_SIZE = 8
+local BOLT_BOB = 0.5
+local SIGN_PLATE = 4.8
+local SIGN_CLEARANCE = 2.6
+
+-- The height (above the stand's circle) both floating signs share on a pad whose Pit Stop roof is `stamTop` high.
+function PadParts.signHeight(stamTop: number): number
+	local boltTop = stamTop + BOLT_RISE + BOLT_SIZE * (0.5 + 0.05) + BOLT_BOB
+	return boltTop + SIGN_CLEARANCE + SIGN_PLATE / 2 - RING_Y
+end
+
+function PadParts.kiosks(k: any, theme: any, life: any, worldName: string?): ({ [string]: BasePart }, () -> ())
+	local world = worldName or "Downtown"
 	local centre = Vector3.new(0, 0, 2)
 	local function placed(x: number, z: number): CFrame
 		return CFrame.lookAt(Vector3.new(x, 0, z), centre)
@@ -724,11 +760,13 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 	local stamAt = placed(32, -15)
 	local stamTop: number
 	stands.Stamina, stamTop = kioskShell(k, theme, "Stamina", "PIT STOP", stamAt)
-	-- H-03: the floating sign, readable from 20 studs: bolts now -> next and the price
+	local signHeight = PadParts.signHeight(stamTop)
+	-- H-03: the floating sign, readable from 20 studs: bolts now -> next and the price. H-06: raised above the bolt, level with the
+	-- Lucky Clover's.
 	KioskSign.attach(stands.Stamina, {
 		title = "PIT STOP",
 		colour = Color3.fromRGB(255, 214, 70),
-		height = stamTop + 3,
+		height = signHeight,
 		read = function(): (string, string?)
 			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.StaminaAttribute))
 				or 0
@@ -750,7 +788,7 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 		k:cyl("BatteryCap", 4.1, 0.3, stamAt * CFrame.new(0, y + 0.95, 1), INK)
 	end
 	local terminal = k:cyl("BatteryTerminal", 1.4, 0.8, stamAt * CFrame.new(0, 7.9, 1), CHROME, Enum.Material.Metal)
-	local bolt = PadParts.lightningBolt(k, stamAt * CFrame.new(0, stamTop + 6.2, 1), 8, cellColours[1])
+	local bolt = PadParts.lightningBolt(k, stamAt * CFrame.new(0, stamTop + BOLT_RISE, 1), BOLT_SIZE, cellColours[1])
 	bobbing(bolt, life, 0.9)
 	-- two arcs from the terminal up to the bolt, re-bent several times a second
 	local from = Instance.new("Attachment")
@@ -788,109 +826,30 @@ function PadParts.kiosks(k: any, theme: any, life: any, _world: string?): ({ [st
 		end
 	end)
 
-	-- LUCKY CLOVER (Round 7, L-01): a little greenhouse stand. A planter of clovers on the counter, a clover mascot with big eyes
-	-- waving from it, and a giant four-leaf clover spinning over the roof in sparkles. Its circle opens the LUCKY CLOVER card
-	-- (LuckPanel).
+	-- LUCKY CLOVER (Round 8, L-01 / L-02, built to R8-IMG-11 and R8-IMG-12): CloverStand builds the market stall, the clover mascot and
+	-- the turning clover over the roof; this file keeps only its glowing circle (which opens the LuckPanel card) and the floating
+	-- sign. Both floating signs share one height (H-06).
 	local luckAt = placed(32, 9)
-	local luckTop: number
-	stands.Luck, luckTop = kioskShell(k, theme, "Luck", "LUCKY CLOVER", luckAt)
+	stands.Luck = kioskShell(k, theme, "Luck", "LUCKY CLOVER", luckAt, true)
+	CloverStand.build(k, world, life, luckAt)
 	KioskSign.attach(stands.Luck, {
 		title = "LUCKY CLOVER",
 		colour = Color3.fromRGB(110, 230, 120),
-		height = luckTop + 11, -- above the Pit Stop's sign, so the two never overlap
+		height = signHeight, -- the same world height as the Pit Stop's sign (H-06)
 		read = function(): (string, string?)
 			local level = tonumber(game:GetService("Players").LocalPlayer:GetAttribute(BetaConfig.LuckAttribute)) or 0
 			if level >= EconomyPreview.LuckMaxLevel then
 				return string.format("LUCK x%g", EconomyPreview.luckFor(level)), nil
 			end
 			local price = EconomyPreview.luckPrice(level + 1)
-			return string.format("LUCK x%g → x%g", EconomyPreview.luckFor(level), EconomyPreview.luckFor(level + 1)),
+			return string.format(
+				"LUCK x%g â†’ x%g",
+				EconomyPreview.luckFor(level),
+				EconomyPreview.luckFor(level + 1)
+			),
 				if price then Format.cash(price) else nil
 		end,
 	})
-	local leafGreen = rgb(70, 200, 90)
-	k:box("Planter", Vector3.new(10, 2.2, 3), luckAt * CFrame.new(0, 1.8, 4.6), theme.trim)
-	k:box("PlanterSoil", Vector3.new(9.4, 0.3, 2.4), luckAt * CFrame.new(0, 3, 4.6), rgb(92, 62, 40))
-	for i = 0, 4 do
-		local x = (i - 2) * 1.9
-		local h = 3.6 + (i % 2) * 0.6
-		k:cyl("SproutStem", 0.25, 1.2, luckAt * CFrame.new(x, h - 0.6, 4.6), rgb(40, 140, 60))
-		for q = 0, 3 do
-			local a = q * math.pi / 2 + math.pi / 4
-			k:ball(
-				"SproutLeaf",
-				0.8,
-				luckAt * CFrame.new(x + math.cos(a) * 0.35, h, 4.6 + math.sin(a) * 0.35),
-				leafGreen,
-				Enum.Material.Grass
-			)
-		end
-	end
-	-- the mascot: a round clover head on a little body, with eyes that look at the middle of the floor
-	local mascotAt = luckAt * CFrame.new(0, 0, 1.2)
-	k:cyl("MascotStand", 3.4, 1.2, mascotAt * CFrame.new(0, 1.3, 0), INK)
-	k:ball("MascotBody", 2.6, mascotAt * CFrame.new(0, 3.2, 0), rgb(46, 160, 70))
-	for q = 0, 3 do
-		local a = q * math.pi / 2 + math.pi / 4
-		k:ball("MascotLeaf", 2.2, mascotAt * CFrame.new(math.cos(a) * 0.95, 6.2 + math.sin(a) * 0.95, 0), leafGreen)
-	end
-	for _, s in { -1, 1 } do
-		k:ball("MascotEye", 0.9, mascotAt * CFrame.new(s * 0.45, 6.3, -1.2), rgb(255, 255, 255))
-		k:ball("MascotPupil", 0.45, mascotAt * CFrame.new(s * 0.45, 6.25, -1.6), INK)
-		k:cyl(
-			"MascotArm",
-			0.4,
-			1.6,
-			mascotAt * CFrame.new(s * 1.6, 3.6, 0) * CFrame.Angles(0, 0, s * 0.6),
-			rgb(46, 160, 70)
-		)
-	end
-	-- the giant clover over the roof
-	local giant, giantModel = k:model("GiantClover")
-	local giantAt = luckAt * CFrame.new(0, luckTop + 7.4, 1)
-	for q = 0, 3 do
-		local a = q * math.pi / 2 + math.pi / 4
-		local out = Vector2.new(math.cos(a), math.sin(a))
-		local side = Vector2.new(-out.Y, out.X)
-		for _, s in { -1, 1 } do
-			local p = out * 2.4 + side * s * 0.85
-			giant:cyl("CloverLeaf", 3, 0.5, giantAt * CFrame.new(p.X, p.Y, 0) * upright, leafGreen)
-			giant:cyl(
-				"CloverLeafEdge",
-				3.4,
-				0.3,
-				giantAt * CFrame.new(p.X, p.Y, 0) * upright,
-				rgb(255, 214, 40),
-				Enum.Material.Neon
-			)
-		end
-	end
-	giant:cyl("CloverHeart", 1.6, 0.7, giantAt * upright, rgb(40, 140, 60))
-	giant:box(
-		"CloverStem",
-		Vector3.new(0.5, 3.4, 0.4),
-		giantAt * CFrame.new(0.5, -2.4, 0) * CFrame.Angles(0, 0, math.rad(-18)),
-		rgb(40, 140, 60)
-	)
-	local cloverCore = giant:box("CloverCore", Vector3.one * 0.4, giantAt, INK)
-	cloverCore.Transparency = 1
-	local glitter = Instance.new("ParticleEmitter")
-	glitter.Name = "Sparkles"
-	glitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	glitter.Rate = 14
-	glitter.Lifetime = NumberRange.new(0.8, 1.4)
-	glitter.Speed = NumberRange.new(1.5, 4)
-	glitter.SpreadAngle = Vector2.new(180, 180)
-	glitter.LightEmission = 1
-	glitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
-	glitter.Color = ColorSequence.new(rgb(140, 255, 150), rgb(255, 230, 90))
-	glitter.Parent = cloverCore
-	local cloverLight = Instance.new("PointLight")
-	cloverLight.Color = leafGreen
-	cloverLight.Range = 18
-	cloverLight.Brightness = 1.5
-	cloverLight.Parent = cloverCore
-	bobbing(giantModel, life, 1.1)
 
 	sync()
 	return stands, sync
