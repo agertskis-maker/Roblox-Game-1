@@ -188,6 +188,16 @@ local function tailOf(model: Model): (CFrame, number)
 	return pivot * CFrame.new(rel.X, y, rel.Z + size.Z / 2), size.X
 end
 
+-- The run's handle (additive): the handle that carries the player's trail through the current run, set by BetaRun.client when the run
+-- starts and cleared when it ends. The run's trail moments (WS-5b) call CarLookApplier.runHandle():burst("leap") on it; nil between runs.
+local runHandle: Handle? = nil
+function CarLookApplier.setRunHandle(handle: Handle?)
+	runHandle = handle
+end
+function CarLookApplier.runHandle(): Handle?
+	return runHandle
+end
+
 -- Apply -----------------------------------------------------------------------------------------------------------------------
 
 function CarLookApplier.apply(model: Model, look: CarLook.Look, options: Options?): Handle

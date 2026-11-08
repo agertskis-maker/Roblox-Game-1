@@ -317,7 +317,9 @@ local function startRun(world: string): RunController.RunController
 				{ car = ownLook.car, trail = ownLook.trail, matchPaint = ownLook.matchPaint },
 				{}
 			)
+			CarLookApplier.setRunHandle(trailHandle)
 			lookTrove:Add(function()
+				CarLookApplier.setRunHandle(nil)
 				if trailHandle then
 					trailHandle:destroy()
 					trailHandle = nil
