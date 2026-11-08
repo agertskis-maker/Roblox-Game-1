@@ -15,7 +15,7 @@
 --
 -- Everything follows its target (a car moves by PivotTo, the avatar by CFrame) from one render-step connection that exists only
 -- while an effect is alive; each effect owns a Trove and goes away with its target. Per effect budget: a burst is at most about
--- 40 particles for under a second, at most MAX_ONE_SHOTS bursts at once (the oldest goes first). Reduce Motion (Motion.reduced)
+-- 60 particles for under a second, at most MAX_ONE_SHOTS bursts at once (the oldest goes first). Reduce Motion (Motion.reduced)
 -- and low graphics (UserGameSettings.SavedQualityLevel 1 to 3) halve every particle count; Reduce Motion also shrinks the rings,
 -- drops the lights and softens the wash. Textures are Roblox's built-in particle textures; a ParticleFX flipbook from WS-5a is
 -- used when AssetIds.image("r8_trail_fx_<trailKey>") (else "r8_trail_fx_burst") returns an id.
@@ -513,6 +513,8 @@ local function spokes(
 	size: number
 )
 	local tex, flip = sheet(p, st.tex)
+	-- puffs rise like flames, or fall like confetti, as the trail's style says
+	local lift = if st.fall then st.fall * 0.3 else 10
 	for i = 1, n do
 		local ang = (i - 1) / n * math.pi * 2
 		local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
@@ -529,9 +531,10 @@ local function spokes(
 				NumberSequenceKeypoint.new(0.6, 0.35),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
-			life = { 0.4, 0.65 },
+			life = { 0.45, 0.8 },
 			speed = { speed * 0.8, speed * 1.15 },
 			spread = Vector2.new(10, 6),
+			accel = Vector3.new(0, lift, 0),
 			drag = 2.5,
 			locked = true,
 		}):Emit(count(per, c))
@@ -548,11 +551,11 @@ local function leap(target: Instance, p: Palette, c: Comfort): Fx
 	local finalD = base * (if c.reduce then 1.7 else 2.5)
 	local fx = newFx(target, box * CFrame.new(0, -size.Y / 2 + 0.25, 0), Vector3.new(finalD, 0.05, finalD), 1.1, true)
 	local st = styleOf(p)
-	ring(fx, p, base * 0.8 / finalD, 0.5, 0, 16)
+	ring(fx, p, base * 0.8 / finalD, 0.5, 0, 22)
 	if not c.reduce then
-		ring(fx, p, base * 0.6 / finalD, 0.45, 0.07, 9)
+		ring(fx, p, base * 0.6 / finalD, 0.45, 0.07, 14)
 	end
-	spokes(fx, p, st, c, if c.k < 1 then 6 else 8, 4, base * 0.45, 20, base * 0.17)
+	spokes(fx, p, st, c, if c.k < 1 then 6 else 10, 5, base * 0.45, 20, base * 0.28)
 	local centre = attachment(fx.anchor, CFrame.new(0, 0.4, 0))
 	local tex, flip = sheet(p, st.spark)
 	emitter(centre, {
@@ -590,7 +593,7 @@ local function catch(target: Instance, p: Palette, c: Comfort): Fx
 	wash.Parent = fx.anchor
 	local seconds = if c.reduce then 0.65 else 0.5
 	tween(fx, wash, seconds, { FillTransparency = 1, OutlineTransparency = 1, FillColor = p.a })
-	ring(fx, p, base * 0.7 / finalD, 0.45, 0, 13)
+	ring(fx, p, base * 0.7 / finalD, 0.45, 0, 18)
 	local roof = attachment(fx.anchor, CFrame.new(0, size.Y, 0))
 	local tex, flip = sheet(p, st.tex)
 	emitter(roof, {
