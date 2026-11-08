@@ -474,7 +474,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				Name = "ReadyToast",
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.new(0.5, 0, 0, if calm then toastH * 0.5 + 10 else -toastH),
-				Size = UDim2.new(1, -math.round(checkPx * 2.1), 0, toastH),
+				Size = UDim2.new(1, -math.round(checkPx * 2.4), 0, toastH),
 				BackgroundColor3 = GREEN_BOTTOM,
 				ZIndex = 16,
 			}, card) :: Frame
