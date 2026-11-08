@@ -28,6 +28,7 @@ local RunService = game:GetService("RunService")
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local PaintParts = require(ReplicatedStorage.Shared.Style.Anchors.PaintParts)
 local PaintMasks = require(script.Parent.PaintMasks)
+local PaintMasksRainbow = require(script.Parent.PaintMasksRainbow)
 
 local BodyPaint = {}
 
@@ -105,7 +106,7 @@ local function maskFor(carName: string): Mask?
 	if known then
 		return known
 	end
-	local text = PaintMasks[key]
+	local text = PaintMasks[key] or PaintMasksRainbow[key]
 	if not text then
 		return nil
 	end
@@ -174,7 +175,8 @@ function BodyPaint.bodyParts(model: Model): { MeshPart }
 end
 
 function BodyPaint.supported(carName: string): boolean
-	return PaintMasks[baseName(carName)] ~= nil
+	local key = baseName(carName)
+	return PaintMasks[key] ~= nil or PaintMasksRainbow[key] ~= nil
 end
 
 local function sample(colours: { Color3 }, t: number): Color3

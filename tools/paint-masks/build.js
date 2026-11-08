@@ -76,6 +76,12 @@ const entries = {};
 const re = /^\t\["([^"]+)"\] = "([^"]*)",$/gm;
 let m;
 while ((m = re.exec(old))) entries[m[1]] = m[2];
+const oldRainbowPath = inPath.replace(/\.luau$/, '') + 'Rainbow.luau';
+if (fs.existsSync(oldRainbowPath)) {
+  const oldR = fs.readFileSync(oldRainbowPath, 'utf8');
+  const re2 = /^\t\["([^"]+)"\] = "([^"]*)",$/gm;
+  while ((m = re2.exec(oldR))) entries[m[1]] = m[2];
+}
 const { texturesDir } = JSON.parse(fs.readFileSync(path.join(path.dirname(specsPath), 'textures.json'), 'utf8'));
 const stats = {};
 for (const [car, spec] of Object.entries(specs)) {
@@ -102,7 +108,10 @@ for (const [car, spec] of Object.entries(specs)) {
     lib.png.write(path.join(previewDir, car + '.mask.png'), W, H, pv, 3);
   }
 }
+// two modules: the Normal cars (and, through them, Gold and Diamond) and the Rainbow editions, so neither source gets huge
 const head = old.slice(0, old.indexOf('return table.freeze({'));
-const body = Object.keys(entries).sort().map(k => `\t["${k}"] = "${entries[k]}",`).join('\n');
-fs.writeFileSync(outPath, head + 'return table.freeze({\n' + body + '\n})\n');
+const lines = (pred) => Object.keys(entries).filter(pred).sort().map(k => `\t["${k}"] = "${entries[k]}",`).join('\n');
+fs.writeFileSync(outPath, head + 'return table.freeze({\n' + lines(k => !k.startsWith('Rainbow ')) + '\n})\n');
+const rainbowHead = '--!strict\n-- PaintMasksRainbow (Round 8, C-04; generated, do not edit by hand): the region maps of the Rainbow editions, same format as\n-- PaintMasks (read that header). Each Rainbow edition has its own mesh and texture, so each has its own map, keyed "Rainbow <car>".\n\n';
+fs.writeFileSync(outPath.replace(/\.luau$/, '') + 'Rainbow.luau', rainbowHead + 'return table.freeze({\n' + lines(k => k.startsWith('Rainbow ')) + '\n})\n');
 console.log(JSON.stringify(stats, null, 1));
