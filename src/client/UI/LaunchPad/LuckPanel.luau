@@ -240,6 +240,8 @@ function Panel.open()
 	-- Round 8 (O-09): two short lines and a small ODDS button (the full table). The lines sit between two equal margins so the
 	-- button never crowds them.
 	local oddsMargin = math.round(18 * k) + 100
+	-- on a short screen the 44 px ODDS button is taller than the room the lines had, so the levels and the status step down a little
+	local below = math.max(0, 48 - math.round(52 * k))
 	local odds = CarKit.text(card, "", math.max(math.round(20 * k), 16), {
 		align = Enum.TextXAlignment.Center,
 		position = UDim2.fromOffset(oddsMargin, math.round(232 * k)),
@@ -263,7 +265,7 @@ function Panel.open()
 		px = math.max(math.round(22 * k), 18),
 		size = UDim2.fromOffset(92, math.max(math.round(44 * k), 44)),
 		anchor = Vector2.new(1, 0),
-		position = UDim2.new(1, -math.round(18 * k), 0, math.round(234 * k)),
+		position = UDim2.new(1, -math.round(18 * k), 0, math.round(230 * k)),
 		z = 8,
 		name = "OddsButton",
 	})
@@ -274,13 +276,13 @@ function Panel.open()
 		Name = "Levels",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, math.round(284 * k)),
+		Position = UDim2.new(0.5, 0, 0, math.round(284 * k) + below),
 		Size = UDim2.fromOffset(w - 40, math.round(24 * k)),
 		ZIndex = 5,
 	}, card) :: Frame
 	local status = CarKit.text(card, "", math.max(math.round(17 * k), 14), {
 		align = Enum.TextXAlignment.Center,
-		position = UDim2.fromOffset(0, math.round(314 * k)),
+		position = UDim2.fromOffset(0, math.round(314 * k) + below),
 		size = UDim2.new(1, 0, 0, math.round(22 * k)),
 		stroke = 1.5,
 		z = 6,
