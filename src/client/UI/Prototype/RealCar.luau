@@ -196,7 +196,12 @@ local function buildBody(entry: Entry, length: number, height: number, trail: bo
 	)
 	self._body = assert(body, "a showroom car has no body_geom")
 	-- Round 8 (C-01): every look on this car goes through the one applier
-	self._look = CarLookApplier.apply(model, CarLook.plain(entry.name), { trail = trail })
+	-- (a picture, trail = false, is drawn in low detail: no animated paint redraw)
+	self._look = CarLookApplier.apply(
+		model,
+		CarLook.plain(entry.name),
+		{ trail = trail, lod = if trail == false then "low" else "full" }
+	)
 	return self
 end
 
