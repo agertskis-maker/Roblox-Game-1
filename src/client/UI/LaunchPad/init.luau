@@ -1100,6 +1100,12 @@ function LaunchPad.debug(command: string, arg: any): any
 		end
 		padTrove:Clean()
 		countdown()
+	elseif command == "card" then
+		-- Round 8 (C-03): opens the launch card as walking onto the ramp does (frames and tests)
+		local card = panel("launchCard")
+		if card and not card:isOpen() then
+			card:open(WORLD_TITLE[world] or world, nil)
+		end
 	elseif command == "retry" then
 		panel("runResults"):pressRetry()
 	elseif command == "home" then

@@ -602,8 +602,13 @@ if RunService:IsStudio() then
 				runId = live and live.runId,
 				tally = live and live.tally,
 			}
-		elseif command == "retry" or command == "home" then
+		elseif command == "retry" or command == "home" or command == "card" then
 			return LaunchPad.debug(command)
+		elseif command == "pick" and type(arg) == "string" then
+			-- Round 8 (C-03): as picking a car in the Car stall: the card shows it at once, the server saves it
+			RidePick.ask(arg)
+			StyleState.setCar(arg)
+			return arg
 		elseif command == "start" then
 			return LaunchPad.debug("start") -- Round 7: as pressing START on the open launch card
 		elseif command == "enter" then
