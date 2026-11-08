@@ -23,6 +23,9 @@ BetaConfig.Remotes = {
 	-- Stamina Shop (Adam, 2026-11-05; beta-only, a proposal for Brian L): no arguments. The server raises the caller's own
 	-- StaminaLevel by one, for Cash at EconomyPreview.staminaPrice.
 	BuyStaminaLevel = "BuyStaminaLevel",
+	-- client -> server, no arguments (Lane 2 preview, Brian L 2026-11-08): raise the caller's LuckLevel by one, for Cash at
+	-- the PREVIEW price of src/shared/Catalog/LuckTable. The server answers through Result.
+	BuyLuckLevel = "BuyLuckLevel",
 	-- Server -> client: (what: string, ok: boolean, reason: string?, missing: number?) after every purchase or Lineup
 	-- request, so a refusal shows the server's reason and the server's missing amount. The client never computes either.
 	Result = "BetaResult",

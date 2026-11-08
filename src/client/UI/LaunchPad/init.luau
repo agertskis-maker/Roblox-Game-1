@@ -25,6 +25,7 @@ local Build = require(script.Build)
 local RunCamera = require(script.RunCamera)
 local RobuxSeam = require(script.Parent.RobuxSeam)
 local RunStamina = require(script.RunStamina)
+local LuckPanel = require(script.LuckPanel)
 local StaminaPanel = require(script.StaminaPanel)
 local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
@@ -302,7 +303,7 @@ local function closeHomePanels()
 end
 
 local function anyPanelOpen(): boolean
-	if StaminaPanel.isOpen() then
+	if StaminaPanel.isOpen() or LuckPanel.isOpen() then
 		return true
 	end
 	for _, key in { "carStall", "shop", "garage", "customize", "missions", "settings" } do
@@ -327,6 +328,8 @@ local function openStall(key: string)
 		panel("carStall"):open(world)
 	elseif key == "Stamina" then
 		StaminaPanel.open() -- 2026-11-05: the Stamina Shop
+	elseif key == "Luck" then
+		LuckPanel.open() -- Lane 2 preview (Brian L, 2026-11-08): the Luck Shop
 	elseif key == "Trails" then
 		openCustomize("Trails")
 	else

@@ -306,7 +306,8 @@ function RealCar.displayModel(name: string): Model?
 end
 
 -- A still picture of a car for a card: no spin and no render loop. nil when the car is not here, so the caller keeps its own art.
-function RealCar.thumb(holder: Frame, name: string?): ViewportFrame?
+-- `paint` (optional, Brian L 2026-11-08): the card shows the player's own car in that paint, not the template car picture.
+function RealCar.thumb(holder: Frame, name: string?, paint: Catalog.Item?): ViewportFrame?
 	local entry = find(name)
 	if not entry or failed[entry.name] then
 		return nil
@@ -324,7 +325,11 @@ function RealCar.thumb(holder: Frame, name: string?): ViewportFrame?
 	camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 2.2, 0))
 	camera.Parent = vp
 	vp.CurrentCamera = camera
-	local model = buildBody(entry, LENGTH, HEIGHT).model
+	local body = buildBody(entry, LENGTH, HEIGHT)
+	if paint then
+		body:setPaint(paint, 0.18)
+	end
+	local model = body.model
 	model:PivotTo(CFrame.Angles(0, math.rad(215), 0))
 	model.Parent = vp
 	vp.Parent = holder

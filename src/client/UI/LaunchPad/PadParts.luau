@@ -327,7 +327,8 @@ local CORE = "rbxassetid://131487211688936"
 function PadParts.homePortal(k: any, theme: any, life: any): Vector3
 	-- its face (the HOME sign and the pool) looks at the middle of the floor, as the kiosks do (2026-11-05, Adam: it was
 	-- turned about 45 degrees away)
-	local at = CFrame.lookAt(Vector3.new(-33, 0, 15), Vector3.new(0, 0, 2))
+	-- Brian L, 2026-11-08: moved from (-33, 15) to (-26, 23.5) so it no longer clips into the LUCK kiosk (Lane 2 preview)
+	local at = CFrame.lookAt(Vector3.new(-26, 0, 23.5), Vector3.new(0, 0, 2))
 	local cream = rgb(232, 214, 178)
 	k:box("HomeStep", Vector3.new(19, 0.6, 9), at * CFrame.new(0, 0.3, 0), theme.trim)
 	k:box("HomeStep", Vector3.new(16, 0.4, 7), at * CFrame.new(0, 0.8, 0), cream)
@@ -816,6 +817,47 @@ function PadParts.kiosks(k: any, theme: any, life: any, world: string?): ({ [str
 			end
 		end
 	end)
+
+	-- LUCK (Lane 2 preview, Brian L 2026-11-08): the Luck Shop, mirroring STAMINA on the other side of the floor. A pot of
+	-- gold coins under the roof and a big four-leaf clover that floats and turns over it. Its circle opens the LUCK SHOP card
+	-- (LuckPanel). Built with the same kiosk shell as the others; the look is a stand-in for Adam's review.
+	local luckAt = placed(-34.5, -1.2)
+	local luckTop: number
+	stands.Luck, luckTop = kioskShell(k, theme, "Luck", "LUCK", luckAt)
+	local cloverGreen = rgb(60, 200, 90)
+	k:cyl("LuckPot", 5.6, 2.4, luckAt * CFrame.new(0, 2.5, 1), INK)
+	k:cyl("LuckPotRim", 6.2, 0.5, luckAt * CFrame.new(0, 3.8, 1), GOLD, Enum.Material.Metal)
+	for i = 1, 7 do
+		local a = i * 2.4
+		local r = if i == 7 then 0 else 1.6
+		k:cyl(
+			"LuckCoin",
+			1.7,
+			0.35,
+			luckAt
+				* CFrame.new(math.cos(a) * r, 4.2 + (i % 3) * 0.3, 1 + math.sin(a) * r)
+				* CFrame.Angles(0.3 * i, 0, 0.5),
+			GOLD,
+			Enum.Material.Metal
+		)
+	end
+	local ck, clover = k:model("LuckClover")
+	local cloverAt = luckAt * CFrame.new(0, luckTop + 6.2, 1)
+	for i = 0, 3 do
+		local leaf = cloverAt * CFrame.Angles(0, 0, i * math.pi / 2) * CFrame.new(0, 1.55, 0)
+		for _, side in { -0.75, 0.75 } do
+			ck:ball("CloverLeaf", 2.6, leaf * CFrame.new(side, 0.35, 0), cloverGreen, Enum.Material.Neon)
+		end
+	end
+	ck:cyl("CloverStem", 0.5, 3, cloverAt * CFrame.new(0.6, -2.8, 0) * CFrame.Angles(0, 0, 0.2), rgb(40, 140, 60))
+	local cloverCore = ck:ball("CloverCore", 1.4, cloverAt, GOLD, Enum.Material.Neon)
+	clover.PrimaryPart = cloverCore
+	local cloverLight = Instance.new("PointLight")
+	cloverLight.Color = cloverGreen
+	cloverLight.Range = 18
+	cloverLight.Brightness = 2
+	cloverLight.Parent = cloverCore
+	bobbing(clover, life, 0.9)
 
 	sync()
 	shown:setCar(line[1] and line[1].name)

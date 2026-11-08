@@ -66,7 +66,7 @@ BetaLineup.start(net)
 BetaRun.startRemotes(net, runNet)
 BetaLapPay.start(net)
 BetaPurchases.start(net) -- Round 6 (R-02): the one ProcessReceipt handler
-BetaLuck.start() -- Lane 2 preview (Brian L, 2026-11-08): the Luck Station stand and its buys
+BetaLuck.start(net) -- Lane 2 preview (Brian L, 2026-11-08): the Luck Station stand and its buys
 BetaMissions.start(net) -- Round 6 (G-01): Missions on real events (after BetaShop, which makes BetaResult)
 BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
 runNet.Parent = ReplicatedStorage

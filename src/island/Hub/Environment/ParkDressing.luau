@@ -433,6 +433,144 @@ local FOUNTAIN = {
 	PedestalTop = 8.1,
 }
 
+-- The statue's solid colliders and its extra detail (Brian L, 2026-11-08, for Adam's review). Players used to walk through
+-- the pedestal and the car: an invisible cylinder now holds the pedestal and the car itself collides (box fidelity).
+-- Detail: a gold stunt hoop arching over the car, a checkered
+-- band and CATCH A CAR! plaques on the pedestal, gold studs round the rim, and four uplights plus a warm glow on the car.
+-- Everything is still (no motion), so Reduce Motion needs nothing. Safe to run again: it replaces its own parts.
+function ParkDressing.decorateStatue(f: Instance)
+	local y = Layout.PlazaTop
+	local old = f:FindFirstChild("StatueDetail")
+	if old then
+		old:Destroy()
+	end
+	local oldCollider = f:FindFirstChild("StatueCollider")
+	if oldCollider then
+		oldCollider:Destroy()
+	end
+	local d = Instance.new("Folder")
+	d.Name = "StatueDetail"
+	d.Parent = f
+	local function piece(name: string, size: Vector3, cf: CFrame, colour: Color3, material: Enum.Material?): Part
+		local p = plainPart(name, size, cf, colour, d)
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = false
+		p:SetAttribute("SightlineEnvelope", true)
+		return p
+	end
+
+	-- colliders: the pedestal from the plaza to its cap, and the car
+	local collider = invisibleCylinder(f, "StatueCollider", 3.2, FOUNTAIN.PedestalTop, y)
+	collider.CanQuery = false
+	local car = f:FindFirstChild("StatueCar")
+	if car and car:IsA("BasePart") then
+		car.CanCollide = true
+	end
+
+	-- a checkered band round the shaft, just under the gold collar
+	local band = y + 6.95
+	for i = 0, 15 do
+		local side = i // 4
+		local slot = i % 4
+		local a = side * math.pi / 2
+		local colour = if (slot + side) % 2 == 0 then Color3.fromRGB(245, 245, 245) else FOUNTAIN.Navy
+		piece(
+			"CheckerTile",
+			Vector3.new(1.1, 0.55, 0.1),
+			CFrame.new(0, band, 0) * CFrame.Angles(0, a, 0) * CFrame.new(-1.65 + slot * 1.1, 0, 2.26),
+			colour
+		)
+	end
+	-- CATCH A CAR! on the four navy panels
+	for k = 0, 3 do
+		local plaque = piece(
+			"Plaque",
+			Vector3.new(2.6, 1.1, 0.05),
+			CFrame.new(0, y + 5.5, 0) * CFrame.Angles(0, k * math.pi / 2, 0) * CFrame.new(0, 0, 2.32),
+			FOUNTAIN.Navy
+		)
+		plaque.Transparency = 1
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Back
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 0.4
+		gui.Parent = plaque
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.FredokaOne
+		text.Text = "CATCH A CAR!"
+		text.TextScaled = true
+		text.TextColor3 = FOUNTAIN.Gold
+		text.TextStrokeColor3 = Color3.fromRGB(20, 26, 50)
+		text.TextStrokeTransparency = 0
+		text.Parent = gui
+	end
+	-- gold studs round the basin rim
+	for k = 0, 23 do
+		local a = k / 24 * math.pi * 2
+		piece(
+			"RimStud",
+			Vector3.new(0.45, 0.22, 0.45),
+			CFrame.new(math.cos(a) * FOUNTAIN.Rim, y + 1.98, math.sin(a) * FOUNTAIN.Rim) * CFrame.Angles(0, -a, 0),
+			FOUNTAIN.Gold,
+			Enum.Material.Metal
+		)
+	end
+
+	if car and car:IsA("BasePart") then
+		local cf = car.CFrame
+		local half = car.Size / 2
+		-- a gold stunt hoop arching over the car's middle, as if it is flying through it (open at the bottom, clear of the
+		-- pedestal), with a checkered strip along its inside
+		local radius = math.max(half.X, half.Y) + 1.4
+		local segments = 14
+		for i = 0, segments do
+			local a = math.rad(15) + (math.rad(150) / segments) * i
+			local at = cf * CFrame.Angles(0, 0, a) * CFrame.new(radius, 0, 0)
+			local arcLength = radius * math.rad(150) / segments + 0.15
+			piece("HoopSegment", Vector3.new(0.7, arcLength, 0.9), at, FOUNTAIN.Gold, Enum.Material.Metal)
+			piece(
+				"HoopChecker",
+				Vector3.new(0.12, arcLength, 0.5),
+				at * CFrame.new(-0.4, 0, 0),
+				if i % 2 == 0 then Color3.fromRGB(245, 245, 245) else FOUNTAIN.Navy
+			)
+		end
+		-- a warm glow on the car and four uplights from the pedestal foot
+		local oldGlow = car:FindFirstChild("StatueGlow")
+		if oldGlow then
+			oldGlow:Destroy()
+		end
+		local glow = Instance.new("PointLight")
+		glow.Name = "StatueGlow"
+		glow.Color = Color3.fromRGB(255, 214, 140)
+		glow.Range = 16
+		glow.Brightness = 0.6
+		glow.Shadows = false
+		glow.Parent = car
+		for k = 0, 3 do
+			local a = (k + 0.5) * math.pi / 2
+			local foot = Vector3.new(math.cos(a) * 3.9, y + 2.7, math.sin(a) * 3.9)
+			local lamp = piece(
+				"Uplight",
+				Vector3.new(0.6, 0.35, 0.6),
+				CFrame.lookAt(foot, cf.Position),
+				Color3.fromRGB(255, 236, 190),
+				Enum.Material.Neon
+			)
+			local beam = Instance.new("SpotLight")
+			beam.Face = Enum.NormalId.Front
+			beam.Angle = 50
+			beam.Range = 14
+			beam.Brightness = 1.1
+			beam.Color = Color3.fromRGB(255, 226, 170)
+			beam.Parent = lamp
+		end
+	end
+end
+
 local function buildFountain(ctx: Ctx)
 	local y = Layout.PlazaTop
 	local f = folder(ctx, "Fountain")
@@ -509,6 +647,7 @@ local function buildFountain(ctx: Ctx)
 	invisibleCylinder(f, "BasinCollider", FOUNTAIN.Rim + 0.5, 2.15, y)
 	invisibleCylinder(f, "StepCollider", 13.6, 0.55, y)
 	invisibleCylinder(f, "LowStepCollider", 15, 0.28, y)
+	ParkDressing.decorateStatue(f) -- Brian L, 2026-11-08: colliders and detail on the statue
 
 	local host = Instance.new("Part")
 	host.Name = "JetHost"

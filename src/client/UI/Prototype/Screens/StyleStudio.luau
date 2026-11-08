@@ -367,6 +367,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 	local function thumbFor(item: Catalog.Item, holder: Frame, z: number)
 		if item.id == "factory_paint" and RealCar.thumb(holder, rig.source) then
 			return -- the car itself, as Brian L made it
+		elseif item.tab == "Paint" and not item.isNone and RealCar.thumb(holder, rig.source, item) then
+			return -- the player's own car in this paint (Brian L, 2026-11-08: no more template car pictures)
 		elseif item.tab == "Paint" then
 			local body = CarKit.art(holder, "thumb_car_body", { z = z, placeholder = false, color = item.colours[1] })
 			local image = body:FindFirstChild("Image") :: ImageLabel?

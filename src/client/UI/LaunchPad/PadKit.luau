@@ -58,6 +58,7 @@ PadKit.Themes = {
 			Trails = { rgb(40, 110, 220), rgb(250, 240, 222) },
 			Paint = { rgb(232, 64, 92), rgb(250, 240, 222) },
 			Stamina = { rgb(150, 70, 230), rgb(250, 240, 222) }, -- the Stamina Shop (2026-11-05): the purple bolt
+			Luck = { rgb(40, 170, 80), rgb(250, 240, 222) }, -- the Luck Shop (Lane 2 preview, 2026-11-08): clover green
 		},
 		world = rgb(56, 70, 96),
 		worldMaterial = Enum.Material.SmoothPlastic,
@@ -107,6 +108,7 @@ PadKit.Themes = {
 			Trails = { rgb(52, 138, 138), rgb(250, 236, 208) },
 			Paint = { rgb(240, 150, 50), rgb(250, 236, 208) },
 			Stamina = { rgb(140, 80, 190), rgb(250, 236, 208) },
+			Luck = { rgb(52, 150, 76), rgb(250, 236, 208) },
 		},
 		world = rgb(206, 124, 84),
 		worldMaterial = Enum.Material.Sand,
@@ -156,6 +158,7 @@ PadKit.Themes = {
 			Trails = { rgb(116, 72, 42), rgb(244, 248, 255) },
 			Paint = { rgb(116, 72, 42), rgb(244, 248, 255) },
 			Stamina = { rgb(116, 72, 42), rgb(244, 248, 255) }, -- the chalet keeps its wood; the bolt brings the colour
+			Luck = { rgb(116, 72, 42), rgb(244, 248, 255) },
 		},
 		world = rgb(232, 240, 250),
 		worldMaterial = Enum.Material.Snow,
