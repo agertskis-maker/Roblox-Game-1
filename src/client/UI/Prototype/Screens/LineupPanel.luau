@@ -81,7 +81,7 @@ function LineupPanel.new(ctx: Overlay.Ctx, options: Options?): { [string]: any }
 		if not car then
 			return 0
 		end
-		return math.floor(EconomyPreview.lapPay(car.rarity, if save then save.Edition else 1, level()))
+		return math.floor(EconomyPreview.lapPay(car.rarity, if save then save.Edition else 1, level(), car.world))
 	end
 
 	local function send(slot: number, carId: string?)

@@ -44,7 +44,9 @@ export type Options = {
 	onRetry: () -> (),
 	onHome: () -> (),
 	onRevive: (() -> ())?,
-	onBuyRespawn: (() -> ())?, -- PREVIEW: ends in Coming soon
+	-- Round 6 (R-03): the Robux respawn. The caller reports back (status, words?): "Purchased" (the run continues),
+	-- "Cancelled" (the button comes back), anything else shows its words (Coming soon!, Not available, Not set up yet).
+	onBuyRespawn: (((string, string?) -> ()) -> ())?,
 	respawnRobux: number?,
 	onEarnFaster: (() -> ())?,
 }
@@ -518,11 +520,21 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				z = 8,
 				name = "Respawn",
 				onPress = function()
-					respawn.setText("Coming soon!")
-					respawn.setTone("Grey")
+					local label = ("RESPAWN %d Robux"):format(options.respawnRobux or 19)
+					respawn.setText("Checking...")
 					respawn.setEnabled(false)
 					if options.onBuyRespawn then
-						options.onBuyRespawn()
+						options.onBuyRespawn(function(status: string, words: string?)
+							if status == "Cancelled" then
+								respawn.setText(label)
+								respawn.setEnabled(true)
+							elseif status == "Purchased" then
+								respawn.setText(words or "Respawning!")
+							else
+								respawn.setText(words or "Coming soon!")
+								respawn.setTone("Grey")
+							end
+						end)
 					end
 				end,
 			})
