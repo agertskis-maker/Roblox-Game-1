@@ -75,6 +75,27 @@ local entries: { [string]: Types.Entry } = {
 	},
 
 	-- ===== WS-6b: PARKING keys only below this line =====
+	-- WS-6b (the Parking card, UpgradeCard/ParkingCard.luau): text-free art made by WS-6b (R8-S07b: ChatGPT's layers/ folder was empty),
+	-- drawn as SVG/HTML and rendered to transparent PNGs; PNGs in Car-Hop-Art/upload-round8. The one letter in any art is the P of the
+	-- sign badge (GENERATION-NOTES allows it); every word and number on the card is a live TextLabel.
+	-- The asphalt frame: navy outline, yellow and dark kerb band, painted white bay lines, chequered corners and the cream panel. 9-slice.
+	r8_card_parking_frame = {
+		size = Vector2.new(1024, 544),
+		slice = Rect.new(120, 120, 904, 424),
+		source = "WS-6b SVG, matches R8-IMG-04 asphalt frame",
+	},
+	-- The arched asphalt hump behind the ribbon (yellow and dark kerb stripes on its curve, painted white lines).
+	r8_card_parking_hump = { size = Vector2.new(1024, 200), source = "WS-6b SVG, matches R8-IMG-04 hump" },
+	-- The cream title band (text-free), drawn at its own 6.8 : 1 aspect like the Raceway ribbon.
+	r8_card_parking_ribbon = { size = Vector2.new(1024, 150), source = "WS-6b SVG, matches R8-IMG-04 ribbon" },
+	-- The big blue rounded P sign badge (the P is the one allowed letter in art).
+	r8_card_parking_badge = { size = Vector2.new(512, 440), source = "WS-6b SVG, matches R8-IMG-04 P badge" },
+	-- Bay icons seen from above: a car silhouette (white, tinted per rarity with ImageColor3), an empty dashed bay, the glowing green
+	-- NEXT bay (the word NEXT is a live TextLabel) and a gold padlock.
+	r8_card_parking_car = { size = Vector2.new(256, 400), source = "WS-6b SVG, matches R8-IMG-04 bay car" },
+	r8_card_parking_bay_empty = { size = Vector2.new(256, 400), source = "WS-6b SVG, matches R8-IMG-04 empty bay" },
+	r8_card_parking_bay_next = { size = Vector2.new(320, 400), source = "WS-6b SVG, matches R8-IMG-04 NEXT bay" },
+	r8_card_parking_lock = { size = Vector2.new(256, 256), source = "WS-6b SVG, matches R8-IMG-04 padlock" },
 }
 
 return entries
