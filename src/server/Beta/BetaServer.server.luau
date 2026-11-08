@@ -101,6 +101,8 @@ if RunService:IsStudio() then
 			return BetaMissions.selfTest(player)
 		elseif which == "circuit" and player then
 			return BetaCircuit.selfTest(player)
+		elseif which == "luck" and player then
+			return BetaLuck.selfTest(player, BetaRun.start) -- Lane 2 preview: the Luck Station
 		end
 		return { "unknown test " .. tostring(which) }
 	end
@@ -118,7 +120,7 @@ if RunService:IsStudio() then
 		ran = true
 		task.delay(6, function()
 			for _, which in
-				{ "preview", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases" }
+				{ "preview", "economy", "lineup", "lappay", "run", "shop", "missions", "circuit", "purchases", "luck" }
 			do
 				local ok, lines = pcall(selfTest, which, player)
 				local list = if ok and type(lines) == "table" then lines else { "FAIL error: " .. tostring(lines) }

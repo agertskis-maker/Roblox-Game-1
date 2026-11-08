@@ -192,6 +192,73 @@ local function build(): Model
 	return model
 end
 
+-- Studio self-test on the player's live test save; puts the save back afterwards. `startRun` is BetaRun.start, passed in
+-- so this module does not require BetaRun.
+function BetaLuck.selfTest(player: Player, startRun: (Player, any, any) -> any): { string }
+	local data = BetaData.get(player)
+	if not data then
+		return { "FAIL no save loaded for " .. player.Name }
+	end
+	local lines: { string } = {}
+	local function expect(label: string, got: any, want: any)
+		table.insert(
+			lines,
+			string.format(
+				"%s %s: got %s, want %s",
+				if got == want then "PASS" else "FAIL",
+				label,
+				tostring(got),
+				tostring(want)
+			)
+		)
+	end
+	local cfg = ReplicatedStorage:FindFirstChild("CarHopBeta")
+	local free = cfg and cfg:GetAttribute(BetaConfig.FreePurchasesAttribute)
+	if cfg then
+		cfg:SetAttribute(BetaConfig.FreePurchasesAttribute, false)
+	end
+	local savedCash, savedLevel = data.Cash, data.LuckLevel
+
+	data.LuckLevel, data.Cash = 1, 4_999
+	lastBuy[player] = nil
+	local ok, why, missing = BetaLuck.buy(player)
+	expect("level 2 at $4,999 is refused", ok, false)
+	expect("... and names the missing $1", missing, 1)
+	expect("... reason", why, "Not enough Cash.")
+	data.Cash = 5_000
+	lastBuy[player] = nil
+	ok = BetaLuck.buy(player)
+	expect("level 2 at $5,000 is bought", ok and data.LuckLevel == 2 and data.Cash == 0, true)
+	expect("the attribute follows", player:GetAttribute(BetaConfig.LuckAttribute), 2)
+	data.Cash = 1_000_000
+	ok, why = BetaLuck.buy(player)
+	expect("a second press inside the cooldown buys nothing", ok == false and data.LuckLevel == 2, true)
+	data.LuckLevel, data.Cash = LuckTable.MaxLevel, 1e15
+	lastBuy[player] = nil
+	ok, why = BetaLuck.buy(player)
+	expect("past level 10 is refused", why, "Your luck is at the top level.")
+	expect("... and charges nothing", data.Cash, 1e15)
+	expect("level 10 is x2.25", LuckTable.multiplier(LuckTable.MaxLevel), 2.25)
+	expect("a NaN level reads as 1", LuckTable.clampLevel(0 / 0), 1)
+	expect("a level of 99 reads as 10", LuckTable.clampLevel(99), 10)
+
+	data.LuckLevel = 7
+	local run = startRun(player, "Downtown", nil)
+	expect("a run started at level 7 carries x1.75", run and run.luck, 1.75)
+	expect("... and its traffic was built with it", run and run.sequence and run.sequence.luck, 1.75)
+	data.LuckLevel = 1
+	run = startRun(player, "Downtown", nil)
+	expect("a run at level 1 has no extra luck", run and run.luck, 1)
+
+	data.Cash, data.LuckLevel = savedCash, savedLevel
+	publish(player, data)
+	lastBuy[player] = nil
+	if cfg then
+		cfg:SetAttribute(BetaConfig.FreePurchasesAttribute, free)
+	end
+	return lines
+end
+
 function BetaLuck.start()
 	build()
 	BetaData.Loaded:Connect(function(player: Player, data: BetaData.Data)
