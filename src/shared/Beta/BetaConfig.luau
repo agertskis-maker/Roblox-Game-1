@@ -43,6 +43,10 @@ BetaConfig.Remotes = {
 	-- Round 7 (C-07, C-08): the Style Shop. BuyStyle(tab, id) and EquipStyle(tab, id): the server prices, checks ownership and saves.
 	BuyStyle = "BuyStyle",
 	EquipStyle = "EquipStyle",
+	-- Round 8 (C-03, contract frozen by the lead): (carId: string). The server checks the caller owns that car, saves it as the
+	-- beta field RideCar (a proposal for Brian L) and publishes it as the Player attribute BetaRideCar; StartRun uses it when the
+	-- client's startCarId is missing or not owned. Answered with BetaResult ("PickRideCar").
+	PickRideCar = "PickRideCar",
 }
 
 -- ProfileStore store and template. A beta-only store, so the real game's saves start clean.
