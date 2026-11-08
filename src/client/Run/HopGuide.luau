@@ -123,6 +123,9 @@ export type HopGuide = typeof(setmetatable(
 		_visDtMax: number,
 		_idleFrames: number,
 		_idleDt: number,
+		_cpuSum: number,
+		_cpuMax: number,
+		_cpuFrames: number,
 	},
 	HopGuide
 ))
@@ -350,6 +353,9 @@ function HopGuide.new(zone: Instance, options: { floatHelp: boolean?, onSwing: (
 		_visDtMax = 0,
 		_idleFrames = 0,
 		_idleDt = 0,
+		_cpuSum = 0,
+		_cpuMax = 0,
+		_cpuFrames = 0,
 	}, HopGuide)
 	return self
 end
@@ -379,6 +385,13 @@ local function stepFocus(self: HopGuide, focused: BillboardGui?, dt: number)
 			CarTags.setFocus(tag, nextAmount)
 		end
 	end
+end
+
+local function addCpu(self: HopGuide, started: number)
+	local spent = (os.clock() - started) * 1000
+	self._cpuSum += spent
+	self._cpuFrames += 1
+	self._cpuMax = math.max(self._cpuMax, spent)
 end
 
 function HopGuide.update(self: HopGuide, view: View)
@@ -429,6 +442,7 @@ function HopGuide.update(self: HopGuide, view: View)
 		self._highlight.Enabled = false
 		stepFocus(self, nil, dt)
 		self._swing = Vector3.zero
+		addCpu(self, now)
 		return
 	end
 
@@ -498,11 +512,13 @@ function HopGuide.update(self: HopGuide, view: View)
 	if not reduced then
 		self._phase = (self._phase + dt * 1.1) % 1
 	end
+	addCpu(self, now)
 end
 
 -- The dive path: five small chevrons on a curve from just below the player to the near edge of the ring, sliding toward the car.
 -- Screen space, after the camera has moved this frame.
 function HopGuide.updateScreen(self: HopGuide)
+	local started = os.clock()
 	local camera = Workspace.CurrentCamera
 	local target = self._shown
 	local show = camera ~= nil and target ~= nil and self._mode == "Float" and self._alpha > 0.3
@@ -511,6 +527,7 @@ function HopGuide.updateScreen(self: HopGuide)
 			c.root.Visible = false
 		end
 		self._pathShown = 0
+		addCpu(self, started)
 		return
 	end
 	local from = self._rider + Vector3.new(0, -2.4, 0)
@@ -573,6 +590,7 @@ function HopGuide.updateScreen(self: HopGuide)
 		fadeChevron(c, item.alpha)
 	end
 	self._pathShown = shown
+	addCpu(self, started)
 end
 
 -- R-04: the second press, as the guide saw it
@@ -641,6 +659,9 @@ function HopGuide.getDebugState(self: HopGuide): { [string]: any }
 		visibleMs = if self._visFrames > 0 then self._visDt / self._visFrames * 1000 else 0,
 		visibleMaxMs = self._visDtMax * 1000,
 		idleMs = if self._idleFrames > 0 then self._idleDt / self._idleFrames * 1000 else 0,
+		-- this module's own script time per call (update and updateScreen each count), milliseconds
+		cpuMeanMs = if self._cpuFrames > 0 then self._cpuSum / self._cpuFrames else 0,
+		cpuMaxMs = self._cpuMax,
 		dives = self._dives,
 		divesLanded = self._landed,
 		divesOnShownCar = self._matched,
