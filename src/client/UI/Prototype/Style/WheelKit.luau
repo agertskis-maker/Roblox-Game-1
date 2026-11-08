@@ -66,6 +66,8 @@ local HALF_W = Designs.HALF_WIDTH
 local TYRE_KEY = Designs.TYRE
 local RUBBER = Color3.fromRGB(26, 26, 30)
 local OVERRIDE = "Lane3ReducedMotionOverride"
+-- the importer turns an FBX half a turn about Y (found in Studio 2026-11-08: the rim face looked into the car): turn it back
+local MESH_TURN = CFrame.Angles(0, math.pi, 0)
 local TICK = 1 / 20 -- the pulse and the drift are slow: twenty updates a second is plenty
 
 -- Mesh templates ---------------------------------------------------------------------------------------------------------------
@@ -396,19 +398,19 @@ local function buildMeshWheel(w: Wheel, folder: Folder, design: Designs.Design, 
 	local rimColour = if vc then Color3.new(1, 1, 1) else design.rimColor
 	local rim = meshPiece(design.rim, "Rim", size, rimColour, design.material)
 	rim.Reflectance = design.reflectance
-	addPiece(w, folder, rim, CFrame.new(centre), "rim")
+	addPiece(w, folder, rim, CFrame.new(centre) * MESH_TURN, "rim")
 	local glowColour = design.glowColor or Color3.new(1, 1, 1)
 	if design.glow then
 		local tyreFrame = design.glowFrame == "tyre"
 		local gs, gc = boxFor(design.glow, r, halfW, tyreFrame)
 		local g = meshPiece(design.glow, "Glow", gs, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
-		addPiece(w, folder, g, CFrame.new(gc), "glow", g.Color)
+		addPiece(w, folder, g, CFrame.new(gc) * MESH_TURN, "glow", g.Color)
 	end
 	if design.stars then
 		local ss, sc = boxFor(design.stars, r, halfW, false)
 		local s =
 			meshPiece(design.stars, "Stars", ss, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
-		addPiece(w, folder, s, CFrame.new(sc), "stars", s.Color)
+		addPiece(w, folder, s, CFrame.new(sc) * MESH_TURN, "stars", s.Color)
 	end
 end
 
