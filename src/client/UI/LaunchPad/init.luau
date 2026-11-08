@@ -31,6 +31,7 @@ local Prototype = script.Parent.Prototype
 local CarKit = require(Prototype.CarKit)
 local Motion = require(Prototype.Motion)
 local RealCar = require(Prototype.RealCar)
+local RidePick = require(Prototype.RidePick)
 local Sounds = require(Prototype.Sounds)
 local StyleState = require(Prototype.StyleState)
 local Catalog = require(ReplicatedStorage.Shared.UI.ShopPreviewCatalog)
@@ -424,14 +425,21 @@ function LaunchPad.enter(name: string, islandCFrame: CFrame)
 	returnTo = islandCFrame
 	-- the start car belongs to this World (Round 4): a pick from another World goes back to this World's Loaner
 	local inWorld = false
+	local savedInWorld = false -- Round 8 (C-03): the car the server saved, if it is one of this World's
 	for _, car in RealCar.forWorld(name) do
 		if car.name == StyleState.car() then
 			inWorld = true
 		end
+		if car.name == RidePick.saved() and car.owned then
+			savedInWorld = true
+		end
 	end
 	if not inWorld then
 		local loaner = RosterFixtures.loaner(name)
-		if loaner then
+		local saved = RidePick.saved()
+		if savedInWorld and saved then
+			StyleState.setCar(saved)
+		elseif loaner then
 			StyleState.setCar(loaner.model)
 		end
 	end
@@ -753,6 +761,7 @@ end
 -- START: the gantry's lights go red, red, red, green, a beep each, and the run begins on green. Reduce Motion keeps the view where it
 -- is and the lights steady: nothing flashes or swings.
 local function countdown()
+	RealCar.preload(StyleState.car()) -- the start car loads while the gantry lights run (Round 8, C-02)
 	local pad = pads[world]
 	if not pad then
 		begin()

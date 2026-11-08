@@ -294,6 +294,9 @@ function RealCar.thumb(holder: Frame, name: string?, look: CarLook.Look?): Viewp
 	model:PivotTo(CFrame.Angles(0, math.rad(215), 0))
 	model.Parent = vp
 	vp.Parent = holder
+	vp.Destroying:Connect(function()
+		body._look:destroy() -- its paint image and decals go with the picture
+	end)
 	return vp
 end
 
