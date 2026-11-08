@@ -345,17 +345,18 @@ function CloverStand.build(
 		k:cyl("CactusArm", 0.7, 1.4, cactus * CF(0.95, 2.4, 0) * CFrame.Angles(0, 0, math.pi / 2), green)
 	end
 
-	-- === the mascot, behind the counter. Its mesh frame faces +Z; the stall faces -Z, so the rig is turned by FACING.
+	-- === the mascot, behind the counter. Its mesh frame already faces -Z, like the stall (FACING is the identity).
+	-- L and R are the viewer's left and right when looking at its face, which are +X and -X (the viewer stands at -Z facing +Z).
 	local rigAt = S * CF(0, 5.5, 1.2) * FACING
 	local P = CloverMeshes.Pivots
 	local pivots: { [string]: Vector3 } = if meshes
 		then { eyeL = P.eyeL, eyeR = P.eyeR, hat = P.hat, armL = P.armL, armR = P.armR }
 		else {
-			eyeL = V3(-0.68, 0.5, 0.85),
-			eyeR = V3(0.68, 0.5, 0.85),
-			hat = V3(0.3, 1.5, 0.3),
-			armL = V3(-1.55, -0.4, 0),
-			armR = V3(1.55, -0.4, 0),
+			eyeL = V3(0.68, 0.5, -0.85),
+			eyeR = V3(-0.68, 0.5, -0.85),
+			hat = V3(-0.3, 1.5, -0.3),
+			armL = V3(1.55, -0.4, 0),
+			armR = V3(-1.55, -0.4, 0),
 		}
 	local hatRest = if meshes then CloverMeshes.HatRest else CFrame.new()
 	local pieces: { [string]: Piece } = {}
@@ -367,23 +368,23 @@ function CloverStand.build(
 		pieces.armL = meshPiece(k, "MascotArmL", "armL", rigAt * CF(pivots.armL))
 		pieces.armR = meshPiece(k, "MascotArmR", "armR", rigAt * CF(pivots.armR))
 	else
-		-- fallback mascot (front is +Z in this frame): four hearts with a face, a stem, a hat, arms and white gloves
+		-- fallback mascot (front is -Z in this frame): four hearts with a face, a stem, a hat, arms and white gloves
 		pieces.body = modelPiece(k, "MascotBody", rigAt, function(bk: any, rest: CFrame)
 			for i = 0, 3 do
 				local a = math.rad(45 + 90 * i)
 				local c = LEAF:Lerp(WHITE, if i % 2 == 0 then 0.06 else 0)
 				heart(bk, rest * CFrame.Angles(0, 0, a - math.pi / 2), 1.8, c, 1.4)
 			end
-			bk:cyl("Stem", 0.7, 1.6, rest * CF(0.2, -2.5, -0.2) * CFrame.Angles(0, 0, math.rad(-12)), LEAF_DEEP)
-			bk:cyl("Cheek", 0.7, 0.12, rest * CF(-1.2, -0.2, 0.72) * upright, rgb(247, 135, 140))
-			bk:cyl("Cheek", 0.7, 0.12, rest * CF(1.2, -0.2, 0.72) * upright, rgb(247, 135, 140))
-			bk:cyl("Mouth", 1.0, 0.12, rest * CF(0, -0.55, 0.74) * upright, rgb(110, 21, 48))
-			bk:cyl("Coin", 0.8, 0.14, rest * CF(1.0, -1.0, 0.74) * upright, GOLD, Enum.Material.Metal)
+			bk:cyl("Stem", 0.7, 1.6, rest * CF(-0.2, -2.5, 0.2) * CFrame.Angles(0, 0, math.rad(12)), LEAF_DEEP)
+			bk:cyl("Cheek", 0.7, 0.12, rest * CF(-1.2, -0.2, -0.72) * upright, rgb(247, 135, 140))
+			bk:cyl("Cheek", 0.7, 0.12, rest * CF(1.2, -0.2, -0.72) * upright, rgb(247, 135, 140))
+			bk:cyl("Mouth", 1.0, 0.12, rest * CF(0, -0.55, -0.74) * upright, rgb(110, 21, 48))
+			bk:cyl("Coin", 0.8, 0.14, rest * CF(-1.0, -1.0, -0.74) * upright, GOLD, Enum.Material.Metal)
 		end)
 		for _, side in { "eyeL", "eyeR" } do
 			pieces[side] = modelPiece(k, "MascotEye", rigAt * CF(pivots[side]), function(bk: any, rest: CFrame)
 				bk:ball("EyeWhite", 0.9, rest, WHITE)
-				bk:ball("EyePupil", 0.55, rest * CF(0, 0, 0.28), INK)
+				bk:ball("EyePupil", 0.55, rest * CF(0, 0, -0.28), INK)
 			end)
 		end
 		pieces.hat = modelPiece(k, "MascotHat", rigAt * CF(pivots.hat), function(bk: any, rest: CFrame)
@@ -392,7 +393,7 @@ function CloverStand.build(
 			bk:cyl("HatBand", 1.16, 0.22, rest * CF(0, 0.3, 0), GOLD, Enum.Material.Metal)
 		end)
 		for _, side in { "armL", "armR" } do
-			local s = if side == "armL" then -1 else 1
+			local s = if side == "armL" then 1 else -1
 			pieces[side] = modelPiece(k, "MascotArm", rigAt * CF(pivots[side]), function(bk: any, rest: CFrame)
 				bk:cyl("Arm", 0.34, 1.2, rest * CF(s * 0.5, -0.3, 0) * CFrame.Angles(0, 0, math.rad(60 * s)), LEAF_DEEP)
 				bk:ball("Glove", 0.85, rest * CF(s * 1.0, -0.7, 0), WHITE)
@@ -531,9 +532,11 @@ function CloverStand.build(
 		-- eyes: a small look toward the player, and a quick blink
 		local ex, ey = 0, 0
 		if lookAt and not still then
+			-- the face looks along -Z; in Angles(pitch, yaw, 0) a positive yaw turns -Z toward -X and a positive pitch looks up
 			local rel = body:PointToObjectSpace(lookAt)
-			ex = math.clamp(math.atan2(rel.X, math.max(rel.Z, 1)), -0.3, 0.3) * 0.6
-			ey = math.clamp(math.atan2(rel.Y - 1, math.max(rel.Z, 1)), -0.25, 0.25) * -0.4
+			local ahead = math.max(-rel.Z, 1)
+			ex = math.clamp(-math.atan2(rel.X, ahead), -0.3, 0.3) * 0.6
+			ey = math.clamp(math.atan2(rel.Y - 1, ahead), -0.25, 0.25) * 0.4
 		end
 		local blink = if t >= nextBlink and t < blinkEnd then 0.15 else 1
 		if t >= blinkEnd and t >= nextBlink then
@@ -548,8 +551,10 @@ function CloverStand.build(
 			end
 		end
 		pieces.hat:set(body * CF(pivots.hat + V3(0, hatUp, 0)) * hatRest)
-		pieces.armR:set(body * CF(pivots.armR) * CFrame.Angles(0, 0, armR))
-		pieces.armL:set(body * CF(pivots.armL) * CFrame.Angles(0, 0, armL))
+		-- armR / armL are positive when raised. The R arm hangs out and down at -X, and raising it is a clockwise turn seen from +Z,
+		-- which is negative about +Z; the L arm at +X is the mirror
+		pieces.armR:set(body * CF(pivots.armR) * CFrame.Angles(0, 0, -armR))
+		pieces.armL:set(body * CF(pivots.armL) * CFrame.Angles(0, 0, -armL))
 		burstPart.CFrame = body
 		-- the roof clover turns slowly and bobs; three gold coins orbit it
 		local turn = if still then 0 else t * 0.7
