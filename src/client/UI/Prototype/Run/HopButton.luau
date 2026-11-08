@@ -1,528 +1,140 @@
 --!strict
--- Hop control for the rebuilt run view (Lane 3 preview, HUD rebuild worker HR; U-07). A chunky
--- arcade rectangle (limited rounding, thick dark boundary, teal/white = Hop's colour) with the
--- original HopCar symbol (Icons2) and "HOP", bottom right with clearance (RunLayout.hopRect:
--- beside the Roblox Jump zone on touch, never in a reserved zone or the protected road region).
--- Presentation only: it shows run.hop and run.hopCooldown01 as supplied; pressing it only calls
--- the preview intent callback. It never hops, picks a target or judges a landing (Lane 1).
+-- HOP / DIVE button (Round 8, WS-10, R-03), copied almost exactly from ChatGPT's R8-IMG-28 (Car-Hop-Art/review/round8/chatgpt-images).
+-- One big round glossy button, bottom right. It replaces every earlier hop button (the Round 7 orange TextButton in RunExtras and the
+-- Lane 3 rectangle with the HopCar icon): there is one button art, in this file.
 --
--- Input-specific label (UserInputService.PreferredInput when available, else GamepadEnabled /
--- TouchEnabled / KeyboardEnabled; the device profile's touch flag wins in the playground):
---   keyboard  a "Space" key chip under the button
---   touch     no key label (the button is the control)
---   gamepad   the bound button's chip. No real binding exists in the preview: ButtonA is the
---             documented ASSUMPTION ("A"), overridable with options.gamepadKey.
--- Round 3 (R3-C2): the icon is HopCar, an original side-view car. Since 2026-10-28 it draws no arrow (Adam: the car
--- is the main focus) and gets a larger slot (iconSizeFor); the arrow candidates stay switchable in Icons2. It names
--- the action only; the production character or car may or may not leave the ground. It supersedes the Round 2
--- HopFigure (a character between two roofs). The display state still follows HopState (precedence
--- OutOfStamina > Cooldown > NoTarget > BestTiming > Ready), filtered by Run/HopCue when one is mounted (best timing
--- is debounced; the gold accent is one event per window).
--- States, never by colour alone. The three unavailable looks differ in tint, overlay AND a short word (at least 16 px):
---   Ready        teal, full-strength icon, "HOP"
---   BestTiming   + a STEADY gold ring around the button, one brief pop when the window opens (none in reduced motion)
---   Cooldown     teal under a dark radial sweep shrinking to 0 + dimmed icon + "WAIT"
---   NoTarget     cool blue-grey fill + dimmed icon + diagonal hatching + "NO CAR"; not pressable
---   OutOfStamina dusty rose fill + a large grey cracked bolt crossed by a red slash (the car icon steps aside; the
---                bolt is the Stamina meter's own StaminaBolt since 2026-10-28) +
---                "NO STAMINA" on two lines; not pressable; never shows best timing or the sweep
+--   HOP      glossy orange disc, bright rim, a chunky white UP arrow with a dark outline, the word HOP
+--   DIVE     after the first press: bright yellow, the arrow turned DOWN with a quick squash-and-flip, the word DIVE, a pulsing glow
+--            ring, and a thin ring round the edge that drains while the player floats (how long is left to dive)
+--   PRESSED  pushed in and darker (HOP and DIVE each have one)
+--   NO TARGET (DIVE with no car in reach)   the DIVE look dimmed to mustard
+--   NO STAMINA                                grey, with a small empty bolt
+--   input    PC: a cream "SPACE" keycap on the lower disc; gamepad: a round "A" badge; touch: nothing extra
+-- The art is text-free PNGs (AssetIds r8_hop_*); every word is a live TextLabel. When AssetIds.image(key) is "" (not uploaded yet)
+-- the disc, arrow, shadow and glow are drawn in code, so the button always shows.
+-- Size: about 132 px on a 1080p desktop window (0.122 of the window's height), 0.15 of the height on a phone, never under 44 px.
 --
---   local hop = HopButton.new(ctx, { onHopIntent = fn?, gamepadKey = "A"? })
---   hop:setHopIntent(fn)        -- preview: called on press; no gameplay
---   hop:setInputKind(kind?)     -- "Keyboard" | "Touch" | "Gamepad" | nil (auto) for review
---   hop:layout(), hop:setVisible(on), hop:destroy(), hop:getDebugState()
---   HopButton.buildSpecimenFace(parent, display, cooldown01?, iconName?) -> Frame -- playground specimen: the SAME face
---                                                                         and look as the live button, no store, no input
---   HopButton.measureLabel(display) -> (widestLinePx, fits)            -- design px, Fredoka One, with the outline
---   HopButton.Size, HopButton.IconSize, HopButton.CarIconSize           -- design px
---   HopButton.iconSizeFor(iconName) -> number                           -- the slot size that icon gets on the face
+--   HopButton.attach(options?) -> Handle      the live button for the run (RunHud/RunExtras): its own ScreenGui, bottom right inside
+--                                             the safe area, presses call options.onHop; handle:update(runState) every frame
+--   HopButton.buildFace(parent, size, options?) -> Face        the face alone (no input, no layout): playground, frames, side-by-sides
+--   HopButton.sizeFor(area: Vector2, touch: boolean) -> number
+--   HopButton.new(ctx, options?)                               the Lane 3 preview's store-driven button (HUD playground)
+--   HopButton.buildSpecimenFace(parent, display, cooldown01?, iconName?) -> Frame
+--   Face: :set(action, look?)  :setPressed(on)  :setDrain(fraction?)  :setInput(kind)  :setPrompt(on)  :getDebugState()  :destroy()
+-- Studio test hook: the LocalPlayer attribute Lane3ScreenProfile ("PhoneLandscape", "Tablet", ...) lays the live button out inside
+-- that device's frame, like every other Lane 3 screen (Screen.luau). Outside Studio it is ignored.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 
 local Arc = require(script.Parent.Arc)
-local Arcade = require(script.Parent.Parent.Arcade)
-local HopState = require(script.Parent.HopState)
-local Icons2 = require(script.Parent.Parent.Icons2)
+local AssetIds = require(ReplicatedStorage.Shared.Style.AssetIds)
 local Motion = require(script.Parent.Parent.Motion)
-local PreviewTokens = require(script.Parent.Parent.PreviewTokens)
-local RunBus = require(script.Parent.RunBus)
-local RunLayout = require(script.Parent.RunLayout)
-local Sounds = require(script.Parent.Parent.Sounds)
-local StaminaBolt = require(script.Parent.StaminaBolt)
+local Screen = require(script.Parent.Parent.Screen)
 local Tokens = require(ReplicatedStorage.Shared.UI.Tokens)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local A = PreviewTokens.Arcade
-local make = Arcade.make
-
-local SIZE = PreviewTokens.Size.HopButton -- 96 design px body
-local ICON_SIZE = SIZE * 0.58
--- The car alone (Icons2.HopArrow "None", Adam 2026-10-28: the car "the main focus", "the majority of the button"):
--- an 84 px slot, so the car is about 74 px of the 96 px button wide and about 50 px tall, between the top edge and
--- the word. TOKEN CANDIDATE (lead's choice, reversible).
-local CAR_ICON_SIZE = SIZE * 0.875
-local ICON_CENTRE_Y = 6 + ICON_SIZE / 2 -- every icon slot is centred where the 56 px slot always was
-local KEY_CHIP_H = 26
-local GOLD = Color3.fromRGB(255, 204, 48) -- the one timing accent (Keys gold stays a different, nearby shape)
-
--- TOKEN CANDIDATES (Round 3, R3-C2): the two unavailable fills (A.Fill.Disabled was one grey for both) and the
--- Stamina glyph geometry. Preview values; the lead may retune after measuring.
-local function fill(top: Color3, mid: Color3, bottom: Color3): ColorSequence
-	return ColorSequence.new({
-		ColorSequenceKeypoint.new(0, top),
-		ColorSequenceKeypoint.new(0.5, mid),
-		ColorSequenceKeypoint.new(1, bottom),
-	})
-end
-local FILL_NO_TARGET = fill(Color3.fromRGB(176, 190, 212), Color3.fromRGB(132, 150, 180), Color3.fromRGB(98, 116, 148))
-local FILL_NO_STAMINA = fill(Color3.fromRGB(190, 150, 152), Color3.fromRGB(146, 100, 108), Color3.fromRGB(104, 66, 78))
-local BOLT_SIZE = 44 -- the crossed bolt that replaces the car when Stamina is empty
-local BOLT_GREY = Color3.fromRGB(170, 176, 190) -- the Stamina meter's Empty grey (StaminaMeter GREY)
-local BOLT_TOP = 5
-local SLASH_RED = Color3.fromRGB(226, 52, 62)
-local SLASH_LENGTH = 58
-local LABEL_WIDTH = SIZE - 6 -- the label box; it has 3 px of padding each side
-local LABEL_ONE_LINE = 30
-local LABEL_TWO_LINES = 40
-
-export type InputKind = "Keyboard" | "Touch" | "Gamepad"
-export type Options = { onHopIntent: (() -> ())?, gamepadKey: string? }
-
--- What each display state looks like (everything except the word, which HopState owns).
-type Look = {
-	name: string, -- the fill's name, for the debug state
-	fill: ColorSequence,
-	veil: number, -- BackgroundTransparency of the dark veil over the face (1 = none)
-	hatch: boolean,
-	slash: boolean,
-	bolt: boolean, -- the crossed bolt replaces the car
-	sweep: boolean, -- the cooldown wedge is drawn
-	labelSize: number, -- design px, never below Tokens.TextSize.Minimum
-}
-
-local LOOKS: { [string]: Look } = {
-	Ready = {
-		name = "Home",
-		fill = A.Fill.Home,
-		veil = 1,
-		hatch = false,
-		slash = false,
-		bolt = false,
-		sweep = false,
-		labelSize = 24,
-	},
-	BestTiming = {
-		name = "Home",
-		fill = A.Fill.Home,
-		veil = 1,
-		hatch = false,
-		slash = false,
-		bolt = false,
-		sweep = false,
-		labelSize = 24,
-	},
-	Cooldown = {
-		name = "Home",
-		fill = A.Fill.Home,
-		veil = 0.55,
-		hatch = false,
-		slash = false,
-		bolt = false,
-		sweep = true,
-		labelSize = 24,
-	},
-	NoTarget = {
-		name = "NoTarget",
-		fill = FILL_NO_TARGET,
-		veil = 0.45,
-		hatch = true,
-		slash = false,
-		bolt = false,
-		sweep = false,
-		labelSize = 18,
-	},
-	OutOfStamina = {
-		name = "NoStamina",
-		fill = FILL_NO_STAMINA,
-		veil = 1,
-		hatch = false,
-		slash = true,
-		bolt = true,
-		sweep = false,
-		labelSize = 16,
-	},
-}
-
-local function lookOf(display: string): Look
-	return LOOKS[display] or LOOKS.Ready
-end
-
-local function midOf(sequence: ColorSequence): Color3
-	local keys = sequence.Keypoints
-	return keys[math.ceil(#keys / 2)].Value
-end
-
--- The face's middle colour as the player sees it: the fill under the veil (the sweep is not counted).
-local function visibleTint(look: Look): Color3
-	return midOf(look.fill):Lerp(A.Ink, 1 - look.veil)
-end
-
 local HopButton = {}
-HopButton.__index = HopButton
 
-HopButton.Size = SIZE
-HopButton.IconSize = ICON_SIZE
-HopButton.CarIconSize = CAR_ICON_SIZE
+local Live = {} -- the run's button (attach)
+Live.__index = Live
+local Preview = {} -- the Lane 3 preview's store-driven button (new)
+Preview.__index = Preview
 
--- The slot size an icon gets on the face: the larger car slot for HopCar while it draws no arrow, else ICON_SIZE.
-function HopButton.iconSizeFor(iconName: string): number
-	return if iconName == "HopCar" and Icons2.HopArrow == "None" then CAR_ICON_SIZE else ICON_SIZE
-end
+export type Action = "Hop" | "Dive"
+export type Look = "Ready" | "NoTarget" | "NoStamina"
+export type InputKind = "Keyboard" | "Touch" | "Gamepad"
+export type FaceOptions = { input: InputKind?, reducedMotion: (() -> boolean)? }
 
--- The widest line of a state's word at its size in design px (Fredoka One, the label's font, measured with
--- TextService), and whether it fits the label's text area with its outline.
-function HopButton.measureLabel(display: string): (number, boolean)
-	local look = lookOf(display)
-	local size = math.max(look.labelSize, Tokens.TextSize.Minimum)
-	local widest = 0
-	for _, line in string.split(HopState.label(display), "\n") do
-		local bounds = TextService:GetTextSize(line, size, Enum.Font.FredokaOne, Vector2.new(4096, 4096))
-		widest = math.max(widest, bounds.X)
-	end
-	local outline = if look.labelSize >= 24 then A.OutlineMajor else A.OutlineMinor
-	return widest, widest + 2 * outline <= LABEL_WIDTH - 6
-end
+local NAVY = Color3.fromRGB(11, 22, 53)
+local CREAM = Color3.fromRGB(255, 248, 238)
+local KEY_FILL = Color3.fromRGB(255, 244, 218)
+local YELLOW = Color3.fromRGB(255, 227, 37)
+local GOLD = Color3.fromRGB(255, 200, 40)
+local TRACK = Color3.fromRGB(201, 204, 214)
+local DIM_WORD = Color3.fromRGB(232, 234, 240)
 
--- The face of the button (lip, face, icon, crossed bolt, veil, label, hatching, slash, cooldown sweep) and the one
--- function that dresses it for a display state. The live button and the playground specimen both use these two, so
--- a specimen shows exactly what the button draws.
-type Parts = {
-	face: Frame,
-	grad: UIGradient,
-	icon: Frame,
-	bolt: Frame,
-	veil: Frame,
-	label: TextLabel,
-	hatch: Frame,
-	slash: Frame,
-	sweep: Arc.Arc,
+-- design size of the Lane 3 preview's canvas button (HopButton.new) and the old API's numbers
+HopButton.Size = 96
+HopButton.IconSize = HopButton.Size * 0.44
+HopButton.CarIconSize = HopButton.IconSize
+
+local DISC_KEYS = {
+	hop = "r8_hop_disc_hop",
+	hopPressed = "r8_hop_disc_hop_pressed",
+	dive = "r8_hop_disc_dive",
+	divePressed = "r8_hop_disc_dive_pressed",
+	noTarget = "r8_hop_disc_notarget",
+	noStamina = "r8_hop_disc_nostamina",
 }
 
-local function buildFace(body: GuiObject, iconName: string?): Parts
-	local lip = make("Frame", {
-		Name = "Lip",
-		Position = UDim2.fromOffset(0, A.Button.DepthOffset),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		ZIndex = 3,
-		Parent = body,
-	})
-	Arcade.corner(lip, 12)
-	local face = make("Frame", {
-		Name = "Face",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ClipsDescendants = true,
-		ZIndex = 4,
-		Parent = body,
-	})
-	Arcade.corner(face, 12)
-	Arcade.outline(face, "Button")
-	local grad = make("UIGradient", { Color = A.Fill.Home, Rotation = 90, Parent = face })
-	Arcade.gloss(face)
-	local name = iconName or "HopCar"
-	local iconSize = HopButton.iconSizeFor(name)
-	local icon = make("Frame", {
-		Name = "Icon",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0, ICON_CENTRE_Y),
-		Size = UDim2.fromOffset(iconSize, iconSize),
-		BackgroundTransparency = 1,
-		ZIndex = 7,
-		Parent = face,
-	})
-	Arcade.icon(icon, name)
-	-- Out of Stamina: the car steps aside for a big grey cracked bolt with a red slash across it
-	local bolt = make("Frame", {
-		Name = "Bolt",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, BOLT_TOP),
-		Size = UDim2.fromOffset(BOLT_SIZE, BOLT_SIZE),
-		BackgroundTransparency = 1,
-		Visible = false,
-		ZIndex = 7,
-		Parent = face,
-	})
-	-- the Stamina meter's own sharp bolt, grey and cracked as the meter shows it at zero (Adam, 2026-10-28: the
-	-- Icons2 BoltEmpty blob "isnt shaped like a lightning bolt")
-	local boltArt = StaminaBolt.new(bolt, { height = BOLT_SIZE, colour = BOLT_GREY, crack = true, name = "Art", z = 7 })
-	boltArt.root.AnchorPoint = Vector2.new(0.5, 0.5)
-	boltArt.root.Position = UDim2.fromScale(0.5, 0.5)
-	boltArt:setCracked(true)
-	-- dim veil over the icon (structure cue for cooldown / no target)
-	local veil = make("Frame", {
-		Name = "Dim",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = A.Ink,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ZIndex = 9,
-		Parent = face,
-	})
-	Arcade.corner(veil, 12)
-	local label = Arcade.text(face, { text = "HOP", role = "Button", name = "Label", size = 24, z = 12 })
-	label.AnchorPoint = Vector2.new(0.5, 1)
-	label.Position = UDim2.new(0.5, 0, 1, -2)
-	label.Size = UDim2.new(1, -6, 0, LABEL_ONE_LINE)
-	-- diagonal hatching for NoTarget
-	local hatch = make("Frame", {
-		Name = "Hatch",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Visible = false,
-		ZIndex = 10,
-		Parent = face,
-	})
-	for i = -2, 5 do
-		make("Frame", {
-			Name = "Stripe" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(i * 22, SIZE / 2),
-			Size = UDim2.fromOffset(6, SIZE * 1.8),
-			Rotation = 35,
-			BackgroundColor3 = A.Ink,
-			BackgroundTransparency = 0.72,
-			BorderSizePixel = 0,
-			ZIndex = 10,
-			Parent = hatch,
-		})
+-- code-drawn fallback colours per disc image key: top, bottom, rim
+local FALLBACK: { [string]: { Color3 } } = {
+	r8_hop_disc_hop = { Color3.fromRGB(255, 180, 75), Color3.fromRGB(240, 100, 8), Color3.fromRGB(255, 210, 120) },
+	r8_hop_disc_hop_pressed = { Color3.fromRGB(240, 100, 20), Color3.fromRGB(180, 56, 6), Color3.fromRGB(235, 100, 20) },
+	r8_hop_disc_dive = { Color3.fromRGB(255, 239, 99), Color3.fromRGB(243, 169, 10), Color3.fromRGB(255, 243, 160) },
+	r8_hop_disc_dive_pressed = {
+		Color3.fromRGB(247, 194, 31),
+		Color3.fromRGB(196, 122, 5),
+		Color3.fromRGB(240, 190, 50),
+	},
+	r8_hop_disc_notarget = { Color3.fromRGB(214, 190, 94), Color3.fromRGB(143, 122, 44), Color3.fromRGB(207, 195, 138) },
+	r8_hop_disc_nostamina = {
+		Color3.fromRGB(188, 192, 203),
+		Color3.fromRGB(118, 122, 136),
+		Color3.fromRGB(210, 213, 222),
+	},
+}
+
+local function make(className: string, props: { [string]: any }, parent: Instance?): any
+	local inst = Instance.new(className)
+	for k, v in props do
+		(inst :: any)[k] = v
 	end
-	-- OutOfStamina: a red slash across the bolt (a different look from NoTarget's hatching)
-	local slash = make("Frame", {
-		Name = "Slash",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(SIZE / 2, BOLT_TOP + BOLT_SIZE / 2),
-		Size = UDim2.fromOffset(SLASH_LENGTH, 7),
-		Rotation = -38,
-		BackgroundColor3 = SLASH_RED,
-		Visible = false,
-		ZIndex = 13,
-		Parent = face,
-	})
-	Arcade.corner(slash, 4)
-	Arcade.outline(slash, "Minor")
-	-- cooldown sweep (dark wedge shrinking from hopCooldown01 to 0)
-	local sweep = Arc.new(face, SIZE * 1.5, A.Ink, 0.5, 11)
-	return {
-		face = face,
-		grad = grad,
-		icon = icon,
-		bolt = bolt,
-		veil = veil,
-		label = label,
-		hatch = hatch,
-		slash = slash,
-		sweep = sweep,
-	}
+	if parent then
+		inst.Parent = parent
+	end
+	return inst
 end
 
-local function applyLook(parts: Parts, display: string, cooldown: number)
-	local look = lookOf(display)
-	parts.grad.Color = look.fill
-	parts.hatch.Visible = look.hatch
-	parts.slash.Visible = look.slash
-	parts.bolt.Visible = look.bolt
-	parts.icon.Visible = not look.bolt
-	parts.veil.BackgroundTransparency = look.veil
-	-- the wedge belongs to the Cooldown state only (an empty Stamina bar outranks it, and NoTarget has none)
-	parts.sweep:set(if look.sweep then cooldown else 0)
-	local label = parts.label
-	local text = HopState.label(display)
-	label.Text = text
-	label.TextSize = math.max(look.labelSize, Tokens.TextSize.Minimum)
-	label.TextTransparency = 0
-	label.Size = UDim2.new(1, -6, 0, if string.find(text, "\n", 1, true) then LABEL_TWO_LINES else LABEL_ONE_LINE)
-	local stroke = label:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		stroke.Thickness = if look.labelSize >= 24 then A.OutlineMajor else A.OutlineMinor
-	end
+local function round(parent: Instance, radius: number?): UICorner
+	return make("UICorner", { CornerRadius = UDim.new(radius or 0.5, 0) }, parent)
 end
 
--- Playground specimen: one face in `display`, with no store, input or sounds. The caller owns (and destroys) it.
--- `iconName` (optional) draws another Icons2 name in the icon slot, e.g. "HopCar_B" to compare the arrow candidates;
--- the live button never passes it and always draws "HopCar".
-function HopButton.buildSpecimenFace(parent: Instance, display: string, cooldown01: number?, iconName: string?): Frame
-	local body = make("Frame", {
-		Name = "HopSpecimen_" .. HopState.key(display),
-		Size = UDim2.fromOffset(SIZE, SIZE),
-		BackgroundTransparency = 1,
-		Parent = parent,
-	})
-	local parts = buildFace(body, iconName)
-	applyLook(parts, display, math.clamp(cooldown01 or 0, 0, 1))
-	return body
+local function defaultReduced(): boolean
+	return Motion.reduced()
 end
 
-function HopButton.new(ctx: RunLayout.Ctx, options: Options?)
-	local self = setmetatable({}, HopButton)
-	local opts: Options = options or {}
-	self._ctx = ctx
-	self._trove = Trove.new()
-	self._dead = false
-	self._visible = true
-	self._state = "" :: string
-	self._cue = nil :: any
-	self._accents = 0
-	self._cooldown = 0
-	self._intents = 0
-	self._onIntent = opts.onHopIntent
-	self._gamepadKey = opts.gamepadKey or "A"
-	self._forced = nil :: InputKind?
-	self._input = "Keyboard" :: InputKind
-	self._rect = nil :: RunLayout.Rect?
-	self._conflict = nil :: string?
-	self._reservedHit = nil :: string?
-	self._last = -math.huge
+----------------------------------------------------------------------------------------------
+-- Size and input
 
-	local root = self._trove:Add(RunLayout.canvas(ctx, "HopButton"))
-	self.root = root
-	local holder = make("Frame", {
-		Name = "Hop",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(SIZE, SIZE + 4),
-		ZIndex = 2,
-		Parent = root,
-	})
-	self._holder = holder
-	local body = make("TextButton", {
-		Name = "Body",
-		Size = UDim2.fromOffset(SIZE, SIZE),
-		BackgroundTransparency = 1,
-		AutoButtonColor = false,
-		Text = "",
-		Selectable = true,
-		ZIndex = 3,
-		Parent = holder,
-	})
-	local press = make("UIScale", { Name = "Press", Parent = body })
-	self._body = body
-	self._press = press
-	local parts = buildFace(body)
-	self._parts = parts
-	-- Timing ring outside the boundary
-	local ring = make("Frame", {
-		Name = "TimingRing",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(1, 16, 1, 16),
-		BackgroundTransparency = 1,
-		Visible = false,
-		ZIndex = 2,
-		Parent = body,
-	})
-	Arcade.corner(ring, 18)
-	local ringStroke = make("UIStroke", { Thickness = 5, Color = GOLD, Parent = ring })
-	local ringScale = make("UIScale", { Name = "Pulse", Parent = ring })
-	self._ring, self._ringStroke, self._ringScale = ring, ringStroke, ringScale
-	-- input key chip (keyboard / gamepad)
-	local chip = make("Frame", {
-		Name = "KeyChip",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 1, A.Button.DepthOffset + 4),
-		Size = UDim2.fromOffset(78, KEY_CHIP_H),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Visible = false,
-		ZIndex = 5,
-		Parent = holder,
-	})
-	Arcade.corner(chip, 6)
-	Arcade.outline(chip, "Major")
-	local chipText = Arcade.text(chip, { text = "Space", role = "Small", name = "Key", colour = A.Ink, z = 6 })
-	chipText.Size = UDim2.fromScale(1, 1)
-	local chipStroke = chipText:FindFirstChildOfClass("UIStroke")
-	if chipStroke then
-		chipStroke.Enabled = false -- dark text on a white key cap needs no outline
+-- about 132 px on a 1080p desktop window (0.122 of the height), 0.15 of the height on a phone (short side up to 500 px), never
+-- under 44 px; a touch screen that is not a phone keeps at least 104 px (a thumb on a tablet)
+function HopButton.sizeFor(area: Vector2, touch: boolean): number
+	local short = math.min(area.X, area.Y)
+	local phone = touch and short <= 500
+	local size = if phone then area.Y * 0.15 else area.Y * (132 / 1080)
+	if touch and not phone then
+		size = math.max(size, 104)
 	end
-	self._chip, self._chipText = chip, chipText
-
-	self._trove:Connect(body.Activated, function()
-		self:_intent()
-	end)
-	self._trove:Connect(body.MouseButton1Down, function()
-		if self:_pressable() then
-			Motion.tween(press, "press", Motion.info(A.Motion.Press), { Scale = 0.94 })
-		end
-	end)
-	self._trove:Connect(body.MouseButton1Up, function()
-		Motion.tween(press, "press", Motion.info(A.Motion.Release), { Scale = 1 })
-	end)
-	self._trove:Connect(body.MouseLeave, function()
-		Motion.tween(press, "press", Motion.info(A.Motion.Release), { Scale = 1 })
-	end)
-	self._trove:Connect(UserInputService.LastInputTypeChanged, function()
-		self:_applyInput()
-	end)
-	pcall(function()
-		self._trove:Connect(UserInputService:GetPropertyChangedSignal("PreferredInput"), function()
-			self:_applyInput()
-		end)
-	end)
-	self._trove:Add(function()
-		Motion.cancelAll(press)
-		Motion.cancelAll(ringScale)
-		Motion.cancelAll(ringStroke)
-	end)
-	self._trove:Add(ctx.store:subscribe("run", function()
-		self:_apply()
-	end))
-	self._trove:Connect(ctx.store.ModeChanged, function()
-		self:_apply()
-	end)
-	self._trove:Add(Motion.onReducedChanged(function()
-		self:_applyRing()
-	end))
-	self:layout()
-	return self
+	return math.max(44, math.floor(size + 0.5))
 end
 
-export type HopButton = typeof(HopButton.new((nil :: any) :: RunLayout.Ctx))
-
-function HopButton._pressable(self: HopButton): boolean
-	return self._state == "Ready" or self._state == "BestTiming"
-end
-
-function HopButton._intent(self: HopButton)
-	local now = os.clock()
-	if not self:_pressable() or now - self._last < 0.25 then
-		return
-	end
-	self._last = now
-	self._intents += 1
-	Sounds.play("Hop")
-	local fn = self._onIntent
-	if fn then
-		fn()
-	end
-end
-
-function HopButton._detectInput(self: HopButton): InputKind
-	if self._forced then
-		return self._forced :: InputKind
-	end
-	if self._ctx.screen:profile().touch then
-		return "Touch"
+local function detectInput(forcedTouch: boolean?): InputKind
+	if forcedTouch ~= nil then
+		return if forcedTouch then "Touch" else "Keyboard"
 	end
 	local kind: InputKind? = nil
 	pcall(function()
-		local p = (UserInputService :: any).PreferredInput
-		if p == (Enum :: any).PreferredInput.Gamepad then
+		local preferred = (UserInputService :: any).PreferredInput
+		if preferred == (Enum :: any).PreferredInput.Gamepad then
 			kind = "Gamepad"
-		elseif p == (Enum :: any).PreferredInput.Touch then
+		elseif preferred == (Enum :: any).PreferredInput.Touch then
 			kind = "Touch"
-		elseif p ~= nil then
+		elseif preferred ~= nil then
 			kind = "Keyboard"
 		end
 	end)
@@ -538,170 +150,957 @@ function HopButton._detectInput(self: HopButton): InputKind
 	return "Keyboard"
 end
 
-function HopButton._applyInput(self: HopButton)
-	local kind = self:_detectInput()
+----------------------------------------------------------------------------------------------
+-- The face
+
+local Face = {}
+Face.__index = Face
+
+export type FaceObject = typeof(setmetatable(
+	{} :: {
+		root: Frame,
+		size: number,
+		_trove: any,
+		_reduced: () -> boolean,
+		_body: Frame,
+		_bodyScale: UIScale,
+		_shadow: GuiObject,
+		_glow: GuiObject,
+		_glowStrokes: { UIStroke },
+		_track: Frame,
+		_arc: any,
+		_disc: ImageLabel,
+		_discFallback: Frame,
+		_fallbackGradient: UIGradient,
+		_arrow: Frame,
+		_arrowImage: ImageLabel,
+		_arrowFallback: Frame,
+		_word: TextLabel,
+		_bolt: Frame,
+		_boltImage: ImageLabel,
+		_boltFallback: Frame,
+		_key: Frame,
+		_keyCorner: UICorner,
+		_keyText: TextLabel,
+		_prompt: TextLabel,
+		_promptScale: UIScale,
+		_action: Action,
+		_look: Look,
+		_pressed: boolean,
+		_input: InputKind,
+		_drain: number?,
+		_promptOn: boolean,
+		_discKey: string,
+		_arrowPixels: number,
+		_flips: number,
+		_art: boolean,
+	},
+	Face
+))
+
+local function arrowFallback(parent: Instance): Frame
+	local holder = make("Frame", { Name = "Drawn", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, parent)
+	local function piece(name: string, grow: number, colour: Color3, z: number)
+		local head = make("Frame", {
+			Name = name .. "Head",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.36),
+			Size = UDim2.fromScale(0.5 + grow, 0.5 + grow),
+			Rotation = 45,
+			BackgroundColor3 = colour,
+			BorderSizePixel = 0,
+			ZIndex = z,
+		}, holder)
+		round(head, 0.14)
+		local shaft = make("Frame", {
+			Name = name .. "Shaft",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.52 - grow / 2),
+			Size = UDim2.fromScale(0.3 + grow, 0.44 + grow),
+			BackgroundColor3 = colour,
+			BorderSizePixel = 0,
+			ZIndex = z,
+		}, holder)
+		round(shaft, 0.18)
+	end
+	piece("Outline", 0.1, NAVY, 1)
+	piece("Fill", 0, Color3.fromRGB(250, 251, 255), 2)
+	return holder
+end
+
+local function boltFallback(parent: Instance, height: number): Frame
+	local StaminaBolt = require(script.Parent.StaminaBolt) -- the code-drawn bolt, only when the art is not uploaded yet
+	local holder = make("Frame", { Name = "Drawn", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, parent)
+	local art = StaminaBolt.new(
+		holder,
+		{ height = height, colour = Color3.fromRGB(200, 204, 216), crack = false, name = "Bolt", z = 8 }
+	)
+	art.root.AnchorPoint = Vector2.new(0.5, 0.5)
+	art.root.Position = UDim2.fromScale(0.5, 0.5)
+	return holder
+end
+
+function HopButton.buildFace(parent: Instance, size: number, options: FaceOptions?): FaceObject
+	local opts: FaceOptions = options or {}
+	local D = size
+	local trove = Trove.new()
+	local root = make("Frame", {
+		Name = "HopFace",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(D, D),
+		BackgroundTransparency = 1,
+	}, parent)
+	trove:Add(root)
+
+	-- shadow
+	local shadowArt = AssetIds.image("r8_hop_shadow")
+	local shadow: GuiObject
+	if shadowArt ~= "" then
+		shadow = make("ImageLabel", {
+			Name = "Shadow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, 0, 0.5, D * 0.07),
+			Size = UDim2.fromOffset(D * 1.18, D * 1.18),
+			BackgroundTransparency = 1,
+			Image = shadowArt,
+			ImageTransparency = 0.1,
+			ZIndex = 1,
+		}, root)
+	else
+		shadow = make("Frame", {
+			Name = "Shadow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, 0, 0.5, D * 0.07),
+			Size = UDim2.fromOffset(D * 1.04, D * 1.04),
+			BackgroundColor3 = NAVY,
+			BackgroundTransparency = 0.72,
+			BorderSizePixel = 0,
+			ZIndex = 1,
+		}, root)
+		round(shadow)
+	end
+
+	-- the pulsing glow ring behind DIVE
+	local glowArt = AssetIds.image("r8_hop_glow")
+	local glow: GuiObject
+	local glowStrokes: { UIStroke } = {}
+	if glowArt ~= "" then
+		glow = make("ImageLabel", {
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(D * 1.55, D * 1.55),
+			BackgroundTransparency = 1,
+			Image = glowArt,
+			ImageTransparency = 0.25,
+			Visible = false,
+			ZIndex = 2,
+		}, root)
+	else
+		glow = make("Frame", {
+			Name = "Glow",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(D * 1.2, D * 1.2),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 2,
+		}, root)
+		round(glow)
+		table.insert(glowStrokes, make("UIStroke", { Color = GOLD, Thickness = D * 0.12, Transparency = 0.8 }, glow))
+		local inner = make("Frame", {
+			Name = "Inner",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			ZIndex = 2,
+		}, glow)
+		round(inner)
+		table.insert(glowStrokes, make("UIStroke", { Color = YELLOW, Thickness = D * 0.06, Transparency = 0.5 }, inner))
+	end
+
+	-- the drain ring: a grey track and a yellow arc that shrinks (clockwise from 12 o'clock) round the edge of the disc
+	local ringSize = D * 1.14
+	local track = make("Frame", {
+		Name = "Track",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(ringSize, ringSize),
+		BackgroundColor3 = TRACK,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 3,
+	}, root)
+	round(track)
+	make("UIStroke", { Color = NAVY, Thickness = math.max(2, D * 0.03) }, track)
+	local arc = Arc.new(track, ringSize, YELLOW, 0, 4)
+	arc.root.Position = UDim2.fromScale(0.5, 0.5)
+
+	-- the body: disc, arrow, word, bolt and keycap, scaled together for the press and the squash
+	local body = make("Frame", {
+		Name = "Body",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(D, D),
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+	}, root)
+	local bodyScale = make("UIScale", { Scale = 1 }, body)
+
+	local disc = make("ImageLabel", {
+		Name = "Disc",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Image = "",
+		ZIndex = 5,
+	}, body)
+	local discFallback = make("Frame", {
+		Name = "Drawn",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 5,
+	}, body)
+	round(discFallback)
+	make("UIStroke", { Color = NAVY, Thickness = math.max(2, D * 0.045) }, discFallback)
+	local fallbackGradient = make("UIGradient", { Rotation = 90 }, discFallback)
+	local gloss = make("Frame", {
+		Name = "Gloss",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.34, 0.2),
+		Size = UDim2.fromScale(0.46, 0.17),
+		Rotation = -32,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		ZIndex = 6,
+	}, discFallback)
+	round(gloss)
+
+	-- the arrow: one up arrow; DIVE turns it round (squash and flip)
+	local arrow = make("Frame", {
+		Name = "Arrow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		ZIndex = 7,
+	}, body)
+	local arrowArt = AssetIds.image("r8_hop_arrow")
+	local arrowImage = make("ImageLabel", {
+		Name = "Art",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = arrowArt,
+		Visible = arrowArt ~= "",
+		ZIndex = 7,
+	}, arrow)
+	local arrowDrawn = arrowFallback(arrow)
+	arrowDrawn.Visible = arrowArt == ""
+
+	-- the word
+	local word = make("TextLabel", {
+		Name = "Word",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1,
+		FontFace = Tokens.font(),
+		Text = "HOP",
+		TextColor3 = CREAM,
+		TextScaled = false,
+		ZIndex = 8,
+	}, body)
+	make("UIStroke", {
+		Color = NAVY,
+		Thickness = math.max(2, D * 0.04),
+		LineJoinMode = Enum.LineJoinMode.Round,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	}, word)
+
+	-- the empty bolt (NO STAMINA)
+	local bolt = make("Frame", {
+		Name = "Bolt",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.86),
+		Size = UDim2.fromOffset(D * 0.2, D * 0.2),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 8,
+	}, body)
+	local boltArt = AssetIds.image("r8_hop_bolt_empty")
+	local boltImage = make("ImageLabel", {
+		Name = "Art",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = boltArt,
+		Visible = boltArt ~= "",
+		ZIndex = 8,
+	}, bolt)
+	local boltDrawn = boltFallback(bolt, D * 0.2)
+	boltDrawn.Visible = boltArt == ""
+
+	-- the keycap (PC: SPACE) or badge (gamepad: A), on the lower disc
+	local key = make("Frame", {
+		Name = "Key",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.83),
+		Size = UDim2.fromScale(0.6, 0.19),
+		BackgroundColor3 = KEY_FILL,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 8,
+	}, body)
+	local keyCorner = round(key, 0.3)
+	make("UIStroke", { Color = NAVY, Thickness = math.max(2, D * 0.028) }, key)
+	local keyText = make("TextLabel", {
+		Name = "Text",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		FontFace = Tokens.font(),
+		Text = "SPACE",
+		TextColor3 = NAVY,
+		TextSize = math.max(12, math.floor(D * 0.115)),
+		ZIndex = 9,
+	}, key)
+
+	-- PRESS AGAIN! (the first runs, while floating), above the button
+	local prompt = make("TextLabel", {
+		Name = "PressAgain",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, D * 0.07, 0, -D * 0.32),
+		Size = UDim2.fromOffset(D * 2.4, math.max(24, D * 0.26)),
+		BackgroundTransparency = 1,
+		FontFace = Tokens.font(),
+		Text = "PRESS AGAIN!",
+		TextColor3 = YELLOW,
+		TextSize = math.max(18, math.floor(D * 0.22)),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Visible = false,
+		ZIndex = 12,
+	}, root)
+	make("UIStroke", {
+		Color = NAVY,
+		Thickness = math.max(2, D * 0.03),
+		LineJoinMode = Enum.LineJoinMode.Round,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	}, prompt)
+	local promptScale = make("UIScale", { Scale = 1 }, prompt)
+
+	local self = setmetatable({
+		root = root,
+		size = D,
+		_trove = trove,
+		_reduced = opts.reducedMotion or defaultReduced,
+		_body = body,
+		_bodyScale = bodyScale,
+		_shadow = shadow,
+		_glow = glow,
+		_glowStrokes = glowStrokes,
+		_track = track,
+		_arc = arc,
+		_disc = disc,
+		_discFallback = discFallback,
+		_fallbackGradient = fallbackGradient,
+		_arrow = arrow,
+		_arrowImage = arrowImage,
+		_arrowFallback = arrowDrawn,
+		_word = word,
+		_bolt = bolt,
+		_boltImage = boltImage,
+		_boltFallback = boltDrawn,
+		_key = key,
+		_keyCorner = keyCorner,
+		_keyText = keyText,
+		_prompt = prompt,
+		_promptScale = promptScale,
+		_action = "Hop" :: Action,
+		_look = "Ready" :: Look,
+		_pressed = false,
+		_input = opts.input or "Touch",
+		_drain = nil :: number?,
+		_promptOn = false,
+		_discKey = "",
+		_arrowPixels = D * 0.44,
+		_flips = 0,
+		_art = false,
+	}, Face)
+	-- one light per-frame step: the DIVE glow pulse and the prompt's pulse (none in Reduce Motion)
+	trove:Add(RunService.Heartbeat:Connect(function()
+		self:_step(os.clock())
+	end))
+	trove:Add(function()
+		Motion.cancelAll(self._bodyScale)
+		Motion.cancelAll(self._arrow)
+		Motion.cancelAll(self._disc)
+	end)
+	self:_apply(false)
+	return self
+end
+
+local function discKeyFor(action: Action, look: Look, pressed: boolean): string
+	if look == "NoTarget" then
+		return DISC_KEYS.noTarget
+	elseif look == "NoStamina" then
+		return DISC_KEYS.noStamina
+	elseif action == "Dive" then
+		return if pressed then DISC_KEYS.divePressed else DISC_KEYS.dive
+	end
+	return if pressed then DISC_KEYS.hopPressed else DISC_KEYS.hop
+end
+
+-- Lays out and dresses the face for the current action, look, press and input. `flip` plays the HOP <-> DIVE squash-and-flip.
+function Face._apply(self: FaceObject, flip: boolean)
+	local D = self.size
+	local action, look, pressed = self._action, self._look, self._pressed
+	local dimmed = look ~= "Ready"
+	local withKey = self._input ~= "Touch" and look ~= "NoStamina"
+	local reduced = self._reduced()
+
+	-- the disc
+	local key = discKeyFor(action, look, pressed)
+	self._discKey = key
+	local image = AssetIds.image(key)
+	self._art = image ~= ""
+	self._disc.Image = image
+	self._disc.Visible = image ~= ""
+	self._discFallback.Visible = image == ""
+	if image == "" then
+		local colours = FALLBACK[key]
+		self._fallbackGradient.Color = ColorSequence.new(colours[1], colours[2])
+	end
+
+	-- arrow and word (the PC look moves both up to make room for the keycap, as in the reference)
+	local arrowCentre = if withKey then 0.31 else 0.355
+	local arrowSize = D * (if withKey then 0.4 else 0.44)
+	local wordCentre = if withKey then 0.585 else 0.69
+	self._arrowPixels = arrowSize
+	self._arrow.Position = UDim2.fromScale(0.5, arrowCentre + (if pressed then 0.012 else 0))
+	self._word.Position = UDim2.fromScale(0.5, wordCentre + (if pressed then 0.012 else 0))
+	self._word.Size = UDim2.fromOffset(D * 0.9, D * 0.3)
+	self._word.TextSize = math.max(14, math.floor(D * (if withKey then 0.25 else 0.27)))
+	self._word.Text = if action == "Dive" then "DIVE" else "HOP"
+	self._word.TextColor3 = if dimmed then DIM_WORD else CREAM
+	local tint = if dimmed then Color3.fromRGB(232, 234, 240) else Color3.new(1, 1, 1)
+	self._arrowImage.ImageColor3 = tint
+	local wantRotation = if action == "Dive" then 180 else 0
+	Motion.cancelAll(self._arrow)
+	if flip and not reduced then
+		self._flips += 1
+		-- squash: the body pops in, the arrow turns half way round while it flattens and springs back
+		self._bodyScale.Scale = 0.86
+		Motion.tween(
+			self._bodyScale,
+			"flip",
+			TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Scale = 1 }
+		)
+		self._arrow.Size = UDim2.fromOffset(arrowSize, arrowSize * 0.35)
+		Motion.tween(
+			self._arrow,
+			"flip",
+			TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Rotation = wantRotation, Size = UDim2.fromOffset(arrowSize, arrowSize) }
+		)
+	else
+		self._arrow.Rotation = wantRotation
+		self._arrow.Size = UDim2.fromOffset(arrowSize, arrowSize)
+		if not flip then
+			self._bodyScale.Scale = if pressed then 0.94 else 1
+		end
+	end
+
+	-- the empty bolt (NO STAMINA), the keycap or badge, the ring, the glow
+	self._bolt.Visible = look == "NoStamina"
+	self._key.Visible = withKey
+	if withKey then
+		if self._input == "Gamepad" then
+			self._keyText.Text = "A"
+			self._key.Size = UDim2.fromScale(0.21, 0.21)
+			self._key.Position = UDim2.fromScale(0.5, 0.83)
+			self._keyCorner.CornerRadius = UDim.new(0.5, 0)
+			self._keyText.TextSize = math.max(12, math.floor(D * 0.15))
+		else
+			self._keyText.Text = "SPACE"
+			self._key.Size = UDim2.fromScale(0.6, 0.19)
+			self._key.Position = UDim2.fromScale(0.5, 0.83)
+			self._keyCorner.CornerRadius = UDim.new(0.3, 0)
+			self._keyText.TextSize = math.max(12, math.floor(D * 0.115))
+		end
+	end
+	self._track.Visible = action == "Dive" and self._drain ~= nil
+	self._arc.root.Visible = self._track.Visible and (self._drain or 0) > 0.002
+	self._arc:setColor(if dimmed then Color3.fromRGB(214, 190, 90) else YELLOW)
+	self._glow.Visible = action == "Dive" and look == "Ready"
+end
+
+-- HOP or DIVE, and the look (Ready, NoTarget, NoStamina). A change of action plays the squash-and-flip.
+function Face.set(self: FaceObject, action: Action, look: Look?)
+	local newLook: Look = look or "Ready"
+	if action == self._action and newLook == self._look then
+		return
+	end
+	local flip = action ~= self._action
+	self._action = action
+	self._look = newLook
+	self:_apply(flip)
+end
+
+function Face.setPressed(self: FaceObject, on: boolean)
+	if on == self._pressed then
+		return
+	end
+	self._pressed = on
+	if self._look == "NoStamina" then
+		-- nothing happens on press, but the button still gives way a little
+		Motion.tween(self._bodyScale, "press", TweenInfo.new(0.08), { Scale = if on then 0.94 else 1 })
+		return
+	end
+	self:_apply(false)
+	Motion.tween(
+		self._bodyScale,
+		"press",
+		if on then TweenInfo.new(0.06) else TweenInfo.new(0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Scale = if on then 0.94 else 1 }
+	)
+end
+
+-- fraction of the float left (1 = just leapt, 0 = about to drop); nil = no ring
+function Face.setDrain(self: FaceObject, fraction: number?)
+	if fraction == self._drain then
+		return
+	end
+	self._drain = fraction
+	self._track.Visible = self._action == "Dive" and fraction ~= nil
+	self._arc:set(fraction or 0)
+	self._arc.root.Visible = self._track.Visible and (fraction or 0) > 0.002
+end
+
+function Face.setInput(self: FaceObject, kind: InputKind)
+	if kind == self._input then
+		return
+	end
 	self._input = kind
-	self._chip.Visible = kind ~= "Touch"
-	if kind == "Keyboard" then
-		self._chipText.Text = "Space"
-		self._chip.Size = UDim2.fromOffset(78, KEY_CHIP_H)
-	elseif kind == "Gamepad" then
-		self._chipText.Text = self._gamepadKey
-		self._chip.Size = UDim2.fromOffset(KEY_CHIP_H + 8, KEY_CHIP_H + 8)
-		self._chip:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0.5, 0)
-	end
-	if kind == "Keyboard" then
-		self._chip:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 6)
+	self:_apply(false)
+end
+
+function Face.setPrompt(self: FaceObject, on: boolean)
+	self._promptOn = on
+	self._prompt.Visible = on
+	if not on then
+		self._promptScale.Scale = 1
 	end
 end
 
-function HopButton._applyRing(self: HopButton)
-	local timing = self._state == "BestTiming"
-	local ring, scale, stroke = self._ring, self._ringScale, self._ringStroke
-	Motion.cancelAll(scale)
-	Motion.cancelAll(stroke)
-	ring.Visible = timing
-	scale.Scale = 1
-	stroke.Transparency = 0
-end
-
--- One brief pop when a best-timing window opens (an event from HopCue, not a loop); none in reduced motion.
-function HopButton._accent(self: HopButton)
-	self._accents += 1
-	if Motion.reduced() or not self._visible or not self._ring.Visible then
-		return
-	end
-	local scale = self._ringScale
-	scale.Scale = 1.16
-	Motion.tween(scale, "accent", Motion.info(0.3), { Scale = 1 })
-end
-
-function HopButton._hookCue(self: HopButton)
-	if self._cue then
-		return
-	end
-	local cue = RunBus.get(self._ctx, "hopCue")
-	if not cue then
-		return
-	end
-	self._cue = cue
-	self._trove:Add(cue.Changed:Connect(function()
-		self:_apply()
-	end))
-	self._trove:Add(cue.Accent:Connect(function()
-		task.defer(function()
-			if not self._dead then
-				self:_accent()
+function Face._step(self: FaceObject, now: number)
+	local reduced = self._reduced()
+	if self._glow.Visible then
+		local wave = if reduced then 0.5 else 0.5 + 0.5 * math.sin(now * 2 * math.pi * 1.6)
+		local size = self.size * (1.5 + 0.12 * wave)
+		if self._glow:IsA("ImageLabel") then
+			self._glow.Size = UDim2.fromOffset(size, size)
+			self._glow.ImageTransparency = 0.12 + 0.3 * (1 - wave)
+		else
+			local drawn = self.size * (1.18 + 0.1 * wave)
+			self._glow.Size = UDim2.fromOffset(drawn, drawn)
+			for _, stroke in self._glowStrokes do
+				stroke.Transparency = 0.35 + 0.35 * (1 - wave)
 			end
-		end)
-	end))
-end
-
-function HopButton._apply(self: HopButton)
-	self:_hookCue()
-	local storeState = self._ctx.store:get()
-	local run = storeState.run
-	self._holder.Visible = storeState.mode == "Run" and run ~= nil
-	local cue = self._cue
-	local display: string = if cue and cue.display then cue:display() else HopState.resolve(run)
-	local cooldown = if run then math.clamp(run.hopCooldown01, 0, 1) else 0
-	self._cooldown = cooldown
-	local changed = display ~= self._state
-	self._state = display
-	applyLook(self._parts, display, cooldown)
-	self._body.Active = display ~= "NoTarget" and display ~= "OutOfStamina"
-	if changed then
-		self:_applyRing()
+		end
+	end
+	if self._promptOn then
+		self._promptScale.Scale = if reduced then 1 else 1 + 0.08 * math.sin(now * 2 * math.pi * 1.6)
 	end
 end
 
-function HopButton.layout(self: HopButton)
-	local ctx = self._ctx
-	RunLayout.fit(ctx, self.root)
-	local rect, conflict = RunLayout.hopRect(ctx)
-	self._rect = rect
-	self._conflict = conflict
-	self._holder.Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y)
-	local pos, size = RunLayout.toDevice(ctx, rect)
-	self._reservedHit = ctx.screen:overlapsReserved(pos, size)
-	self:_applyInput()
-	-- the key chip sits under the button on desktop; above it when that would leave the canvas
-	local d = RunLayout.design(ctx)
-	local below = rect.pos.Y + SIZE + A.Button.DepthOffset + 4 + KEY_CHIP_H + 4 <= d.Y
-	self._chip.AnchorPoint = if below then Vector2.new(0.5, 0) else Vector2.new(0.5, 1)
-	self._chip.Position = if below
-		then UDim2.new(0.5, 0, 0, SIZE + A.Button.DepthOffset + 4)
-		else UDim2.new(0.5, 0, 0, -6)
-	self:_apply()
-end
-
-function HopButton.setHopIntent(self: HopButton, fn: (() -> ())?)
-	self._onIntent = fn
-end
-
-function HopButton.setInputKind(self: HopButton, kind: InputKind?)
-	self._forced = kind
-	self:_applyInput()
-end
-
-function HopButton.setVisible(self: HopButton, on: boolean)
-	self._visible = on
-	self.root.Visible = on
-	self:_applyRing()
-end
-
--- Live object counts for leak checks: the component's own instances and what its Trove holds (connections,
--- subscriptions, cleanup functions). It starts no thread and no render step.
-local function troveSize(trove: any): number
-	local objects = trove._objects
-	return if type(objects) == "table" then #objects else 0
-end
-
-function HopButton.getDebugState(self: HopButton): { [string]: any }
-	local rect = self._rect
-	local parts = self._parts
-	local look = lookOf(self._state)
-	local labelWidth, labelFits = HopButton.measureLabel(self._state)
+function Face.getDebugState(self: FaceObject): { [string]: any }
 	return {
-		visible = self._visible,
+		size = self.size,
+		action = self._action,
+		look = self._look,
+		pressed = self._pressed,
 		input = self._input,
-		forcedInput = self._forced,
-		keyLabel = if self._chip.Visible then self._chipText.Text else nil,
-		state = self._state,
-		display = self._state,
-		-- Round 3: one key, one tint and one word per state, so the unavailable looks can be told apart
-		stateKey = HopState.key(self._state),
-		fillName = look.name,
-		tint = visibleTint(look):ToHex(),
-		labelSize = parts.label.TextSize,
-		labelWidth = labelWidth,
-		labelFits = labelFits,
-		carIcon = parts.icon.Visible,
-		boltIcon = parts.bolt.Visible,
-		cooldown01 = self._cooldown,
-		sweep = parts.sweep:get(),
-		label = parts.label.Text,
-		hatched = parts.hatch.Visible,
-		iconDimmed = parts.veil.BackgroundTransparency < 1,
-		ringShown = self._ring.Visible,
-		ringColour = self._ringStroke.Color,
-		ringPulsing = false, -- the ring is steady; only the window’s opening pops it once
-		accents = self._accents,
-		outOfStamina = parts.slash.Visible,
-		cueMounted = self._cue ~= nil,
-		intents = self._intents,
-		box = rect and RunLayout.describe(rect),
-		conflict = self._conflict,
-		overlapsReserved = self._reservedHit,
-		overlapsProtected = rect ~= nil and RunLayout.overlaps(rect, RunLayout.protected(self._ctx)),
+		word = self._word.Text,
+		wordSize = self._word.TextSize,
+		disc = self._discKey,
+		usingArt = self._art,
+		arrowRotation = self._arrow.Rotation,
+		arrowPixels = self._arrowPixels,
+		drain = self._drain,
+		ringShown = self._track.Visible,
+		glowShown = self._glow.Visible,
+		boltShown = self._bolt.Visible,
+		keyShown = self._key.Visible,
+		keyText = self._keyText.Text,
+		promptShown = self._prompt.Visible,
+		flips = self._flips,
 		instances = #self.root:GetDescendants(),
-		connections = troveSize(self._trove),
-		threads = 0,
 	}
 end
 
-function HopButton.destroy(self: HopButton)
-	self._dead = true
+function Face.destroy(self: FaceObject)
+	self._trove:Destroy()
+end
+
+----------------------------------------------------------------------------------------------
+-- The live button for the run (RunHud/RunExtras)
+
+export type AttachOptions = { onHop: (() -> ())?, floatHelp: boolean?, displayOrder: number? }
+
+local function studioProfile(): Screen.Profile?
+	if not RunService:IsStudio() then
+		return nil
+	end
+	local player = Players.LocalPlayer
+	local name = player and player:GetAttribute("Lane3ScreenProfile")
+	return if type(name) == "string" then Screen.Profiles[name] else nil
+end
+
+function HopButton.attach(options: AttachOptions?)
+	local opts: AttachOptions = options or {}
+	local player = Players.LocalPlayer
+	local trove = Trove.new()
+	local self = setmetatable({}, Live) :: any
+	self._trove = trove
+	self._opts = opts
+	self._visible = true
+	self._state = ""
+	self._face = nil :: FaceObject?
+
+	local gui = trove:Add(make("ScreenGui", {
+		Name = "CarHopHopButton",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = false,
+		DisplayOrder = opts.displayOrder or 12,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}))
+	pcall(function()
+		(gui :: any).ScreenInsets = (Enum :: any).ScreenInsets.DeviceSafeInsets
+	end)
+	-- the frame the button is laid out in: the whole screen, or (Studio test hook) a device-sized frame in the middle of it
+	local frame = make("Frame", {
+		Name = "Frame",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+	}, gui)
+	local fit = make("UIScale", { Name = "DeviceFit", Scale = 1 }, frame)
+	-- the hit box sits above the face: a little bigger than the disc, never under 44 px
+	local hit = make("TextButton", {
+		Name = "Hop",
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 20,
+	}, frame)
+	self._gui, self._frame, self._fit, self._hit = gui, frame, fit, hit
+
+	local function layout()
+		local forced = studioProfile()
+		local viewport = gui.AbsoluteSize
+		local area = viewport
+		local insets = { top = 0, bottom = 0, left = 0, right = 0 }
+		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		if forced then
+			area = forced.size
+			insets = forced.insets
+			touch = forced.touch
+			frame.AnchorPoint = Vector2.new(0.5, 0.5)
+			frame.Position = UDim2.fromScale(0.5, 0.5)
+			frame.Size = UDim2.fromOffset(area.X, area.Y)
+			fit.Scale = math.max(math.min((viewport.X - 24) / area.X, (viewport.Y - 24) / area.Y, 1), 0.05)
+		else
+			frame.AnchorPoint = Vector2.zero
+			frame.Position = UDim2.fromScale(0, 0)
+			frame.Size = UDim2.fromScale(1, 1)
+			fit.Scale = 1
+		end
+		self._touchForced = if forced then touch else nil
+		local D = HopButton.sizeFor(Vector2.new(area.X - insets.left - insets.right, area.Y), touch)
+		local margin = math.max(16, math.floor(D * 0.26))
+		local right = area.X - insets.right - margin
+		local bottom = area.Y - insets.bottom - margin
+		local old = self._face :: FaceObject?
+		if not old or old.size ~= D then
+			if old then
+				old:Destroy()
+			end
+			local face = HopButton.buildFace(frame, D, { input = detectInput(self._touchForced) })
+			face.root.ZIndex = 10
+			self._face = face
+			self._state = "" -- dress it again
+		end
+		local face = self._face :: FaceObject
+		face.root.Position = UDim2.fromOffset(right - D / 2, bottom - D / 2)
+		local hitSize = math.max(44, D * 1.1)
+		hit.Size = UDim2.fromOffset(hitSize, hitSize)
+		hit.Position = UDim2.fromOffset(right + (hitSize - D) / 2, bottom + (hitSize - D) / 2)
+		face:setInput(detectInput(self._touchForced))
+	end
+	self._layout = layout
+	layout()
+
+	local function pressed(on: boolean)
+		local face = self._face :: FaceObject?
+		if face then
+			face:setPressed(on)
+		end
+	end
+	trove:Connect(hit.Activated, function()
+		if opts.onHop then
+			opts.onHop()
+		end
+	end)
+	trove:Connect(hit.MouseButton1Down, function()
+		pressed(true)
+	end)
+	trove:Connect(hit.MouseButton1Up, function()
+		pressed(false)
+	end)
+	trove:Connect(hit.MouseLeave, function()
+		pressed(false)
+	end)
+	-- Space and the gamepad A button press the same button (RunInput binds them): show the press
+	trove:Connect(UserInputService.InputBegan, function(input: InputObject)
+		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA then
+			pressed(true)
+		end
+	end)
+	trove:Connect(UserInputService.InputEnded, function(input: InputObject)
+		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA then
+			pressed(false)
+		end
+	end)
+	trove:Connect(UserInputService.LastInputTypeChanged, function()
+		local face = self._face :: FaceObject?
+		if face then
+			face:setInput(detectInput(self._touchForced))
+		end
+	end)
+	trove:Connect(gui:GetPropertyChangedSignal("AbsoluteSize"), layout)
+	if player then
+		trove:Connect(player:GetAttributeChangedSignal("Lane3ScreenProfile"), layout)
+	end
+	trove:Add(function()
+		local face = self._face :: FaceObject?
+		if face then
+			face:Destroy()
+		end
+	end)
+
+	gui.Parent = (player :: Player):WaitForChild("PlayerGui")
+	return self
+end
+
+-- The run's state, once a frame: { mode, target, stamina, floatLeft, floatDuration } (RunController.getDebugState)
+--   Riding, Recover           HOP (NO STAMINA when no bolt is left: pressing it only says "Out of bolts!")
+--   Float                     DIVE, the ring draining; NO TARGET when no car is in reach
+--   Dive                      DIVE (the last 0.28 s)
+--   Ended                     hidden
+function Live.update(self: any, s: { [string]: any })
+	local face = self._face :: FaceObject?
+	if not face then
+		return
+	end
+	local mode: string = s.mode
+	local show = self._visible and mode ~= "Ended"
+	self._gui.Enabled = show
+	if not show then
+		return
+	end
+	local floating = mode == "Float"
+	local diving = mode == "Dive"
+	local action: Action = if floating or diving then "Dive" else "Hop"
+	local look: Look = "Ready"
+	if floating and s.target == nil then
+		look = "NoTarget"
+	elseif not (floating or diving) and s.stamina ~= nil and (s.stamina :: number) <= 0 then
+		look = "NoStamina"
+	end
+	face:set(action, look)
+	local drain: number? = nil
+	if floating and s.floatLeft ~= nil and s.floatDuration ~= nil and (s.floatDuration :: number) > 0 then
+		drain = math.clamp((s.floatLeft :: number) / (s.floatDuration :: number), 0, 1)
+	elseif diving then
+		drain = 0
+	end
+	face:setDrain(drain)
+	face:setPrompt(self._opts.floatHelp == true and floating and s.target ~= nil)
+	self._state = action .. "/" .. look
+end
+
+function Live.setVisible(self: any, on: boolean)
+	self._visible = on
+	self._gui.Enabled = on
+end
+
+function Live.getFace(self: any): FaceObject?
+	return self._face
+end
+
+function Live.getDebugState(self: any): { [string]: any }
+	local face = self._face :: FaceObject?
+	local debug = if face then face:getDebugState() else {}
+	debug.visible = self._gui.Enabled
+	debug.hit = self._hit.AbsoluteSize.X
+	debug.hitPosition = self._hit.AbsolutePosition
+	debug.screen = self._gui.AbsoluteSize
+	debug.profile = (self._touchForced ~= nil) and "forced" or "live"
+	return debug
+end
+
+function Live.destroy(self: any)
+	self._trove:Destroy()
+end
+
+----------------------------------------------------------------------------------------------
+-- Lane 3 preview compatibility (the HUD playground): the same face on the store-driven canvas
+
+local function lookFor(display: string): (Action, Look)
+	if display == "NoTarget" then
+		return "Hop", "NoTarget"
+	elseif display == "OutOfStamina" then
+		return "Hop", "NoStamina"
+	end
+	return "Hop", "Ready"
+end
+
+-- Playground specimen: one face in `display` (HopState names), with no store, input or sounds. The caller owns (and destroys) it.
+-- `iconName` is ignored: the old HopCar icon candidates are gone with the old button.
+function HopButton.buildSpecimenFace(parent: Instance, display: string, cooldown01: number?, _iconName: string?): Frame
+	local HopState = require(script.Parent.HopState)
+	local body = make("Frame", {
+		Name = "HopSpecimen_" .. HopState.key(display),
+		Size = UDim2.fromOffset(HopButton.Size, HopButton.Size),
+		BackgroundTransparency = 1,
+	}, parent)
+	local face = HopButton.buildFace(body, HopButton.Size, { input = "Keyboard" })
+	face.root.Position = UDim2.fromScale(0.5, 0.5)
+	local action, lookName = lookFor(display)
+	face:set(action, lookName)
+	if cooldown01 and cooldown01 > 0 then
+		face:setDrain(cooldown01)
+	end
+	return body
+end
+
+-- The widest line of the state's word and whether it fits the disc (design px, Fredoka One)
+function HopButton.measureLabel(display: string): (number, boolean)
+	local action = lookFor(display)
+	local text = if action == "Dive" then "DIVE" else "HOP"
+	local size = math.max(14, math.floor(HopButton.Size * 0.27))
+	local bounds = TextService:GetTextSize(text, size, Enum.Font.FredokaOne, Vector2.new(4096, 4096))
+	return bounds.X, bounds.X <= HopButton.Size * 0.8
+end
+
+function HopButton.iconSizeFor(_iconName: string): number
+	return HopButton.IconSize
+end
+
+export type Options = { onHopIntent: (() -> ())?, gamepadKey: string? }
+
+function HopButton.new(ctx: any, options: Options?)
+	local RunLayout = require(script.Parent.RunLayout)
+	local self = setmetatable({}, Preview) :: any
+	local opts: Options = options or {}
+	self._ctx = ctx
+	self._trove = Trove.new()
+	self._onIntent = opts.onHopIntent
+	self._state = ""
+	self._intents = 0
+	local root = self._trove:Add(RunLayout.canvas(ctx, "HopButton"))
+	self.root = root
+	local holder = make("Frame", {
+		Name = "Hop",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(HopButton.Size, HopButton.Size),
+		ZIndex = 2,
+		Parent = root,
+	})
+	self._holder = holder
+	local face = HopButton.buildFace(holder, HopButton.Size, { input = detectInput(nil) })
+	face.root.Position = UDim2.fromScale(0.5, 0.5)
+	self._face = face
+	local hit = make("TextButton", {
+		Name = "Body",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 30,
+		Parent = holder,
+	})
+	self._trove:Connect(hit.Activated, function()
+		if self._state ~= "OutOfStamina" and self._state ~= "NoTarget" then
+			self._intents += 1
+			if self._onIntent then
+				self._onIntent()
+			end
+		end
+	end)
+	self._trove:Connect(hit.MouseButton1Down, function()
+		face:setPressed(true)
+	end)
+	self._trove:Connect(hit.MouseButton1Up, function()
+		face:setPressed(false)
+	end)
+	self._trove:Connect(hit.MouseLeave, function()
+		face:setPressed(false)
+	end)
+	self._trove:Add(function()
+		face:Destroy()
+	end)
+	self._trove:Add(ctx.store:subscribe("run", function()
+		self:_apply()
+	end))
+	self._trove:Connect(ctx.store.ModeChanged, function()
+		self:_apply()
+	end)
+	self:layout()
+	return self
+end
+
+function Preview._apply(self: any)
+	local HopState = require(script.Parent.HopState)
+	local storeState = self._ctx.store:get()
+	local run = storeState.run
+	self._holder.Visible = storeState.mode == "Run" and run ~= nil
+	local display = HopState.resolve(run)
+	self._state = display
+	local action, lookName = lookFor(display)
+	self._face:set(action, lookName)
+end
+
+function Preview.layout(self: any)
+	local RunLayout = require(script.Parent.RunLayout)
+	local ctx = self._ctx
+	RunLayout.fit(ctx, self.root)
+	local rect = RunLayout.hopRect(ctx)
+	self._holder.Position = UDim2.fromOffset(rect.pos.X, rect.pos.Y)
+	self._face:setInput(detectInput(if ctx.screen:profile().touch then true else nil))
+	self:_apply()
+end
+
+function Preview.setHopIntent(self: any, fn: (() -> ())?)
+	self._onIntent = fn
+end
+
+function Preview.setInputKind(self: any, kind: InputKind?)
+	self._face:setInput(kind or detectInput(nil))
+end
+
+function Preview.setVisible(self: any, on: boolean)
+	self.root.Visible = on
+end
+
+function Preview.getDebugState(self: any): { [string]: any }
+	local debug = self._face:getDebugState()
+	debug.state = self._state
+	debug.intents = self._intents
+	return debug
+end
+
+function Preview.destroy(self: any)
 	self._trove:Destroy()
 end
 
