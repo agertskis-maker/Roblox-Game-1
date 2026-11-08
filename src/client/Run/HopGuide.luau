@@ -51,7 +51,7 @@ local GOLD = Color3.fromRGB(255, 196, 40)
 local WHITE = Color3.fromRGB(255, 255, 255)
 local WARN = Color3.fromRGB(255, 96, 86)
 local CANVAS = 320 -- the SurfaceGui's fixed canvas in pixels
-local RING_SIZE = 236 -- the ring's diameter inside the canvas, pixels
+local RING_SIZE = 196 -- the ring's diameter inside the canvas, pixels (room left for the glow and the dive's closing-in scale)
 
 export type Target = {
 	index: number,
@@ -442,7 +442,7 @@ function HopGuide.update(self: HopGuide, view: View)
 		local d = math.max(target.width, target.length * 0.7) + 3
 		if math.abs(d - self._diameter) > 0.05 then
 			self._diameter = d
-			self._part.Size = Vector3.new(d, 0.1, d)
+			self._part.Size = Vector3.new(d * CANVAS / RING_SIZE, 0.1, d * CANVAS / RING_SIZE) -- the ring itself is RING_SIZE of the CANVAS
 		end
 	end
 	self._pos = centre + self._swing
@@ -463,7 +463,7 @@ function HopGuide.update(self: HopGuide, view: View)
 			then 1 + 0.05 * math.sin(now * 2 * math.pi * 2.2)
 			else 1 + 0.025 * math.sin(now * 2 * math.pi * 0.9)
 	end
-	self._scale.Scale = if diving then 1.5 - 0.5 * view.hopA else pulse
+	self._scale.Scale = if diving then 1.25 - 0.25 * view.hopA else pulse
 	self._spin.Rotation = if reduced then 0 else (now * 40) % 360
 	for _, m in self._markers do
 		fadeChevron(m, aim * alpha * brightness)
