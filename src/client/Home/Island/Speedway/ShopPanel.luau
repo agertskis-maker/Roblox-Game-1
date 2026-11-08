@@ -1465,7 +1465,12 @@ function ShopPanel.open(source: Source)
 	if isOpenOld() then
 		closeOld(true)
 	end
-	mine.open(source, hostFor())
+	-- a card that fails to build must not leave half a screen behind (and must not take the prompt down with it)
+	local ok, err = pcall(mine.open, source, hostFor())
+	if not ok then
+		warn("ShopPanel: the upgrade card failed to open: " .. tostring(err))
+		mine.close(true)
+	end
 end
 
 -- Closes the open card (fades out; `instant` destroys at once). Closing never changes any value.
