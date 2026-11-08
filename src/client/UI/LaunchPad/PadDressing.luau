@@ -115,10 +115,37 @@ local function bench(k: any, x: number, z: number, face: number)
 	end
 end
 
+-- A fire hydrant in the pad's own smooth style (Round 8, O-09: it was one red tube with a ball on it). A wide foot that flares up
+-- into the barrel, a dark and a gold collar, a rounded bonnet with a nut on top, and three outlets (one on each side, a bigger one
+-- in front, turned toward the road) with gold caps. About 3.6 studs tall, one Model, nothing solid.
 local function hydrant(k: any, x: number, z: number)
-	k:cyl("Hydrant", 1.2, 2.2, CFrame.new(x, 1.1, z), rgb(226, 54, 54))
-	k:ball("HydrantCap", 1.2, CFrame.new(x, 2.3, z), rgb(226, 54, 54))
-	k:cyl("HydrantNozzle", 0.5, 1.8, CFrame.new(x, 1.4, z) * CFrame.Angles(0, 0, 0), rgb(240, 200, 60))
+	local red, dark, gold = rgb(226, 54, 54), rgb(156, 30, 38), rgb(246, 200, 60)
+	local at = CFrame.new(x, 0, z) * CFrame.Angles(0, if x < 0 then math.pi / 2 else -math.pi / 2, 0)
+	local h = k:model("Hydrant")
+	local sideways = CFrame.Angles(0, 0, math.pi / 2) -- a cylinder along X
+	local forward = CFrame.Angles(math.pi / 2, 0, 0) -- a cylinder along Z
+	-- foot, flare, barrel
+	h:cyl("HydrantFoot", 2.5, 0.3, at * CFrame.new(0, 0.15, 0), dark)
+	h:cyl("HydrantFlare", 2.1, 0.5, at * CFrame.new(0, 0.55, 0), red)
+	h:cyl("HydrantBarrel", 1.7, 1.7, at * CFrame.new(0, 1.65, 0), red)
+	-- collars
+	h:cyl("HydrantCollarLow", 1.9, 0.22, at * CFrame.new(0, 1.0, 0), dark)
+	h:cyl("HydrantCollarHigh", 1.9, 0.24, at * CFrame.new(0, 2.4, 0), gold)
+	-- bonnet and nut
+	h:ball("HydrantBonnet", 1.7, at * CFrame.new(0, 2.5, 0), red)
+	h:box(
+		"HydrantNut",
+		Vector3.new(0.5, 0.4, 0.5),
+		at * CFrame.new(0, 3.38, 0) * CFrame.Angles(0, math.pi / 4, 0),
+		gold
+	)
+	-- the two side outlets and the front one, each a short pipe with a wider gold cap
+	for _, s in { -1, 1 } do
+		h:cyl("HydrantOutlet", 0.62, 0.8, at * CFrame.new(s * 1.1, 1.85, 0) * sideways, red)
+		h:cyl("HydrantCap", 0.9, 0.28, at * CFrame.new(s * 1.6, 1.85, 0) * sideways, gold)
+	end
+	h:cyl("HydrantPumper", 0.86, 0.9, at * CFrame.new(0, 1.4, 1.15) * forward, red)
+	h:cyl("HydrantPumperCap", 1.12, 0.3, at * CFrame.new(0, 1.4, 1.7) * forward, gold)
 end
 
 local function crate(k: any, x: number, z: number, size: number, turn: number)
