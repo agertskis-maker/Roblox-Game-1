@@ -216,12 +216,14 @@ function BetaLookTest.run(ctx: Context): { string }
 			return a ~= nil and table.find(a.o, w.id) ~= nil
 		end)
 		check("BuyStyle " .. w.id .. " is answered: the server lists it as owned", owned, nil)
+		task.wait(0.4) -- the server answers one Style request per 0.3 s
 		StyleState.equip(w.tab, w.id)
 		local worn = waitFor(8, function()
 			local a = styleAttribute()
 			return a ~= nil and a.e ~= nil and a.e[w.tab] == w.id
 		end)
 		check("EquipStyle " .. w.id .. " is answered: the server says it is worn", worn, nil)
+		task.wait(0.4)
 	end
 	RidePick.ask(RIDE)
 	check(
