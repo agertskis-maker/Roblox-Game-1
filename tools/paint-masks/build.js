@@ -57,7 +57,7 @@ function buildCar(car, spec, cl, texRgb) {
   // body shade from the texture's own light and shade, blurred, relative to this car's body mean
   const lum = new Float32Array(N * N), w = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) if (lab[i] === 1) { lum[i] = 0.3 * texRgb[i * 3] + 0.59 * texRgb[i * 3 + 1] + 0.11 * texRgb[i * 3 + 2]; w[i] = 1; }
-  const bl = lib.blurField(lum, N, 2, 2), bw = lib.blurField(w, N, 2, 2);
+  const bl = lib.blurField(lum, N, 3, 3), bw = lib.blurField(w, N, 3, 3);
   let mean = 0, cnt = 0;
   for (let i = 0; i < N * N; i++) if (lab[i] === 1) { mean += lum[i]; cnt++; }
   mean = cnt ? mean / cnt : 128;
@@ -67,7 +67,8 @@ function buildCar(car, spec, cl, texRgb) {
     const r = bw[i] > 0.05 ? (bl[i] / bw[i]) / mean : 1;
     out[i] = r < 0.72 ? 1 : r < 0.88 ? 2 : r < 1.0 ? 3 : r < 1.12 ? 4 : r < 1.28 ? 5 : 6;
   }
-  return out;
+  // the shade levels and the region edges both come out smoother (and much shorter to store) after one more mode pass
+  return lib.modeFilter(out, N, 2);
 }
 
 const old = fs.readFileSync(inPath, 'utf8');
