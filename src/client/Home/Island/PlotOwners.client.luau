@@ -241,11 +241,13 @@ local function watch(plot: Model)
 		gui.Enabled = onIsland
 		gui.Parent = player:WaitForChild("PlayerGui")
 		table.insert(boards, gui)
-		local cancel = Headshot.attach(holder, owner, name, function(): boolean
+		-- recorded before the face is asked for: a face that is already known arrives at once, inside attach
+		local record: Shown = { gui = gui, owner = owner, name = name, label = label, cancelFace = function() end }
+		shown = record
+		record.cancelFace = Headshot.attach(holder, owner, name, function(): boolean
 			-- the plot may have changed hands (or the player left) while the face was on its way
-			return plot:GetAttribute("Owner") == owner and shown ~= nil and shown.gui == gui
+			return shown == record and plot:GetAttribute("Owner") == owner
 		end)
-		shown = { gui = gui, owner = owner, name = name, label = label, cancelFace = cancel }
 	end
 
 	local function refresh()
