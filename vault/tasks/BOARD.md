@@ -164,3 +164,4 @@ Car Hop work is split into three lanes with separate paths ([[0007-concept-car-h
 - [x] Choose a ProfileStore source ([[0001-profilestore-source]])
 
 - [x] Round 7 external reference pack and additive brief review — Adam with Codex, 2026-11-05; output: Car-Hop-Art/review/round7; 22 images, generation notes, researched additive brief, preservation verification and DONE inventory; no game implementation. Image canvas-size deviations recorded.
+$L
