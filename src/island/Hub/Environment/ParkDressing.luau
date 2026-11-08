@@ -433,80 +433,172 @@ local FOUNTAIN = {
 	PedestalTop = 8.1,
 }
 
--- The statue's solid colliders and its extra detail (Brian L, 2026-11-08, for Adam's review). Players used to walk through
--- the pedestal and the car: an invisible cylinder now holds the pedestal and the car itself collides (box fidelity).
--- Detail: a gold stunt hoop arching over the car, a checkered
--- band and CATCH A CAR! plaques on the pedestal, gold studs round the rim, and four uplights plus a warm glow on the car.
--- Everything is still (no motion), so Reduce Motion needs nothing. Safe to run again: it replaces its own parts.
+-- The statue, upgraded (Brian L, 2026-11-08, for Adam's review). Run after buildFountain; safe to run again.
+--   * The car is Brian L's own detailed Gold Apex (a Legendary, ReplicatedStorage.Cars) instead of the low-poly
+--     SwStatueCar mesh, turned to face the island spawn (north) with its nose raised, as if launching.
+--   * A round, stepped pedestal of smooth cylinders with gold rings replaces the square blocks.
+--   * A big CAR CATCHERS sign stands in the pool on the spawn side and on the portal side, so the game's name is the first
+--     thing a player reads when they load in.
+--   * A gold stunt hoop arches over the car; soft uplights; gold studs round the rim.
+--   * Solid: an invisible collider holds the pedestal, the car's parts collide, the signs collide.
+-- Falls back to the old mesh if the Gold Apex is missing. Everything is still, so Reduce Motion needs nothing.
+local STATUE_CAR = "Gold Apex"
+local STATUE_LENGTH = 15
+local GAME_NAME = "CAR CATCHERS" -- the official name (Brian L, 2026-11-08; proposed decision 0043, needs Adam)
+
 function ParkDressing.decorateStatue(f: Instance)
 	local y = Layout.PlazaTop
-	local old = f:FindFirstChild("StatueDetail")
-	if old then
-		old:Destroy()
-	end
-	local oldCollider = f:FindFirstChild("StatueCollider")
-	if oldCollider then
-		oldCollider:Destroy()
+	for _, name in { "StatueDetail", "StatueCollider" } do
+		local old = f:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
 	end
 	local d = Instance.new("Folder")
 	d.Name = "StatueDetail"
 	d.Parent = f
+	local function solidify(p: BasePart, solid: boolean)
+		p.Anchored = true
+		p.CanCollide = solid
+		p.CanQuery = false
+		p.CanTouch = false
+		p:SetAttribute("SightlineEnvelope", true)
+	end
 	local function piece(name: string, size: Vector3, cf: CFrame, colour: Color3, material: Enum.Material?): Part
 		local p = plainPart(name, size, cf, colour, d)
 		p.Material = material or Enum.Material.SmoothPlastic
-		p.CanCollide = false
-		p.CanQuery = false
-		p:SetAttribute("SightlineEnvelope", true)
+		solidify(p, false)
+		return p
+	end
+	local function ring(
+		name: string,
+		radius: number,
+		bottom: number,
+		height: number,
+		colour: Color3,
+		material: Enum.Material?
+	): Part
+		local p = piece(
+			name,
+			Vector3.new(height, radius * 2, radius * 2),
+			CFrame.new(0, y + bottom + height / 2, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			colour,
+			material
+		)
+		p.Shape = Enum.PartType.Cylinder
 		return p
 	end
 
-	-- colliders: the pedestal from the plaza to its cap, and the car
-	local collider = invisibleCylinder(f, "StatueCollider", 3.2, FOUNTAIN.PedestalTop, y)
-	collider.CanQuery = false
-	local car = f:FindFirstChild("StatueCar")
-	if car and car:IsA("BasePart") then
-		car.CanCollide = true
-	end
+	-- the hero car: Brian L's Gold Apex, or the old mesh if it is not there
+	local Cars = game:GetService("ReplicatedStorage"):FindFirstChild("Cars")
+	local source = Cars and Cars:FindFirstChild(STATUE_CAR)
+	local car: Model? = nil
+	if source and source:IsA("Model") then
+		for _, name in
+			{ "PedestalBase", "PedestalShaft", "PedestalPanel", "PedestalCollar", "PedestalCap", "StatueStay" }
+		do
+			for _, child in f:GetChildren() do
+				if child.Name == name then
+					child:Destroy()
+				end
+			end
+		end
+		local oldCar = f:FindFirstChild("StatueCar")
+		if oldCar then
+			oldCar:Destroy()
+		end
+		local model = source:Clone()
+		model.Name = "StatueCar"
+		local front, rear = Vector3.zero, Vector3.zero
+		for _, part in model:GetDescendants() do
+			if part:IsA("BasePart") then
+				solidify(part, true)
+				if string.find(part.Name, "wheel", 1, true) then
+					if string.find(part.Name, "front", 1, true) then
+						front += part.Position
+					else
+						rear += part.Position
+					end
+				end
+			elseif not part:IsA("Model") then
+				part:Destroy() -- a statue: nothing runs, nothing sounds
+			end
+		end
+		-- square the pivot up: bottom centre, looking out of the car's front
+		local forward = (front - rear) * Vector3.new(1, 0, 1)
+		forward = if forward.Magnitude > 0.01 then forward.Unit else Vector3.new(0, 0, -1)
+		local right = forward:Cross(Vector3.yAxis)
+		model.WorldPivot = CFrame.fromMatrix(model:GetPivot().Position, right, Vector3.yAxis)
+		local box, size = model:GetBoundingBox()
+		model.WorldPivot = CFrame.fromMatrix(box.Position - Vector3.yAxis * size.Y / 2, right, Vector3.yAxis)
+		model:ScaleTo(model:GetScale() * STATUE_LENGTH / math.max(size.Z, 0.1))
+		-- nose toward the spawn (north, -Z), raised 13 degrees
+		local seat = Vector3.new(0, y + FOUNTAIN.PedestalTop + 0.6, 0)
+		model:PivotTo(CFrame.lookAt(seat, seat + Vector3.new(0, 0, -1)) * CFrame.Angles(math.rad(13), 0, 0))
+		model:SetAttribute("Hanging", true)
+		model.Parent = f
+		car = model
 
-	-- a checkered band round the shaft, just under the gold collar
-	local band = y + 6.95
-	for i = 0, 15 do
-		local side = i // 4
-		local slot = i % 4
-		local a = side * math.pi / 2
-		local colour = if (slot + side) % 2 == 0 then Color3.fromRGB(245, 245, 245) else FOUNTAIN.Navy
-		piece(
-			"CheckerTile",
-			Vector3.new(1.1, 0.55, 0.1),
-			CFrame.new(0, band, 0) * CFrame.Angles(0, a, 0) * CFrame.new(-1.65 + slot * 1.1, 0, 2.26),
-			colour
-		)
+		-- the round pedestal: base, gold ring, navy shaft with a gold band, gold collar, cap
+		ring("PedestalBaseRound", 3.6, 2.5, 1.2, FOUNTAIN.Stone)
+		ring("PedestalBaseRing", 3.75, 3.55, 0.3, FOUNTAIN.Gold, Enum.Material.Metal)
+		ring("PedestalShaftRound", 2.6, 3.7, 3.7, FOUNTAIN.Navy)
+		ring("PedestalBand", 2.75, 5.3, 0.45, FOUNTAIN.Gold, Enum.Material.Metal)
+		ring("PedestalCollarRound", 3.2, 7.4, 0.45, FOUNTAIN.Gold, Enum.Material.Metal)
+		ring("PedestalCapRound", 3.0, 7.85, 0.45, FOUNTAIN.Stone)
+		ring("StatueStayRound", 0.8, 8.3, 1.4, FOUNTAIN.Navy)
+	else
+		local mesh = f:FindFirstChild("StatueCar")
+		if mesh and mesh:IsA("BasePart") then
+			mesh.CanCollide = true
+		end
 	end
-	-- CATCH A CAR! on the four navy panels
-	for k = 0, 3 do
-		local plaque = piece(
-			"Plaque",
-			Vector3.new(2.6, 1.1, 0.05),
-			CFrame.new(0, y + 5.5, 0) * CFrame.Angles(0, k * math.pi / 2, 0) * CFrame.new(0, 0, 2.32),
-			FOUNTAIN.Navy
-		)
-		plaque.Transparency = 1
+	local collider = invisibleCylinder(f, "StatueCollider", 3.6, FOUNTAIN.PedestalTop + 0.3, y)
+	collider.CanQuery = false
+
+	-- the name, big: a sign in the pool on the spawn side (north) and on the portal side (south)
+	for _, side in { -1, 1 } do
+		local at = CFrame.lookAt(Vector3.new(0, y + 4.6, side * 7.6), Vector3.new(0, y + 4.6, side * 20))
+			* CFrame.Angles(math.rad(8), 0, 0) -- leaning back a little, face up toward the eye
+		local board = piece("NameBoard", Vector3.new(19, 4.6, 0.5), at, FOUNTAIN.Navy)
+		board.CanCollide = true
+		piece("NameFrame", Vector3.new(19.8, 5.4, 0.3), at * CFrame.new(0, 0, 0.3), FOUNTAIN.Gold, Enum.Material.Metal)
+		for _, x in { -8.6, 8.6 } do
+			piece(
+				"NameLeg",
+				Vector3.new(0.8, 3.2, 0.8),
+				at * CFrame.new(x, -3.6, 0.2),
+				FOUNTAIN.Gold,
+				Enum.Material.Metal
+			)
+		end
 		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Back
-		gui.PixelsPerStud = 60
-		gui.LightInfluence = 0.4
-		gui.Parent = plaque
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0.15
+		gui.Parent = board
 		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1, 1)
+		text.Size = UDim2.fromScale(0.94, 0.86)
+		text.AnchorPoint = Vector2.new(0.5, 0.5)
+		text.Position = UDim2.fromScale(0.5, 0.5)
 		text.BackgroundTransparency = 1
 		text.Font = Enum.Font.FredokaOne
-		text.Text = "CATCH A CAR!"
+		text.Text = GAME_NAME
 		text.TextScaled = true
-		text.TextColor3 = FOUNTAIN.Gold
-		text.TextStrokeColor3 = Color3.fromRGB(20, 26, 50)
-		text.TextStrokeTransparency = 0
+		text.TextColor3 = Color3.new(1, 1, 1)
 		text.Parent = gui
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = 90
+		gradient.Color = ColorSequence.new(Color3.fromRGB(255, 248, 210), FOUNTAIN.Gold)
+		gradient.Parent = text
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(14, 20, 48)
+		stroke.Thickness = 7
+		stroke.LineJoinMode = Enum.LineJoinMode.Round
+		stroke.Parent = text
 	end
+
 	-- gold studs round the basin rim
 	for k = 0, 23 do
 		local a = k / 24 * math.pi * 2
@@ -519,55 +611,57 @@ function ParkDressing.decorateStatue(f: Instance)
 		)
 	end
 
-	if car and car:IsA("BasePart") then
-		local cf = car.CFrame
-		local half = car.Size / 2
-		-- a gold stunt hoop arching over the car's middle, as if it is flying through it (open at the bottom, clear of the
-		-- pedestal), with a checkered strip along its inside
-		local radius = math.max(half.X, half.Y) + 1.4
-		local segments = 14
-		for i = 0, segments do
-			local a = math.rad(15) + (math.rad(150) / segments) * i
-			local at = cf * CFrame.Angles(0, 0, a) * CFrame.new(radius, 0, 0)
-			local arcLength = radius * math.rad(150) / segments + 0.15
-			piece("HoopSegment", Vector3.new(0.7, arcLength, 0.9), at, FOUNTAIN.Gold, Enum.Material.Metal)
-			piece(
-				"HoopChecker",
-				Vector3.new(0.12, arcLength, 0.5),
-				at * CFrame.new(-0.4, 0, 0),
-				if i % 2 == 0 then Color3.fromRGB(245, 245, 245) else FOUNTAIN.Navy
-			)
+	-- the hoop and the lights, round whatever car stands there
+	local carCf: CFrame, carSize: Vector3
+	if car then
+		carCf, carSize = car:GetBoundingBox()
+	else
+		local mesh = f:FindFirstChild("StatueCar")
+		if not (mesh and mesh:IsA("BasePart")) then
+			return
 		end
-		-- a warm glow on the car and four uplights from the pedestal foot
-		local oldGlow = car:FindFirstChild("StatueGlow")
-		if oldGlow then
-			oldGlow:Destroy()
-		end
-		local glow = Instance.new("PointLight")
-		glow.Name = "StatueGlow"
-		glow.Color = Color3.fromRGB(255, 214, 140)
-		glow.Range = 16
-		glow.Brightness = 0.6
-		glow.Shadows = false
-		glow.Parent = car
-		for k = 0, 3 do
-			local a = (k + 0.5) * math.pi / 2
-			local foot = Vector3.new(math.cos(a) * 3.9, y + 2.7, math.sin(a) * 3.9)
-			local lamp = piece(
-				"Uplight",
-				Vector3.new(0.6, 0.35, 0.6),
-				CFrame.lookAt(foot, cf.Position),
-				Color3.fromRGB(255, 236, 190),
-				Enum.Material.Neon
-			)
-			local beam = Instance.new("SpotLight")
-			beam.Face = Enum.NormalId.Front
-			beam.Angle = 50
-			beam.Range = 14
-			beam.Brightness = 1.1
-			beam.Color = Color3.fromRGB(255, 226, 170)
-			beam.Parent = lamp
-		end
+		carCf, carSize = mesh.CFrame, mesh.Size
+	end
+	local half = carSize / 2
+	local radius = math.max(half.X, half.Y) + 1.6
+	local segments = 18
+	for i = 0, segments do
+		local a = math.rad(15) + (math.rad(150) / segments) * i
+		local at = carCf * CFrame.Angles(0, 0, a) * CFrame.new(radius, 0, 0)
+		local arcLength = radius * math.rad(150) / segments + 0.15
+		piece("HoopSegment", Vector3.new(0.7, arcLength, 0.9), at, FOUNTAIN.Gold, Enum.Material.Metal)
+		piece(
+			"HoopChecker",
+			Vector3.new(0.12, arcLength, 0.5),
+			at * CFrame.new(-0.4, 0, 0),
+			if i % 2 == 0 then Color3.fromRGB(245, 245, 245) else FOUNTAIN.Navy
+		)
+	end
+	local glowHost = piece("GlowHost", Vector3.one * 0.2, carCf, FOUNTAIN.Gold)
+	glowHost.Transparency = 1
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 214, 140)
+	glow.Range = 16
+	glow.Brightness = 0.6
+	glow.Shadows = false
+	glow.Parent = glowHost
+	for k = 0, 3 do
+		local a = (k + 0.5) * math.pi / 2
+		local foot = Vector3.new(math.cos(a) * 4.2, y + 2.7, math.sin(a) * 4.2)
+		local lamp = piece(
+			"Uplight",
+			Vector3.new(0.6, 0.35, 0.6),
+			CFrame.lookAt(foot, carCf.Position),
+			Color3.fromRGB(255, 236, 190),
+			Enum.Material.Neon
+		)
+		local beam = Instance.new("SpotLight")
+		beam.Face = Enum.NormalId.Front
+		beam.Angle = 50
+		beam.Range = 14
+		beam.Brightness = 1.1
+		beam.Color = Color3.fromRGB(255, 226, 170)
+		beam.Parent = lamp
 	end
 end
 

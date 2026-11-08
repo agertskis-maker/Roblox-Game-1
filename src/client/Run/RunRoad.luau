@@ -239,7 +239,7 @@ local function buildCircuit(self: RunRoad, m: Model, index: number)
 			boardText(
 				board,
 				if side < 0 then Enum.NormalId.Right else Enum.NormalId.Left,
-				"CAR HOP",
+				"CAR CATCHERS", -- the game's name (Brian L, 2026-11-08; was the working title Car Hop)
 				Color3.new(1, 1, 1)
 			)
 			bz += 70
@@ -307,7 +307,7 @@ local function buildCircuit(self: RunRoad, m: Model, index: number)
 			Enum.Material.Metal,
 			true
 		)
-		boardText(beam, Enum.NormalId.Back, "CAR HOP CIRCUIT", Color3.fromRGB(255, 214, 70))
+		boardText(beam, Enum.NormalId.Back, "CAR CATCHERS CIRCUIT", Color3.fromRGB(255, 214, 70))
 		for l = -2, 2 do
 			local light = part(
 				m,

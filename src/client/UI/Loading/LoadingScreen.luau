@@ -315,8 +315,8 @@ function LoadingScreen.new(playerGui: Instance, options: Options?): View
 		Parent = wordmark,
 	})
 	local words: { TextLabel } = {}
-	-- the official name (decision 0037): CATCH A CAR!
-	for i, spec in { { "CATCH", WHITE }, { "A", YELLOW }, { "CAR!", WHITE } } :: { { any } } do
+	-- the official name: CAR CATCHERS (Brian L, 2026-11-08, proposed decision 0043; was CATCH A CAR!, decision 0037)
+	for i, spec in { { "CAR", YELLOW }, { "CATCHERS", WHITE } } :: { { any } } do
 		local w: TextLabel = make("TextLabel", {
 			Name = spec[1],
 			LayoutOrder = i,
@@ -503,7 +503,7 @@ function LoadingScreen.new(playerGui: Instance, options: Options?): View
 		stage.Size = UDim2.fromOffset(design.X, design.Y)
 		local W, H = design.X, design.Y
 		-- wordmark
-		-- three words now (CATCH A CAR!): about 7 font sizes wide, so a narrow screen takes a smaller size
+		-- two words (CAR CATCHERS): about 7 font sizes wide, so a narrow screen takes a smaller size
 		local wordSize = math.min(math.clamp(math.floor(H * 0.2), 56, 110), math.floor((W - 24) / 7))
 		for _, w in words do
 			w.TextSize = wordSize
