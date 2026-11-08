@@ -158,7 +158,7 @@ function Wild.slime(c: Kit.Ctx)
 		life = 0.55,
 		colour = seq(lime, deep),
 		fade = curve({ { 0, 0.1 }, { 0.7, 0.2 }, { 1, 1 } }),
-		width = curve({ { 0, 1 }, { 0.3, 1.2 }, { 1, 0.1 } }),
+		width = curve({ { 0, 0.8 }, { 0.3, 1 }, { 1, 0.1 } }),
 		light = 0.25,
 	})
 	Kit.beam(c, {
