@@ -559,9 +559,12 @@ function ParkDressing.decorateStatue(f: Instance)
 			x: number,
 			up: number,
 			colour: Color3,
-			material: Enum.Material
+			material: Enum.Material,
+			proud: number?
 		)
-			local p = plainPart(name, partSize, pivot * CFrame.new(x, up, back - partSize.Z / 2 + 0.05), colour, model)
+			-- `proud`: how far this part's face stands out past the others, so faces never share a plane (no flicker)
+			local z = back - partSize.Z / 2 + 0.05 + (proud or 0)
+			local p = plainPart(name, partSize, pivot * CFrame.new(x, up, z), colour, model)
 			p.Material = material
 			solidify(p, false)
 			return p
@@ -573,7 +576,8 @@ function ParkDressing.decorateStatue(f: Instance)
 				side * w * 0.3,
 				h * 0.6,
 				Color3.fromRGB(255, 40, 50),
-				Enum.Material.Neon
+				Enum.Material.Neon,
+				0.12
 			)
 			backPart(
 				"TailLightRim",
