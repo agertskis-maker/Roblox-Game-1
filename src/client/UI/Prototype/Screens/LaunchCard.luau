@@ -583,8 +583,8 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		-- a pick (CHANGE CAR here, or RIDE THIS CAR in the Garage) changes StyleState's car while this card is open
 		buildTrove:Connect(StyleState.Changed, function(what: any)
 			applyStyle()
+			refreshPortrait() -- the portrait wears the paint, decal and wheels now worn
 			if what == "car" then
-				refreshPortrait()
 				celebrate()
 			end
 		end)
