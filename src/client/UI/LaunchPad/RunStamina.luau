@@ -9,10 +9,15 @@
 -- bolts: a bolt's colour says what it holds. Yellow holds 1 Stamina, red holds 2 (a hop empties half of it), purple holds 3 (a hop
 -- empties a third). A part-used bolt is drawn part full, drained from the top. The tier is picked from the run's maximum, so a
 -- run never changes colour while it is played.
+-- Round 8 (O-09, Round 7 reviewers: "the Pit Stop bolt icons do not match the hop counts"): the bolts add up to the real hop count
+-- exactly. As many bolts of the tier as fit whole, then ONE smaller bolt for what is left: 6 hops = three reds, 7 = three reds and a
+-- yellow, 11 = three purples and a red. The same list (RunStamina.bolts) draws the Pit Stop panel and the run's board, so the two
+-- always agree. The run drains from the last (smallest) bolt first.
 --
 --   local s = RunStamina.attach(run, { max = n? })   s:value()   s:isOut()   s:refill(n)   s:destroy()
 --   RunStamina.playerMax() -> number          the local player's Stamina per run, from the save's level
 --   RunStamina.layout(max) -> (tier, bolts)   which tier a maximum uses and how many bolts it draws
+--   RunStamina.bolts(max) -> { Tier }         one entry per bolt, left to right, each holding tier.per hops; they sum to max
 --
 -- Nothing is bought or saved here: a new run starts full. Effects (aura, glow behind each full bolt, twinkles, a shimmer, a burst
 -- of sparks on each hop) stop under Reduce Motion; the bolts and their fill stay.
@@ -52,9 +57,29 @@ function RunStamina.playerMax(): number
 	return EconomyPreview.staminaFor(Players.LocalPlayer:GetAttribute(BetaConfig.StaminaAttribute) :: number?)
 end
 
+local function tierFor(max: number): Tier
+	return RunStamina.Tiers[math.clamp(math.ceil(max / RunStamina.Slots), 1, #RunStamina.Tiers)]
+end
+
+-- Round 8 (O-09): the bolts that show a Stamina amount, left to right. Each holds 1, 2 or 3 hops (its tier's `per`) and together
+-- they add up to the amount exactly; the last one is the smallest, so it is the first to empty. The rest of a division by the
+-- tier's size is 1 or 2, so it is always a yellow or a red bolt. Never more than Slots bolts for a Stamina up to 15.
+function RunStamina.bolts(max: number): { Tier }
+	local amount = math.max(1, math.floor(max))
+	local tier = tierFor(amount)
+	local list: { Tier } = {}
+	for _ = 1, amount // tier.per do
+		table.insert(list, tier)
+	end
+	local rest = amount - #list * tier.per
+	if rest > 0 then
+		table.insert(list, RunStamina.Tiers[rest])
+	end
+	return list
+end
+
 function RunStamina.layout(max: number): (Tier, number)
-	local tier = RunStamina.Tiers[math.clamp(math.ceil(max / RunStamina.Slots), 1, #RunStamina.Tiers)]
-	return tier, math.max(1, math.ceil(max / tier.per))
+	return tierFor(max), #RunStamina.bolts(max)
 end
 
 local function circle(parent: Instance, name: string, colour: Color3, transparency: number, z: number): Frame
@@ -71,12 +96,14 @@ local function circle(parent: Instance, name: string, colour: Color3, transparen
 	return f
 end
 
-type Pip = { holder: Frame, clip: Frame, glow: Frame, height: number, fill: number }
+type Pip = { holder: Frame, clip: Frame, glow: Frame, height: number, fill: number, per: number, start: number }
 
 function RunStamina.attach(run: any, options: { max: number? }?): { [string]: any }
 	local max = math.max(1, math.floor(options and options.max or RunStamina.playerMax()))
 	local value = max
-	local tier, count = RunStamina.layout(max)
+	local tier = RunStamina.layout(max)
+	local bolts = RunStamina.bolts(max)
+	local count = #bolts
 	local viewport = (workspace.CurrentCamera :: Camera).ViewportSize
 	local phone = math.min(viewport.X, viewport.Y) < 500
 	local gui = make("ScreenGui", {
@@ -151,7 +178,9 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 
 	-- the pips: a spent bolt underneath, the coloured bolt over it in a clip frame that shrinks from the top
 	local pips: { Pip } = {}
+	local before = 0 -- hops held by the bolts to the left of this one
 	for i = 1, count do
+		local boltTier = bolts[i]
 		local metricsW = StaminaBolt.metrics(boltPx, nil, 0.9)
 		local holder = make("Frame", {
 			Name = "Pip" .. i,
@@ -160,7 +189,7 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 			Position = UDim2.fromOffset(pipsX + (i - 1) * step, (boardH - boltPx) / 2),
 			ZIndex = 4,
 		}, board) :: Frame
-		local glow = circle(holder, "Glow", tier.colour, 0.7, 3)
+		local glow = circle(holder, "Glow", boltTier.colour, 0.7, 3)
 		glow.Size = UDim2.fromOffset(boltPx * 1.15, boltPx * 1.15)
 		local base = StaminaBolt.new(holder, { height = boltPx, colour = SPENT, slim = 0.9, z = 4 })
 		base.root.Position = UDim2.fromOffset(0, 0)
@@ -173,10 +202,19 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 			Size = UDim2.fromScale(1, 1),
 			ZIndex = 5,
 		}, holder) :: Frame
-		local lit = StaminaBolt.new(clip, { height = boltPx, colour = tier.colour, slim = 0.9, z = 5 })
+		local lit = StaminaBolt.new(clip, { height = boltPx, colour = boltTier.colour, slim = 0.9, z = 5 })
 		lit.root.AnchorPoint = Vector2.new(0, 1)
 		lit.root.Position = UDim2.fromScale(0, 1)
-		table.insert(pips, { holder = holder, clip = clip, glow = glow, height = boltPx, fill = 1 })
+		table.insert(pips, {
+			holder = holder,
+			clip = clip,
+			glow = glow,
+			height = boltPx,
+			fill = 1,
+			per = boltTier.per,
+			start = before,
+		})
+		before += boltTier.per
 	end
 
 	-- twinkles round the board and a shimmer that sweeps over the bolts
@@ -232,7 +270,18 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 	out.Visible = false
 
 	local function fillOf(i: number): number
-		return math.clamp(value - (i - 1) * tier.per, 0, tier.per) / tier.per
+		local pip = pips[i]
+		return math.clamp(value - pip.start, 0, pip.per) / pip.per
+	end
+
+	-- the bolt that holds the highest hop left (the one a spent hop drains)
+	local function boltHolding(units: number): Pip
+		for _, pip in pips do
+			if units > pip.start and units <= pip.start + pip.per then
+				return pip
+			end
+		end
+		return pips[#pips]
 	end
 
 	local function draw(animate: boolean?)
@@ -368,7 +417,7 @@ function RunStamina.attach(run: any, options: { max: number? }?): { [string]: an
 				refused()
 				return
 			end
-			local drained = pips[math.clamp(math.ceil(value / tier.per), 1, #pips)]
+			local drained = boltHolding(value)
 			local spent = v < value
 			value = v
 			draw(true)
