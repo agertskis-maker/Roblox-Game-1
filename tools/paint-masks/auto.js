@@ -19,10 +19,13 @@ for (const [car, cl] of Object.entries(clusters)) {
   const main = chromatic[0];
   for (const c of info) {
     let kind;
-    const hueNear = main && Math.abs(((c.hue - main.hue + 540) % 360) - 180) < 40;
+    // Rainbow editions are painted in every hue, so any coloured cluster is paint there
+    const anyHue = car.startsWith('Rainbow ') || ov.anyHue;
+    const hueNear = anyHue || (main && Math.abs(((c.hue - main.hue + 540) % 360) - 180) < 40);
     if (c.share < 2.5 && (c.chroma > 35 || c.L > 88) && c.L > 35) kind = 'light';
     else if (c.L < 24) kind = 'tyre';
-    else if (c.chroma >= 14 && c.L >= Math.max(28, main ? 0.6 * main.L : 0) && (!main || hueNear || c.share > 8)) kind = 'body';
+    else if (c.chroma >= 14 && c.L >= (anyHue ? 38 : Math.max(28, main ? 0.6 * main.L : 0)) && (!main || hueNear || c.share > 8)) kind = 'body';
+    else if (anyHue && c.L >= 62 && c.chroma >= 7) kind = 'body'; // pale pastel paint
     else if (c.chroma >= 14 && c.L >= 28 && hueNear) kind = 'glass'; // tinted glass: the car's hue, much darker
     else if (c.L >= 66 && c.chroma < 16 && ov.whiteBody) kind = 'body';
     else if (c.L >= 70 && c.chroma < 14) kind = 'trim';
