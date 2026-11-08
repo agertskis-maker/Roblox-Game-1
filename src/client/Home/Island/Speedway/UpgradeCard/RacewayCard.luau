@@ -631,6 +631,50 @@ local function computeScale(card: Card): (number, boolean)
 	return math.max(scale, 0.2), compact
 end
 
+-- A point on a rounded rectangle of size (w, h) with corner radius r, `d` px along it from the middle of the top edge going right,
+-- and the heading of the car there in degrees (0 = right, 90 = down).
+local RING_MID, RING_RADIUS = 18, 40
+local RING_START = 0
+local function ringPoint(d: number, w: number, h: number, r: number): (number, number, number)
+	local sw, sh = w - 2 * r, h - 2 * r
+	local arc = math.pi * r / 2
+	local perimeter = 2 * (sw + sh) + 4 * arc
+	d = (d + sw / 2) % perimeter
+	if d < sw then
+		return r + d, 0, 0
+	end
+	d -= sw
+	if d < arc then
+		local a = d / r
+		return w - r + r * math.sin(a), r - r * math.cos(a), math.deg(a)
+	end
+	d -= arc
+	if d < sh then
+		return w, r + d, 90
+	end
+	d -= sh
+	if d < arc then
+		local a = d / r
+		return w - r + r * math.cos(a), h - r + r * math.sin(a), 90 + math.deg(a)
+	end
+	d -= arc
+	if d < sw then
+		return w - r - d, h, 180
+	end
+	d -= sw
+	if d < arc then
+		local a = d / r
+		return r - r * math.sin(a), h - r + r * math.cos(a), 180 + math.deg(a)
+	end
+	d -= arc
+	if d < sh then
+		return 0, h - r - d, 270
+	end
+	d -= sh
+	local a = d / r
+	return r - r * math.cos(a), r - r * math.sin(a), 270 + math.deg(a)
+end
+
 local function buildContent(card: Card)
 	card.content:Clean()
 	card.chipTrove:Clean()
@@ -764,6 +808,53 @@ local function buildContent(card: Card)
 	card.closeButton = close
 	card.content:Add(close.Pressed:Connect(function()
 		RacewayCard.close()
+	end))
+
+	-- the little car lapping the frame (U-01, the Round 7 idea kept): along the kerb ring, round its rounded corners
+	-- (Reduce Motion: it waits on the start line at the top)
+	local car: Frame = Build.make("Frame", {
+		Name = "LapCar",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(36, 19),
+		BackgroundColor3 = Color3.fromRGB(255, 150, 30),
+		BorderSizePixel = 0,
+		ZIndex = 4,
+		Parent = root,
+	})
+	Build.corner(car, UDim.new(0, 7))
+	Build.stroke(car, 3, NAVY)
+	local cabin: Frame = Build.make("Frame", {
+		Name = "Cabin",
+		Position = UDim2.fromOffset(15, 3),
+		Size = UDim2.fromOffset(11, 13),
+		BackgroundColor3 = Color3.fromRGB(150, 210, 255),
+		BorderSizePixel = 0,
+		Parent = car,
+	})
+	Build.corner(cabin, UDim.new(0, 3))
+	for _, y in { -3, 14 } do
+		local wheel: Frame = Build.make("Frame", {
+			Name = "Wheel",
+			Position = UDim2.fromOffset(6, y),
+			Size = UDim2.fromOffset(9, 7),
+			BackgroundColor3 = NAVY,
+			BorderSizePixel = 0,
+			ZIndex = 3,
+			Parent = car,
+		})
+		Build.corner(wheel, UDim.new(0, 2))
+	end
+	local started = os.clock()
+	local function place(distance: number)
+		local x, y, heading = ringPoint(distance, DESIGN.X - 2 * RING_MID, DESIGN.Y - 2 * RING_MID, RING_RADIUS)
+		car.Position = UDim2.fromOffset(x + RING_MID, y + RING_MID)
+		car.Rotation = heading
+	end
+	place(RING_START)
+	card.content:Add(RunService.Heartbeat:Connect(function()
+		if not Calm() then
+			place(RING_START + (os.clock() - started) * 150)
+		end
 	end))
 
 	-- the flash and the confetti layer
