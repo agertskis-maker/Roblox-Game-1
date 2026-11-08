@@ -1,7 +1,7 @@
 --!strict
 -- Day and night on the island (Brian L, 2026-11-08, for Adam's review as the Lane 3 owner). Each client runs the same clock
--- from the server's time, so every player in a server sees the same time of day. One cycle is 17 minutes:
---   day 9 min (7:30 to 16:30), dusk 2 min (to 19:12), night 4 min (to 5:00), dawn 2 min (to 7:30).
+-- from the server's time, so every player in a server sees the same time of day. Mostly sunny (Brian L): one cycle is 26
+-- minutes: day 20 min (7:30 to 16:30), dusk 1.5 min (to 19:12), night 3 min (to 5:00), dawn 1.5 min (to 7:30).
 -- Daytime is the island's own look as built (Adam's Look preset): its values are read once at start and used as the day
 -- keyframe. Dusk and dawn warm everything to orange and pink; night is a friendly blue, never pitch black (the players are
 -- mostly children), with stars and a big moon. Clouds take the colour of the time of day.
@@ -27,10 +27,10 @@ local PREVIEW_ATTRIBUTE = "DayNightPreviewHour"
 
 -- the cycle: { seconds this part lasts, clock hour it starts at, clock hour it ends at }
 local PARTS = {
-	{ 9 * 60, 7.5, 16.5 }, -- day
-	{ 2 * 60, 16.5, 19.2 }, -- dusk
-	{ 4 * 60, 19.2, 29.0 }, -- night (29 = 5:00 the next morning)
-	{ 2 * 60, 5.0, 7.5 }, -- dawn
+	{ 20 * 60, 7.5, 16.5 }, -- day
+	{ 90, 16.5, 19.2 }, -- dusk
+	{ 3 * 60, 19.2, 29.0 }, -- night (29 = 5:00 the next morning)
+	{ 90, 5.0, 7.5 }, -- dawn
 }
 local CYCLE = 0
 for _, part in PARTS do
@@ -204,7 +204,16 @@ local function apply(hour: number, look: Look)
 	end
 end
 
--- Stars and a big, friendly moon. No new sky images: the default sky, which Roblox darkens at night.
+-- The "Sunny Day" skybox (Creator Store asset 11025915253 by blaster7532, free; chosen by Brian L on 2026-11-08), set
+-- here by its six images so the sky lives in Git, not only in the place file. Plus stars and a big, friendly moon.
+local SKY_IMAGES = {
+	SkyboxBk = "rbxassetid://11038222884",
+	SkyboxDn = "rbxassetid://11038224805",
+	SkyboxFt = "rbxassetid://11038228455",
+	SkyboxLf = "rbxassetid://11038231279",
+	SkyboxRt = "rbxassetid://11038233575",
+	SkyboxUp = "rbxassetid://11038259353",
+}
 local function ensureSky()
 	local sky = find("Sky", Lighting) :: Sky?
 	if not sky then
@@ -214,6 +223,9 @@ local function ensureSky()
 		sky = made
 	end
 	assert(sky, "Sky")
+	for prop, image in SKY_IMAGES do
+		(sky :: any)[prop] = image
+	end
 	sky.StarCount = 3000
 	sky.MoonAngularSize = 16
 	sky.SunAngularSize = 18
