@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local DecalPanels = require(ReplicatedStorage.Shared.Style.Anchors.DecalPanels)
+local Types = require(ReplicatedStorage.Shared.Style.Anchors.Types)
 local DecalArt = require(script.Parent.DecalArt)
 
 local DecalAudit = {}
@@ -324,18 +325,67 @@ function DecalAudit.run(only: { string }?): { text: string, failures: number, ro
 	return { text = table.concat(lines, "\n"), failures = failures, rows = rows, cars = checked }
 end
 
--- The contact-sheet scene for one car: three decals (stripes, flames, "07") by two sides, around `origin`. The left sides are in the
--- top row, the right sides in the bottom row; look at them from +X (camera at origin + (distance, 0, 0) looking -X). Each cell has a
--- label above it. Returns the folder (destroy it when done), the camera CFrame and the field of view to use.
-function DecalAudit.sheet(carName: string, origin: Vector3): (Folder, CFrame, number)
+-- The panel as a design (a frame with a cross filling the whole panel): shows where a car's panel really is.
+local PANEL_ITEM: Catalog.Item = {
+	id = "audit_panel",
+	name = "Panel",
+	tab = "Decals",
+	tier = "simple",
+	price = 0,
+	key = "panel",
+	colours = { Color3.fromRGB(255, 40, 220), Color3.fromRGB(255, 255, 255) },
+	render = "car",
+	note = "The decal audit's panel outline.",
+}
+
+export type SheetOptions = {
+	labels: { string }?, -- which cells, left to right: "stripes", "flames", "07", "panel" (default: stripes, flames, 07)
+	overrides: { leftZ: number?, leftY: number?, rightZ: number?, rightY: number?, width: number?, height: number? }?,
+}
+
+-- The contact-sheet scene for one car: the chosen decals (default stripes, flames, "07") by two sides, around `origin`. The left
+-- sides are in the top row, the right sides in the bottom row; look at them from +X (camera at origin + (distance, 0, 0) looking
+-- -X). Each cell has a label above it. `overrides` tries other panel numbers for this one scene (it changes nothing in
+-- Anchors/DecalPanels). Returns the folder (destroy it when done), the camera CFrame and the field of view to use.
+function DecalAudit.sheet(carName: string, origin: Vector3, options: SheetOptions?): (Folder, CFrame, number)
 	local cars = ReplicatedStorage:WaitForChild("Cars")
 	local template = cars:FindFirstChild(carName)
 	assert(template and template:IsA("Model"), "no car called " .. carName)
+	local opts: SheetOptions = options or {}
+	local entries: { { label: string, item: Catalog.Item } } = {}
+	if opts.labels then
+		local all = DecalAudit.items()
+		table.insert(all, { label = "panel", item = PANEL_ITEM })
+		for _, label in opts.labels do
+			for _, e in all do
+				if e.label == label then
+					table.insert(entries, e)
+				end
+			end
+		end
+	else
+		entries = DecalAudit.items()
+	end
+	local original = DecalPanels[carName]
+	local ov = opts.overrides
+	if ov and original then
+		local function moved(cf: CFrame, z: number?, y: number?): CFrame
+			return CFrame.new(cf.Position.X, y or cf.Position.Y, z or cf.Position.Z) * cf.Rotation
+		end
+		local patched: Types.DecalPanels = {
+			left = moved(original.left, ov.leftZ, ov.leftY),
+			right = moved(original.right, ov.rightZ, ov.rightY),
+			size = Vector2.new(ov.width or original.size.X, ov.height or original.size.Y),
+		}
+		DecalPanels[carName] = patched
+	end
 	local folder = Instance.new("Folder")
 	folder.Name = "DecalSheet_" .. carName
 	folder.Parent = workspace
+	local columns = #entries
+	local spacing = 15
 	for row, side in { "left", "right" } do
-		for col, entry in DecalAudit.items() do
+		for col, entry in entries do
 			local car = template:Clone()
 			for _, d in car:GetDescendants() do
 				if d:IsA("BasePart") then
@@ -347,7 +397,7 @@ function DecalAudit.sheet(carName: string, origin: Vector3): (Folder, CFrame, nu
 			end
 			-- the right side faces the camera at +X as built; turn the car round to show its left side
 			local spin = if side == "left" then CFrame.Angles(0, math.pi, 0) else CFrame.identity
-			local at = origin + Vector3.new(0, (2 - row) * 12, (2 - col) * 15)
+			local at = origin + Vector3.new(0, (2 - row) * 12, ((columns + 1) / 2 - col) * spacing)
 			car:PivotTo(CFrame.new(at) * spin)
 			car.Parent = folder
 			local body = car:FindFirstChild("body_geom", true) :: BasePart?
@@ -378,8 +428,15 @@ function DecalAudit.sheet(carName: string, origin: Vector3): (Folder, CFrame, nu
 			text.Parent = gui
 		end
 	end
+	if original then
+		DecalPanels[carName] = original
+	end
+	-- the camera: far away with a narrow view, so every cell is seen square-on; the field of view fits the columns
 	local centre = origin + Vector3.new(0, 6, 0)
-	return folder, CFrame.lookAt(centre + Vector3.new(170, 0, 0), centre), 11
+	local width = columns * spacing + 2
+	local distance = 170
+	local fov = math.deg(2 * math.atan(math.max(width / 1.48, 26) / 2 / distance))
+	return folder, CFrame.lookAt(centre + Vector3.new(distance, 0, 0), centre), fov
 end
 
 return DecalAudit

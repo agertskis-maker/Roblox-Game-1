@@ -175,6 +175,15 @@ end
 DRAW.number07 = function(c, k)
 	number(c, "07", k)
 end
+-- Round 8: the decal audit's "show me the panel" design: a frame with a cross, filling the whole panel (no catalog item uses it)
+DRAW.panel = function(c, k)
+	rect(c, 0, 0, W, 3, k[1])
+	rect(c, 0, H - 3, W, H, k[1])
+	rect(c, 0, 0, 3, H, k[1])
+	rect(c, W - 3, 0, W, H, k[1])
+	line(c, 0, 0, W, H, 2, k[2] or k[1])
+	line(c, 0, H, W, 0, 2, k[2] or k[1])
+end
 DRAW.stars = function(c, k)
 	for i = 0, 6 do
 		star(c, 18 + i * 37, 48 + (i % 2) * 10 - 5, 11, k[1])
@@ -360,7 +369,7 @@ end
 local KEEP_ORIENTATION: { [string]: boolean } = { seven = true, twentythree = true, number07 = true }
 -- Band designs fill a panel's length and take this share of its height; every other design keeps its own proportions.
 local BAND: { [string]: number } =
-	{ stripe = 0.36, twin = 0.62, pin = 0.2, checkers = 0.5, lightning = 0.62, swoosh = 0.62 }
+	{ stripe = 0.36, twin = 0.62, pin = 0.2, checkers = 0.5, lightning = 0.62, swoosh = 0.62, panel = 1 }
 local FILL = 0.94 -- how much of the panel a design may use (the panel already keeps clear of windows and seams)
 -- Animated designs that run through pre-drawn frames in panel mode: the share of the design one cycle covers (nil: all of it), the
 -- seconds one cycle takes, and which way it runs (1 toward the nose, -1 toward the tail).
