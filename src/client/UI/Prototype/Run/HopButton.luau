@@ -768,7 +768,7 @@ function HopButton.attach(options: AttachOptions?)
 	local gui = trove:Add(make("ScreenGui", {
 		Name = "CarHopHopButton",
 		ResetOnSpawn = false,
-		IgnoreGuiInset = false,
+		IgnoreGuiInset = true, -- the whole window: the origin is the window's corner (the top bar's inset would push the button off the bottom)
 		DisplayOrder = opts.displayOrder or 12,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}))

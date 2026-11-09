@@ -50,8 +50,8 @@ local YELLOW = Color3.fromRGB(255, 226, 70)
 local GOLD = Color3.fromRGB(255, 196, 40)
 local WHITE = Color3.fromRGB(255, 255, 255)
 local WARN = Color3.fromRGB(255, 96, 86)
-local CANVAS = 320 -- the SurfaceGui's fixed canvas in pixels
-local RING_SIZE = 196 -- the ring's diameter inside the canvas, pixels (room left for the glow and the dive's closing-in scale)
+local CANVAS = 512 -- the SurfaceGui's fixed canvas in pixels (a thin ring at an angle needs the resolution)
+local RING_SIZE = 314 -- the ring's diameter inside the canvas, pixels (room left for the glow and the dive's closing-in scale)
 
 export type Target = {
 	index: number,
@@ -263,9 +263,9 @@ function HopGuide.new(zone: Instance, options: { floatHelp: boolean?, onSwing: (
 		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, f)
 		return make("UIStroke", { Color = colour, Thickness = thickness, Transparency = transparency }, f)
 	end
-	local glowA = circle("GlowOuter", 30, GOLD, 1)
-	local glowB = circle("GlowInner", 18, YELLOW, 1)
-	local ring = circle("Ring", 6, YELLOW, 1)
+	local glowA = circle("GlowOuter", 48, GOLD, 1)
+	local glowB = circle("GlowInner", 30, YELLOW, 1)
+	local ring = circle("Ring", 10, YELLOW, 1)
 	local spin = make("Frame", {
 		Name = "Spin",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -276,7 +276,7 @@ function HopGuide.new(zone: Instance, options: { floatHelp: boolean?, onSwing: (
 	local markers: { Chevron } = {}
 	for i = 0, 2 do
 		local phi = math.rad(-90 + i * 120)
-		local c = buildChevron(spin, 58, "Marker" .. i)
+		local c = buildChevron(spin, 92, "Marker" .. i)
 		local radius = RING_SIZE / 2 + 2
 		c.root.Position = UDim2.fromOffset(CANVAS / 2 + radius * math.cos(phi), CANVAS / 2 + radius * math.sin(phi))
 		-- the art points down at rotation 0; this one points from its place on the ring to the centre
@@ -466,9 +466,10 @@ function HopGuide.update(self: HopGuide, view: View)
 	local brightness = if self._help then 1 else 0.9
 	local ringOpacity = (0.4 + (brightness - 0.4) * aim) * alpha
 	self._ring.Color = if diving then WHITE:Lerp(colour, view.hopA) else colour
-	self._ring.Thickness = 5 + 7 * aim
+	self._ring.Thickness = 10 + 12 * aim
 	self._ring.Transparency = 1 - ringOpacity
-	self._glowB.Transparency = 1 - 0.5 * aim * alpha * brightness
+	-- riding: one faint soft edge round the thin ring (it keeps the line from breaking up at an angle)
+	self._glowB.Transparency = 1 - (0.14 + 0.36 * aim) * alpha * brightness
 	self._glowA.Transparency = 1 - 0.3 * aim * alpha * brightness
 	local pulse = 1
 	if not reduced then
@@ -573,12 +574,16 @@ function HopGuide.updateScreen(self: HopGuide)
 		lastScreen = pos
 		table.insert(placed, { pos = pos, rot = rot, size = size, alpha = a })
 	end
-	-- too close to draw a path (the ring alone says it)
-	local tooShort = firstScreen == nil
-		or lastScreen == nil
-		or ((firstScreen :: Vector2) - (lastScreen :: Vector2)).Magnitude < 70
+	-- the chevrons shrink with a short path so they never overlap (the screen length of the path / PATH_COUNT), and a path under
+	-- 24 px is not drawn (the player is almost over the ring: the ring alone says it)
+	local length = if firstScreen and lastScreen
+		then ((firstScreen :: Vector2) - (lastScreen :: Vector2)).Magnitude
+		else 0
+	local tooShort = length < 24
+	local fit = math.max(length / PATH_COUNT * 1.15, 9)
 	for i, c in self._path do
 		local item = placed[i]
+		item.size = math.min(item.size, fit)
 		if tooShort or item.alpha <= 0.02 then
 			c.root.Visible = false
 			continue
