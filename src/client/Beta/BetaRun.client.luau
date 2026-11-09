@@ -600,6 +600,7 @@ end)
 --                    as Brian R's playground driver, written here; his files are not touched)
 --   "state"          the run's debug state, the server's tally for this run and the Launch Pad phase
 --   "retry" / "home" press the Results card's buttons
+--   "hero" seconds?  Round 8 X-01: the launch hero moment again on the current run (for frames)
 -- Nothing here exists outside Studio.
 if RunService:IsStudio() then
 	local autopilot = false
@@ -636,6 +637,14 @@ if RunService:IsStudio() then
 			RidePick.ask(arg)
 			StyleState.setCar(arg)
 			return arg
+		elseif command == "hero" then
+			-- Round 8 X-01: plays the launch hero moment again on the current run ("hero:4" = over 4 s), for frames
+			local chase = if current then (current :: any)._camera else nil
+			if chase and chase.intro then
+				chase:intro(tonumber(arg) or HERO_SECONDS)
+				return true
+			end
+			return false
 		elseif command == "start" then
 			return LaunchPad.debug("start") -- Round 7: as pressing START on the open launch card
 		elseif command == "enter" then
