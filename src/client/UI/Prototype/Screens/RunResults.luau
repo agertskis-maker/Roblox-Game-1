@@ -24,6 +24,8 @@ local make = CarKit.make
 
 local RunResults = {}
 
+RunResults.DimTransparency = 0.3 -- Tunable. Round 8 (O-09): the backing behind the card is 70% dark (it was 0.72, a faint tint)
+
 -- Round 5 (L-03): with a live server, `line` says where a claimed car went ("Parked at your Raceway", "In your Garage. Raceway
 -- full."), `carId` draws the real car, and `breakdown` lists the server's totals by kind. `checking` is true while a claim
 -- still waits for the server's answer: the cash row says "Checking..." and the card is shown again when the answer comes.
@@ -65,7 +67,8 @@ local function metres(n: number): string
 end
 
 function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
-	local overlay = Overlay.new(ctx, { name = "RunResults", dimTransparency = 0.72, slide = false })
+	local overlay =
+		Overlay.new(ctx, { name = "RunResults", dimTransparency = RunResults.DimTransparency, slide = false })
 	local trove = overlay.trove
 	local buildTrove = trove:Extend()
 	local isOpen = false
@@ -194,7 +197,7 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			local stamp = make("Frame", {
 				Name = "New",
 				BackgroundColor3 = CarKit.Red,
-				Position = UDim2.fromOffset(-5, -6),
+				Position = UDim2.fromOffset(3, 3),
 				Size = UDim2.fromOffset(58, 24),
 				Rotation = -8,
 				ZIndex = z + 5,
@@ -335,23 +338,34 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			bottom = CarKit.Well,
 			name = "Cars",
 		})
-		CarKit.text(band, ("CARS CAUGHT (%d)"):format(caught), math.max(math.round(16 * k), 13), {
+		-- Round 8 (O-09): the label has a header strip of its own and the cards start below it (the NEW! stamp of the first card
+		-- used to sit over its lower half), at a size that reads on a phone
+		local headH = math.max(math.round(22 * k), 18)
+		local cardsTop = headH + 6
+		CarKit.text(band, ("CARS CAUGHT (%d)"):format(caught), math.max(math.round(18 * k), 16), {
 			position = UDim2.fromOffset(10, 3),
-			size = UDim2.new(1, -20, 0, 20),
-			color = CarKit.Soft,
-			z = 7,
+			size = UDim2.new(1, -20, 0, headH),
+			color = CarKit.White,
+			stroke = 1.5,
+			z = 9,
+			name = "CarsCaught",
 		})
 		local cards: { Frame } = {}
 		if good then
 			local shown = math.min(caught, 3)
 			local gap = 8
 			local cw = math.floor((w - 28 * k - 20 - gap * (shown - 1)) / shown)
-			local ch = bandH - 30
+			local ch = bandH - cardsTop - 6
 			cw = math.min(cw, math.round(ch * 1.7))
 			local x0 = ((w - 28 * k) - (cw * shown + gap * (shown - 1))) / 2
 			for i = 1, shown do
-				local c =
-					carCard(band, data.cars[i], UDim2.fromOffset(x0 + (i - 1) * (cw + gap), 24), Vector2.new(cw, ch), 7)
+				local c = carCard(
+					band,
+					data.cars[i],
+					UDim2.fromOffset(x0 + (i - 1) * (cw + gap), cardsTop),
+					Vector2.new(cw, ch),
+					7
+				)
 				c.Visible = Motion.reduced()
 				table.insert(cards, c)
 			end
@@ -359,8 +373,8 @@ function RunResults.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			local slot = make("Frame", {
 				Name = "EmptySlot",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(10, 24),
-				Size = UDim2.new(1, -20, 1, -32),
+				Position = UDim2.fromOffset(10, cardsTop),
+				Size = UDim2.new(1, -20, 1, -(cardsTop + 8)),
 				ZIndex = 6,
 			}, band) :: Frame
 			make("UICorner", { CornerRadius = UDim.new(0, 10) }, slot)

@@ -10,7 +10,7 @@
 -- Showpiece), shown as words as well as colour. The medal conditions are PRESENTATION states: Brian R supplies the achievement
 -- evidence, Brian L approves the entitlement. An unknown medal stays locked; nothing is unlocked by a made-up race result.
 --
---   Counts (Round 7, C-03 to C-06): 34 paints plus Factory Paint, 20 decals (plus "No decal"), 14 wheels, 13 trails (plus
+--   Counts (Round 7, C-03 to C-06): 34 paints plus Factory Paint, 20 decals (plus "No decal"), 17 wheels (Round 8: Stock Five plus 16 designs), 13 trails (plus
 --   "No trail"). The server (BetaStyle) prices every Cash item from this table and saves what a player owns and wears.
 --   CosmeticPreviewCatalog.Items[tab] / .Tiers[tab] / .byId(tab, id) / .counts() / .tierItems(tab, tierId)
 --   CosmeticPreviewCatalog.defaultOwnership() / .defaultEquipped() / .stateOf(item, ownership, equippedId)
@@ -69,6 +69,7 @@ export type Item = {
 	key: string?, -- the texture or mesh this item uses
 	robux: number?, -- a Robux item: never sold for Cash, and not on sale while its real product price is unknown
 	vip: boolean?, -- Round 7: free with the VIP pass
+	design: string?, -- Round 8 (wheels only): the 3D rim design in Style/WheelKit.luau
 }
 
 CosmeticPreviewCatalog.Tabs = table.freeze({ "Paint", "Decals", "Wheels", "Trails" } :: { TabId })
@@ -113,13 +114,14 @@ CosmeticPreviewCatalog.Tiers = table.freeze({
 		tier("robux", "ROBUX", "Legendary"),
 		tier("vip", "VIP", "Legendary"),
 	}),
-	-- Round 7 (C-05): rims and tyre styles
+	-- Round 7 (C-05), Round 8 (W-05): rims and tyre styles; the last tier glows or moves
 	Wheels = table.freeze({
 		tier("stock", "STOCK", "Common"),
 		tier("street", "STREET", "Uncommon"),
 		tier("track", "TRACK", "Rare"),
 		tier("elite", "ELITE", "Epic"),
 		tier("showpiece", "SHOWPIECE", "Legendary"),
+		tier("animated", "ANIMATED", "Legendary"),
 	}),
 } :: { [string]: { Tier } })
 
@@ -383,24 +385,33 @@ local decals: { Item } = {
 	),
 }
 
--- WHEELS (14) ---------------------------------------------------------------------------------------------------------------------
--- Round 7 (C-05): the game's rim meshes plus tyre styles. `key` is the rim mesh (car_rim_<key>); `style` adds a look on top.
+-- WHEELS (17) ---------------------------------------------------------------------------------------------------------------------
+-- Round 8 (W-01, W-05): the sixteen rim designs of R8-IMG-17 plus the car's own Stock Five. `design` names the 3D rim in
+-- Style/WheelKit.luau (and its meshes in Style/AssetIds/Wheels.luau). `key` and `kind` are the Round 7 rim mesh and style words,
+-- kept so RealCar's older wheel code still has something to draw until every caller goes through the WheelKit. A renamed design
+-- KEEPS its Round 7 `id` (a player's saved Owned and Equipped values still match); a design whose id is gone is listed in
+-- CosmeticPreviewCatalog.Legacy and resolves to the nearest new design.
+-- PREVIEW price ladder, cheaper plain, pricier flashy: STREET $1.5K to $8K, TRACK $20K to $120K, ELITE $300K to $1.5M, SHOWPIECE
+-- $4M and $10M, ANIMATED (glowing or moving rims) $25M to $75M. No Robux wheels (none were Robux in Round 7).
 
 local function wheel(
 	name: string,
 	tierId: string,
 	price: number,
+	design: string,
 	key: string,
 	colours: { Color3 },
 	note: string,
-	style: string?
+	style: string?,
+	keepId: string?
 ): Item
 	return {
-		id = slug(name),
+		id = keepId or slug(name),
 		name = name,
 		tab = "Wheels",
 		tier = tierId,
 		price = price,
+		design = design,
 		key = key,
 		kind = style :: any,
 		colours = colours,
@@ -413,27 +424,122 @@ local STEEL = rgb(200, 206, 222)
 local DARK = rgb(44, 48, 66)
 
 local wheels: { Item } = {
-	wheel("Stock Five", "stock", 0, "five", { STEEL, DARK }, "The car's own wheels."),
-	wheel("Split Five", "street", 1500, "split", { STEEL, DARK }, "Five paired spokes."),
-	wheel("Rally Block", "street", 4000, "block", { rgb(226, 230, 240), DARK }, "Squared spokes."),
-	wheel("White Wall", "street", 8000, "disc", { WHITE, DARK }, "Classic white-wall tyres.", "whitewall"),
-	wheel("Multi-Spoke", "track", 20000, "ten", { STEEL, DARK }, "Ten thin spokes."),
-	wheel("Mesh Lace", "track", 50000, "y", { rgb(230, 234, 246), DARK }, "A fine mesh pattern."),
-	wheel("Stripe Racer", "track", 120000, "split", { STEEL, RED }, "A red stripe round the tyre.", "stripe"),
-	wheel("Deep Dish", "elite", 300000, "deep", { STEEL, DARK }, "A deep dish with a polished lip."),
-	wheel("Turbine", "elite", 700000, "turbine", { STEEL, DARK }, "Swept turbine blades."),
-	wheel("Carbon", "elite", 1500000, "twin", { rgb(40, 42, 50), DARK }, "Dark carbon spokes.", "carbon"),
-	wheel("Chrome Disc", "showpiece", 4000000, "disc", { rgb(240, 244, 255), DARK }, "Mirror-bright chrome.", "chrome"),
-	wheel("Gold Star", "showpiece", 10000000, "star", { rgb(255, 204, 60), DARK }, "Solid gold star spokes.", "gold"),
-	wheel("Neon Ring", "showpiece", 25000000, "five", { STEEL, CYAN }, "A glowing ring in the rim.", "neonring"),
+	wheel("Stock Five", "stock", 0, "stock_five", "five", { STEEL, DARK }, "The car's own wheels."),
+	-- STREET
+	wheel("Split Five", "street", 1500, "split_five", "split", { STEEL, DARK }, "Five paired silver spokes."),
+	wheel("Star Spoke", "street", 4000, "star_spoke", "star", { rgb(226, 230, 240), DARK }, "Five broad star spokes."),
 	wheel(
-		"Glow Hub",
+		"White Wall",
+		"street",
+		8000,
+		"white_wall",
+		"disc",
+		{ WHITE, DARK },
+		"A chrome moon cap and white-wall tyres.",
+		"whitewall"
+	),
+	-- TRACK
+	wheel("Multi-Spoke", "track", 20000, "multi_spoke", "ten", { STEEL, DARK }, "Ten thin spokes with a polished lip."),
+	wheel(
+		"Mesh",
+		"track",
+		50000,
+		"mesh",
+		"y",
+		{ rgb(230, 234, 246), DARK },
+		"A fine criss-cross mesh with rivets.",
+		nil,
+		"mesh_lace"
+	),
+	wheel(
+		"Stripe Tyre",
+		"track",
+		120000,
+		"stripe_tyre",
+		"split",
+		{ STEEL, RED },
+		"A red stripe round the tyre.",
+		"stripe",
+		"stripe_racer"
+	),
+	-- ELITE
+	wheel("Deep Dish", "elite", 300000, "deep_dish", "deep", { STEEL, DARK }, "A deep polished dish with bolts."),
+	wheel("Turbine", "elite", 700000, "turbine", "turbine", { STEEL, DARK }, "Twelve swept turbine blades."),
+	wheel("Carbon", "elite", 1500000, "carbon", "twin", { rgb(40, 42, 50), DARK }, "Woven carbon spokes.", "carbon"),
+	-- SHOWPIECE
+	wheel(
+		"Chrome Mirror",
 		"showpiece",
-		50000000,
+		4000000,
+		"chrome_mirror",
+		"disc",
+		{ rgb(240, 244, 255), DARK },
+		"Mirror-bright chrome blades.",
+		"chrome",
+		"chrome_disc"
+	),
+	wheel(
+		"Gold Crown",
+		"showpiece",
+		10000000,
+		"gold_crown",
+		"star",
+		{ rgb(255, 204, 60), DARK },
+		"A solid gold crown with ball tips.",
+		"gold",
+		"gold_star"
+	),
+	-- ANIMATED (glowing or moving rims)
+	wheel(
+		"Neon Ring",
+		"animated",
+		25000000,
+		"neon_ring",
+		"five",
+		{ STEEL, CYAN },
+		"A glowing ring in the rim that slowly pulses.",
+		"neonring"
+	),
+	wheel(
+		"Glowing Hub",
+		"animated",
+		35000000,
+		"glowing_hub",
 		"turbine",
-		{ DARK, rgb(255, 80, 220) },
-		"A glowing hub and tread.",
-		"glowhub"
+		{ STEEL, CYAN },
+		"A glowing hub that slowly pulses.",
+		"glowhub",
+		"glow_hub"
+	),
+	wheel(
+		"Glowing Tread",
+		"animated",
+		50000000,
+		"glowing_tread",
+		"five",
+		{ STEEL, CYAN },
+		"Glowing tread lines on the tyre.",
+		"glowtread"
+	),
+	wheel(
+		"Flame Spoke",
+		"animated",
+		60000000,
+		"flame_spoke",
+		"star",
+		{ rgb(255, 120, 30), DARK },
+		"Eight flame blades that flicker.",
+		"flame"
+	),
+	wheel(
+		"Galaxy Disc",
+		"animated",
+		75000000,
+		"galaxy_disc",
+		"disc",
+		{ rgb(120, 60, 230), DARK },
+		"A swirling galaxy with drifting stars.",
+		"galaxy"
 	),
 }
 
@@ -604,10 +710,24 @@ function CosmeticPreviewCatalog.itemsFor(tab: TabId): { Item }
 	return CosmeticPreviewCatalog.Items[tab]
 end
 
+-- Round 8 (W-05): ids that no longer exist in a tab, and the item that replaced them (a saved Equipped or Owned value keeps working).
+CosmeticPreviewCatalog.Legacy = table.freeze({
+	Wheels = table.freeze({ rally_block = "star_spoke" }),
+} :: { [string]: { [string]: string } })
+
 function CosmeticPreviewCatalog.byId(tab: TabId, id: string): Item?
 	for _, item in CosmeticPreviewCatalog.Items[tab] do
 		if item.id == id then
 			return item
+		end
+	end
+	local legacy = CosmeticPreviewCatalog.Legacy[tab]
+	local now = legacy and legacy[id]
+	if now then
+		for _, item in CosmeticPreviewCatalog.Items[tab] do
+			if item.id == now then
+				return item
+			end
 		end
 	end
 	return nil
