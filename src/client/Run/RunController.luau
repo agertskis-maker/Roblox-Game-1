@@ -32,6 +32,7 @@ local RunInput = require(script.Parent.RunInput)
 local RunOverlay = require(script.Parent.RunOverlay)
 local RunReport = require(script.Parent.RunReport)
 local RunRoad = require(script.Parent.RunRoad)
+local TrailMoments = require(script.Parent.TrailMoments) -- Round 8 (T-03 to T-05)
 
 -- Round 7 (R-01): Riding -> Float -> Dive -> Riding; Float -> Recover (a bonk) -> Riding; any -> Ended. "Hopping" and "FootDash" are
 -- Brian R's earlier one-press Hop; they are no longer entered (kept so his debug tools still read).
@@ -168,6 +169,8 @@ export type RunController = {
 	StaminaChanged: any, -- Signal(value: number, max: number, kind: string): "Leap" | "Bump" | "Bonk" | "Thrown" | "Refused" | "Refill"
 	Bonk: any, -- Signal(kind: string, at: CFrame): a bonk, a bump or a throw, for the beta's BONK! pop
 	Boarded: any, -- Signal(model: Model): the rider landed on this car (Round 7, C-08)
+	Moment: any, -- Signal(kind: "leap" | "dive", model: Model?): Round 8 (T-04) TrailMoments; model = the car the rider leaves
+	getSpeed01: (self: RunController) -> number, -- Round 8 (T-03): 0 at the run's start speed, 1 at top speed
 }
 
 local RunController = {}
@@ -350,6 +353,8 @@ function RunController.new(options: Options?): RunController
 	self.Bonk = trove:Add(Signal.new())
 	-- Round 7 (C-08): (model) whenever the rider lands on a car, so the car you ride can wear your Style Shop look
 	self.Boarded = trove:Add(Signal.new())
+	self.Moment = trove:Add(Signal.new()) -- Round 8 (T-04): "leap" and "dive", for TrailMoments
+	trove:Add(TrailMoments.attachToRun(self), "destroy") -- Round 8 (T-03 to T-05): the trail reacts to this run
 	-- the warning on the car itself at full Heat (R-02): a red outline and a red "!" over the car
 	local warnLight = Instance.new("Highlight")
 	warnLight.Name = "HeatWarning"
@@ -830,6 +835,12 @@ function RunController.getStamina(self: any): (number?, number?)
 	return self._stamina, self._staminaMax
 end
 
+-- Round 8 (T-03): the run's speed ramp, 0 at START_SPEED to 1 at TOP_SPEED, whatever the profile (TrailMoments reads it each frame).
+function RunController.getSpeed01(self: any): number
+	local range = RunConfig.TOP_SPEED - RunConfig.START_SPEED
+	return math.clamp((RunConfig.speedAt(self._t) - RunConfig.START_SPEED) / range, 0, 1)
+end
+
 leap = function(self: any)
 	if not spend(self, "Leap") then
 		self._overlay:banner("Out of bolts!", Color3.fromRGB(255, 120, 90))
@@ -857,6 +868,7 @@ leap = function(self: any)
 	self._fx:sound("hop", 0.6, 1.15)
 	local _, root = riderParts(self)
 	self._fx:setTrail(root, true)
+	self.Moment:Fire("leap", if from then from.model else nil) -- Round 8 (T-04)
 	if self._camera then
 		self._camera:punch()
 	end
@@ -874,6 +886,7 @@ dive = function(self: any, target: Car)
 	}
 	self._float = nil
 	self._mode = "Dive"
+	self.Moment:Fire("dive") -- Round 8 (T-04)
 	self._fx:sound("hop", 0.5, 1.5)
 end
 

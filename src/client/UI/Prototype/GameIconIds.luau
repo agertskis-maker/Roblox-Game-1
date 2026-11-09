@@ -136,6 +136,11 @@ local GameIconIds: { [string]: string } = {
 	trail = "rbxassetid://103553124315463",
 	vip = "rbxassetid://74311163548474",
 	wheel = "rbxassetid://77475525420093",
+	-- Round 8 (O-02): the Round 7 shop art, uploaded 2026-11-08 under the group LEGION STUDI0S (Car-Hop-Art/upload-round7)
+	art_r7_doublelap = "rbxassetid://86033962268368",
+	art_r7_paddock = "rbxassetid://75386568806579",
+	art_r7_starter = "rbxassetid://80799454648058",
+	art_r7_vip = "rbxassetid://95455674060813",
 }
 
 return GameIconIds
