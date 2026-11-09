@@ -701,11 +701,13 @@ local function newView(lane: Lane, index: number, want: Want): View?
 		end
 	elseif want.kind == "empty" then
 		drawEmpty(group, w, h)
-		-- the short tag over the bay, only close up
+		-- the short tag over the bay, only close up; sized in studs to fit inside its own bay, so the tags of
+		-- neighbouring bays never overlap from a distance (Round 8 playtest)
+		local tagWidth = math.min(pose.width * 0.85, 6)
 		local tip = make("BillboardGui", {
 			Name = "EmptyTag",
 			Adornee = plate,
-			Size = UDim2.fromOffset(136, 26),
+			Size = UDim2.fromScale(tagWidth, tagWidth * 26 / 136),
 			StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0),
 			MaxDistance = 60,
 			AlwaysOnTop = false,
@@ -713,7 +715,7 @@ local function newView(lane: Lane, index: number, want: Want): View?
 		}, plate)
 		local card =
 			make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = NAVY, BackgroundTransparency = 0.08 }, tip)
-		round(card, 17)
+		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, card)
 		stroke(card, 2, CREAM)
 		local words = make("TextLabel", {
 			BackgroundTransparency = 1,
@@ -724,10 +726,10 @@ local function newView(lane: Lane, index: number, want: Want): View?
 			TextScaled = true,
 		}, card)
 		make("UIPadding", {
-			PaddingTop = UDim.new(0, 5),
-			PaddingBottom = UDim.new(0, 5),
-			PaddingLeft = UDim.new(0, 10),
-			PaddingRight = UDim.new(0, 10),
+			PaddingTop = UDim.new(0.18, 0),
+			PaddingBottom = UDim.new(0.18, 0),
+			PaddingLeft = UDim.new(0.07, 0),
+			PaddingRight = UDim.new(0.07, 0),
 		}, words)
 	else
 		drawLocked(group, w, h, want.price)
