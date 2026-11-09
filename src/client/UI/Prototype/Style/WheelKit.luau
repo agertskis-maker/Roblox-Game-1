@@ -483,7 +483,7 @@ local function buildFallbackWheel(w: Wheel, folder: Folder, design: Designs.Desi
 		)
 	end
 	if f.solidFace then
-		put(cylinder("Dome", 0.04 * r, 1.2 * r, f.rim, design.material), halfW + 0.05 * r)
+		put(cylinder("Dome", 0.04 * r, 1.2 * r, f.disc or f.rim, design.material), halfW + 0.05 * r)
 	end
 	put(
 		cylinder("Hub", 0.09 * r, 0.34 * r, f.hub, if f.glowHub then Enum.Material.SmoothPlastic else design.material),
