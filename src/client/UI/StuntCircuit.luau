@@ -237,8 +237,9 @@ function StuntCircuit.attach(
 	task.defer(refreshBoard)
 
 	-- the Race prompt at the gate (local to this player; the server only ever sees the lap events). Round 7 (A-03): while the
-	-- Circuit is Coming soon there is no prompt at all; the gate is closed (Home/Island/CircuitComingSoon) and the server refuses
-	-- every Circuit event, so nothing behind it can be entered.
+	-- Circuit is Coming soon there is no prompt at all; the entrance is shut by one invisible wall (Home/Island/CircuitComingSoon;
+	-- Round 8 H-04 removed the outer sign, banner, barrier arm and cones, the Circuit's own inside sign stays) and the server
+	-- refuses every Circuit event, so nothing behind it can be entered.
 	if not BetaConfig.CircuitOpen then
 		return function()
 			trove:Destroy()

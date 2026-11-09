@@ -1,6 +1,7 @@
 --!strict
--- Home/HomeShortcuts: the right-hand column of round icon buttons (Lane 3, N7-01 / N7-03a, 2026-11-02): Settings,
--- Leaderboard, Rewards (claimable missions), VIP and Free gift. Only entries the game really has are added (a missing adapter
+-- Home/HomeShortcuts: the right-hand column of round icon buttons (Lane 3, N7-01 / N7-03a, 2026-11-02): Leaderboard,
+-- Rewards (claimable missions), VIP and Free gift (Settings moved to the left column under Missions in Round 8, H-07, see
+-- HomeNav and HomeLayout). Only entries the game really has are added (a missing adapter
 -- means no button, never a dead one). On a phone at most three show; the rest wait behind a "..." overflow button that opens
 -- a small list of 48 px rows. A badge appears only for a real waiting state.
 --
@@ -11,7 +12,7 @@
 --   column:getButton(id) -> GuiObject?   column:closeOverflow()   column:setVisible(on)   column:getDebugState()
 --   column:destroy()
 --
--- priority: lower = kept visible first when there is not room (Free gift while claimable, then Rewards, Settings ...).
+-- priority: lower = kept visible first when there is not room (Free gift while claimable, then Rewards, Leaderboard ...).
 -- order: the position top to bottom among the visible ones.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

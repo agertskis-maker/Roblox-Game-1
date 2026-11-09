@@ -1,13 +1,15 @@
 --!strict
 -- Home/HomeNav: the left column of the Round 2 Home HUD (Lane 3, N7-01 / N7-03a, 2026-11-02): three big labelled tiles,
--- Shop (the kit's slow rainbow, kept), Garage and Missions. Which shape they take (icon over label, or icon beside label)
--- is HomeLayout's decision for the screen; this module only draws what it is told and calls the callbacks it is given.
+-- Shop (the kit's slow rainbow, kept), Garage and Missions, and (Round 8 H-07, R8-IMG-23) the round Settings button, which
+-- used to sit far away at the top of the right-hand column. Which shape the tiles take (icon over label, or icon beside label)
+-- and where Settings goes (under the stack with its label, or beside the Missions row) is HomeLayout's decision for the
+-- screen, with ONE shared gap between all of them; this module only draws what it is told and calls the callbacks it is given.
 -- Buttons open things; nothing here buys, grants or saves.
 --
---   local nav = HomeNav.new(parent, { onShop, onGarage, onMissions })
+--   local nav = HomeNav.new(parent, { onShop, onGarage, onMissions, onSettings })
 --   nav:place(plan)               -- HomeLayout.NavPlan + the HUD scale: moves and, when the tile shape changed, rebuilds
 --   nav:setBadge("Shop" | "Garage" | "Missions", value)   -- a red "!" (true / string) or a count; nil or 0 hides it
---   nav:getButton(name) -> GuiObject?      -- the pressable body, for focus and the tutorial hand
+--   nav:getButton(name) -> GuiObject?      -- the pressable body ("Shop" | "Garage" | "Missions" | "Settings"), for focus and the tutorial hand
 --   nav:getRoot() -> Frame   nav:setVisible(on)   nav:destroy()   nav:getDebugState()
 --
 -- A badge is shown ONLY for a real unread or claimable state, which the caller supplies; there is no urgency animation.
@@ -24,6 +26,7 @@ export type Adapters = {
 	onShop: (() -> ())?,
 	onGarage: (() -> ())?,
 	onMissions: (() -> ())?,
+	onSettings: (() -> ())?,
 }
 
 export type Nav = {
@@ -131,19 +134,48 @@ function HomeNav._build(self: any, plan: HomeLayout.NavPlan)
 		button.root.Position = UDim2.fromOffset(0, (i - 1) * (plan.rowHeight + tile.gap))
 		self._buttons[def.name] = button
 	end
+	-- H-07: the round Settings button is the next slot of the same column (HomeLayout.settingsFor): the same shared gap
+	local s = plan.settings
+	local onSettings = (self._adapters :: Adapters).onSettings
+	if s and onSettings then
+		local settings = HomeButton.round(self.root, {
+			name = "Settings",
+			label = if s.labels then "Settings" else nil,
+			fill = "Garage",
+			icons = { "Settings" },
+			d = s.d,
+			colW = s.w,
+			onActivate = function()
+				local cb = (self._adapters :: Adapters).onSettings
+				if cb then
+					cb()
+				end
+			end,
+		})
+		self._itemTrove:Add(settings.trove)
+		settings.root.Position = UDim2.fromOffset(s.x, s.y)
+		self._buttons.Settings = settings
+	end
 end
 
 function HomeNav.place(self: any, plan: HomeLayout.NavPlan, scale: number)
 	local tile = plan.tile
-	local key = string.format("%s:%d:%d", tile.style, tile.w, tile.h)
+	local s = plan.settings
+	local key = string.format(
+		"%s:%d:%d:%s:%d",
+		tile.style,
+		tile.w,
+		tile.h,
+		if s then s.placement else "None",
+		if s then s.d else 0
+	)
 	self._plan = plan
 	self._scale.Scale = scale
 	if key ~= self._key then
 		self._key = key
 		self:_build(plan)
 	end
-	local height = 3 * plan.rowHeight + 2 * tile.gap
-	self.root.Size = UDim2.fromOffset(tile.w, height)
+	self.root.Size = UDim2.fromOffset(plan.width, plan.height)
 	self.root.Position = UDim2.fromOffset(plan.x * scale, plan.y * scale)
 end
 
