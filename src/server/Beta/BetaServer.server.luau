@@ -16,10 +16,12 @@ local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaLapPay = require(script.Parent.BetaLapPay)
 local BetaLineup = require(script.Parent.BetaLineup)
+local BetaLookTest = require(script.Parent.BetaLookTest)
 local BetaMissions = require(script.Parent.BetaMissions)
 local BetaOwnership = require(script.Parent.BetaOwnership)
 local BetaPurchases = require(script.Parent.BetaPurchases)
 local BetaPlots = require(script.Parent.BetaPlots)
+local BetaRide = require(script.Parent.BetaRide)
 local BetaRun = require(script.Parent.BetaRun)
 local BetaShop = require(script.Parent.BetaShop)
 local BetaStyle = require(script.Parent.BetaStyle)
@@ -95,6 +97,9 @@ end)
 startPart("BetaStyle", function()
 	BetaStyle.start(net) -- Round 7 (C-07, C-08): the Style Shop (after BetaShop, which makes BetaResult)
 end)
+startPart("BetaRide", function()
+	BetaRide.start(net) -- Round 8 (C-03): PickRideCar, the car a run starts on (after BetaShop, which makes BetaResult)
+end)
 startPart("BetaCircuit", function()
 	BetaCircuit.start(net) -- Round 6 (C-01, C-03): server-timed Stunt Circuit laps and this server's board
 end)
@@ -107,7 +112,7 @@ BetaOwnership.start()
 BetaData.start()
 
 -- Studio only: the self-tests run inside the game's OWN module copies (a command-bar require gets fresh copies with no
--- loaded saves). ServerStorage.CarHopBetaSelfTest:Invoke("economy" | "lappay" | "shop" | "run", player?) -> { lines }.
+-- loaded saves). ServerStorage.CarHopBetaSelfTest:Invoke(name, player?) -> { lines }.
 if RunService:IsStudio() then
 	local hook = Instance.new("BindableFunction")
 	hook.Name = "CarHopBetaSelfTest"
@@ -137,11 +142,16 @@ if RunService:IsStudio() then
 			return BetaCircuit.selfTest(player)
 		elseif which == "style" and player then
 			return BetaStyle.selfTest(player)
+		elseif which == "ride" and player then
+			return BetaRide.selfTest(player) -- Round 8 (C-03)
+		elseif which == "look" and player then
+			return BetaLookTest.run(player) -- Round 8 (C-02, C-03): the end-to-end look test (starts a real run; not in the list below)
 		end
 		return { "unknown test " .. tostring(which) }
 	end
 	hook.OnInvoke = selfTest
 	hook.Parent = game:GetService("ServerStorage")
+	BetaLookTest.start() -- the same look test through the Player attribute BetaSelfTest = "look"
 
 	-- Round 6: the Studio MCP in Adam's Studio cannot call the hook above (it lacks the capability), so in a Studio Play
 	-- server every self-test also runs once by itself, a few seconds after the first save loads, on a test save only
@@ -164,6 +174,7 @@ if RunService:IsStudio() then
 					"run",
 					"shop",
 					"style",
+					"ride",
 					"missions",
 					"circuit",
 					"purchases",

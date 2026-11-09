@@ -58,6 +58,7 @@ local CardGrid = require(Prototype.Cards.CardGrid)
 local CarCard = require(Prototype.Cards.CarCard)
 local Fixtures = require(Prototype.Fixtures)
 local Format = require(ReplicatedStorage.Shared.UI.Format)
+local RidePick = require(Prototype.RidePick)
 local IconArt = require(Prototype.Home.IconArt)
 local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
@@ -749,9 +750,10 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				return
 			end
 			opts.onRide(car)
+			RidePick.ask(car.id) -- Round 8 (C-03): the server saves the pick (it checks the car is yours); the client only asks
 			confirmSerial += 1
 			local serial = confirmSerial
-			confirm.Text = "✔ Ready to ride: " .. (car.name or car.id) .. "!"
+			confirm.Text = "✔ READY TO RIDE: " .. string.upper(car.name or car.id)
 			confirm.Visible = true
 			local cardRef = facts:card()
 			local glow: UIStroke? = nil

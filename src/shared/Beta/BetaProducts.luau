@@ -61,7 +61,25 @@ BetaProducts.VipCosmetics = table.freeze({ "vip_royal", "vip_neon", "vip_gradien
 BetaProducts.VipOfflineHours = 30 -- Round 7 (decision 0042 item 11): VIP Welcome back cap, same 40% rate (was 12)
 
 -- Ids filled in after the products are created (R-01). Kept apart from the list so one edit updates them.
-local ids: { [string]: number } = {}
+-- Round 8 (O-03): created 2026-11-08 by the lead through the Studio MCP Open Cloud call, in the Car Hop Beta universe
+-- (10774024892, group LEGION STUDI0S), every one NOT for sale; selling stays off while BetaConfig.RealPurchases is false.
+local ids: { [string]: number } = {
+	["respawn"] = 3729763663,
+	["cash-10"] = 3729763815,
+	["cash-30"] = 3729763833,
+	["cash-60"] = 3729763851,
+	["cash-180"] = 3729763860,
+	["cash-480"] = 3729763868,
+	["starter-pack"] = 3729763880,
+	["all-passes-bundle"] = 3729763898,
+	["double-lap-pay"] = 2076250307,
+	["expanded-paddock"] = 2076196273,
+	["vip"] = 2075620327,
+	["flame_rush"] = 2074192398,
+	["confetti_party"] = 2074246311,
+	["rainbow_runway"] = 2074870350,
+	["comet_tail"] = 2075962315,
+}
 
 for _, item in items do
 	item.robloxId = ids[item.id] or item.robloxId
