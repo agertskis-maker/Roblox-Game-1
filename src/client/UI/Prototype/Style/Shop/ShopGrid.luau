@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent.Parent.Parent
 local CarKit = require(Prototype.CarKit)
+local GameIcons = require(Prototype.GameIcons)
 local ShopLook = require(script.Parent.ShopLook)
 local StyleState = require(Prototype.StyleState)
 local TileCar = require(script.Parent.TileCar)
@@ -324,6 +325,31 @@ function ShopGrid.new(scroll: ScrollingFrame, o: Options): any
 	return self
 end
 
+-- A rim drawn from the item's colours, for a wheel with neither an uploaded icon nor Round 7 art: a dark tyre, the rim, a hub.
+local function drawnRim(holder: Frame, item: Catalog.Item, z: number)
+	local function disc(name: string, scale: number, colour: Color3, order: number): Frame
+		local d = make("Frame", {
+			Name = name,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.46),
+			Size = UDim2.fromScale(scale, scale),
+			SizeConstraint = Enum.SizeConstraint.RelativeYY,
+			BackgroundColor3 = colour,
+			ZIndex = z + order,
+		}, holder) :: Frame
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, d)
+		return d
+	end
+	disc("Tyre", 0.84, Color3.fromRGB(22, 24, 34), 0)
+	local rim = disc("Rim", 0.56, item.colours[1], 1)
+	make(
+		"UIStroke",
+		{ Thickness = 2, Color = item.colours[2] or item.colours[1], ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+		rim
+	)
+	disc("Hub", 0.16, Color3.fromRGB(70, 76, 96), 2)
+end
+
 -- The picture of a tile that does not show a car. Wheels and Trails: the uploaded icon, else Round 7's art.
 function ShopGrid._drawStatic(self: any, card: any)
 	local item: Catalog.Item = card.item
@@ -362,11 +388,15 @@ function ShopGrid._drawStatic(self: any, card: any)
 	elseif item.isNone then
 		CarKit.art(holder, "close", { z = z, placeholder = false, size = UDim2.fromScale(0.5, 0.7) })
 	elseif item.tab == "Wheels" then
-		CarKit.art(
-			holder,
-			"thumb_wheel_" .. (item.key or ""),
-			{ z = z, placeholder = false, size = UDim2.fromScale(0.86, 0.86) }
-		)
+		if GameIcons.uri("thumb_wheel_" .. (item.key or "")) then
+			CarKit.art(
+				holder,
+				"thumb_wheel_" .. (item.key or ""),
+				{ z = z, placeholder = false, size = UDim2.fromScale(0.86, 0.86) }
+			)
+		else
+			drawnRim(holder, item, z)
+		end
 		-- Round 7's art is one picture per rim shape: the tile's own colour shows which finish this is
 		local swatch = make("Frame", {
 			Name = "Finish",
