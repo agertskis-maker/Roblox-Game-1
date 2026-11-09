@@ -651,6 +651,7 @@ end
 
 local Holder = {}
 Holder.__index = Holder
+local warned = false
 
 -- `car` is the model whose pivot faces the car's way (right = +X); the decals go on the two faces of `part` that face the car's
 -- sides, whichever way the mesh itself was turned. `carName` is the Normal car's name (the key of DecalPanels); without it the
@@ -841,7 +842,18 @@ function Holder.set(self: any, item: Catalog.Item?)
 	if not item or item.isNone then
 		return
 	end
-	if not (self._car and panelSet(self, item)) then
+	local placed = false
+	if self._car then
+		-- a problem in the panel fit must never take the decal away: say so once and use the automatic fit
+		local ok, result = pcall(panelSet, self, item)
+		if ok then
+			placed = result == true
+		elseif not warned then
+			warned = true
+			warn("[DecalArt] panel fit failed, using the automatic fit: " .. tostring(result))
+		end
+	end
+	if not placed then
 		clear(self)
 		if not autoSet(self, item) then
 			return
