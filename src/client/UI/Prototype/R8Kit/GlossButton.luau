@@ -171,6 +171,18 @@ local function startSpinner(self: any)
 	tween:Play()
 end
 
+-- One line of message text sized to fit `avail` design px wide (about 0.6 em per character), at most `most` design px, and never
+-- under the 16 real px minimum (the size is re-fitted when the card's scale changes).
+local function fitMessage(self: any, avail: number, most: number)
+	local longest = 1
+	for line in string.gmatch(self.message.Text, "[^\n]+") do
+		longest = math.max(longest, #line)
+	end
+	self.messageFit = { avail = avail, most = most }
+	local size = math.clamp(math.floor(avail / (longest * 0.6)), 18, most)
+	self.message.TextSize = self.metrics:textSize(size)
+end
+
 function GlossButton.new(parent: GuiObject, props: Props): Button
 	local trove = Trove.new()
 	local metrics = props.metrics or Metrics.new(DESIGN)
@@ -328,19 +340,9 @@ function GlossButton.new(parent: GuiObject, props: Props): Button
 		TextColor3 = Palette.Navy,
 		TextTruncate = Enum.TextTruncate.None,
 		TextWrapped = false,
-		TextScaled = true,
 		ZIndex = 5,
 		Visible = false,
 	})
-	-- one line scaled to fit the body (up to 40 design px, never under the 16 real px minimum)
-	local messageLimit: UITextSizeConstraint = Build.make("UITextSizeConstraint", {
-		MaxTextSize = 40,
-		MinTextSize = metrics:textSize(16),
-		Parent = message,
-	})
-	trove:Add(metrics.changed:Connect(function()
-		messageLimit.MinTextSize = metrics:textSize(16)
-	end))
 	-- the green "+" of the cannot-afford state
 	local plus: ImageButton = Build.make("ImageButton", {
 		Name = "Plus",
@@ -449,6 +451,8 @@ function GlossButton.new(parent: GuiObject, props: Props): Button
 		trove = trove,
 		artTrove = trove:Extend(),
 		metrics = metrics,
+		designW = if props.size and props.size.X.Offset > 0 then props.size.X.Offset else DESIGN.X,
+		messageFit = nil,
 		state = "buy" :: State,
 		info = {} :: Info,
 		body = body,
@@ -474,6 +478,12 @@ function GlossButton.new(parent: GuiObject, props: Props): Button
 		pressed = false,
 	}, Obj)
 	local s: any = self
+	trove:Add(metrics.changed:Connect(function()
+		local fit = s.messageFit
+		if fit then
+			fitMessage(s, fit.avail, fit.most)
+		end
+	end))
 	trove:Add(s.Pressed, "DisconnectAll")
 	trove:Add(s.PlusPressed, "DisconnectAll")
 	trove:Add(function()
@@ -564,6 +574,7 @@ function Obj.setState(self: any, state: State, info: Info?)
 		self.message.Text = "NEED " .. (i.need or "?") .. " MORE"
 		self.message.Position = UDim2.fromScale(0.03, 0.5)
 		self.message.Size = UDim2.new(1, -(PLUS_D + 34), 0.8, 0)
+		fitMessage(self, self.designW - PLUS_D - 60, 40)
 		self.message.TextXAlignment = Enum.TextXAlignment.Center
 		self.plus.Visible = true
 	elseif state == "max" then
@@ -589,6 +600,9 @@ function Obj.setState(self: any, state: State, info: Info?)
 			end
 			self.message.Position = UDim2.fromScale(0.3, 0.5)
 			self.message.Size = UDim2.fromScale(0.4, 1.1)
+			fitMessage(self, 100, 30)
+		else
+			fitMessage(self, self.designW * 0.74, 40)
 		end
 	elseif state == "done" then
 		colorBody(self, if i.doneTone == "green" then "green" else "gold")
@@ -598,6 +612,7 @@ function Obj.setState(self: any, state: State, info: Info?)
 		self.message.Position = UDim2.fromScale(0.13, 0.5)
 		self.message.Size = UDim2.fromScale(0.74, 0.8)
 		self.message.TextXAlignment = Enum.TextXAlignment.Center
+		fitMessage(self, self.designW * 0.74, 44)
 		if self.message:FindFirstChildOfClass("UIStroke") == nil then
 			Build.stroke(self.message, 6, Palette.NavyDeep, Enum.ApplyStrokeMode.Contextual)
 		end
@@ -612,6 +627,7 @@ function Obj.setState(self: any, state: State, info: Info?)
 		self.message.Position = UDim2.fromScale(0.04, 0.5)
 		self.message.Size = UDim2.fromScale(0.92, 0.8)
 		self.message.TextXAlignment = Enum.TextXAlignment.Center
+		fitMessage(self, self.designW * 0.9, 40)
 	end
 	if state ~= "done" then
 		local outline = self.message:FindFirstChildOfClass("UIStroke")

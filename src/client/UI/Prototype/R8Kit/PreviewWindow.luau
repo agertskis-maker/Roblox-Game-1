@@ -191,17 +191,12 @@ function Obj.setTag(self: any, text: string?)
 	local label = Build.label(holder, "Text", text, {
 		ZIndex = 2,
 		TextColor3 = Palette.Navy,
-		TextScaled = true,
-		Size = UDim2.fromScale(0.86, 0.66),
-		Position = UDim2.fromScale(0.07, 0.17),
+		TextTruncate = Enum.TextTruncate.None,
+		Size = UDim2.fromScale(0.9, 0.7),
+		Position = UDim2.fromScale(0.05, 0.15),
 	})
-	Build.make("UITextSizeConstraint", { MaxTextSize = 32, MinTextSize = self.metrics:textSize(16), Parent = label })
-	self.trove:Add(self.metrics.changed:Connect(function()
-		local limit = label:FindFirstChildOfClass("UITextSizeConstraint")
-		if limit then
-			limit.MinTextSize = self.metrics:textSize(16)
-		end
-	end))
+	-- a fixed size (30 design px, never under the 16 real px minimum): "NEXT LEVEL" is about 170 design px wide, the tag 226
+	self.metrics:bindText(self.trove, label, 30)
 	self.tag = label
 end
 
