@@ -35,7 +35,6 @@ local RealCar = require(Prototype.RealCar)
 local ShopGrid = require(Prototype.Style.Shop.ShopGrid)
 local ShopLook = require(Prototype.Style.Shop.ShopLook)
 local ShopTrail = require(Prototype.Style.Shop.ShopTrail)
-local TileCar = require(Prototype.Style.Shop.TileCar)
 local TrailFx = require(Prototype.Style.TrailFx) :: any
 local Toast = require(Prototype.Style.Shop.Toast)
 local Treadmill = require(Prototype.Style.Shop.Treadmill)
@@ -79,6 +78,7 @@ local TRAIL_LENGTH = 7.5 -- the ribbon on the treadmill, longer than on a still 
 local TRAIL_YAW = math.rad(117) -- the car's nose to the lower left, its trail streaming to the upper right
 local WHEEL_YAW = math.rad(117) -- the same: the car's left side and its front wheel face the screen
 local FEEDBACK_SECONDS = 3
+local IDLE_TRAIL_SPEED = 0.2 -- T-03: a standing car's trail is short and gentle; only the treadmill runs it at 1
 
 local function normalTab(name: string?): string
 	local key = string.lower(name or "paint")
@@ -578,6 +578,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		rig:setPaint(shownItem("Paint"), 0.18)
 		rig:setDecal(shownItem("Decals"))
 		rig:setWheels(shownItem("Wheels"))
+		rig:setTrailSpeed(if tab == "Trails" then 1 else IDLE_TRAIL_SPEED) -- a new car's handle starts at run speed
 		applyTrail(if tab == "Trails" then shownItem("Trails") else nil)
 	end
 
@@ -680,8 +681,7 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		if tab ~= "Wheels" or Motion.reduced() then
 			return
 		end
-		local body = (rig :: any)._body
-		local model: Model? = body and body.model
+		local model: Model? = rig:model()
 		if not model then
 			return
 		end
@@ -774,7 +774,8 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 		else
 			treadmill:hide()
 		end
-		trailView:setSpeed(if trails then 1 else 0)
+		trailView:setSpeed(if trails then 1 else IDLE_TRAIL_SPEED)
+		rig:setTrailSpeed(if trails then 1 else IDLE_TRAIL_SPEED)
 	end
 
 	local function setTab(name: string)
@@ -1033,7 +1034,6 @@ function StyleStudio.new(ctx: any, host: Frame, options: Options?): { [string]: 
 			line = line.Text,
 			wheelCam = wheelCam:active(),
 			treadmill = tab == "Trails",
-			applier = TileCar.applierReady(),
 		}
 	end
 

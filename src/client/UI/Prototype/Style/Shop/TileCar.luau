@@ -4,22 +4,19 @@
 -- looking at the fresh lime color, when I have the pizza truck equipped ... it is showing me the sports car."
 --
 -- The tile is drawn once and never redrawn; only the hovered or selected tile turns (the grid calls tile:turn(dt) for that one).
--- Dressing goes through CarLookApplier.apply(model, look, { lod = "low", trail = false }) (the one place that knows how to dress a
--- car, WS-1). While the applier's body is not merged (it announces itself with CarLookApplier.implemented = true) the tile dresses
--- the copy itself with the same pieces the turntable uses (Style.BodyPaint and Style.DecalArt), frozen so nothing animates.
+-- Dressing goes through CarLookApplier.apply(model, look, { lod = "low", trail = false }): the one place that knows how to dress a
+-- car (WS-1): paint on the body panels only, the decal, the wheels; low detail draws a moving paint still. A tile never shows a
+-- trail, but its handle is set to the idle trail speed (0.2, T-03: short and gentle when standing) all the same, so nothing can
+-- ever start at run speed.
 --
---   TileCar.applierReady() -> boolean
 --   TileCar.new(holder, look, { z = number?, yaw = number?, aspect = number? }) -> Tile?   nil when the car's model is not here
 --   tile.view -> ViewportFrame     tile:turn(dt)     tile:rest()     tile:destroy()
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent.Parent.Parent
-local BodyPaint = require(Prototype.Style.BodyPaint)
 local CarLookApplier = require(Prototype.Style.CarLookApplier)
-local DecalArt = require(Prototype.Style.DecalArt)
 local RealCar = require(Prototype.RealCar)
-local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local CarLook = require(ReplicatedStorage.Shared.Style.CarLook)
@@ -41,59 +38,7 @@ local HEIGHT = 7.5
 local FOV = 24
 local REST_YAW = math.rad(118) -- front toward the lower left, like the reference tiles
 local TURN_RATE = math.rad(48) -- how fast the one hovered or selected tile turns
-local WASH = 0.45
-
-function TileCar.applierReady(): boolean
-	return (CarLookApplier :: any).implemented == true
-end
-
--- The dressing the applier will own. Paint on the body panels only (BodyPaint), a see-through wash where a car has no mask, then
--- the decal on the paint. Frozen: a tile never animates.
-local function legacyDress(model: Model, look: CarLook.Look, trove: any)
-	local body = model:FindFirstChild("body_geom", true)
-	if not (body and body:IsA("MeshPart")) then
-		return
-	end
-	local paint = if look.paint then Catalog.byId("Paint", look.paint) else nil
-	local painter: any = nil
-	if paint and paint.id ~= "factory_paint" then
-		if BodyPaint.supported(look.car) then
-			painter = BodyPaint.new(body, look.car)
-		end
-		if painter then
-			painter:set(paint)
-			painter._item = nil -- drawn once: the shared animator skips a painter with no item (a tile does not move)
-			trove:Add(function()
-				painter:destroy()
-			end)
-		else
-			local wash = body:Clone() :: MeshPart
-			wash.Name = "PaintWash"
-			for _, child in wash:GetChildren() do
-				child:Destroy()
-			end
-			wash.TextureID = ""
-			wash.Material = Enum.Material.SmoothPlastic
-			wash.Size = body.Size * 1.012
-			wash.CFrame = body.CFrame
-			wash.Color = paint.colours[1]
-			wash.Transparency = WASH
-			wash.Parent = model
-			trove:Add(wash)
-		end
-	end
-	local decal = if look.decal then Catalog.byId("Decals", look.decal) else nil
-	if decal and not decal.isNone then
-		local still = table.clone(decal)
-		still.tier = "street" -- the animated tier would register with the decal clock
-		local target: BasePart = if painter and painter._shell.Parent then painter._shell else body
-		local d = DecalArt.attach(target, model)
-		d:set(still)
-		trove:Add(function()
-			d:destroy()
-		end)
-	end
-end
+local IDLE_TRAIL_SPEED = 0.2 -- T-03: a standing car's trail is short and gentle
 
 -- Back off until the whole car, turned any way, fits the frame.
 local function place(camera: Camera, size: Vector3, aspect: number)
@@ -135,14 +80,11 @@ function TileCar.new(holder: GuiObject, look: CarLook.Look, options: Options?): 
 	local yaw = o.yaw or REST_YAW
 	model:PivotTo(CFrame.Angles(0, yaw, 0))
 	model.Parent = view
-	if TileCar.applierReady() then
-		local handle = CarLookApplier.apply(model, look, { lod = "low", trail = false })
-		trove:Add(function()
-			handle:destroy()
-		end)
-	else
-		legacyDress(model, look, trove)
-	end
+	local handle = CarLookApplier.apply(model, look, { lod = "low", trail = false })
+	handle:setTrailSpeed(IDLE_TRAIL_SPEED)
+	trove:Add(function()
+		handle:destroy()
+	end)
 	view.Parent = holder
 	place(camera, scaled, o.aspect or 1.3)
 
