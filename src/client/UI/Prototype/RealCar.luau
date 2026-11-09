@@ -31,6 +31,8 @@ local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local CarLook = require(ReplicatedStorage.Shared.Style.CarLook)
 local CarLookApplier = require(Prototype.Style.CarLookApplier)
+
+local IDLE_TRAIL_SPEED = 0.2 -- = TrailMoments.SPEED_IDLE (src/client/Run/TrailMoments.luau): a standing car's trail
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 
 local RealCar = {}
@@ -363,6 +365,9 @@ local function show(self: any, body: any, source: string?)
 		body:setPaint(self._paint, 0.18)
 		body:setDecal(self._decal)
 		body:setWheels(self._wheelsItem)
+		-- a rig stands still (launch card, Garage, Style Shop turntable, Raceway lineup): its trail is the short gentle standing one
+		-- (T-03, TrailMoments.SPEED_IDLE) unless its owner set a speed; the run's own trail is a separate handle (BetaRun.client)
+		body._look:setTrailSpeed(self._trailSpeed or IDLE_TRAIL_SPEED)
 		body.model.Parent = self._parent
 		if self._trailItem then
 			self:setTrail(self._trailItem)
@@ -467,6 +472,7 @@ function Mount.clearTrail(self: any)
 end
 
 function Mount.setTrailSpeed(self: any, speed: number)
+	self._trailSpeed = speed
 	local body = self._body
 	if body and body._look then
 		body._look:setTrailSpeed(speed)

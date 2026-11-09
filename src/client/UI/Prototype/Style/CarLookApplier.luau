@@ -19,6 +19,7 @@
 --   h:tail() -> CFrame          the back of the model, +Z pointing away from it: where a trail starts
 --   h:setTrailLevel(0..3)  h:flareTrail(seconds?)  h:getTrailFx()   forwarded to the TrailFx handle (the run's trail moments, WS-5b)
 --   CarLookApplier.runHandle() -> Handle?   the handle that carries the player's trail in the current run (BetaRun.client sets it)
+--   h:setChaseView(on)          the run car (review D1, C-02): the decal also on the rear panel, a rim-coloured lip on each wheel
 --
 -- Options: ghost (H-03: see-through, no collision, no shadow, no trail, a rarity outline when `outline` is given), lod ("full" |
 -- "low": tiles and ghosts use "low": no particles and no animated paint redraw), trail (default true), reduceMotion.
@@ -27,6 +28,7 @@
 -- RealCar.displayModel make that), `body_geom` the one body mesh and "wheel" in the name of each of the car's own wheel parts. A model
 -- that is not that (the run's part-built stand-in) still takes a trail: the holder is then its biggest part.
 
+local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
@@ -50,6 +52,8 @@ export type Options = {
 	trail: boolean?,
 	reduceMotion: boolean?,
 	paintColour: Color3?, -- additive: the paint colour a MATCH MY PAINT trail takes when this handle itself paints nothing (the run's trail handle)
+	trailScale: number?, -- additive (review D1): the trail is this much bigger than the car's width makes it (the run's trail handle)
+	trailLevelFloor: number?, -- additive (review D1): setTrailLevel never goes below this (TrailFx:setLevel, when the TrailFx has it)
 }
 
 export type Moment = "leap" | "dive" | "catch" | "flare"
@@ -70,6 +74,7 @@ export type Handle = {
 	setTrailLevel: (self: Handle, level: number) -> (),
 	flareTrail: (self: Handle, seconds: number?) -> (),
 	getTrailFx: (self: Handle) -> any?,
+	setChaseView: (self: Handle, on: boolean) -> (),
 }
 
 local WASH = 0.45 -- the see-through colour wash on a car with no paint mask
@@ -398,6 +403,7 @@ function Applied._decal(self: any, item: Catalog.Item?)
 		end)
 	end
 	self._decals:set(item)
+	self:_chaseDecal(item, target)
 end
 
 -- Wheels: the stock-rim code RealCar had (used when Style.WheelKit is not there) ------------------------------------------------
@@ -444,6 +450,10 @@ end
 -- hub in the rim, and chrome, gold or carbon finishes
 local function styleRims(self: any, item: Catalog.Item)
 	for _, extra in self._extras do
+		local at = table.find(self._rims, extra)
+		if at then
+			table.remove(self._rims, at) -- review N2: setWheelSpin never writes to a destroyed part
+		end
 		extra:Destroy()
 	end
 	self._extras = {}
@@ -514,6 +524,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		end)
 		if ok and handle then
 			self._kitHandle = handle
+			self:_chaseLips(nil) -- WheelKit's own rims
 			if self._spin ~= 0 then
 				pcall(function()
 					if handle.setSpin then
@@ -544,6 +555,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		p.Transparency = if own then 1 else 0
 	end
 	if own or not item then
+		self:_chaseLips(nil)
 		return
 	end
 	local style = item.kind :: any
@@ -555,6 +567,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		r.part.Reflectance = if style == "chrome" or style == "gold" then 0.45 else 0
 	end
 	styleRims(self, item)
+	self:_chaseLips(item)
 end
 
 -- Turns every wheel to `radians` (total) about its axle.
@@ -614,7 +627,8 @@ function Applied._attachTrail(self: any, model: Model)
 	local tail, width = tailOf(model)
 	-- TrailFx (WS-5a) finds the car's exhaust points itself from the CarName attribute up the model tree; the car name here is for a
 	-- model that carries none. The old four-argument-free call still works (the options are ignored by a TrailFx without them).
-	local fx = (TrailFx :: any).attach(holder, tail, math.max(width, 3), { model = model, car = self.look.car }) :: any
+	local scale = self.options.trailScale or 1
+	local fx = (TrailFx :: any).attach(holder, tail, math.max(width, 3) * scale, { model = model, car = self.look.car }) :: any
 	if self.options.lod == "low" and fx.setQuality then
 		fx:setQuality("low") -- beams and ribbons only: no particles, no glow, no sound
 	end
@@ -622,6 +636,9 @@ function Applied._attachTrail(self: any, model: Model)
 		fx:setReduceMotion(self.options.reduceMotion)
 	end
 	fx:setSpeed(self._speed)
+	if self.options.trailLevelFloor and fx.setLevel then
+		fx:setLevel(math.clamp(self.options.trailLevelFloor, 0, 3))
+	end
 	self._trail = fx
 	self._trailHolder = holder
 	self._trailOn_model = model
@@ -678,7 +695,7 @@ end
 function Applied.setTrailLevel(self: any, level: number)
 	local fx = self._trail
 	if fx and fx.setLevel then
-		fx:setLevel(math.clamp(level, 0, 3))
+		fx:setLevel(math.clamp(math.max(level, self.options.trailLevelFloor or 0), 0, 3))
 	end
 end
 
@@ -732,6 +749,159 @@ function Applied.burst(self: any, moment: Moment)
 		pcall(function()
 			bursts.play(self:_trailModel(), self.look, moment, self.options.reduceMotion)
 		end)
+	end
+end
+
+-- Chase view (review D1, C-02: Adam saw no decal, wheels or trail in a run) ---------------------------------------------------------
+-- The run's camera sits behind and above the car you ride, so it sees the back and the top, never a side. On that one car (BetaRun.client
+-- calls setChaseView(true) on your start car) the decal is also put on the rear panel, and each wheel gets a lip in the rim colour that
+-- sticks out past the tyre, so the rims read at the slight angle of a lane change. The other screens keep the side-only look.
+
+local REAR_W, REAR_H = 256, 128
+local rearImages: { [string]: EditableImage } = {}
+
+-- The design fitted into the lower band of the rear face (the tailgate or rear doors: under the rear window, above the bumper),
+-- transparent everywhere else, so the rear window and lights stay clear. One image per design, made the first time it is needed.
+local function rearImage(item: Catalog.Item): EditableImage?
+	local known = rearImages[item.id]
+	if known then
+		return known
+	end
+	local source = DecalArt.image(item)
+	if not source then
+		return nil
+	end
+	local ok, image = pcall(function(): EditableImage
+		local size = source.Size
+		local sw, sh = math.floor(size.X), math.floor(size.Y)
+		local src = source:ReadPixelsBuffer(Vector2.zero, size)
+		local out = buffer.create(REAR_W * REAR_H * 4) -- all zero: transparent
+		local x0, x1 = math.floor(REAR_W * 0.1), math.floor(REAR_W * 0.9)
+		local y0, y1 = math.floor(REAR_H * 0.46), math.floor(REAR_H * 0.84)
+		for y = y0, y1 - 1 do
+			local sy = math.min(math.floor((y - y0) / (y1 - y0) * sh), sh - 1)
+			for x = x0, x1 - 1 do
+				local sx = math.min(math.floor((x - x0) / (x1 - x0) * sw), sw - 1)
+				buffer.writeu32(out, (y * REAR_W + x) * 4, buffer.readu32(src, (sy * sw + sx) * 4))
+			end
+		end
+		local made = AssetService:CreateEditableImage({ Size = Vector2.new(REAR_W, REAR_H) })
+		made:WritePixelsBuffer(Vector2.zero, Vector2.new(REAR_W, REAR_H), out)
+		return made
+	end)
+	if not ok or not image then
+		return nil
+	end
+	rearImages[item.id] = image
+	return image
+end
+
+local FACES = {
+	Enum.NormalId.Right,
+	Enum.NormalId.Left,
+	Enum.NormalId.Top,
+	Enum.NormalId.Bottom,
+	Enum.NormalId.Back,
+	Enum.NormalId.Front,
+}
+
+-- The face of `part` whose outward normal is closest to `direction` (world space).
+local function faceToward(part: BasePart, direction: Vector3): Enum.NormalId
+	local best, score = Enum.NormalId.Back, -math.huge
+	for _, face in FACES do
+		local d = part.CFrame:VectorToWorldSpace(Vector3.FromNormalId(face)):Dot(direction)
+		if d > score then
+			best, score = face, d
+		end
+	end
+	return best
+end
+
+function Applied.setChaseView(self: any, on: boolean)
+	if self._dead or self._chase == on then
+		return
+	end
+	self._chase = on
+	if not self._chaseCleanup then
+		self._chaseCleanup = true
+		self.trove:Add(function()
+			self:_chaseDecal(nil, nil)
+			self:_chaseLips(nil)
+		end)
+	end
+	self:_chaseDecal(self._items.Decals, self._decalTarget)
+	local wheels: Catalog.Item? = self._items.Wheels
+	self:_chaseLips(if self._kitHandle == nil and wheels and not (wheels.key == "five" and wheels.kind == nil) then wheels else nil)
+end
+
+function Applied._chaseDecal(self: any, item: Catalog.Item?, target: BasePart?)
+	if self._rearDecal then
+		self._rearDecal:Destroy()
+		self._rearDecal = nil
+	end
+	if not (self._chase and item and target and target.Parent) then
+		return
+	end
+	local pivot = self.model:GetPivot()
+	if target.CFrame.UpVector:Dot(pivot.UpVector) < 0.7 then
+		return -- a body mesh lying on its side: its rear face would show the design turned; leave it to the sides
+	end
+	local image = rearImage(item)
+	if not image then
+		return
+	end
+	local decal = Instance.new("Decal")
+	decal.Name = "StyleDecalRear"
+	decal.Face = faceToward(target, -pivot.LookVector) -- the front is -Z, so the back is +Z
+	local ok = pcall(function()
+		(decal :: any).ColorMapContent = Content.fromObject(image)
+	end)
+	if not ok then
+		decal:Destroy()
+		return
+	end
+	decal.Parent = target
+	self._rearDecal = decal
+end
+
+local LIP_SEGMENTS = 10
+
+-- A hoop in the rim colour on the outside of each wheel, built from short bars (a Part cannot be a ring), so the spokes stay visible
+-- from the side and the hoop's edge reads from behind.
+function Applied._chaseLips(self: any, item: Catalog.Item?)
+	for _, p in self._lips or {} do
+		p:Destroy()
+	end
+	self._lips = {}
+	if not (self._chase and item) then
+		return
+	end
+	local style = item.kind :: any
+	local colour = item.colours[1]
+	local pivot = self.model:GetPivot()
+	for _, wheel in self._wheels do
+		local at = pivot:PointToObjectSpace(wheel.Position)
+		local d = math.max(wheel.Size.X, wheel.Size.Y, wheel.Size.Z)
+		local thick = d * 0.14
+		local radius = d * 0.42
+		local seg = 2 * math.pi * radius / LIP_SEGMENTS * 1.1
+		local axle = pivot * CFrame.new(at) * CFrame.new(math.sign(at.X) * (d * 0.26 + thick / 2), 0, 0)
+		for i = 1, LIP_SEGMENTS do
+			local p = Instance.new("Part")
+			p.Name = "RimLip"
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Size = Vector3.new(thick, d * 0.13, seg)
+			p.CFrame = axle * CFrame.Angles((i / LIP_SEGMENTS) * math.pi * 2, 0, 0) * CFrame.new(0, radius, 0)
+			p.Color = colour
+			p.Material = if style == "carbon" then Enum.Material.Slate else Enum.Material.Metal
+			p.Reflectance = if style == "chrome" or style == "gold" then 0.35 else 0
+			p.Parent = self.model
+			table.insert(self._lips, p)
+		end
 	end
 end
 

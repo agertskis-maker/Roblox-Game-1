@@ -116,7 +116,8 @@ function BetaRide.start(net: Folder)
 	remote.OnServerEvent:Connect(function(player: Player, carId: any)
 		local now = os.clock()
 		if now - (last[player] or -math.huge) < COOLDOWN then
-			reply(player, false, "One moment, try again.")
+			-- review D12: a request inside the cooldown is dropped without a reply or a log line, so spamming the remote costs the
+			-- server nothing; an honest client never sends one (RidePick waits COOLDOWN between asks and answers itself)
 			return
 		end
 		last[player] = now
@@ -151,6 +152,8 @@ function BetaRide.selfTest(player: Player): { string }
 		return { "FAIL no save loaded" }
 	end
 	local savedCars, savedRide = table.clone(data.Cars), data.RideCar
+	-- review N6: the save is put back on every path, also when a check below errors
+	local ran, err = pcall(function()
 	data.Cars = { Putter = { Edition = 1, Copies = 0 }, ["Pizza Runner"] = { Edition = 1, Copies = 0 } }
 	local ok = BetaRide.pick(player, "Pizza Runner")
 	expect("C-03 an owned car can be picked", ok, true)
@@ -193,7 +196,11 @@ function BetaRide.selfTest(player: Player): { string }
 	end
 	BetaData.sanitize(bad)
 	expect("an unknown saved RideCar goes back to Putter", bad.RideCar, "Putter")
+	end)
 	data.Cars, data.RideCar = savedCars, savedRide
+	if not ran then
+		table.insert(lines, "FAIL the ride self-test stopped: " .. tostring(err))
+	end
 	BetaRide.publish(player)
 	return lines
 end

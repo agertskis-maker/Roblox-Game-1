@@ -750,10 +750,28 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				return
 			end
 			opts.onRide(car)
-			RidePick.ask(car.id) -- Round 8 (C-03): the server saves the pick (it checks the car is yours); the client only asks
 			confirmSerial += 1
 			local serial = confirmSerial
+			-- Round 8 (C-03): the server saves the pick (it checks the car is yours); the client only asks. The confirmation waits for
+			-- the server's answer (review D8); a no shows a short red line instead.
+			RidePick.ask(car.id, function(ok: boolean, reason: string?)
+				if confirmSerial ~= serial or not confirm.Parent then
+					return
+				end
+				if not ok then
+					confirm.Text = "✖ " .. string.upper(reason or "Try again.")
+					confirm.BackgroundColor3 = Color3.fromRGB(196, 52, 44)
+					confirm.Visible = true
+					refreshRide()
+					task.delay(2.5, function()
+						if confirmSerial == serial then
+							confirm.Visible = false
+						end
+					end)
+					return
+				end
 			confirm.Text = "✔ READY TO RIDE: " .. string.upper(car.name or car.id)
+			confirm.BackgroundColor3 = Color3.fromRGB(46, 180, 80)
 			confirm.Visible = true
 			local cardRef = facts:card()
 			local glow: UIStroke? = nil
@@ -774,6 +792,7 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 				if confirmSerial == serial then
 					confirm.Visible = false
 				end
+			end)
 			end)
 		end,
 	})
