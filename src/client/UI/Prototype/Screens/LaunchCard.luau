@@ -24,6 +24,7 @@ local Motion = require(Prototype.Motion)
 local Overlay = require(script.Parent.Overlay)
 local RealCar = require(Prototype.RealCar)
 local Sounds = require(Prototype.Sounds)
+local RidePick = require(Prototype.RidePick)
 local StyleState = require(Prototype.StyleState)
 local TrailPreview = require(script.Parent.TrailPreview) :: any
 local CarLook = require(ReplicatedStorage.Shared.Style.CarLook)
@@ -123,7 +124,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		buildTrove:Connect(closeButton.Activated, function()
 			self:close()
 		end)
-		local btnH = math.max(math.round(64 * k), 38) -- the one row of buttons on a short card
+		local btnH = math.max(math.round(64 * k), 44) -- the one row of buttons on a short card (review D10: 44 px touch minimum)
 		local bottom = if short then btnH + 12 else math.round(190 * k)
 		local stageH = h - stageY - bottom
 		-- the turntable: the left column on a wide card, the whole width (and a shorter stage) on a stacked one
@@ -260,7 +261,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				swatch
 			)
 			local textX = 8 + swatchPx + 8
-			CarKit.text(row, label .. ":", math.max(math.round(15 * k), if short then 10 else 11), {
+			CarKit.text(row, label .. ":", math.max(math.round(15 * k), if short then 12 else 11), {
 				align = Enum.TextXAlignment.Left,
 				color = CarKit.Gold,
 				size = if short then UDim2.new(0.38, -textX, 1, 0) else UDim2.new(1, -textX - 4, 0.4, 0),
@@ -268,7 +269,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				z = 8,
 				name = "Label",
 			})
-			local value = CarKit.title(row, "", math.max(math.round(21 * k), if short then 11 else 13), {
+			local value = CarKit.title(row, "", math.max(math.round(21 * k), 13), {
 				align = Enum.TextXAlignment.Left,
 				size = if short then UDim2.new(0.62, -8, 1, 0) else UDim2.new(1, -textX - 4, 0.52, 0),
 				position = if short then UDim2.fromScale(0.38, 0) else UDim2.new(0, textX, 0.42, 0),
@@ -429,8 +430,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		-- the confirmation (C-03): sparkle burst, whoosh, a green check, the toast -----------------------------------------------
 		local check: Frame? = nil
 		local toastSerial = 0
-		local function celebrate()
-			local carId = StyleState.car()
+		local function celebrate(carId: string)
 			local car = RosterFixtures.byId(carId)
 			local name = string.upper(if car then car.name else carId)
 			local calm = Motion.reduced()
@@ -461,15 +461,23 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				stamp
 			)
 			make("UIGradient", { Rotation = 90, Color = ColorSequence.new(GREEN_TOP, GREEN_BOTTOM) }, stamp)
-			local mark = CarKit.title(stamp, "✔", math.round(checkPx * 0.62), {
-				align = Enum.TextXAlignment.Center,
-				size = UDim2.fromScale(1, 1),
-				shadow = false,
-				stroke = 2,
-				z = 15,
-				name = "Mark",
-			})
-			mark.TextColor3 = CarKit.White
+			-- the tick is drawn with two white bars (review D9: the check-mark character drew as a dark emoji on some fonts)
+			local function bar(x0: number, y0: number, x1: number, y1: number)
+				local dx, dy = (x1 - x0) * checkPx, (y1 - y0) * checkPx
+				local thick = math.max(math.round(checkPx * 0.13), 4)
+				local piece = make("Frame", {
+					Name = "Mark",
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale((x0 + x1) / 2, (y0 + y1) / 2),
+					Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy) + thick * 0.5, thick),
+					Rotation = math.deg(math.atan2(dy, dx)),
+					BackgroundColor3 = CarKit.White,
+					ZIndex = 15,
+				}, stamp)
+				make("UICorner", { CornerRadius = UDim.new(1, 0) }, piece)
+			end
+			bar(0.26, 0.52, 0.43, 0.69)
+			bar(0.43, 0.69, 0.75, 0.33)
 			buildTrove:Add(stamp)
 			local scale = make("UIScale", { Scale = if calm then 1 else 2.4 }, stamp) :: UIScale
 			if not calm then
@@ -595,12 +603,63 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 			end)
 		end
 
-		-- a pick (CHANGE CAR here, or RIDE THIS CAR in the Garage) changes StyleState's car while this card is open
-		buildTrove:Connect(StyleState.Changed, function(what: any)
+		-- a refused pick (review D8): a short line where the toast goes, no check, no sparkles; the card shows the car the server
+		-- still has (RidePick.follow puts it back)
+		local function refuse(reason: string?)
+			toastSerial += 1
+			local serial = toastSerial
+			pcall(function()
+				Sounds.play("Warning", 0.5)
+			end)
+			local old = card:FindFirstChild("ReadyToast")
+			if old then
+				old:Destroy()
+			end
+			local lineH = math.max(math.round(44 * k), 32)
+			local line = make("Frame", {
+				Name = "ReadyToast",
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0, lineH * 0.5 + 10),
+				Size = UDim2.new(1, -math.round(160 * k), 0, lineH),
+				BackgroundColor3 = Color3.fromRGB(196, 52, 44),
+				ZIndex = 16,
+			}, card) :: Frame
+			make("UICorner", { CornerRadius = UDim.new(1, 0) }, line)
+			make(
+				"UIStroke",
+				{ Thickness = 3, Color = Color3.fromRGB(110, 20, 16), ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				line
+			)
+			local text = CarKit.title(line, string.upper(reason or "Try again."), math.max(math.round(24 * k), 14), {
+				align = Enum.TextXAlignment.Center,
+				size = UDim2.new(1, -16, 1, 0),
+				position = UDim2.fromOffset(8, 0),
+				shadow = false,
+				stroke = 2,
+				z = 17,
+				name = "ToastText",
+			})
+			text.TextScaled = true
+			make("UITextSizeConstraint", { MaxTextSize = math.max(math.round(24 * k), 14), MinTextSize = 10 }, text)
+			buildTrove:Add(line)
+			task.delay(2.4, function()
+				if toastSerial == serial and line.Parent then
+					line:Destroy()
+				end
+			end)
+		end
+
+		-- a pick (CHANGE CAR here, or RIDE THIS CAR in the Garage) changes StyleState's car while this card is open: the turntable,
+		-- rows and portrait follow at once; the confirmation waits for the server's answer (review D8: BetaResult PickRideCar)
+		buildTrove:Connect(StyleState.Changed, function(_what: any)
 			applyStyle()
 			refreshPortrait() -- the portrait wears the paint, decal and wheels now worn
-			if what == "car" then
-				celebrate()
+		end)
+		buildTrove:Connect(RidePick.Answered, function(carId: string, ok: boolean, reason: string?)
+			if ok then
+				celebrate(carId)
+			else
+				refuse(reason)
 			end
 		end)
 		overlay:focus(start.root)

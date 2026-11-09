@@ -54,6 +54,7 @@ function BetaLookTest.run(player: Player): { string }
 		Equipped = table.clone(data.Equipped),
 		Cars = table.clone(data.Cars),
 		RideCar = data.RideCar,
+		WorldsUnlocked = table.clone(data.WorldsUnlocked),
 	}
 	-- the test save: Cash to buy the four items, Putter and Pizza Runner to ride, nothing owned or worn, Putter picked
 	data.Cash = TEST_CASH
@@ -61,6 +62,9 @@ function BetaLookTest.run(player: Player): { string }
 	data.Equipped = table.clone(BetaConfig.Template.Equipped)
 	data.Cars = { Putter = { Edition = 1, Copies = 0 }, ["Pizza Runner"] = { Edition = 1, Copies = 0 } }
 	data.RideCar = BetaRide.Default
+	-- review D2: the client may run the test in any World (LocalPlayer attribute BetaLookTestWorld), so all three are open for it
+	data.WorldsUnlocked = { Downtown = true, DustyHighway = true, SummitPass = true }
+	BetaEconomy.publishWorlds(player, data)
 	BetaEconomy.publishCash(player, data)
 	BetaEconomy.publishCars(player, data)
 	BetaStyle.publish(player)
@@ -96,6 +100,8 @@ function BetaLookTest.run(player: Player): { string }
 	if data2 then
 		data2.Cash, data2.Owned, data2.Equipped, data2.Cars, data2.RideCar =
 			saved.Cash, saved.Owned, saved.Equipped, saved.Cars, saved.RideCar
+		data2.WorldsUnlocked = saved.WorldsUnlocked
+		BetaEconomy.publishWorlds(player, data2)
 		BetaEconomy.publishCash(player, data2)
 		BetaEconomy.publishCars(player, data2)
 		BetaStyle.publish(player)

@@ -116,7 +116,8 @@ function BetaRide.start(net: Folder)
 	remote.OnServerEvent:Connect(function(player: Player, carId: any)
 		local now = os.clock()
 		if now - (last[player] or -math.huge) < COOLDOWN then
-			reply(player, false, "One moment, try again.")
+			-- review D12: a request inside the cooldown is dropped without a reply or a log line, so spamming the remote costs the
+			-- server nothing; an honest client never sends one (RidePick waits COOLDOWN between asks and answers itself)
 			return
 		end
 		last[player] = now
@@ -151,49 +152,59 @@ function BetaRide.selfTest(player: Player): { string }
 		return { "FAIL no save loaded" }
 	end
 	local savedCars, savedRide = table.clone(data.Cars), data.RideCar
-	data.Cars = { Putter = { Edition = 1, Copies = 0 }, ["Pizza Runner"] = { Edition = 1, Copies = 0 } }
-	local ok = BetaRide.pick(player, "Pizza Runner")
-	expect("C-03 an owned car can be picked", ok, true)
-	expect("... and is saved as RideCar", data.RideCar, "Pizza Runner")
-	expect("... and published as the BetaRideCar attribute", player:GetAttribute(BetaRide.Attribute), "Pizza Runner")
-	ok = BetaRide.pick(player, "Cruiser")
-	expect("C-03 a car not owned is refused", ok, false)
-	expect("... and the pick stays", data.RideCar, "Pizza Runner")
-	ok = BetaRide.pick(player, 42)
-	expect("a number for a car id is refused", ok, false)
-	ok = BetaRide.pick(player, string.rep("x", 200))
-	expect("an over-long car id is refused", ok, false)
-	ok = BetaRide.pick(player, "No Such Car")
-	expect("a car that is not in the roster is refused", ok, false)
-	ok = BetaRide.pick(player, { "Putter" })
-	expect("a table for a car id is refused", ok, false)
-	ok = BetaRide.pick(player, "Rustbucket")
-	expect("a World's Loaner is always yours to pick", ok, true)
-	data.RideCar = "Pizza Runner"
-	expect(
-		"StartRun uses the car the client asks for when owned",
-		BetaRide.startCarFor(player, "Downtown", "Putter"),
-		"Putter"
-	)
-	expect("... else the saved RideCar", BetaRide.startCarFor(player, "Downtown", "Cruiser"), "Pizza Runner")
-	expect("... a number is no car: the saved RideCar", BetaRide.startCarFor(player, "Downtown", 7), "Pizza Runner")
-	local dusty = RosterFixtures.loaner("DustyHighway")
-	expect(
-		"... and a World's own Loaner when the pick is of another World",
-		BetaRide.startCarFor(player, "DustyHighway", "Pizza Runner"),
-		if dusty then dusty.id else "?"
-	)
-	data.Cars = { Putter = { Edition = 1, Copies = 0 } }
-	expect("a car given up falls back to the default", BetaRide.rideCar(player), BetaRide.Default)
-	local bad = { RideCar = "Not A Car", Cars = { Putter = { Edition = 1, Copies = 0 } } } :: any
-	for k, v in BetaConfig.Template do
-		if bad[k] == nil then
-			bad[k] = if type(v) == "table" then table.clone(v) else v
+	-- review N6: the save is put back on every path, also when a check below errors
+	local ran, err = pcall(function()
+		data.Cars = { Putter = { Edition = 1, Copies = 0 }, ["Pizza Runner"] = { Edition = 1, Copies = 0 } }
+		local ok = BetaRide.pick(player, "Pizza Runner")
+		expect("C-03 an owned car can be picked", ok, true)
+		expect("... and is saved as RideCar", data.RideCar, "Pizza Runner")
+		expect(
+			"... and published as the BetaRideCar attribute",
+			player:GetAttribute(BetaRide.Attribute),
+			"Pizza Runner"
+		)
+		ok = BetaRide.pick(player, "Cruiser")
+		expect("C-03 a car not owned is refused", ok, false)
+		expect("... and the pick stays", data.RideCar, "Pizza Runner")
+		ok = BetaRide.pick(player, 42)
+		expect("a number for a car id is refused", ok, false)
+		ok = BetaRide.pick(player, string.rep("x", 200))
+		expect("an over-long car id is refused", ok, false)
+		ok = BetaRide.pick(player, "No Such Car")
+		expect("a car that is not in the roster is refused", ok, false)
+		ok = BetaRide.pick(player, { "Putter" })
+		expect("a table for a car id is refused", ok, false)
+		ok = BetaRide.pick(player, "Rustbucket")
+		expect("a World's Loaner is always yours to pick", ok, true)
+		data.RideCar = "Pizza Runner"
+		expect(
+			"StartRun uses the car the client asks for when owned",
+			BetaRide.startCarFor(player, "Downtown", "Putter"),
+			"Putter"
+		)
+		expect("... else the saved RideCar", BetaRide.startCarFor(player, "Downtown", "Cruiser"), "Pizza Runner")
+		expect("... a number is no car: the saved RideCar", BetaRide.startCarFor(player, "Downtown", 7), "Pizza Runner")
+		local dusty = RosterFixtures.loaner("DustyHighway")
+		expect(
+			"... and a World's own Loaner when the pick is of another World",
+			BetaRide.startCarFor(player, "DustyHighway", "Pizza Runner"),
+			if dusty then dusty.id else "?"
+		)
+		data.Cars = { Putter = { Edition = 1, Copies = 0 } }
+		expect("a car given up falls back to the default", BetaRide.rideCar(player), BetaRide.Default)
+		local bad = { RideCar = "Not A Car", Cars = { Putter = { Edition = 1, Copies = 0 } } } :: any
+		for k, v in BetaConfig.Template do
+			if bad[k] == nil then
+				bad[k] = if type(v) == "table" then table.clone(v) else v
+			end
 		end
-	end
-	BetaData.sanitize(bad)
-	expect("an unknown saved RideCar goes back to Putter", bad.RideCar, "Putter")
+		BetaData.sanitize(bad)
+		expect("an unknown saved RideCar goes back to Putter", bad.RideCar, "Putter")
+	end)
 	data.Cars, data.RideCar = savedCars, savedRide
+	if not ran then
+		table.insert(lines, "FAIL the ride self-test stopped: " .. tostring(err))
+	end
 	BetaRide.publish(player)
 	return lines
 end

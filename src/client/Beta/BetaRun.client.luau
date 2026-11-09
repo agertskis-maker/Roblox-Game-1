@@ -30,6 +30,7 @@ local UI = script.Parent.Parent:WaitForChild("UI")
 local RealCar = require(UI:WaitForChild("Prototype"):WaitForChild("RealCar"))
 local RidePick = require(UI.Prototype:WaitForChild("RidePick"))
 local StyleState = require(UI.Prototype:WaitForChild("StyleState"))
+local Motion = require(UI.Prototype:WaitForChild("Motion"))
 local CarLookApplier = require(UI.Prototype:WaitForChild("Style"):WaitForChild("CarLookApplier"))
 local CarLook = require(ReplicatedStorage.Shared:WaitForChild("Style"):WaitForChild("CarLook"))
 local Trove = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("Trove"))
@@ -48,6 +49,11 @@ local BACK = 14 -- studs in front of the portal where the player comes back
 -- largest is NEEDS_BASE.Legendary 80 x NEEDS_SIZE.Giant 2.6 = 208), and his "Needs N" car tags and the "Rider Level" corner
 -- label are hidden. Delete this when his run drops the gate (vault/design/specs/beta-driving-update-for-brian-r.md).
 local GATE_OFF_LEVEL = 999
+
+-- Round 8 (review D1, C-02): how the run shows your look from the chase camera
+local HERO_SECONDS = 1.1 -- X-01: the camera swing past your car as the run starts
+local RUN_TRAIL_SCALE = 1.5 -- your trail in a run is this much bigger than on a standing car
+local RUN_TRAIL_LEVEL = 1 -- and never below this hop-chain level (TrailFx:setLevel, when the TrailFx has it)
 
 -- Brian R's family and rarity names (src/shared/Run/Families, RunConfig), for naming his cars as Brian L's (startRun)
 local FAMILIES = table.freeze({
@@ -316,7 +322,12 @@ local function startRun(world: string): RunController.RunController
 			trailHandle = CarLookApplier.apply(
 				target,
 				{ car = ownLook.car, trail = ownLook.trail, matchPaint = ownLook.matchPaint },
-				{ paintColour = if paintItem then paintItem.colours[1] else nil }
+				{
+					paintColour = if paintItem then paintItem.colours[1] else nil,
+					-- review D1 (C-02): a fuller trail at run speed, so it reads from the chase camera 25 studs back
+					trailScale = RUN_TRAIL_SCALE,
+					trailLevelFloor = RUN_TRAIL_LEVEL,
+				}
 			)
 			CarLookApplier.setRunHandle(trailHandle)
 			lookTrove:Add(function()
@@ -353,6 +364,13 @@ local function startRun(world: string): RunController.RunController
 	end
 	run:start()
 	starting = false
+	-- Round 8 X-01 (review D1, C-02): the launch hero moment. For about a second the camera swings past your car (side decal, rims,
+	-- paint, trail) and settles into the normal chase view. Camera only: you can steer and hop from the first frame. Skipped under
+	-- Reduce Motion. Uses ChaseCamera:intro (Brian R's file, one small opt-in method); a run without it is unchanged.
+	local chase = (run :: any)._camera
+	if chase and chase.intro and not Motion.reduced() then
+		chase:intro(HERO_SECONDS)
+	end
 	-- the run's keyboard hint names keys and sits on the Heat panel; phones play too. A label only: nothing else changes.
 	local overlay = player.PlayerGui:FindFirstChild("Lane1RunOverlay")
 	if overlay then
@@ -443,6 +461,12 @@ local function startRun(world: string): RunController.RunController
 			if yours then
 				-- your paint, decal and wheels (the trail is carried on its own, above)
 				rig:setLook({ car = carId, paint = ownLook.paint, decal = ownLook.decal, wheels = ownLook.wheels })
+				-- review D1 (C-02): the chase camera sees the back and top of your car, not its sides: your decal also goes on the
+				-- rear panel, and each wheel gets a lip in the rim colour that shows at the slight angle of a lane change
+				local handle = rig:handle()
+				if handle and handle.setChaseView then
+					handle:setChaseView(true)
+				end
 			end
 			if model == riddenModel then
 				followTrail(model)
@@ -576,6 +600,7 @@ end)
 --                    as Brian R's playground driver, written here; his files are not touched)
 --   "state"          the run's debug state, the server's tally for this run and the Launch Pad phase
 --   "retry" / "home" press the Results card's buttons
+--   "hero" seconds?  Round 8 X-01: the launch hero moment again on the current run (for frames)
 -- Nothing here exists outside Studio.
 if RunService:IsStudio() then
 	local autopilot = false
@@ -612,6 +637,14 @@ if RunService:IsStudio() then
 			RidePick.ask(arg)
 			StyleState.setCar(arg)
 			return arg
+		elseif command == "hero" then
+			-- Round 8 X-01: plays the launch hero moment again on the current run ("hero:4" = over 4 s), for frames
+			local chase = if current then (current :: any)._camera else nil
+			if chase and chase.intro then
+				chase:intro(tonumber(arg) or HERO_SECONDS)
+				return true
+			end
+			return false
 		elseif command == "start" then
 			return LaunchPad.debug("start") -- Round 7: as pressing START on the open launch card
 		elseif command == "enter" then
