@@ -266,6 +266,10 @@ local function watch(plot: Model)
 			if current.name ~= name then
 				current.name = name
 				current.label.Text = name
+				local letter = current.gui:FindFirstChild("Letter", true) -- the placeholder's initial follows the name
+				if letter and letter:IsA("TextLabel") then
+					letter.Text = Headshot.letter(name)
+				end
 			end
 			return
 		end
@@ -273,8 +277,20 @@ local function watch(plot: Model)
 		build(owner, name)
 	end
 
-	trove:Connect(plot:GetAttributeChangedSignal("Owner"), refresh)
-	trove:Connect(plot:GetAttributeChangedSignal("OwnerDisplayName"), refresh)
+	-- Owner and OwnerDisplayName are set one after the other: one rebuild reads both
+	local queued = false
+	local function schedule()
+		if queued then
+			return
+		end
+		queued = true
+		task.defer(function()
+			queued = false
+			refresh()
+		end)
+	end
+	trove:Connect(plot:GetAttributeChangedSignal("Owner"), schedule)
+	trove:Connect(plot:GetAttributeChangedSignal("OwnerDisplayName"), schedule)
 	-- Leaving: the server clears the plot's Owner, but the badge must not wait for that
 	trove:Connect(Players.PlayerRemoving, function(leaving: Player)
 		if plot:GetAttribute("Owner") == leaving.UserId then

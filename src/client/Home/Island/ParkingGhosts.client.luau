@@ -457,12 +457,13 @@ local function buildModel(carId: string): Model?
 	return model
 end
 
-local function tagGui(view: View, parent: Instance, adornee: BasePart)
+-- `stagger` 0 or 1: neighbouring bays (9 studs apart) put their tags at two heights so they do not sit on top of each other
+local function tagGui(view: View, parent: Instance, adornee: BasePart, stagger: number)
 	local gui = make("BillboardGui", {
 		Name = "GhostTag",
 		Adornee = adornee,
-		Size = UDim2.fromOffset(176, 58),
-		StudsOffsetWorldSpace = Vector3.new(0, 5.6, 0),
+		Size = UDim2.fromOffset(142, 46),
+		StudsOffsetWorldSpace = Vector3.new(0, 5 + 2.6 * stagger, 0),
 		MaxDistance = DETAIL + 40,
 		AlwaysOnTop = false,
 		LightInfluence = 0,
@@ -479,25 +480,25 @@ local function tagGui(view: View, parent: Instance, adornee: BasePart)
 	local name = make("TextLabel", {
 		Name = "CarName",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(8, 4),
-		Size = UDim2.new(1, -16, 0, 30),
+		Position = UDim2.fromOffset(6, 3),
+		Size = UDim2.new(1, -12, 0, 25),
 		FontFace = Tokens.font(),
 		Text = view.name,
 		TextColor3 = view.colour,
 		TextScaled = true,
 	}, card)
-	make("UITextSizeConstraint", { MaxTextSize = 26, MinTextSize = 10 }, name)
+	make("UITextSizeConstraint", { MaxTextSize = 22, MinTextSize = 9 }, name)
 	local pay = make("TextLabel", {
 		Name = "LapPay",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(8, 33),
-		Size = UDim2.new(1, -16, 0, 20),
+		Position = UDim2.fromOffset(6, 27),
+		Size = UDim2.new(1, -12, 0, 16),
 		FontFace = Tokens.font(),
 		Text = view.pay,
 		TextColor3 = GREEN,
 		TextScaled = true,
 	}, card)
-	make("UITextSizeConstraint", { MaxTextSize = 19, MinTextSize = 9 }, pay)
+	make("UITextSizeConstraint", { MaxTextSize = 16, MinTextSize = 8 }, pay)
 	view.tag = card
 	view.nameLabel = name
 	view.payLabel = pay
@@ -525,7 +526,9 @@ local function setDetail(view: View, on: boolean)
 		local body = model:FindFirstChild("body_geom", true)
 		local adornee = if body and body:IsA("BasePart") then body else view.parts[1]
 		if adornee then
-			tagGui(view, model, adornee)
+			local bay = Parking.bay(view.index, Parking.maxFor(view.lane.plot) > Parking.MaxSpots)
+			local stagger = if bay then math.floor(math.abs(bay.x) / 9 + 0.5) % 2 else 0
+			tagGui(view, model, adornee, stagger)
 		end
 		if not reduced then
 			shimmering[view] = true
@@ -635,10 +638,17 @@ local function newView(lane: Lane, index: number, want: Want): View?
 		MaxDistance = ACTIVE_LEAVE,
 		AlwaysOnTop = false,
 	}, plate)
+	-- The pictures are drawn upright in a portrait group w x h (across the bay, mouth at the bottom). A SurfaceGui on a Top face has
+	-- its canvas turned the other way (found in Studio: AbsoluteSize is depth x width, canvas right runs toward the back wall,
+	-- canvas down runs across the bay), so the portrait group is turned a quarter to stand upright for someone looking in from the
+	-- aisle.
 	local w, h = math.floor(pose.width * PX), math.floor(pose.depth * PX)
 	local group = make("CanvasGroup", {
 		Name = "Paint",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(h / 2, w / 2),
 		Size = UDim2.fromOffset(w, h),
+		Rotation = 90,
 		BackgroundTransparency = 1,
 		GroupTransparency = 1,
 	}, gui)
@@ -695,9 +705,9 @@ local function newView(lane: Lane, index: number, want: Want): View?
 		local tip = make("BillboardGui", {
 			Name = "EmptyTag",
 			Adornee = plate,
-			Size = UDim2.fromOffset(178, 34),
+			Size = UDim2.fromOffset(136, 26),
 			StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0),
-			MaxDistance = 80,
+			MaxDistance = 60,
 			AlwaysOnTop = false,
 			LightInfluence = 0,
 		}, plate)
