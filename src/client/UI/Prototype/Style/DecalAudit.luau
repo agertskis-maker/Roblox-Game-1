@@ -310,6 +310,7 @@ function DecalAudit.run(only: { string }?): { text: string, failures: number, ro
 			failures += 1
 		end
 		table.insert(rows, { car = model.Name, ok = ok, problems = problems })
+		task.wait() -- the pixel checks are heavy: let Studio draw between cars
 	end
 	scratch:Destroy()
 	local lines = {}
