@@ -29,6 +29,15 @@ for _, name in { "UpgradeCards", "HopButton", "Wheels", "Trails", "Clover", "Hub
 		all[key] = entry
 	end
 end
+for key, id in require(script.Uploaded) :: { [string]: number } do
+	local entry = all[key]
+	assert(entry ~= nil, "AssetIds: uploaded id for unknown key " .. key)
+	if entry.id == nil then
+		local copy = table.clone(entry)
+		copy.id = id
+		all[key] = copy
+	end
+end
 
 local function localArt(): boolean
 	return RunService:IsStudio() and ReplicatedStorage:FindFirstChild("Lane3_LocalArt") ~= nil
