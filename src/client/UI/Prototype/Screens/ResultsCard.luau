@@ -203,6 +203,8 @@ function ResultsCard.new(ctx: Overlay.Ctx, options: Options?): Results
 
 	local overlay = Overlay.new(ctx, {
 		name = "ResultsCard",
+		-- Round 8 (O-09): the same dark see-through backing as the run's own Results card (RunResults.DimTransparency)
+		dimTransparency = 0.3,
 		onDim = function()
 			results:skip()
 		end,

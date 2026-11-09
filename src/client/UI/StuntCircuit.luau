@@ -16,6 +16,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local CosmeticPreviewCatalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
@@ -235,7 +236,15 @@ function StuntCircuit.attach(
 	end
 	task.defer(refreshBoard)
 
-	-- the Race prompt at the gate (local to this player; the server only ever sees the lap events)
+	-- the Race prompt at the gate (local to this player; the server only ever sees the lap events). Round 7 (A-03): while the
+	-- Circuit is Coming soon there is no prompt at all; the entrance is shut by one invisible wall (Home/Island/CircuitComingSoon;
+	-- Round 8 H-04 removed the outer sign, banner, barrier arm and cones, the Circuit's own inside sign stays) and the server
+	-- refuses every Circuit event, so nothing behind it can be entered.
+	if not BetaConfig.CircuitOpen then
+		return function()
+			trove:Destroy()
+		end
+	end
 	trove:Add(task.spawn(function()
 		for _ = 1, 60 do
 			local part = gatePart()

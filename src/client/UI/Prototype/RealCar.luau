@@ -6,10 +6,13 @@
 --   local rig = RealCar.mount(parent, { length = number?, height = number? })
 --   rig:setCar(name)  rig:pivotTo(cf)  rig:setPaint(item?, phase?)  rig:tick(phase)  rig:setDecal(item?)  rig:setWheels(item?)
 --   rig:tail() -> CFrame                    the back of the car, +Z pointing away from it: where the trail starts
+--   rig:setLook(look)  rig:model()  rig:handle()   Round 8: a whole CarLook at once; the car's model; its CarLookApplier handle
+--   RealCar.preload(name)                  loads a car's meshes ahead of the run
 --   rig.source -> the car's name, "Supercar" or nil        rig:destroy()
 --   RealCar.thumb(holder, name) -> ViewportFrame?          RealCar.isAnimated(item?) -> boolean
 --
--- HOW IT DRAWS (Round 7, C-02 to C-06). Paint covers the body panels only (Style.BodyPaint: a drawn colour map on a copy of the
+-- HOW IT DRAWS (Round 7, C-02 to C-06; Round 8 C-01: all of it is done by Style.CarLookApplier, which this file only calls).
+-- Paint covers the body panels only (Style.BodyPaint: a drawn colour map on a copy of the
 -- body, see-through over the windows, tyres, lights and chrome); a car with no paint mask falls back to the old see-through wash.
 -- Decals are drawn by the game (Style.DecalArt) on both sides of the body. Wheels hide the car's own and put the game's tyre and
 -- rim at each wheel, with the tyre styles on top, and can spin (rig:spin). Trails are layered effects from two exhaust points
@@ -24,12 +27,13 @@ local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Prototype = script.Parent
-local GameIconIds = require(Prototype.GameIconIds)
 local Supercar = require(Prototype.Supercar)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
-local BodyPaint = require(Prototype.Style.BodyPaint)
-local DecalArt = require(Prototype.Style.DecalArt)
-local TrailFx = require(Prototype.Style.TrailFx)
+local CarLook = require(ReplicatedStorage.Shared.Style.CarLook)
+local CarLookApplier = require(Prototype.Style.CarLookApplier)
+
+local IDLE_TRAIL_SPEED = 0.2 -- = TrailMoments.SPEED_IDLE (src/client/Run/TrailMoments.luau): a standing car's trail
+local LiveData = require(ReplicatedStorage.Shared.UI.LiveData)
 
 local RealCar = {}
 
@@ -37,9 +41,6 @@ export type Entry = { name: string, rarity: string, model: Model }
 
 local LENGTH = 12.6
 local HEIGHT = 6
-local WASH = 0.45
-local WASH_GROW = 1.012
-local TYRE_DIAMETER = 2.04 -- the game's tyre mesh, at scale 1
 local RARITY_ORDER: { [string]: number } = { COMMON = 1, UNCOMMON = 2, RARE = 3, EPIC = 4, LEGENDARY = 5 }
 local RARITY_NAME: { [string]: string } =
 	{ COMMON = "Common", UNCOMMON = "Uncommon", RARE = "Rare", EPIC = "Epic", LEGENDARY = "Legendary" }
@@ -88,7 +89,13 @@ function RealCar.forWorld(world: string): { WorldEntry }
 	for _, car in RosterFixtures.inWorld(world) do
 		local entry = byName[car.model]
 		if entry then
-			local owned = car.loaner or Fixtures.PreviewCollection[car.id] ~= nil
+			-- the server's Cars attribute when there is one (the beta), else the example collection of the UI previews
+			local owned = car.loaner
+				or (
+					if LiveData.hasCars()
+						then LiveData.cars()[car.id] ~= nil
+						else Fixtures.PreviewCollection[car.id] ~= nil
+				)
 			local item: WorldEntry =
 				{ name = entry.name, rarity = car.rarity, model = entry.model, owned = owned, loaner = car.loaner }
 			table.insert(groups[if car.loaner then 1 elseif owned then 2 else 3], item)
@@ -99,6 +106,20 @@ function RealCar.forWorld(world: string): { WorldEntry }
 		table.move(g, 1, #g, #out + 1, out)
 	end
 	return out
+end
+
+-- Loads the meshes of a showroom car ahead of time (C-02: the car you start the run on must not pop in after the gantry lights).
+-- Returns at once; the loading goes on in the background.
+function RealCar.preload(name: string?)
+	local folder = ReplicatedStorage:FindFirstChild("Cars")
+	local source = name and folder and folder:FindFirstChild(name)
+	if source then
+		task.spawn(function()
+			pcall(function()
+				ContentProvider:PreloadAsync({ source })
+			end)
+		end)
+	end
 end
 
 local function find(name: string?): Entry?
@@ -113,36 +134,6 @@ end
 
 function RealCar.isAnimated(item: Catalog.Item?): boolean
 	return Supercar.isAnimated(item)
-end
-
-local function sample(colours: { Color3 }, t: number): Color3
-	local n = #colours
-	local f = (t % 1) * n
-	local i = math.floor(f)
-	return colours[(i % n) + 1]:Lerp(colours[((i + 1) % n) + 1], f - i)
-end
-
-local function meshUri(key: string): string
-	return GameIconIds[key] or ("rbxasset://carhop/" .. key .. ".mesh")
-end
-
-local function wheelPart(parent: Instance, name: string, mesh: string, scale: number, cf: CFrame): (Part, SpecialMesh)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.Size = Vector3.one
-	p.Material = Enum.Material.SmoothPlastic
-	p.CFrame = cf
-	local m = Instance.new("SpecialMesh")
-	m.MeshType = Enum.MeshType.FileMesh
-	m.MeshId = meshUri(mesh)
-	m.Scale = Vector3.one * scale
-	m.Parent = p
-	p.Parent = parent
-	return p, m
 end
 
 -- One car on show ---------------------------------------------------------------------------------------------------------------
@@ -169,9 +160,10 @@ local function squareUp(model: Model, wheels: { BasePart }): Vector3
 	return size
 end
 
-local function buildBody(entry: Entry, length: number, height: number): any
+local function buildBody(entry: Entry, length: number, height: number, trail: boolean?): any
 	local model = entry.model:Clone()
 	model.Name = "RealCar"
+	model:SetAttribute("CarName", entry.name) -- for the end-to-end look test and for debugging
 	local wheels: { BasePart } = {}
 	local body: MeshPart? = nil
 	for _, d in model:GetDescendants() do
@@ -198,181 +190,55 @@ local function buildBody(entry: Entry, length: number, height: number): any
 			halfLength = size.Z * fit / 2,
 			tailHeight = size.Y * fit * 0.32,
 			_wheels = wheels,
-			_rims = {},
-			_rimMeshes = {},
 			_name = entry.name,
 			_width = size.X * fit,
+			_spinTotal = 0,
 		} :: any,
 		Body
 	)
 	self._body = assert(body, "a showroom car has no body_geom")
-	local wash = self._body:Clone() :: MeshPart
-	wash.Name = "PaintWash"
-	wash.TextureID = ""
-	wash.Material = Enum.Material.SmoothPlastic
-	wash.Size = self._body.Size * WASH_GROW
-	wash.CFrame = self._body.CFrame
-	wash.Transparency = 1
-	wash.Parent = model
-	self._wash = wash
+	-- Round 8 (C-01): every look on this car goes through the one applier
+	-- (a picture, trail = false, is drawn in low detail: no animated paint redraw)
+	self._look = CarLookApplier.apply(
+		model,
+		CarLook.plain(entry.name),
+		{ trail = trail, lod = if trail == false then "low" else "full" }
+	)
 	return self
 end
 
+-- Paint, decals, wheels and the trail are the applier's (Style.CarLookApplier): one body of code for every screen (Round 8, C-01).
 function Body.tick(self: any, phase: number)
-	local item = self._paint
-	if item and item.kind == "animated" then
-		self._wash.Color = sample(item.colours, phase)
-	end
+	self._look:tick(phase)
 end
 
 function Body.setPaint(self: any, item: Catalog.Item?, phase: number?)
-	self._paint = item
-	if not item or item.id == "factory_paint" then
-		self._wash.Transparency = 1
-		if self._painter then
-			self._painter:set(nil)
-			self:setDecal(self._decalItem)
-		end
-		return
+	self._look:setItem("Paint", item)
+	if item and item.kind == "animated" then
+		self._look:tick(phase or 0.18)
 	end
-	-- Round 7 (C-02): body panels only, when this car has a paint mask
-	if self._painter == nil and BodyPaint.supported(self._name) then
-		self._painter = BodyPaint.new(self._body, self._name) or false
-	end
-	if self._painter then
-		self._wash.Transparency = 1
-		self._painter:set(item)
-		self:setDecal(self._decalItem)
-		return
-	end
-	self._wash.Transparency = WASH
-	self._wash.Color = item.colours[1]
-	self:tick(phase or 0.18)
 end
 
--- Decals sit on the paint when the car is painted (the paint covers the body), else on the body itself.
 function Body.setDecal(self: any, item: Catalog.Item?)
-	self._decalItem = item
-	local painter = self._painter
-	local target = if painter and painter._shell.Parent then painter._shell else self._body
-	if self._decals and self._decalTarget ~= target then
-		self._decals:destroy()
-		self._decals = nil
-	end
-	if not self._decals then
-		if not item or item.isNone then
-			return
-		end
-		self._decals = DecalArt.attach(target, self.model)
-		self._decalTarget = target
-	end
-	self._decals:set(item)
-end
-
-local function buildWheels(self: any)
-	local pivot = self.model:GetPivot()
-	for _, wheel in self._wheels do
-		local at = pivot:PointToObjectSpace(wheel.Position)
-		local cf = pivot * CFrame.new(at) * CFrame.Angles(0, if at.X > 0 then 0 else math.pi, 0)
-		local scale = math.max(wheel.Size.X, wheel.Size.Y, wheel.Size.Z) / TYRE_DIAMETER
-		local tyre = wheelPart(self.model, "Tyre", "car_tyre", scale, cf)
-		tyre.Color = Color3.fromRGB(18, 18, 22)
-		local rim, mesh = wheelPart(self.model, "Rim", "car_rim_five", scale, cf)
-		table.insert(self._rims, tyre)
-		table.insert(self._rims, rim)
-		table.insert(self._rimMeshes, { part = rim, mesh = mesh })
-	end
-end
-
--- Round 7 (C-05): the tyre styles on top of the rim: a white wall, a coloured stripe or a glowing tread (rings on the tyre), a
--- neon ring or a glowing hub in the rim, and chrome, gold or carbon finishes.
-local function styleWheels(self: any, item: Catalog.Item)
-	for _, extra in self._wheelExtras or {} do
-		extra:Destroy()
-	end
-	self._wheelExtras = {}
-	local style = item.kind :: any
-	local pivot = self.model:GetPivot()
-	for _, wheel in self._wheels do
-		local at = pivot:PointToObjectSpace(wheel.Position)
-		local d = math.max(wheel.Size.X, wheel.Size.Y, wheel.Size.Z)
-		local axle = pivot * CFrame.new(at)
-		local function ring(name: string, diameter: number, colour: Color3, material: Enum.Material, out: number)
-			local r = Instance.new("Part")
-			r.Name = name
-			r.Shape = Enum.PartType.Cylinder
-			r.Anchored = true
-			r.CanCollide = false
-			r.CanQuery = false
-			r.CanTouch = false
-			r.Size = Vector3.new(0.06, diameter, diameter)
-			r.CFrame = axle * CFrame.new(math.sign(at.X) * out, 0, 0)
-			r.Color = colour
-			r.Material = material
-			r.Parent = self.model
-			table.insert(self._wheelExtras, r)
-			table.insert(self._rims, r)
-		end
-		local outside = d * 0.26
-		if style == "whitewall" then
-			ring("WhiteWall", d * 0.82, Color3.fromRGB(245, 245, 240), Enum.Material.SmoothPlastic, outside)
-			ring("WhiteWallIn", d * 0.62, Color3.fromRGB(20, 20, 24), Enum.Material.SmoothPlastic, outside + 0.01)
-		elseif style == "stripe" then
-			ring("TyreStripe", d * 0.88, item.colours[2], Enum.Material.SmoothPlastic, outside)
-			ring("TyreStripeIn", d * 0.8, Color3.fromRGB(20, 20, 24), Enum.Material.SmoothPlastic, outside + 0.01)
-		elseif style == "neonring" then
-			ring("NeonRing", d * 0.58, item.colours[2], Enum.Material.Neon, outside + 0.02)
-			ring("NeonRingIn", d * 0.5, Color3.fromRGB(30, 34, 46), Enum.Material.SmoothPlastic, outside + 0.03)
-		elseif style == "glowhub" then
-			ring("GlowTread", d * 1.02, item.colours[2], Enum.Material.Neon, 0)
-			ring("GlowHub", d * 0.22, item.colours[2], Enum.Material.Neon, outside + 0.04)
-		end
-	end
+	self._look:setItem("Decals", item)
 end
 
 function Body.setWheels(self: any, item: Catalog.Item?)
-	local key = item and item.key or "five"
-	local own = key == "five" and (not item or item.kind == nil)
-	if not own and #self._rims == 0 then
-		buildWheels(self)
-	end
-	for _, wheel in self._wheels do
-		wheel.Transparency = if own then 0 else 1
-	end
-	for _, p in self._rims do
-		p.Transparency = if own then 1 else 0
-	end
-	if own or not item then
-		return
-	end
-	local style = item.kind :: any
-	local colour = item.colours[1]
-	for _, r in self._rimMeshes do
-		r.mesh.MeshId = meshUri("car_rim_" .. key)
-		r.part.Color = colour
-		r.part.Material = if style == "carbon" then Enum.Material.Slate else Enum.Material.Metal
-		r.part.Reflectance = if style == "chrome" or style == "gold" then 0.45 else 0
-	end
-	styleWheels(self, item)
+	self._look:setItem("Wheels", item)
+end
+
+function Body.setTrail(self: any, item: Catalog.Item?)
+	self._look:setItem("Trails", item)
 end
 
 -- Turns every wheel by `angle` (radians) about its axle: the run calls this with how far the car rolled.
 function Body.spin(self: any, angle: number)
-	local turn = CFrame.Angles(angle, 0, 0)
-	for _, p in self._rims do
-		if p.Transparency < 1 then
-			p.CFrame *= turn
-		end
-	end
+	self._spinTotal += angle
+	self._look:setWheelSpin(self._spinTotal)
 end
 
 function Body.destroy(self: any)
-	if self._painter then
-		self._painter:destroy()
-	end
-	if self._trail then
-		self._trail:destroy()
-	end
+	self._look:destroy()
 	self.model:Destroy()
 end
 
@@ -408,7 +274,7 @@ function RealCar.displayModel(name: string): Model?
 end
 
 -- A still picture of a car for a card: no spin and no render loop. nil when the car is not here, so the caller keeps its own art.
-function RealCar.thumb(holder: Frame, name: string?): ViewportFrame?
+function RealCar.thumb(holder: Frame, name: string?, look: CarLook.Look?): ViewportFrame?
 	local entry = find(name)
 	if not entry or failed[entry.name] then
 		return nil
@@ -426,10 +292,18 @@ function RealCar.thumb(holder: Frame, name: string?): ViewportFrame?
 	camera.CFrame = CFrame.lookAt(Vector3.new(0, 7.4, 31), Vector3.new(0, 2.2, 0))
 	camera.Parent = vp
 	vp.CurrentCamera = camera
-	local model = buildBody(entry, LENGTH, HEIGHT).model
+	local body = buildBody(entry, LENGTH, HEIGHT, false)
+	local model = body.model :: Model
+	if look then
+		-- the picture wears the look it is for (C-03's portrait, the shop tiles): no animated paint redraw, no trail
+		body._look:update(CarLook.withCar(look, entry.name))
+	end
 	model:PivotTo(CFrame.Angles(0, math.rad(215), 0))
 	model.Parent = vp
 	vp.Parent = holder
+	vp.Destroying:Connect(function()
+		body._look:destroy() -- its paint image and decals go with the picture
+	end)
 	return vp
 end
 
@@ -491,6 +365,9 @@ local function show(self: any, body: any, source: string?)
 		body:setPaint(self._paint, 0.18)
 		body:setDecal(self._decal)
 		body:setWheels(self._wheelsItem)
+		-- a rig stands still (launch card, Garage, Style Shop turntable, Raceway lineup): its trail is the short gentle standing one
+		-- (T-03, TrailMoments.SPEED_IDLE) unless its owner set a speed; the run's own trail is a separate handle (BetaRun.client)
+		body._look:setTrailSpeed(self._trailSpeed or IDLE_TRAIL_SPEED)
 		body.model.Parent = self._parent
 		if self._trailItem then
 			self:setTrail(self._trailItem)
@@ -578,34 +455,47 @@ function Mount.setWheels(self: any, item: Catalog.Item?)
 	end
 end
 
--- Round 7 (C-06): the trail from the car's two exhaust points (nil or "No trail" removes it).
+-- Round 7 (C-06): the trail from the car's exhaust points (nil or "No trail" removes it). Round 8: built by the applier on the car's body.
 function Mount.setTrail(self: any, item: Catalog.Item?)
 	self._trailItem = item
 	local body = self._body
-	if not body or not body._body then
-		return
+	if body and body._look then
+		body:setTrail(item)
 	end
-	if not body._trail then
-		if not item or item.isNone then
-			return
-		end
-		body._trail = TrailFx.attach(body._body, self:tail(), body._width or 5)
-	end
-	body._trail:set(item)
 end
 
 function Mount.clearTrail(self: any)
 	local body = self._body
-	if body and body._trail then
-		body._trail:clear()
+	if body and body._look then
+		body._look:clearTrail()
 	end
 end
 
 function Mount.setTrailSpeed(self: any, speed: number)
+	self._trailSpeed = speed
 	local body = self._body
-	if body and body._trail then
-		body._trail:setSpeed(speed)
+	if body and body._look then
+		body._look:setTrailSpeed(speed)
 	end
+end
+
+-- Round 8 (C-01): a whole look at once, from the ids a CarLook holds (the car itself is chosen with setCar).
+function Mount.setLook(self: any, look: CarLook.Look)
+	self:setPaint(if look.paint then Catalog.byId("Paint", look.paint) else nil)
+	self:setDecal(if look.decal then Catalog.byId("Decals", look.decal) else nil)
+	self:setWheels(if look.wheels then Catalog.byId("Wheels", look.wheels) else nil)
+	self:setTrail(if look.trail then Catalog.byId("Trails", look.trail) else nil)
+end
+
+-- The car's own model (a RealCar clone) and the applier handle that dresses it; nil while the stand-in car shows.
+function Mount.model(self: any): Model?
+	local body = self._body
+	return if body and body._look then body.model else nil
+end
+
+function Mount.handle(self: any): any?
+	local body = self._body
+	return if body then body._look else nil
 end
 
 function Mount.spin(self: any, angle: number)

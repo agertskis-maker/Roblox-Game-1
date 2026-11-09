@@ -139,7 +139,17 @@ local HEAT_STOPS: { { at: number, role: string } } = {
 	{ at = 1, role = "DangerDeep" },
 }
 
+-- THE game font (Round 8, O-09; Adam: "pick one game font"). Fredoka One: bold and rounded, approved on 2026-10-19 (see the top of
+-- this file) and already the font of most screens. Count on 2026-11-08 over src/client/UI and src/client/Home (95 files that put
+-- text on screen): Fredoka One in 62, Nunito Heavy Italic (Home HUD numbers, Run ribbons, Stunt screens, through Arcade's `italic`)
+-- in 29, Bangers (the titles and buttons of every CarKit screen, through CarKit.display) in 16, Code (a dev preview) in 1,
+-- BuilderSans (declared, never used) in 1. The files that still name another font are listed in the WS-11 report
+-- (Car-Hop-Art/review/round8/agents/ws11.md) for the lead's sweep after the Round 8 merges. This is the ONE place that names the
+-- game font: every other file asks Tokens, so changing it is one edit here. New code uses Tokens.font() (a Font, for FontFace)
+-- or Tokens.FontEnum (for the old `.Font` property); it never names a family itself.
 Tokens.FontFamily = "FredokaOne"
+Tokens.FontAsset = "rbxasset://fonts/families/FredokaOne.json" -- the same family as a path, for the rare place that needs one
+Tokens.FontEnum = Enum.Font.FredokaOne -- for the old TextLabel.Font property (TextService:GetTextSize and similar)
 
 function Tokens.font(): Font
 	return Font.fromName(Tokens.FontFamily)

@@ -19,6 +19,8 @@ local Workspace = game:GetService("Workspace")
 
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local BetaConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Beta"):WaitForChild("BetaConfig"))
+
 local Speedway = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Island"):WaitForChild("Speedway")
 local Ladder = require(Speedway:WaitForChild("Ladder"))
 local Look = require(Speedway:WaitForChild("Look"))
@@ -30,6 +32,15 @@ local Calm = require(script.Parent.Speedway.Calm)
 local Kiosk = require(script.Parent.Speedway.Kiosk)
 local LappingPreview = require(script.Parent.LappingPreview)
 local ParkingLook = require(script.Parent.Speedway.ParkingLook)
+local EconomyPreview = require(ReplicatedStorage.Shared.UI:WaitForChild("EconomyPreview"))
+local Format = require(ReplicatedStorage.Shared.UI:WaitForChild("Format"))
+local KioskSign = require(
+	script.Parent.Parent.Parent
+		:WaitForChild("UI")
+		:WaitForChild("Prototype")
+		:WaitForChild("World")
+		:WaitForChild("KioskSign")
+)
 local Life = require(script.Parent.Speedway.Life)
 local PreviewPanel = require(script.Parent.Speedway.PreviewPanel)
 local Reveal = require(script.Parent.Speedway.Reveal)
@@ -94,6 +105,13 @@ local function attach(root: Instance): Trove.Trove
 	end
 
 	local function homeIndex(): number
+		-- Car Hop Beta 1: the plot the server gave this player (BetaPlots)
+		local given = player:GetAttribute(BetaConfig.HomePlotAttribute)
+		if type(given) == "number" then
+			return given
+		elseif BetaConfig.enabled() then
+			return 0 -- not given a plot yet: no prompts anywhere
+		end
 		local h = player:GetAttribute("Lane3SpeedwayPreviewHome")
 		return if type(h) == "number" then h else 3
 	end
@@ -128,7 +146,16 @@ local function attach(root: Instance): Trove.Trove
 	-- Studio preview: BUY raises the plot's preview level or spot count (LocalPlayer attributes), with no
 	-- Cash, saving or remote. Outside Studio no price exists yet, so there is no prompt and nothing to buy.
 	local PROMPT_NAME = "Lane3RacewayPrompt"
-	local canBuy = RunService:IsStudio()
+	local canBuy = RunService:IsStudio() or BetaConfig.enabled()
+	-- Car Hop Beta 1: BUY asks the server (free, saved); the Studio preview keeps its local values
+	local function betaRemote(name: string): RemoteEvent?
+		if not BetaConfig.enabled() then
+			return nil
+		end
+		local net = ReplicatedStorage:WaitForChild(BetaConfig.NetName, 10)
+		local remote = net and net:FindFirstChild(name)
+		return if remote and remote:IsA("RemoteEvent") then remote else nil
+	end
 	local function anchorIn(container: Instance?, attribute: string): BasePart?
 		if not container then
 			return nil
@@ -155,6 +182,11 @@ local function attach(root: Instance): Trove.Trove
 				end,
 				buy = if canBuy
 					then function(target: number)
+						local remote = betaRemote(BetaConfig.Remotes.BuyRacewayLevel)
+						if remote then
+							remote:FireServer()
+							return
+						end
 						player:SetAttribute(
 							string.format("Lane3SpeedwayPreviewLevel_Plot%02d", info.index),
 							Ladder.clamp(target)
@@ -176,6 +208,11 @@ local function attach(root: Instance): Trove.Trove
 			end,
 			buy = if canBuy
 				then function(target: number)
+					local remote = betaRemote(BetaConfig.Remotes.BuyParkingSpot)
+					if remote then
+						remote:FireServer()
+						return
+					end
 					player:SetAttribute(string.format("Lane3ParkingPreviewSpots_Plot%02d", info.index), target)
 				end
 				else nil,
@@ -191,6 +228,10 @@ local function attach(root: Instance): Trove.Trove
 			local park = anchor and anchor:FindFirstChild("Lane3LineupPrompt")
 			if park then
 				park:Destroy()
+			end
+			local sign = anchor and anchor:FindFirstChild("Lane3KioskSign")
+			if sign then
+				sign:Destroy()
 			end
 			return
 		end
@@ -211,6 +252,35 @@ local function attach(root: Instance): Trove.Trove
 			end
 		end)
 		prompt.Parent = at
+		-- Round 7 (H-03): the floating sign over your own kiosk: now -> next and the price
+		if kind == "upgrade" then
+			KioskSign.attach(at, {
+				title = "RACEWAY SHOP",
+				height = 9,
+				read = function(): (string, string?)
+					local level = info.level
+					local price = EconomyPreview.racewayPrice(level + 1)
+					if not price then
+						return "LEVEL " .. level, nil
+					end
+					return string.format("LEVEL %d → %d", level, level + 1), Format.cash(price)
+				end,
+			})
+		else
+			KioskSign.attach(at, {
+				title = "PARKING",
+				colour = Color3.fromRGB(110, 190, 255),
+				height = 9,
+				read = function(): (string, string?)
+					local spots = ParkingLook.resolve(info.plot, info.index)
+					local price = EconomyPreview.spotPrice(spots + 1)
+					if not price then
+						return string.format("%d SPOTS", spots), nil
+					end
+					return string.format("SPOTS %d → %d", spots, spots + 1), Format.cash(price)
+				end,
+			})
+		end
 		-- Round 5 (L-04): with a live server the parking sign also opens YOUR RACEWAY, the Lineup panel (F, beside E)
 		if kind == "parking" and LiveData.active() and not at:FindFirstChild("Lane3LineupPrompt") then
 			local park = Instance.new("ProximityPrompt")
@@ -403,7 +473,7 @@ local function attach(root: Instance): Trove.Trove
 	trove:Connect(plotsFolder.ChildAdded, add)
 
 	trove:Connect(player.AttributeChanged, function(name)
-		if name == "Lane3SpeedwayPreviewHome" then
+		if name == "Lane3SpeedwayPreviewHome" or name == BetaConfig.HomePlotAttribute then
 			-- the preview owner changed: the purchase surface and any banner end at once
 			ShopPanel.close(true)
 			Reveal.cancelBanner()

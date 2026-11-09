@@ -1,7 +1,8 @@
 --!strict
 -- Home/HomeHud: the Round 2 Home HUD, composed (Lane 3, N7-01 .. N7-05 and N8-05, 2026-11-02; references IMG-09 and
--- the two HUD videos). ONE call mounts everything the island needs: the left tiles, Cash with its rate and car count, the
--- right-hand round buttons, the notification and goal pills, the in-world pieces, and the returning-player guide.
+-- the two HUD videos). ONE call mounts everything the island needs: the left tiles with the round Settings button under them
+-- (Round 8 H-07), Cash with its rate and car count, the right-hand round buttons, the notification and goal pills, the in-world
+-- pieces, and the returning-player guide.
 --
 --   local hud = HomeHud.mount(parent, adapters, options?) -> Hud
 --
@@ -157,6 +158,7 @@ function HomeHud.mount(parent: GuiBase2d, adapters: Adapters, options: Options?)
 		onShop = adapters.onShop,
 		onGarage = adapters.onGarage,
 		onMissions = adapters.onMissions,
+		onSettings = adapters.onSettings, -- Round 8 H-07: Settings is in the left column now, one shared gap under Missions
 	})
 	trove:Add(function()
 		self._nav:destroy()
@@ -303,15 +305,7 @@ function HomeHud._syncEntries(self: any)
 	local entries: { HomeShortcuts.Entry } = {}
 	local claimable = safe(a.getMissionsClaimable)
 	local giftReady = safe(a.getFreeGiftReady) == true
-	table.insert(entries, {
-		id = "Settings",
-		label = "Settings",
-		icons = { "Settings" },
-		fill = "Garage",
-		priority = 1,
-		order = 1,
-		onActivate = a.onSettings,
-	})
+	-- (Settings is not here any more: Round 8 H-07 moved it to the left column, HomeNav, under Missions)
 	if a.onLeaderboard then
 		table.insert(entries, {
 			id = "Leaderboard",
@@ -427,7 +421,10 @@ function HomeHud._place(self: any)
 	end
 	local m = self._view:get()
 	local size = HomeCash.blockSize()
-	local plan = HomeLayout.plan(m, { cashW = size.X, cashH = size.Y, hasTimer = self._timerOn })
+	local plan = HomeLayout.plan(
+		m,
+		{ cashW = size.X, cashH = size.Y, hasTimer = self._timerOn, hasSettings = self._adapters.onSettings ~= nil }
+	)
 	self._plan = plan
 	self._nav:place(plan.nav, m.scale)
 	self._cash:place(plan.cash, m.scale)

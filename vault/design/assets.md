@@ -267,3 +267,128 @@ Creator Store audio, free, not uploaded by us and not listened to yet. Set in `s
 | Summit Pass | 136454830957820 | loop_wind_03 | WhistleAcousticMan |
 
 The pads add no new meshes or images: they reuse the group-owned B2 and Worlds kits and the island portal art.
+
+## Round 8 (2026-11-08): uploads and Robux products under LEGION STUDI0S
+
+Uploaded by the lead (Claude Code) through the Studio MCP `open_cloud_invoke` call from the live "Car Hop Beta" Studio (universe
+10774024892), `creationContext.creator.groupId = 74306252`. Each upload's operation reported `creator.groupId 74306252`.
+
+| Asset id | Name | Source file | Use | Moderation at upload |
+|---|---|---|---|---|
+| 85738342467843 | r8_roxy_portrait | `Car-Hop-Art/upload-round7/art_r7_roxy_portrait.png` | Coach Roxy portrait (replaces 106010075891034 owned by peskaface) | Approved |
+| 86033962268368 | r8_art_doublelap | `upload-round7/art_r7_doublelap.png` | Double Lap Pay tile (`GameIconIds.art_r7_doublelap`) | Reviewing |
+| 75386568806579 | r8_art_paddock | `upload-round7/art_r7_paddock.png` | Expanded Paddock tile | Reviewing |
+| 80799454648058 | r8_art_starter | `upload-round7/art_r7_starter.png` | Starter Pack tile | Reviewing |
+| 95455674060813 | r8_art_vip | `upload-round7/art_r7_vip.png` | VIP tile | Reviewing |
+
+Robux products (O-03), all created NOT for sale (`isForSale = false`); ids in `src/shared/Beta/BetaProducts.luau`. Icons uploaded
+by Roblox with each product (group-owned through the universe).
+
+| Kind | Id | Name | PREVIEW price (Robux) |
+|---|---|---|---|
+| Developer Product | 3729763663 | Respawn | 19 |
+| Developer Product | 3729763815 | Cash pack, 10 minutes | 49 |
+| Developer Product | 3729763833 | Cash pack, 30 minutes | 99 |
+| Developer Product | 3729763851 | Cash pack, 1 hour | 179 |
+| Developer Product | 3729763860 | Cash pack, 3 hours | 449 |
+| Developer Product | 3729763868 | Cash pack, 8 hours | 899 |
+| Developer Product | 3729763880 | Starter Pack | 79 |
+| Developer Product | 3729763898 | All Passes Bundle | 549 |
+| Game Pass | 2076250307 | Double Lap Pay | 199 |
+| Game Pass | 2076196273 | Expanded Paddock | 149 |
+| Game Pass | 2075620327 | VIP | 299 |
+| Game Pass | 2074192398 | Flame Rush trail | 99 |
+| Game Pass | 2074246311 | Confetti Party trail | 129 |
+| Game Pass | 2074870350 | Rainbow Runway trail | 199 |
+| Game Pass | 2075962315 | Comet Tail trail | 249 |
+
+Round 8 builder art (AssetIds keys `r8_*`) is added below as it is uploaded.
+
+### Round 8 PNG and sound uploads (lead, 2026-11-09, group LEGION STUDI0S 74306252)
+
+All images Approved at upload; `r8_trail_snd_whoosh` was still in review. Ids are applied in `src/shared/Style/AssetIds/Uploaded.luau`. Sources: `r8_trail_fx_*` flipbooks marked "particlefx.studio" in `AssetIds/Trails.luau` are free ParticleFX Studio downloads (https://particlefx.studio/roblox, each effect page linked in the entry's `source` and in `Car-Hop-Art/assets/particlefx/sources.md`); everything else is original art drawn this round (SVG or HTML canvas).
+
+| Key | Asset id | Type |
+|---|---|---|
+| r8_card_arrow | 82416659182023 | Image |
+| r8_card_badge_max | 119311885267554 | Image |
+| r8_card_bezel | 135259110431277 | Image |
+| r8_card_btn_gold | 99792593404143 | Image |
+| r8_card_btn_green | 98389088756736 | Image |
+| r8_card_btn_grey | 131851721919161 | Image |
+| r8_card_btn_orange | 70713003444248 | Image |
+| r8_card_cash | 95178300044606 | Image |
+| r8_card_chipicons | 122548255182498 | Image |
+| r8_card_close | 78746592976489 | Image |
+| r8_card_kerb_frame | 72489105050293 | Image |
+| r8_card_parking_badge | 136046347593850 | Image |
+| r8_card_parking_bay_empty | 128490092811073 | Image |
+| r8_card_parking_bay_next | 126339172558587 | Image |
+| r8_card_parking_car | 78181063420955 | Image |
+| r8_card_parking_frame | 131055377793822 | Image |
+| r8_card_parking_hump | 116556436221651 | Image |
+| r8_card_parking_lock | 113009043564193 | Image |
+| r8_card_parking_ribbon | 81359727378632 | Image |
+| r8_card_pill | 73336933332331 | Image |
+| r8_card_pip_gold | 70584038412225 | Image |
+| r8_card_pip_grey | 114814152066330 | Image |
+| r8_card_plus | 78746374939185 | Image |
+| r8_card_ribbon | 126340434326007 | Image |
+| r8_card_stopwatch | 106497787328691 | Image |
+| r8_card_tag_gold | 111407401331372 | Image |
+| r8_hop_arrow | 127000647533826 | Image |
+| r8_hop_bolt_empty | 97640994438271 | Image |
+| r8_hop_chevron | 106687763261805 | Image |
+| r8_hop_disc_dive | 83739834423993 | Image |
+| r8_hop_disc_dive_pressed | 102317438312240 | Image |
+| r8_hop_disc_hop | 91784436468149 | Image |
+| r8_hop_disc_hop_pressed | 126380222390213 | Image |
+| r8_hop_disc_nostamina | 128030961452147 | Image |
+| r8_hop_disc_notarget | 108010485342156 | Image |
+| r8_hop_glow | 99940011105359 | Image |
+| r8_hop_shadow | 130076093202299 | Image |
+| r8_trail_fx_aurora | 102885490467448 | Image |
+| r8_trail_fx_backfire | 76737918567502 | Image |
+| r8_trail_fx_beam_arc | 135403607126383 | Image |
+| r8_trail_fx_beam_energy | 137108732315609 | Image |
+| r8_trail_fx_beam_fire | 132447617913717 | Image |
+| r8_trail_fx_beam_lightning | 115423384284712 | Image |
+| r8_trail_fx_beam_strands | 99894593592674 | Image |
+| r8_trail_fx_bill | 89883400658323 | Image |
+| r8_trail_fx_bolt | 112406893557881 | Image |
+| r8_trail_fx_bubble | 93938955047736 | Image |
+| r8_trail_fx_chain | 104166368381668 | Image |
+| r8_trail_fx_coin | 102399429412347 | Image |
+| r8_trail_fx_crown | 124063067744780 | Image |
+| r8_trail_fx_flare | 78565402160063 | Image |
+| r8_trail_fx_flutter | 135495700651660 | Image |
+| r8_trail_fx_galaxy | 98687028474968 | Image |
+| r8_trail_fx_glow | 74368503293317 | Image |
+| r8_trail_fx_grid | 106748088650486 | Image |
+| r8_trail_fx_ice | 120694108164886 | Image |
+| r8_trail_fx_mist | 115208482315785 | Image |
+| r8_trail_fx_petal | 132989044942294 | Image |
+| r8_trail_fx_slime | 129371696932041 | Image |
+| r8_trail_fx_smoke_puff | 86279916685167 | Image |
+| r8_trail_fx_snow | 72504275390855 | Image |
+| r8_trail_fx_stars | 76475417514446 | Image |
+| r8_trail_snd_crackle | 140325928011593 | Audio |
+| r8_trail_snd_shimmer | 127126125260087 | Audio |
+| r8_trail_snd_whoosh | 110238128875918 | Audio |
+| r8_wheel_icon_carbon | 90341279569107 | Image |
+| r8_wheel_icon_chrome_disc | 115836140055298 | Image |
+| r8_wheel_icon_deep_dish | 86429157828785 | Image |
+| r8_wheel_icon_flame_spoke | 108466239868949 | Image |
+| r8_wheel_icon_galaxy_disc | 113094329371763 | Image |
+| r8_wheel_icon_glow_hub | 110178113887765 | Image |
+| r8_wheel_icon_glowing_tread | 91697602282064 | Image |
+| r8_wheel_icon_gold_star | 85429382735227 | Image |
+| r8_wheel_icon_mesh_lace | 84969837230328 | Image |
+| r8_wheel_icon_multi_spoke | 134298512875155 | Image |
+| r8_wheel_icon_neon_ring | 88135493248208 | Image |
+| r8_wheel_icon_split_five | 116837874723443 | Image |
+| r8_wheel_icon_star_spoke | 91584289512366 | Image |
+| r8_wheel_icon_stock_five | 80814594550987 | Image |
+| r8_wheel_icon_stripe_racer | 92886016377747 | Image |
+| r8_wheel_icon_turbine | 127081671976696 | Image |
+| r8_wheel_icon_white_wall | 124003515462823 | Image |
