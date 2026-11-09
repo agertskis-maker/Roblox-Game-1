@@ -475,15 +475,11 @@ local function startRun(world: string): RunController.RunController
 				rigs[model] = nil
 				rig:destroy()
 			end)
-			-- his tag names the family ("Van"): it names the real car instead. Round 7 (R-10): the rarity word is the real car's
-			-- (Uncommon included), with the edition first when the car is an edition car
+			-- Round 7 (R-10): the rarity word is the real car's (Uncommon included), with the edition first when the car is an
+			-- edition car. Round 8 declutter: the tag no longer shows the car's name.
 			local tag = model:FindFirstChild("Tag")
-			local title = tag and tag:FindFirstChild("Title")
 			local word = tag and tag:FindFirstChild("Rarity")
 			local car = RosterFixtures.byId(carId)
-			if title and title:IsA("TextLabel") and car then
-				title.Text = car.name
-			end
 			if word and word:IsA("TextLabel") and car then
 				local variant = model:GetAttribute("Variant")
 				word.Text = CarTags.wordFor(car.rarity, if type(variant) == "string" then variant else nil)
