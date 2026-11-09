@@ -3,6 +3,7 @@
 -- on ReplicatedStorage (the Studio MCP sets it during Play); then the command in the attribute runs:
 --   "sheet:<page>"            a full-screen contact sheet of the cars wearing three rims, close on the front wheel (4 cars a page)
 --   "real:<car>:<wheelsId>"   one car in the world with that design, camera on the front wheel, wheels turning
+--   "bench:<car>:<wheelsId>"  eight cars in the world: wheel parts and the cost of a spin and a pulse per car
 --   "off"                     removes whatever it made
 -- It also prints PASS/FAIL lines (hubs, mirrored faces, roll direction) so the audit does not depend on looking only.
 -- Round 8's contact sheets (Car-Hop-Art/review/round8/frames/wheel-audit) come from here. Safe to delete before a release.
@@ -190,6 +191,58 @@ local function runReal(carName: string, id: string)
 	end)
 end
 
+-- a Raceway-sized lineup: how many parts the wheels add and what a spin and a pulse cost per car (laptop numbers, no phone)
+local function runBench(carName: string, id: string)
+	clear()
+	local source = CARS:FindFirstChild(carName)
+	if not (source and source:IsA("Model")) then
+		print("[R8WheelAudit] FAIL no such car " .. carName)
+		return
+	end
+	local fits: { any } = {}
+	local parts = 0
+	for i = 1, 8 do
+		local model = source:Clone()
+		model:PivotTo(CFrame.new(i * 14, 400, 0))
+		model.Parent = workspace
+		trove:Add(model)
+		local h = WheelKit.fit(model, id)
+		trove:Add(function()
+			h:destroy()
+		end)
+		table.insert(fits, h)
+		local folder = model:FindFirstChild("R8Wheels")
+		parts += if folder then #folder:GetChildren() else 0
+	end
+	local t0 = os.clock()
+	local rounds = 400
+	for n = 1, rounds do
+		for _, h in fits do
+			(h :: any):setSpin(n * 0.05)
+		end
+	end
+	local spinMs = (os.clock() - t0) * 1000 / (rounds * #fits)
+	t0 = os.clock()
+	for n = 1, rounds do
+		for _, h in fits do
+			(h :: any):_animate(os.clock() + n)
+		end
+	end
+	local animMs = (os.clock() - t0) * 1000 / (rounds * #fits)
+	print(
+		string.format(
+			"[R8WheelAudit] BENCH %s on %d x %s: %d wheel parts (%.1f per car), setSpin %.4f ms per car, pulse/drift update %.4f ms per car",
+			id,
+			#fits,
+			carName,
+			parts,
+			parts / #fits,
+			spinMs,
+			animMs
+		)
+	)
+end
+
 local function dispatch()
 	local command = ReplicatedStorage:GetAttribute(ATTR)
 	if type(command) ~= "string" then
@@ -200,6 +253,8 @@ local function dispatch()
 		runSheet(tonumber(a) or 1)
 	elseif kind == "real" then
 		runReal(a, b)
+	elseif kind == "bench" then
+		runBench(a, b)
 	elseif kind == "off" then
 		clear()
 	end
