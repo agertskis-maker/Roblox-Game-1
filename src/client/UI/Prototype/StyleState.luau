@@ -5,12 +5,16 @@
 -- Round 7 (C-07, C-08): in the beta the server owns it. The Player attribute BetaStyle (JSON, written by BetaStyle on the server)
 -- says what is owned and worn, and StyleState follows it; equip() and buy() only ask the server (EquipStyle, BuyStyle) and the
 -- answer comes back through that attribute. Where there is no beta server (the Studio UI playgrounds), equip() and own() change
--- this table directly, as before. The picked car is local (the launch card's choice).
+-- this table directly, as before. The picked car is the launch card's choice; Round 8: RidePick.follow (WS-1) keeps it equal to the
+-- saved ride car (Player attribute BetaRideCar), so the Style Shop shows the car the player will start the run in.
 --
 --   StyleState.get() -> State           StyleState.Changed (Signal)
 --   StyleState.equip(tab, id)           StyleState.buy(tab, id)        StyleState.own(id)
 --   StyleState.item(tab) -> Item?       the worn item of a tab
 --   StyleState.car() -> string          the picked car's model name   StyleState.setCar(name)
+--   StyleState.look() -> CarLook.Look   the player's whole look on the picked car (Round 8, C-01)
+--   StyleState.matchPaint() -> boolean  StyleState.setMatchPaint(on)   T-08: a trail that takes its colour from the paint (this
+--                                       client only until the team agrees a save field for it)
 --   StyleState.live() -> boolean        true when the server's style is being followed
 
 local HttpService = game:GetService("HttpService")
@@ -19,6 +23,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
+local CarLook = require(ReplicatedStorage.Shared.Style.CarLook)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 
 local StyleState = {}
@@ -31,6 +36,7 @@ local state: State = {
 	car = "Putter", -- Round 4: the Downtown Loaner (the first World's starting car)
 }
 local following = false
+local matchPaint = false
 
 StyleState.Changed = Signal.new()
 
@@ -83,6 +89,24 @@ end
 function StyleState.setCar(name: string)
 	state.car = name
 	StyleState.Changed:Fire("car", name)
+end
+
+-- The player's whole look on the picked car: the one value every place that shows the car hands to CarLookApplier.
+function StyleState.look(): CarLook.Look
+	local equipped: { [string]: any } = table.clone(state.equipped :: any)
+	equipped.MatchPaint = if matchPaint then true else nil
+	return CarLook.fromEquipped(state.car, equipped)
+end
+
+function StyleState.matchPaint(): boolean
+	return matchPaint
+end
+
+function StyleState.setMatchPaint(on: boolean)
+	if matchPaint ~= on then
+		matchPaint = on
+		StyleState.Changed:Fire("matchPaint", on)
+	end
 end
 
 function StyleState.item(tab: string): Catalog.Item?
