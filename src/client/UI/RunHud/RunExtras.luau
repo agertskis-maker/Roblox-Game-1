@@ -23,6 +23,7 @@ local Workspace = game:GetService("Workspace")
 local Prototype = script.Parent.Parent:WaitForChild("Prototype")
 local Motion = require(Prototype:WaitForChild("Motion"))
 local Sounds = require(Prototype:WaitForChild("Sounds")) :: any
+local HopButton = require(Prototype:WaitForChild("Run"):WaitForChild("HopButton")) :: any
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Format = require(ReplicatedStorage.Shared.UI.Format)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -113,37 +114,17 @@ function RunExtras.attach(run: any, options: Options): any
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}))
 
-	-- HOP (R-01) ----------------------------------------------------------------------------------
-	local hop = make("TextButton", {
-		Name = "Hop",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -28, 1, -28),
-		Size = UDim2.fromOffset(124, 124),
-		BackgroundColor3 = ORANGE,
-		AutoButtonColor = true,
-		FontFace = FONT,
-		Text = "HOP",
-		TextSize = 36,
-		TextColor3 = CREAM,
-		TextStrokeColor3 = NAVY,
-		TextStrokeTransparency = 0,
-	}, gui)
-	round(hop)
-	make("UIStroke", { Color = NAVY, Thickness = 5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, hop)
-	label(hop, "SPACE", 14, CREAM, {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -14),
-		Size = UDim2.new(1, 0, 0, 16),
+	-- HOP / DIVE (R-01; Round 8, WS-10, R-03): the round glossy button, copied from R8-IMG-28. Prototype/Run/HopButton draws it (its own
+	-- ScreenGui, bottom right inside the safe area), flips it HOP <-> DIVE, drains its ring while you float, and flashes PRESS AGAIN!
+	-- on the first runs; this file only gives it the press and the run's state each frame (hopButton:update below).
+	local hopButton = HopButton.attach({
+		floatHelp = options.floatHelp == true,
+		onHop = function()
+			run:requestHop()
+		end,
 	})
-	local again = label(gui, "PRESS AGAIN!", 30, GOLD, {
-		Name = "PressAgain",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -8, 1, -160),
-		Size = UDim2.fromOffset(240, 40),
-		Visible = false,
-	})
-	trove:Connect(hop.Activated, function()
-		run:requestHop()
+	trove:Add(function()
+		hopButton:destroy()
 	end)
 
 	-- END RUN (R-07) ------------------------------------------------------------------------------
@@ -496,11 +477,8 @@ function RunExtras.attach(run: any, options: Options): any
 				end
 			end)
 		end
-		-- PRESS AGAIN! on first runs while floating
-		local floating = s.mode == "Float"
-		again.Visible = options.floatHelp == true and floating and (reduced or math.floor(os.clock() * 4) % 2 == 0)
-		hop.Text = if floating then "DIVE" else "HOP"
-		hop.BackgroundColor3 = if floating and s.target then GOLD else ORANGE
+		-- the HOP / DIVE button follows the run (Round 8, R-03)
+		hopButton:update(s)
 		-- the arrow toward an off-screen Legendary
 		local cam = Workspace.CurrentCamera
 		local shown = false
@@ -534,7 +512,7 @@ function RunExtras.attach(run: any, options: Options): any
 		if s.mode == "Ended" and not wreckShown and RunExtras.isWreck(s.cause) then
 			wreckShown = true
 			endBtn.Visible = false
-			hop.Visible = false
+			hopButton:setVisible(false)
 			local title, line = RunExtras.lessonFor(s.cause)
 			local card = make("Frame", {
 				Name = "Wrecked",
