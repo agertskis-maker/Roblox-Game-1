@@ -89,9 +89,21 @@ end
 
 local unbridge: (cause: string) -> ()
 
+-- Round 8 declutter: your own VIP sign (server-made over your head, BetaOwnership) is hidden on your screen while you ride, so
+-- it does not float over the car in front of the camera; other players still see it, and it is back as soon as the run ends.
+local function showOwnVipTag(show: boolean)
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	local tag = head and head:FindFirstChild("CarHopVipTag")
+	if tag and tag:IsA("BillboardGui") then
+		tag.Enabled = show
+	end
+end
+
 local function stopRun(again: boolean?)
 	local run = current
 	current = nil
+	showOwnVipTag(true)
 	if run then
 		local state = run:getDebugState()
 		unbridge(if again then "Retry" else (state.cause or "Quit"))
@@ -298,6 +310,7 @@ local function startRun(world: string): RunController.RunController
 		quietClaims = true,
 	})
 	current = run
+	showOwnVipTag(false)
 	-- Round 8 (C-02, C-01): ONE look for the whole run, through Style.CarLookApplier. The car you START on wears your paint, decal and
 	-- wheels from its first frame (dressed in this same frame as run:start(), before anything is drawn); your TRAIL belongs to you and
 	-- goes with you to every car you hop onto; a car you catch keeps the paint, decals and wheels it was made with.

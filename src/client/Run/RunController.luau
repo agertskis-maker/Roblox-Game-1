@@ -1198,7 +1198,7 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 		self._bang.StudsOffset = Vector3.new(0, ridden.height + 3, 0)
 		self._bang.Enabled = true
 		self._fx:sound("alert", 0.8, 0.8)
-		self._overlay:banner("HOP NOW!", Color3.fromRGB(255, 90, 70))
+		-- Round 8 declutter: no floating "HOP NOW!" banner here; the Engine Heat panel already says HOP NOW! at Meltdown
 	end
 	local melt = 0
 	if self._warnLeft then

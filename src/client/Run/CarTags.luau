@@ -80,7 +80,7 @@ end
 -- Round 8 declutter (Adam: "declutter the actual gameplay"): the car name is gone, the rarity word is smaller, and the everyday
 -- Common and Uncommon tags only show close up, so the road ahead is not a wall of labels.
 CarTags.SEEN_FROM =
-	table.freeze({ Common = 45, Uncommon = 65, Rare = 150, Epic = 210, Legendary = 280 } :: { [string]: number })
+	table.freeze({ Common = 35, Uncommon = 50, Rare = 110, Epic = 160, Legendary = 220 } :: { [string]: number })
 
 function CarTags.wordFor(rarity: string, variant: string?): string
 	local edition = if variant and variant ~= "None" then string.upper(variant) .. " " else ""
