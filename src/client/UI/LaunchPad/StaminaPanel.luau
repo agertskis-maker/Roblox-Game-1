@@ -5,8 +5,12 @@
 -- levels, and one BUY button with the PREVIEW price. It never decides anything: BUY fires BuyStaminaLevel with no arguments, the
 -- server checks the Cash and the level, and the card redraws from the server's attributes (BetaStaminaLevel, BetaCash) and shows
 -- the server's reply (BetaResult) when it is refused. Short of Cash it says NEED $X MORE from the numbers, never from text.
+-- Round 8 (O-09): the bolts are the run's own list (RunStamina.bolts), whole bolts that add up to the hop count, with a key (yellow
+-- 1 hop, red 2, purple 3) between the two columns; the button is the shared GlossButton, the one cannot-afford treatment.
 --
 --   Panel.open()   Panel.close()   Panel.isOpen()
+--   Panel.onShopCash: (() -> ())?   what the green "+" on the cannot-afford button does (open the Shop's Cash page); set by the Launch
+--                                   Pad shell. Unset, the "+" says where the Cash shop is.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -26,12 +30,15 @@ local CarKit = require(Prototype:WaitForChild("CarKit"))
 local Motion = require(Prototype:WaitForChild("Motion"))
 local Sounds = require(Prototype:WaitForChild("Sounds"))
 local StaminaBolt = require(Prototype:WaitForChild("Run"):WaitForChild("StaminaBolt")) :: any
+local GlossButton = require(Prototype:WaitForChild("R8Kit"):WaitForChild("GlossButton"))
 local RunStamina = require(script.Parent.RunStamina)
 
 local make = CarKit.make
 local player = Players.LocalPlayer
 
 local Panel = {}
+
+Panel.onShopCash = nil :: (() -> ())?
 
 local SPENT = Color3.fromRGB(60, 68, 92)
 local trove: any = nil
@@ -54,9 +61,11 @@ local function remote(name: string): RemoteEvent?
 	return if r and r:IsA("RemoteEvent") then r else nil
 end
 
--- A row of up to five bolts for a Stamina amount, all full, in the tier's colour.
+-- A row of up to five whole bolts for a Stamina amount. Round 8 (O-09): every bolt holds what its colour says (yellow 1, red 2,
+-- purple 3) and together they add up to the hop count: 6 hops is three reds, 7 is three reds and a yellow. It is the same list
+-- the run's own board draws (RunStamina.bolts), so the two never disagree.
 local function boltRow(parent: Instance, stamina: number, px: number, name: string): Frame
-	local tier, count = RunStamina.layout(stamina)
+	local bolts = RunStamina.bolts(stamina)
 	local row = make("Frame", {
 		Name = name,
 		BackgroundTransparency = 1,
@@ -69,9 +78,8 @@ local function boltRow(parent: Instance, stamina: number, px: number, name: stri
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 		Padding = UDim.new(0, 6),
 	}, row)
-	for i = 1, count do
-		-- the last bolt is only part full when the amount is not a whole number of bolts
-		local part = math.clamp(stamina - (i - 1) * tier.per, 0, tier.per) / tier.per
+	row:SetAttribute("Hops", stamina) -- what the bolts add up to (a test reads it, with each bolt's own "Hops")
+	for i, boltTier in bolts do
 		local holder = make("Frame", {
 			Name = "Bolt" .. i,
 			BackgroundTransparency = 1,
@@ -79,20 +87,56 @@ local function boltRow(parent: Instance, stamina: number, px: number, name: stri
 			LayoutOrder = i,
 			ZIndex = 5,
 		}, row)
-		StaminaBolt.new(holder, { height = px, colour = SPENT, slim = 0.9, z = 5 })
-		local clip = make("Frame", {
-			BackgroundTransparency = 1,
-			ClipsDescendants = true,
-			AnchorPoint = Vector2.new(0, 1),
-			Position = UDim2.fromScale(0, 1),
-			Size = UDim2.fromScale(1, part),
-			ZIndex = 6,
-		}, holder)
-		local lit = StaminaBolt.new(clip, { height = px, colour = tier.colour, slim = 0.9, z = 6, shine = true })
-		lit.root.AnchorPoint = Vector2.new(0, 1)
-		lit.root.Position = UDim2.fromScale(0, 1)
+		holder:SetAttribute("Hops", boltTier.per)
+		StaminaBolt.new(holder, { height = px, colour = boltTier.colour, slim = 0.9, z = 6, shine = true })
 	end
 	return row
+end
+
+-- The key between the two columns: a yellow bolt is 1 hop, a red one 2, a purple one 3 (the same bolts, drawn small).
+local function boltKey(parent: Instance, k: number): Frame
+	local rowH = math.max(math.round(24 * k), 20)
+	local key = make("Frame", {
+		Name = "BoltKey",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(86, rowH * 3 + 8),
+		ZIndex = 5,
+	}, parent) :: Frame
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, key)
+	for i, boltTier in RunStamina.Tiers do
+		local line = make("Frame", {
+			Name = boltTier.name,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, rowH),
+			LayoutOrder = i,
+			ZIndex = 5,
+		}, key)
+		line:SetAttribute("Hops", boltTier.per)
+		local icon = make("Frame", {
+			Name = "Icon",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(StaminaBolt.metrics(rowH, nil, 0.9), rowH),
+			ZIndex = 5,
+		}, line) :: Frame
+		StaminaBolt.new(icon, { height = rowH, colour = boltTier.colour, slim = 0.9, z = 6, shine = true })
+		CarKit.text(line, string.format("%d %s", boltTier.per, if boltTier.per == 1 then "hop" else "hops"), 15, {
+			align = Enum.TextXAlignment.Left,
+			position = UDim2.fromOffset(icon.Size.X.Offset + 8, 0),
+			size = UDim2.new(1, -(icon.Size.X.Offset + 8), 1, 0),
+			stroke = 1.5,
+			z = 6,
+			name = "Words",
+		})
+	end
+	return key
 end
 
 function Panel.isOpen(): boolean
@@ -207,16 +251,19 @@ function Panel.open()
 		z = 6,
 		name = "Status",
 	})
-	local buy = CarKit.button(card, {
-		text = "BUY",
-		tone = "Green",
-		px = math.max(math.round(30 * k), 20),
+	-- Round 8 (O-09): the shared GlossButton (buy / need / max / busy); its "+" opens the Shop's Cash page
+	local buy = GlossButton.new(card, {
 		size = UDim2.fromOffset(math.round(300 * k), math.max(math.round(60 * k), Tokens.Touch.Primary)),
 		anchor = Vector2.new(0.5, 1),
 		position = UDim2.new(0.5, 0, 1, -math.round(16 * k)),
-		z = 8,
-		name = "Buy",
+		zIndex = 8,
+		label = "BUY",
+		icon = "cash",
 	})
+	buy.frame.Name = "Buy"
+	t:Add(buy, "destroy")
+	-- the legend between the two columns (it never changes, so it is drawn once)
+	boltKey(stage, k)
 	CarKit.text(card, "PREVIEW price", 14, {
 		align = Enum.TextXAlignment.Right,
 		anchor = Vector2.new(1, 1),
@@ -296,15 +343,17 @@ function Panel.open()
 		local price = EconomyPreview.staminaPrice(lvl + 1)
 		local have = cash()
 		if top or not price then
-			buy.setText("MAX LEVEL")
-			buy.setTone("Grey")
-			buy.setEnabled(false)
+			buy:setState("max", { maxText = "MAX LEVEL" })
 			status.Text =
 				string.format("Level %d of %d: every run starts with %d hops", lvl, EconomyPreview.StaminaMaxLevel, now)
 		elseif have and have < price then
-			buy.setText("NEED " .. Format.cash(price - have) .. " MORE")
-			buy.setTone("Grey")
-			buy.setEnabled(false)
+			-- the shortfall is the server's Cash attribute against the PREVIEW price; the client sends no amount
+			buy:setState("need", {
+				label = "BUY",
+				price = Format.cash(price),
+				need = Format.cash(price - have),
+				icon = "cash",
+			})
 			status.Text = string.format(
 				"Level %d of %d  ·  next costs %s",
 				lvl,
@@ -312,10 +361,16 @@ function Panel.open()
 				Format.cash(price)
 			)
 		else
-			buy.setText(if waiting then "..." else "BUY " .. Format.cash(price))
-			buy.setTone("Green")
-			buy.setEnabled(not waiting)
-			status.Text = string.format("Level %d of %d", lvl, EconomyPreview.StaminaMaxLevel)
+			buy:setState(
+				if waiting then "busy" else "buy",
+				{ label = "BUY", price = Format.cash(price), icon = "cash" }
+			)
+			status.Text = string.format(
+				"Level %d of %d  ·  next costs %s",
+				lvl,
+				EconomyPreview.StaminaMaxLevel,
+				Format.cash(price)
+			)
 		end
 		if shownLevel >= 0 and lvl > shownLevel then
 			-- Round 7 (U-07): the buy moment: the bolts charge up and sparks fly (Reduce Motion: the sound only)
@@ -360,7 +415,17 @@ function Panel.open()
 		shownLevel = lvl
 	end
 
-	t:Connect(buy.root.Activated, function()
+	t:Connect(buy.PlusPressed, function()
+		-- the "+" on the cannot-afford button: the Shop's Cash page (the Launch Pad shell sets Panel.onShopCash)
+		local toShop = Panel.onShopCash
+		if toShop then
+			Panel.close()
+			toShop()
+		else
+			status.Text = "Get Cash in the Shop (the green + by your Cash)."
+		end
+	end)
+	t:Connect(buy.Pressed, function()
 		if waiting then
 			return
 		end
