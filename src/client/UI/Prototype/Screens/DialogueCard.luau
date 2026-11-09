@@ -530,8 +530,25 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 	local handle: Handle
 	local S = DialogueCard.Sizes
 
+	-- The parent's size in the px of the screen the player really has. In the game the parent's AbsoluteSize is that; inside
+	-- the Studio device frame (Lane3ScreenProfile) a UIScale above it shrinks the frame to fit the window, so the card divides
+	-- that fit out and sizes itself for the device, not for the shrunken preview.
+	local function ancestorScale(): number
+		local s = 1
+		local node: Instance? = parent
+		while node do
+			local u = if node:IsA("GuiObject") or node:IsA("LayerCollector")
+				then node:FindFirstChildOfClass("UIScale")
+				else nil
+			if u then
+				s *= u.Scale
+			end
+			node = node.Parent
+		end
+		return math.max(s, 0.01)
+	end
 	local parentSize = function(): Vector2
-		return (parent :: any).AbsoluteSize
+		return (parent :: any).AbsoluteSize / ancestorScale()
 	end
 	local function scaleNow(): number
 		return Tokens.windowScale(parentSize())
