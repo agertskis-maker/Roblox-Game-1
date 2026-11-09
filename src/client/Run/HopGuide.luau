@@ -114,6 +114,7 @@ export type HopGuide = typeof(setmetatable(
 		_dives: number,
 		_landed: number,
 		_matched: number,
+		_far: number,
 		_swings: number,
 		_shownFrames: number,
 		_unreachable: number,
@@ -344,6 +345,7 @@ function HopGuide.new(zone: Instance, options: { floatHelp: boolean?, onSwing: (
 		_dives = 0,
 		_landed = 0,
 		_matched = 0,
+		_far = 0,
 		_swings = 0,
 		_shownFrames = 0,
 		_unreachable = 0,
@@ -607,6 +609,9 @@ function HopGuide.noteDive(self: HopGuide, target: Target, dist: number)
 		serverOk = dist <= RunConfig.HOP_REACH_MAX,
 	}
 	self._dives += 1
+	if not entry.serverOk then
+		self._far += 1
+	end
 	table.insert(self._log, entry)
 	if #self._log > 60 then
 		table.remove(self._log, 1)
@@ -670,6 +675,7 @@ function HopGuide.getDebugState(self: HopGuide): { [string]: any }
 		dives = self._dives,
 		divesLanded = self._landed,
 		divesOnShownCar = self._matched,
+		divesBeyondServerReach = self._far, -- dives pressed on a car farther than RunConfig.HOP_REACH_MAX (the server would drop them)
 	}
 end
 

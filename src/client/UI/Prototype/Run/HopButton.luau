@@ -745,6 +745,68 @@ end
 
 export type AttachOptions = { onHop: (() -> ())?, floatHelp: boolean?, displayOrder: number? }
 
+-- Studio test hook for the R-03 frames: the seven states of R8-IMG-28 (HOP, HOP PRESSED, DIVE, DIVE PRESSED, NO TARGET, NO STAMINA, PC) in
+-- two rows, each a real face (the same code the live button uses) at the size the live button has on the device profile. The NO STAMINA
+-- face shows the reference's DIVE variant (the live button only ever blocks a HOP, so its own NO STAMINA keeps the up arrow).
+local BOARD_STATES = {
+	{ "HOP", "Hop", "Ready", "Touch", false, nil },
+	{ "HOP PRESSED", "Hop", "Ready", "Touch", true, nil },
+	{ "DIVE", "Dive", "Ready", "Touch", false, 0.35 },
+	{ "DIVE PRESSED", "Dive", "Ready", "Touch", true, 0.35 },
+	{ "NO TARGET", "Dive", "NoTarget", "Touch", false, 0.3 },
+	{ "NO STAMINA", "Dive", "NoStamina", "Touch", false, nil },
+	{ "PC", "Hop", "Ready", "Keyboard", false, nil },
+}
+
+local function buildBoard(gui: ScreenGui, profile: Screen.Profile): (Frame, { FaceObject })
+	local D = HopButton.sizeFor(profile.size, profile.touch)
+	local cellW, cellH = math.floor(D * 2.0), math.floor(D * 2.25)
+	local board = make("Frame", {
+		Name = "HopBoard",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(cellW * 4, cellH * 2),
+		BackgroundColor3 = Color3.fromRGB(52, 57, 72),
+		BorderSizePixel = 0,
+		ZIndex = 50,
+	}, gui)
+	-- fitted into the window like Screen.luau fits a device frame (never enlarged)
+	local viewport = gui.AbsoluteSize
+	make("UIScale", {
+		Scale = math.max(math.min((viewport.X - 16) / (cellW * 4), (viewport.Y - 16) / (cellH * 2), 1), 0.05),
+	}, board)
+	local faces: { FaceObject } = {}
+	for i, st in BOARD_STATES do
+		local col = (i - 1) % 4
+		local row = (i - 1) // 4
+		local cx = (col + 0.5) * cellW + (if row == 1 then cellW / 2 else 0)
+		local cy = row * cellH + D * 0.95
+		local face = HopButton.buildFace(board, D, { input = st[4] :: InputKind })
+		face.root.Position = UDim2.fromOffset(cx, cy)
+		face:set(st[2] :: Action, st[3] :: Look)
+		if st[5] then
+			face:setPressed(true)
+		end
+		if st[6] then
+			face:setDrain(st[6] :: number)
+		end
+		table.insert(faces, face)
+		local pill = make("TextLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(cx, cy + D * 0.95),
+			Size = UDim2.fromOffset(cellW * 0.82, math.max(20, D * 0.2)),
+			BackgroundColor3 = Color3.fromRGB(255, 244, 218),
+			TextColor3 = NAVY,
+			FontFace = Tokens.font(),
+			TextSize = math.max(12, math.floor(D * 0.11)),
+			Text = st[1],
+			ZIndex = 51,
+		}, board)
+		round(pill, 0.4)
+	end
+	return board, faces
+end
+
 local function studioProfile(): Screen.Profile?
 	if not RunService:IsStudio() then
 		return nil
@@ -887,6 +949,32 @@ function HopButton.attach(options: AttachOptions?)
 			face:Destroy()
 		end
 	end)
+
+	-- Studio only: the LocalPlayer attribute Lane3HopBoard = "Desktop" | "PhoneLandscape" | "Tablet" shows the seven-state board; "off" hides it
+	if RunService:IsStudio() and player then
+		local boardFaces: { FaceObject } = {}
+		local board: Frame? = nil
+		local function clearBoard()
+			for _, f in boardFaces do
+				f:Destroy()
+			end
+			table.clear(boardFaces)
+			if board then
+				board:Destroy()
+				board = nil
+			end
+		end
+		local function onBoard()
+			clearBoard()
+			local name = player:GetAttribute("Lane3HopBoard")
+			local profile = if type(name) == "string" then Screen.Profiles[name] else nil
+			if profile then
+				board, boardFaces = buildBoard(gui, profile)
+			end
+		end
+		trove:Connect(player:GetAttributeChangedSignal("Lane3HopBoard"), onBoard)
+		trove:Add(clearBoard)
+	end
 
 	gui.Parent = (player :: Player):WaitForChild("PlayerGui")
 	return self
