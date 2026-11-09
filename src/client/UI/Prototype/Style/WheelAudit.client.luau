@@ -3,6 +3,7 @@
 -- on ReplicatedStorage (the Studio MCP sets it during Play); then the command in the attribute runs:
 --   "sheet:<page>"            a full-screen contact sheet of the cars wearing three rims, close on the front wheel (4 cars a page)
 --   "designs:<car>"          all sixteen designs on one car, 4 x 4, close on the front wheel
+--   "fallback:<car>"         the same grid built from the plain-part stand-ins (no meshes)
 --   "real:<car>:<wheelsId>"   one car in the world with that design, camera on the front wheel, wheels turning
 --   "bench:<car>:<wheelsId>"  eight cars in the world: wheel parts and the cost of a spin and a pulse per car
 --   "off"                     removes whatever it made
@@ -323,6 +324,10 @@ local function dispatch()
 	if kind == "sheet" then
 		runSheet(tonumber(a) or 1)
 	elseif kind == "designs" then
+		WheelKit.ForceFallback = false
+		runDesigns(a)
+	elseif kind == "fallback" then
+		WheelKit.ForceFallback = true
 		runDesigns(a)
 	elseif kind == "real" then
 		runReal(a, b)

@@ -46,6 +46,9 @@ local WheelKit = {}
 -- every rim part takes the design's own rimColor
 WheelKit.VertexColours = true
 
+-- true: always build the plain-part stand-in, never the meshes (the audit tool uses it to look at the fallback)
+WheelKit.ForceFallback = false
+
 export type Wheels = AnchorTypes.Wheels
 export type Options = { lod: ("full" | "low")?, reduceMotion: boolean? }
 export type Hub = { cframe: CFrame, radius: number, width: number }
@@ -67,7 +70,11 @@ local TYRE_KEY = Designs.TYRE
 local RUBBER = Color3.fromRGB(26, 26, 30)
 local OVERRIDE = "Lane3ReducedMotionOverride"
 -- the importer turns an FBX half a turn about Y (found in Studio 2026-11-08: the rim face looked into the car): turn it back
-local MESH_TURN = CFrame.Angles(0, math.pi, 0)
+local TURNED = CFrame.Angles(0, math.pi, 0)
+local function meshTurn(key: string): CFrame
+	local entry = AssetIds.entry(key)
+	return if entry and AssetIds.UseUploaded and entry.id then TURNED else CFrame.identity
+end
 local TICK = 1 / 20 -- the pulse and the drift are slow: twenty updates a second is plenty
 
 -- Mesh templates ---------------------------------------------------------------------------------------------------------------
@@ -398,19 +405,19 @@ local function buildMeshWheel(w: Wheel, folder: Folder, design: Designs.Design, 
 	local rimColour = if vc then Color3.new(1, 1, 1) else design.rimColor
 	local rim = meshPiece(design.rim, "Rim", size, rimColour, design.material)
 	rim.Reflectance = design.reflectance
-	addPiece(w, folder, rim, CFrame.new(centre) * MESH_TURN, "rim")
+	addPiece(w, folder, rim, CFrame.new(centre) * meshTurn(design.rim), "rim")
 	local glowColour = design.glowColor or Color3.new(1, 1, 1)
 	if design.glow and not low then
 		local tyreFrame = design.glowFrame == "tyre"
 		local gs, gc = boxFor(design.glow, r, halfW, tyreFrame)
 		local g = meshPiece(design.glow, "Glow", gs, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
-		addPiece(w, folder, g, CFrame.new(gc) * MESH_TURN, "glow", g.Color)
+		addPiece(w, folder, g, CFrame.new(gc) * meshTurn(design.glow :: string), "glow", g.Color)
 	end
 	if design.stars and not low then
 		local ss, sc = boxFor(design.stars, r, halfW, false)
 		local s =
 			meshPiece(design.stars, "Stars", ss, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
-		addPiece(w, folder, s, CFrame.new(sc) * MESH_TURN, "stars", s.Color)
+		addPiece(w, folder, s, CFrame.new(sc) * meshTurn(design.stars :: string), "stars", s.Color)
 	end
 end
 
@@ -556,7 +563,7 @@ function Fit._build(self: any)
 	local r, width = anchors.radius * f, anchors.width * f
 	local folder = Instance.new("Folder")
 	folder.Name = "R8Wheels"
-	local useMesh = allLoaded(design)
+	local useMesh = not WheelKit.ForceFallback and allLoaded(design)
 	local wheels: { Wheel } = {}
 	for i, hub in anchors.hubs do
 		local scaled = CFrame.new(hub.Position * f) * hub.Rotation
@@ -589,7 +596,7 @@ function Fit._build(self: any)
 	if animated and self._lod ~= "low" then
 		register(self)
 	end
-	if not useMesh then
+	if not useMesh and not WheelKit.ForceFallback then
 		-- ask for the real meshes, then swap once (the fallback is a stand-in until then)
 		local mine = self._buildId
 		local waits = {}
