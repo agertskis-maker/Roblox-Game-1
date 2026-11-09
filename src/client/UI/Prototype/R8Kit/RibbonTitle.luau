@@ -116,15 +116,15 @@ function RibbonTitle.new(parent: GuiObject, props: Props): RibbonTitle
 	-- a long title shrinks to fit the ribbon, never below the 16 px minimum
 	label.TextScaled = true
 	local limit: UITextSizeConstraint = Build.make("UITextSizeConstraint", {
-		MaxTextSize = props.textSize or 54,
+		MaxTextSize = props.textSize or 46,
 		MinTextSize = metrics:textSize(16),
 		Parent = label,
 	})
 	trove:Add(metrics.changed:Connect(function()
 		limit.MinTextSize = metrics:textSize(16)
 	end))
-	label.Size = UDim2.fromScale(0.78, 0.7)
-	label.Position = UDim2.fromScale(0.11, 0.1)
+	label.Size = UDim2.fromScale(0.68, 0.62)
+	label.Position = UDim2.fromScale(0.16, 0.14)
 	frame.Parent = parent
 	local self = setmetatable({ frame = frame, label = label, trove = trove }, Obj)
 	return (self :: any) :: RibbonTitle
