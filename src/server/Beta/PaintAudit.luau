@@ -8,9 +8,11 @@
 --     tyre or rim, trim, interior, other). Any painted pixel on a non-body label is flagged.
 --   * quality: the painted share must be sane (a mask that paints almost nothing or almost everything is flagged), the paint must
 --     really be magenta (no colour leaking from the texture), and it must have no specks under 12 texels (ragged edges).
--- Zero flags is the pass. Run it in Studio, Edit mode (execute_luau, no Play needed):
---   local r = require(game.ServerScriptService.Server.Beta.PaintAudit).run()
---   print(table.concat(r.lines, "\n"))
+-- Zero flags is the pass. Run it in Studio during Play, from a Server execute_luau (execute_luau cannot require game modules in this
+-- Studio, so PaintAuditHook.server.luau runs it on request):
+--   game.ServerStorage:SetAttribute("RunPaintAudit", "all")    -- or "Putter,Zip" (full model names)
+--   -- wait for game.ServerStorage:GetAttribute("PaintAuditState") == "done", then read game.ServerStorage.CarHopPaintAuditResult.Value
+-- (or require this module from a Script: require(...PaintAudit).run({ only = {...}, paints = {...}, verbose = true }))
 -- The region labels are the curated mask data (tools/paint-masks builds them from each car's own texture, checked by eye on the
 -- contact sheets in review/round8/frames/paint-audit); the audit proves the code path respects them on every car and edition.
 

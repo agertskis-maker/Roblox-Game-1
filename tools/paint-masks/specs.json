@@ -1,0 +1,804 @@
+{
+ "Beach Bug": {
+  "body": [
+   0,
+   6,
+   7,
+   10
+  ],
+  "glass": [
+   3
+  ],
+  "light": [],
+  "tyre": [
+   1,
+   8,
+   11
+  ],
+  "trim": [
+   2,
+   5,
+   9
+  ],
+  "interior": [
+   4
+  ],
+  "other": []
+ },
+ "Bolt": {
+  "body": [
+   1,
+   3,
+   6,
+   11
+  ],
+  "glass": [
+   5
+  ],
+  "light": [],
+  "tyre": [
+   0,
+   4,
+   8,
+   10
+  ],
+  "trim": [],
+  "interior": [
+   2,
+   7,
+   9
+  ],
+  "other": []
+ },
+ "Brawler": {
+  "body": [
+   0,
+   4,
+   5,
+   9
+  ],
+  "glass": [
+   1
+  ],
+  "light": [
+   8,
+   10
+  ],
+  "tyre": [
+   7
+  ],
+  "trim": [
+   6,
+   11
+  ],
+  "interior": [
+   2,
+   3
+  ],
+  "other": []
+ },
+ "Commuter": {
+  "body": [
+   1,
+   5,
+   7,
+   11
+  ],
+  "glass": [
+   2,
+   4
+  ],
+  "light": [],
+  "tyre": [
+   0,
+   8,
+   10
+  ],
+  "trim": [],
+  "interior": [
+   3,
+   6,
+   9
+  ],
+  "other": []
+ },
+ "Cruiser": {
+  "body": [
+   1,
+   2,
+   8
+  ],
+  "glass": [
+   5
+  ],
+  "light": [],
+  "tyre": [
+   0,
+   4,
+   7,
+   9,
+   11
+  ],
+  "trim": [
+   6,
+   10
+  ],
+  "interior": [
+   3
+  ],
+  "other": []
+ },
+ "Desert King": {
+  "body": [
+   1,
+   4,
+   5,
+   7,
+   8
+  ],
+  "glass": [
+   9,
+   10
+  ],
+  "light": [],
+  "tyre": [
+   0,
+   11
+  ],
+  "trim": [],
+  "interior": [
+   2,
+   3,
+   6
+  ],
+  "other": []
+ },
+ "Family Hauler": {
+  "body": [
+   1,
+   2,
+   7,
+   9
+  ],
+  "glass": [
+   3,
+   11
+  ],
+  "light": [],
+  "tyre": [
+   0,
+   4,
+   5,
+   8
+  ],
+  "trim": [],
+  "interior": [
+   6,
+   10
+  ],
+  "other": []
+ },
+ "Minnow": {
+  "body": [
+   0,
+   9,
+   10
+  ],
+  "glass": [
+   4,
+   5
+  ],
+  "light": [],
+  "tyre": [
+   6,
+   8,
+   11
+  ],
+  "trim": [
+   1,
+   3
+  ],
+  "interior": [
+   2,
+   7
+  ],
+  "other": []
+ },
+ "Monarch": {
+  "body": [
+   1,
+   3,
+   6
+  ],
+  "glass": [
+   9
+  ],
+  "light": [
+   5
+  ],
+  "tyre": [
+   0,
+   10,
+   11
+  ],
+  "trim": [],
+  "interior": [
+   2,
+   4,
+   7,
+   8
+  ],
+  "other": []
+ },
+ "Old Faithful": {
+  "body": [
+   0,
+   8
+  ],
+  "glass": [
+   3,
+   7
+  ],
+  "light": [
+   2,
+   11
+  ],
+  "tyre": [
+   1,
+   5,
+   6
+  ],
+  "trim": [
+   4,
+   10
+  ],
+  "interior": [
+   9
+  ],
+  "other": []
+ },
+ "Pizza Runner": {
+  "body": [
+   0,
+   2,
+   3,
+   8,
+   10
+  ],
+  "glass": [
+   7
+  ],
+  "light": [
+   11
+  ],
+  "tyre": [
+   1,
+   5,
+   6
+  ],
+  "trim": [],
+  "interior": [
+   4,
+   9
+  ],
+  "other": []
+ },
+ "Putter": {
+  "body": [
+   2,
+   3,
+   7,
+   9,
+   11
+  ],
+  "glass": [
+   1,
+   5
+  ],
+  "light": [
+   6
+  ],
+  "tyre": [
+   4,
+   8
+  ],
+  "trim": [],
+  "interior": [
+   0,
+   10
+  ],
+  "other": []
+ },
+ "Rally Dog": {
+  "body": [
+   1,
+   8,
+   11
+  ],
+  "glass": [],
+  "light": [
+   5
+  ],
+  "tyre": [
+   2,
+   3,
+   4,
+   9
+  ],
+  "trim": [
+   6
+  ],
+  "interior": [
+   0,
+   7,
+   10
+  ],
+  "other": []
+ },
+ "Rustbucket": {
+  "body": [
+   2,
+   7,
+   11
+  ],
+  "glass": [
+   9
+  ],
+  "light": [
+   5
+  ],
+  "tyre": [
+   3,
+   4,
+   6
+  ],
+  "trim": [
+   0,
+   10
+  ],
+  "interior": [
+   1,
+   8
+  ],
+  "other": []
+ },
+ "Street Kid": {
+  "body": [
+   0,
+   1,
+   8
+  ],
+  "glass": [],
+  "light": [
+   10
+  ],
+  "tyre": [
+   2,
+   4,
+   5,
+   7,
+   11
+  ],
+  "trim": [],
+  "interior": [
+   3,
+   6,
+   9
+  ],
+  "other": []
+ },
+ "Sunny Camper": {
+  "body": [
+   0,
+   2,
+   3,
+   4,
+   6,
+   7
+  ],
+  "glass": [
+   9,
+   11
+  ],
+  "light": [],
+  "tyre": [
+   1
+  ],
+  "trim": [
+   8
+  ],
+  "interior": [
+   5,
+   10
+  ],
+  "other": []
+ },
+ "Surf Wagon": {
+  "body": [
+   3,
+   6,
+   9,
+   11
+  ],
+  "glass": [
+   4
+  ],
+  "light": [],
+  "tyre": [
+   5,
+   7
+  ],
+  "trim": [
+   0,
+   8
+  ],
+  "interior": [
+   1,
+   2,
+   10
+  ],
+  "other": []
+ },
+ "Thunder": {
+  "body": [
+   1,
+   2,
+   8,
+   11
+  ],
+  "glass": [],
+  "light": [],
+  "tyre": [
+   0,
+   9,
+   10
+  ],
+  "trim": [
+   3,
+   4,
+   6
+  ],
+  "interior": [
+   5,
+   7
+  ],
+  "other": []
+ },
+ "Trailblazer": {
+  "body": [
+   1,
+   8,
+   9,
+   10
+  ],
+  "glass": [
+   6
+  ],
+  "light": [
+   5
+  ],
+  "tyre": [
+   2,
+   3,
+   4,
+   11
+  ],
+  "trim": [
+   0
+  ],
+  "interior": [
+   7
+  ],
+  "other": []
+ },
+ "Velvet": {
+  "body": [
+   1
+  ],
+  "glass": [],
+  "light": [
+   9,
+   10
+  ],
+  "tyre": [
+   0,
+   3,
+   4,
+   5
+  ],
+  "trim": [
+   2,
+   8
+  ],
+  "interior": [
+   6,
+   7,
+   11
+  ],
+  "other": []
+ },
+ "Viper Strike": {
+  "body": [
+   2,
+   4,
+   5,
+   9
+  ],
+  "glass": [
+   7
+  ],
+  "light": [
+   3
+  ],
+  "tyre": [
+   0,
+   1,
+   6,
+   11
+  ],
+  "trim": [
+   10
+  ],
+  "interior": [
+   8
+  ],
+  "other": []
+ },
+ "Workhorse": {
+  "body": [
+   0,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "glass": [],
+  "light": [],
+  "tyre": [
+   3,
+   10
+  ],
+  "trim": [
+   2,
+   11
+  ],
+  "interior": [
+   1
+  ],
+  "other": []
+ },
+ "Zip": {
+  "body": [
+   1,
+   4,
+   8
+  ],
+  "glass": [
+   2
+  ],
+  "light": [
+   6
+  ],
+  "tyre": [
+   0,
+   3,
+   7,
+   9,
+   10
+  ],
+  "trim": [
+   11
+  ],
+  "interior": [
+   5
+  ],
+  "other": []
+ },
+ "Rainbow Apex": {
+  "body": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   9,
+   10
+  ],
+  "glass": [],
+  "light": [],
+  "tyre": [
+   7,
+   8
+  ],
+  "trim": [
+   11
+  ],
+  "interior": [
+   0
+  ],
+  "other": []
+ },
+ "Rainbow Bolt": {
+  "remove": true
+ },
+ "Rainbow Brawler": {
+  "body": [
+   1,
+   2,
+   3,
+   5,
+   6,
+   7,
+   8,
+   11
+  ],
+  "glass": [
+   4,
+   10
+  ],
+  "light": [],
+  "tyre": [
+   9
+  ],
+  "trim": [],
+  "interior": [
+   0
+  ],
+  "other": []
+ },
+ "Rainbow Pizza Runner": {
+  "body": [
+   0,
+   2,
+   3,
+   4,
+   7,
+   8,
+   9,
+   10,
+   11
+  ],
+  "glass": [
+   6
+  ],
+  "light": [
+   1
+  ],
+  "tyre": [
+   5
+  ],
+  "trim": [],
+  "interior": [],
+  "other": []
+ },
+ "Rainbow Putter": {
+  "body": [
+   1,
+   2,
+   3,
+   4,
+   7,
+   9
+  ],
+  "glass": [
+   0,
+   6
+  ],
+  "light": [],
+  "tyre": [
+   5,
+   10
+  ],
+  "trim": [],
+  "interior": [
+   8,
+   11
+  ],
+  "other": []
+ },
+ "Rainbow Street Kid": {
+  "body": [
+   0,
+   1,
+   3,
+   4,
+   5,
+   7,
+   8,
+   9,
+   10
+  ],
+  "glass": [],
+  "light": [],
+  "tyre": [
+   2
+  ],
+  "trim": [],
+  "interior": [
+   6,
+   11
+  ],
+  "other": []
+ },
+ "Rainbow Sunny Camper": {
+  "remove": true
+ },
+ "Rainbow Trailblazer": {
+  "body": [
+   1,
+   4,
+   5,
+   6,
+   7,
+   8,
+   10,
+   11
+  ],
+  "glass": [],
+  "light": [],
+  "tyre": [
+   0,
+   2,
+   3
+  ],
+  "trim": [],
+  "interior": [
+   9
+  ],
+  "other": []
+ },
+ "Rainbow Velvet": {
+  "body": [
+   0,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  "glass": [
+   10
+  ],
+  "light": [],
+  "tyre": [
+   11
+  ],
+  "trim": [],
+  "interior": [
+   1,
+   9
+  ],
+  "other": []
+ },
+ "Rainbow Zip": {
+  "body": [
+   1,
+   3,
+   4,
+   7,
+   10,
+   11
+  ],
+  "glass": [
+   2,
+   8
+  ],
+  "light": [],
+  "tyre": [
+   5,
+   9
+  ],
+  "trim": [
+   6
+  ],
+  "interior": [
+   0
+  ],
+  "other": []
+ }
+}

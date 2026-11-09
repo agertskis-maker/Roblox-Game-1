@@ -68,7 +68,17 @@ function buildCar(car, spec, cl, texRgb) {
     out[i] = r < 0.72 ? 1 : r < 0.88 ? 2 : r < 1.0 ? 3 : r < 1.12 ? 4 : r < 1.28 ? 5 : 6;
   }
   // the shade levels and the region edges both come out smoother (and much shorter to store) after one more mode pass
-  return lib.modeFilter(out, N, 2);
+  return cleanBody(lib.modeFilter(out, N, 2));
+}
+
+// no painted speck under 16 texels survives (the paint audit flags ragged specks): a speck is given back to "other"
+function cleanBody(values) {
+  const body = new Uint8Array(N * N);
+  for (let i = 0; i < N * N; i++) body[i] = values[i] >= 1 && values[i] <= 6 ? 1 : 0;
+  const kept = lib.dropSmall(body, N, 16, false);
+  const out = Uint8Array.from(values);
+  for (let i = 0; i < N * N; i++) if (body[i] && !kept[i]) out[i] = CLASS.other;
+  return out;
 }
 
 const old = fs.readFileSync(inPath, 'utf8');
@@ -86,6 +96,7 @@ const { texturesDir } = JSON.parse(fs.readFileSync(path.join(path.dirname(specsP
 const stats = {};
 for (const [car, spec] of Object.entries(specs)) {
   if (car.startsWith('_')) continue;
+  if (spec.remove) { delete entries[car]; delete specs[car]; continue; }
   const cl = clusters[car];
   if (!cl) { console.log('no clusters for', car); continue; }
   const img = lib.png.read(path.join(texturesDir, cl.stem + '.png'));
@@ -108,6 +119,13 @@ for (const [car, spec] of Object.entries(specs)) {
     lib.png.write(path.join(previewDir, car + '.mask.png'), W, H, pv, 3);
   }
 }
+// cars with no spec yet keep their Round 7 mask, smoothed once and with every painted speck under 16 texels removed
+for (const key of Object.keys(entries)) {
+  if (specs[key] && !key.startsWith('_')) continue;
+  const vals = lib.rleDecode(entries[key], N);
+  entries[key] = lib.rleEncode(cleanBody(lib.modeFilter(vals, N, 1)), N);
+}
+
 // two modules: the Normal cars (and, through them, Gold and Diamond) and the Rainbow editions, so neither source gets huge
 const head = old.slice(0, old.indexOf('return table.freeze({'));
 const lines = (pred) => Object.keys(entries).filter(pred).sort().map(k => `\t["${k}"] = "${entries[k]}",`).join('\n');

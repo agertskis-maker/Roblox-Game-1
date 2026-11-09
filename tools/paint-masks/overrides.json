@@ -1,0 +1,15 @@
+{
+ "Bolt": { "whiteBody": true },
+ "Commuter": { "whiteBody": true },
+ "Monarch": { "whiteBody": true },
+ "Pizza Runner": { "whiteBody": true },
+ "Putter": { "whiteBody": true },
+ "Rally Dog": { "whiteBody": true },
+ "Rustbucket": { "whiteBody": true },
+ "Apex": { "skip": true },
+ "Executive": { "skip": true },
+ "Night Rider": { "skip": true },
+ "Phantom": { "skip": true },
+ "Rainbow Bolt": { "remove": true },
+ "Rainbow Sunny Camper": { "remove": true }
+}

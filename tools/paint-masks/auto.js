@@ -12,6 +12,7 @@ const specs = {};
 for (const [car, cl] of Object.entries(clusters)) {
   const ov = overrides[car] || {};
   if (ov.skip) continue; // no spec yet: the car keeps its old mask
+  if (ov.remove) { specs[car] = { remove: true }; continue; } // no believable mask: the car is not paintable
   const spec = { body: [], glass: [], light: [], tyre: [], trim: [], interior: [], other: [] };
   const info = cl.clusters.map(c => { const lab = lib.rgbToLab(c.rgb[0], c.rgb[1], c.rgb[2]); return { id: c.cluster, share: c.share, L: lab[0], chroma: Math.hypot(lab[1], lab[2]), hue: Math.atan2(lab[2], lab[1]) * 180 / Math.PI }; });
   // the car's own colour: the chromatic cluster with the biggest share
