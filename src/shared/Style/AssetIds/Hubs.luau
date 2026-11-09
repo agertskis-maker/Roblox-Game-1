@@ -14,6 +14,16 @@ local entries: { [string]: Types.Entry } = {
 		size = Vector2.new(480, 600),
 		source = "Car-Hop-Art/upload-round7/art_r7_roxy_portrait.png (R7-IMG-01 cut-out), re-uploaded under the group",
 	},
+	-- The same portrait with its off-white background made transparent (R8-IMG-09 shows Roxy as a cut-out sticker; the art above
+	-- has an opaque 250,242,236 background, so the card shows it in a rounded cream frame until this one is uploaded). Made in
+	-- Round 8 by flood-filling that background from the border: Car-Hop-Art/upload-round8/r8_hubs_roxy_cutout.png, 480 x 600.
+	-- The lead uploads it under the group and fills `id`; DialogueCard then uses it, frameless, with no code change.
+	r8_hubs_roxy_cutout = {
+		id = nil,
+		kind = "Image",
+		size = Vector2.new(480, 600),
+		source = "Car-Hop-Art/upload-round8/r8_hubs_roxy_cutout.png (background removed from art_r7_roxy_portrait.png)",
+	},
 }
 
 return entries

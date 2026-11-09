@@ -80,6 +80,8 @@ DialogueCard.UnknownText = "Unlock details aren't available yet."
 
 -- the one portrait key (AssetIds/Hubs.luau holds the id; the lead changes it there when the art is re-uploaded under the group)
 DialogueCard.PortraitKey = "r8_hubs_roxy_portrait"
+-- the same picture with a transparent background (no id until the lead uploads it; then it is used, frameless)
+DialogueCard.CutoutKey = "r8_hubs_roxy_cutout"
 
 -- Every number that sets the proportions, in one table (the report records these).
 DialogueCard.Sizes = table.freeze({
@@ -602,10 +604,25 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 		ZIndex = 5,
 		Parent = stage,
 	})
+	-- The cut-out (transparent background) when it is uploaded or in the local test art; else the portrait with its opaque
+	-- cream background, which is then shown in a rounded cream frame so it reads as a picture, not a stray rectangle.
+	local cutout = if spec.portraitName == "Coach Roxy" then AssetIds.image(DialogueCard.CutoutKey) else ""
 	local portraitImage = spec.portraitImage
-		or (if spec.portraitName == "Coach Roxy" then AssetIds.image(DialogueCard.PortraitKey) else "")
+		or (
+			if cutout ~= ""
+				then cutout
+				elseif spec.portraitName == "Coach Roxy" then AssetIds.image(DialogueCard.PortraitKey)
+				else ""
+		)
+	if portraitImage ~= "" and portraitImage ~= cutout then
+		portraitBack.BackgroundTransparency = 0
+		portraitBack.BackgroundColor3 = CREAM
+		portraitBack.ClipsDescendants = true
+		Arcade.corner(portraitBack, 16)
+		Arcade.outline(portraitBack, S.Stroke, NAVY)
+	end
 	if portraitImage ~= "" then
-		make("ImageLabel", {
+		local picture: ImageLabel = make("ImageLabel", {
 			Name = "PortraitImage",
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
@@ -614,6 +631,9 @@ function DialogueCard.show(parent: GuiBase2d, spec: Spec): Handle
 			ZIndex = 6,
 			Parent = portraitBack,
 		})
+		if portraitImage ~= cutout then
+			Arcade.corner(picture, 16) -- the picture's own corners follow the frame's (ClipsDescendants ignores UICorner)
+		end
 	else
 		drawPortrait(portraitBack, 6)
 	end
