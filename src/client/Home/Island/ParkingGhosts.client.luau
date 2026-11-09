@@ -703,7 +703,7 @@ local function newView(lane: Lane, index: number, want: Want): View?
 		drawEmpty(group, w, h)
 		-- the short tag over the bay, only close up; sized in studs to fit inside its own bay, so the tags of
 		-- neighbouring bays never overlap from a distance (Round 8 playtest)
-		local tagWidth = math.min(pose.width * 0.85, 6)
+		local tagWidth = math.min(pose.width * 0.85, 3.8) -- bays sit about 4.5 studs apart
 		local tip = make("BillboardGui", {
 			Name = "EmptyTag",
 			Adornee = plate,
