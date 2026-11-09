@@ -14,7 +14,7 @@
 --   h:spin(rad)      ADDS rad to how far the wheels have rolled (positive = the car rolling forward, like RealCar's spin)
 --   h:setSpin(rad)   sets the roll angle outright (turntables and the Raceway can pass a running total)
 --   h:set(id?)       changes the design on the same car; h:destroy() gives the car's own wheels back and removes everything
---   options.lod = "low": no glow pulse or star drift (tiles, ghosts). options.reduceMotion: no pulse or drift (also follows
+--   options.lod = "low": tyre and rim only, no glow layer, stars or pulse (tiles, ghosts, Raceway lineups). options.reduceMotion: no pulse or drift (also follows
 --   GuiService.ReducedMotionEnabled and the LocalPlayer attribute "Lane3ReducedMotionOverride").
 --
 --   WheelKit.preload(ids?) -> Promise     loads the mesh templates (all designs, or the listed Wheels ids); fit() works before
@@ -381,7 +381,7 @@ local function addPiece(w: Wheel, folder: Folder, part: BasePart, offset: CFrame
 	table.insert(w.pieces, { part = part, offset = offset, role = role, base = base })
 end
 
-local function buildMeshWheel(w: Wheel, folder: Folder, design: Designs.Design, r: number, width: number)
+local function buildMeshWheel(w: Wheel, folder: Folder, design: Designs.Design, r: number, width: number, low: boolean)
 	local halfW = width / 2
 	local vc = WheelKit.VertexColours
 	-- the shared tyre: its box is exactly the car's tyre (width x diameter x diameter), centred on the hub
@@ -400,13 +400,13 @@ local function buildMeshWheel(w: Wheel, folder: Folder, design: Designs.Design, 
 	rim.Reflectance = design.reflectance
 	addPiece(w, folder, rim, CFrame.new(centre) * MESH_TURN, "rim")
 	local glowColour = design.glowColor or Color3.new(1, 1, 1)
-	if design.glow then
+	if design.glow and not low then
 		local tyreFrame = design.glowFrame == "tyre"
 		local gs, gc = boxFor(design.glow, r, halfW, tyreFrame)
 		local g = meshPiece(design.glow, "Glow", gs, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
 		addPiece(w, folder, g, CFrame.new(gc) * MESH_TURN, "glow", g.Color)
 	end
-	if design.stars then
+	if design.stars and not low then
 		local ss, sc = boxFor(design.stars, r, halfW, false)
 		local s =
 			meshPiece(design.stars, "Stars", ss, if vc then Color3.new(1, 1, 1) else glowColour, Enum.Material.Neon)
@@ -562,7 +562,7 @@ function Fit._build(self: any)
 		local scaled = CFrame.new(hub.Position * f) * hub.Rotation
 		local w: Wheel = { hub = scaled, sign = if hub.XVector.X < 0 then 1 else -1, pieces = {} }
 		if useMesh then
-			buildMeshWheel(w, folder, design, r, width)
+			buildMeshWheel(w, folder, design, r, width, self._lod == "low")
 		else
 			buildFallbackWheel(w, folder, design, r, width)
 		end
