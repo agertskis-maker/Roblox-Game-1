@@ -78,7 +78,9 @@ local function remote(name: string): RemoteEvent?
 	return if r and r:IsA("RemoteEvent") then r else nil
 end
 
--- A four-leaf clover drawn from four round leaves and a stem, `px` wide.
+-- A four-leaf clover, `px` wide: four HEART leaves (a diamond with a round lobe on each upper edge, so every leaf has two lobes and
+-- a notch), tips meeting in the middle, one outline round the whole clover, and a short stem. Round 8 (L-01): the Round 7 icon was
+-- four round blobs ("four circles"). Leaves alternate two shades; the shades are the level's colour.
 local function clover(parent: Instance, px: number, colour: Color3, name: string): Frame
 	local holder = make("Frame", {
 		Name = name,
@@ -86,34 +88,61 @@ local function clover(parent: Instance, px: number, colour: Color3, name: string
 		Size = UDim2.fromOffset(px, px),
 		ZIndex = 6,
 	}, parent) :: Frame
-	local leaf = px * 0.46
-	for i, offset in { Vector2.new(-1, -1), Vector2.new(1, -1), Vector2.new(-1, 1), Vector2.new(1, 1) } do
-		local l = make("Frame", {
-			Name = "Leaf" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, offset.X * leaf * 0.48, 0.45, offset.Y * leaf * 0.48),
-			Size = UDim2.fromOffset(leaf, leaf),
-			BackgroundColor3 = colour,
-			Rotation = 45,
-			ZIndex = 6,
-		}, holder)
-		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, l)
-		make("UIStroke", { Color = CarKit.Ink, Thickness = 2 }, l)
-		make("UIGradient", {
-			Color = ColorSequence.new(colour:Lerp(Color3.new(1, 1, 1), 0.35), colour),
-			Rotation = 90,
-		}, l)
+	local leafH = px * 0.42 -- a leaf's height, tip to the top of its lobes
+	local edge = math.max(2, math.round(px / 26)) -- the outline's width
+	local centre = Vector2.new(px / 2, px * 0.43)
+	local shades = { colour:Lerp(Color3.new(1, 1, 1), 0.18), colour:Lerp(Color3.new(0, 0, 0), 0.08) }
+	-- two passes, so the outline shows only round the outside: every leaf's outline first, then every leaf's fill
+	for pass = 1, 2 do
+		for i = 0, 3 do
+			local leaf = make("Frame", {
+				Name = if pass == 1 then "LeafOutline" .. i else "Leaf" .. i,
+				BackgroundTransparency = 1,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromOffset(centre.X, centre.Y),
+				Size = UDim2.fromOffset(leafH * 2, leafH * 2),
+				Rotation = 45 + 90 * i, -- the leaf's tip is at its middle and its axis points up; this turns it to a diagonal
+				ZIndex = if pass == 1 then 5 else 6,
+			}, holder)
+			local colourHere = if pass == 1 then CarKit.Ink else shades[i % 2 + 1]
+			local grow = if pass == 1 then edge * 2 else 0
+			local q = leafH * 0.72
+			local function piece(x: number, y: number, size: number, round: number, turn: number)
+				local p = make("Frame", {
+					BackgroundColor3 = colourHere,
+					BorderSizePixel = 0,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromOffset(leafH + x, leafH + y),
+					Size = UDim2.fromOffset(size + grow, size + grow),
+					Rotation = turn,
+				}, leaf)
+				make("UICorner", { CornerRadius = UDim.new(round, 0) }, p)
+				if pass == 2 then
+					make("UIGradient", {
+						Color = ColorSequence.new(colourHere:Lerp(Color3.new(1, 1, 1), 0.3), colourHere),
+						Rotation = 90,
+					}, p)
+				end
+			end
+			piece(0, -q * 0.7071, q, 0.1, 45)
+			piece(-0.28 * leafH, -0.68 * leafH, 0.64 * leafH, 0.5, 0)
+			piece(0.28 * leafH, -0.68 * leafH, 0.64 * leafH, 0.5, 0)
+		end
 	end
-	local stem = make("Frame", {
-		Name = "Stem",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.55, 0.62),
-		Size = UDim2.fromOffset(math.max(px * 0.07, 3), px * 0.36),
-		BackgroundColor3 = colour:Lerp(Color3.new(0, 0, 0), 0.25),
-		Rotation = -20,
-		ZIndex = 5,
-	}, holder)
-	make("UICorner", { CornerRadius = UDim.new(1, 0) }, stem)
+	for pass = 1, 2 do
+		local grow = if pass == 1 then edge * 2 else 0
+		local stem = make("Frame", {
+			Name = if pass == 1 then "StemOutline" else "Stem",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromOffset(centre.X + px * 0.02, centre.Y + px * 0.27),
+			Size = UDim2.fromOffset(math.max(px * 0.1, 4) + grow, px * 0.3 + grow),
+			BackgroundColor3 = if pass == 1 then CarKit.Ink else colour:Lerp(Color3.new(0, 0, 0), 0.3),
+			BorderSizePixel = 0,
+			Rotation = -14,
+			ZIndex = if pass == 1 then 4 else 5,
+		}, holder)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, stem)
+	end
 	return holder
 end
 
