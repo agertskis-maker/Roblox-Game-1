@@ -2,6 +2,7 @@
 -- WheelAudit (Round 8, W-02): a development tool, idle in the real game. It does nothing until the attribute "R8WheelAudit" is set
 -- on ReplicatedStorage (the Studio MCP sets it during Play); then the command in the attribute runs:
 --   "sheet:<page>"            a full-screen contact sheet of the cars wearing three rims, close on the front wheel (4 cars a page)
+--   "designs:<car>"          all sixteen designs on one car, 4 x 4, close on the front wheel
 --   "real:<car>:<wheelsId>"   one car in the world with that design, camera on the front wheel, wheels turning
 --   "bench:<car>:<wheelsId>"  eight cars in the world: wheel parts and the cost of a spin and a pulse per car
 --   "off"                     removes whatever it made
@@ -15,6 +16,7 @@ local RunService = game:GetService("RunService")
 local ATTR = "R8WheelAudit"
 local WheelKit = require(script.Parent.WheelKit)
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 
 local player = Players.LocalPlayer
 local CARS = ReplicatedStorage:WaitForChild("Cars")
@@ -148,6 +150,75 @@ local function runSheet(page: number)
 	print("[R8WheelAudit] sheet page " .. page .. " of " .. math.ceil(#names / PER_PAGE) .. " (" .. #names .. " cars)")
 end
 
+-- every design on one car, 4 x 4, close on the front wheel (the Wheels catalog order, Stock Five left out)
+local function runDesigns(carName: string)
+	clear()
+	local source = CARS:FindFirstChild(carName)
+	if not (source and source:IsA("Model")) then
+		print("[R8WheelAudit] FAIL no such car " .. carName)
+		return
+	end
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "R8WheelAuditDesigns"
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 1000
+	gui.ResetOnSpawn = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+	trove:Add(gui)
+	local back = Instance.new("Frame")
+	back.Size = UDim2.fromScale(1, 1)
+	back.BackgroundColor3 = Color3.fromRGB(14, 18, 34)
+	back.BorderSizePixel = 0
+	back.Parent = gui
+	local ids: { string } = {}
+	for _, item in Catalog.Items.Wheels do
+		if item.id ~= "stock_five" then
+			table.insert(ids, item.id)
+		end
+	end
+	for i, id in ids do
+		local col, row = (i - 1) % 4, (i - 1) // 4
+		local vp = Instance.new("ViewportFrame")
+		vp.Size = UDim2.new(0.25, -4, 0.25, -4)
+		vp.Position = UDim2.new(col * 0.25, 2, row * 0.25, 2)
+		vp.BackgroundColor3 = Color3.fromRGB(34, 44, 74)
+		vp.Ambient = Color3.fromRGB(150, 150, 165)
+		vp.LightColor = Color3.fromRGB(255, 246, 228)
+		vp.LightDirection = Vector3.new(-0.6, -1, -0.5)
+		vp.Parent = back
+		local model = source:Clone()
+		model:PivotTo(CFrame.new(0, 0, 0))
+		model.Parent = vp
+		local handle = audit(model, id, carName .. " " .. id)
+		trove:Add(function()
+			handle:destroy()
+		end)
+		local hub = WheelKit.hub(model, 2)
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 34
+		if hub then
+			local p = hub.cframe.Position
+			cam.CFrame = CFrame.lookAt(
+				p + hub.cframe.XVector * hub.radius * 3.2 + Vector3.new(0, hub.radius * 0.5, -hub.radius * 1.3),
+				p
+			)
+		end
+		cam.Parent = vp
+		vp.CurrentCamera = cam
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 0.35
+		label.BackgroundColor3 = Color3.new(0, 0, 0)
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.Size = UDim2.new(0.7, 0, 0, 20)
+		label.Position = UDim2.fromOffset(4, 4)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Text = id
+		label.Parent = vp
+	end
+end
+
 local function runReal(carName: string, id: string)
 	clear()
 	local source = CARS:FindFirstChild(carName)
@@ -251,6 +322,8 @@ local function dispatch()
 	local kind, a, b = string.match(command, "^(%a+):?([^:]*):?([^:]*)$")
 	if kind == "sheet" then
 		runSheet(tonumber(a) or 1)
+	elseif kind == "designs" then
+		runDesigns(a)
 	elseif kind == "real" then
 		runReal(a, b)
 	elseif kind == "bench" then
