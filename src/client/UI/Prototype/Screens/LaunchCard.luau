@@ -124,7 +124,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 		buildTrove:Connect(closeButton.Activated, function()
 			self:close()
 		end)
-		local btnH = math.max(math.round(64 * k), 38) -- the one row of buttons on a short card
+		local btnH = math.max(math.round(64 * k), 44) -- the one row of buttons on a short card (review D10: 44 px touch minimum)
 		local bottom = if short then btnH + 12 else math.round(190 * k)
 		local stageH = h - stageY - bottom
 		-- the turntable: the left column on a wide card, the whole width (and a shorter stage) on a stacked one
@@ -261,7 +261,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				swatch
 			)
 			local textX = 8 + swatchPx + 8
-			CarKit.text(row, label .. ":", math.max(math.round(15 * k), if short then 10 else 11), {
+			CarKit.text(row, label .. ":", math.max(math.round(15 * k), if short then 12 else 11), {
 				align = Enum.TextXAlignment.Left,
 				color = CarKit.Gold,
 				size = if short then UDim2.new(0.38, -textX, 1, 0) else UDim2.new(1, -textX - 4, 0.4, 0),
@@ -269,7 +269,7 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				z = 8,
 				name = "Label",
 			})
-			local value = CarKit.title(row, "", math.max(math.round(21 * k), if short then 11 else 13), {
+			local value = CarKit.title(row, "", math.max(math.round(21 * k), 13), {
 				align = Enum.TextXAlignment.Left,
 				size = if short then UDim2.new(0.62, -8, 1, 0) else UDim2.new(1, -textX - 4, 0.52, 0),
 				position = if short then UDim2.fromScale(0.38, 0) else UDim2.new(0, textX, 0.42, 0),
@@ -461,15 +461,23 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				stamp
 			)
 			make("UIGradient", { Rotation = 90, Color = ColorSequence.new(GREEN_TOP, GREEN_BOTTOM) }, stamp)
-			local mark = CarKit.title(stamp, "✔", math.round(checkPx * 0.62), {
-				align = Enum.TextXAlignment.Center,
-				size = UDim2.fromScale(1, 1),
-				shadow = false,
-				stroke = 2,
-				z = 15,
-				name = "Mark",
-			})
-			mark.TextColor3 = CarKit.White
+			-- the tick is drawn with two white bars (review D9: the check-mark character drew as a dark emoji on some fonts)
+			local function bar(x0: number, y0: number, x1: number, y1: number)
+				local dx, dy = (x1 - x0) * checkPx, (y1 - y0) * checkPx
+				local thick = math.max(math.round(checkPx * 0.13), 4)
+				local piece = make("Frame", {
+					Name = "Mark",
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale((x0 + x1) / 2, (y0 + y1) / 2),
+					Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy) + thick * 0.5, thick),
+					Rotation = math.deg(math.atan2(dy, dx)),
+					BackgroundColor3 = CarKit.White,
+					ZIndex = 15,
+				}, stamp)
+				make("UICorner", { CornerRadius = UDim.new(1, 0) }, piece)
+			end
+			bar(0.26, 0.52, 0.43, 0.69)
+			bar(0.43, 0.69, 0.75, 0.33)
 			buildTrove:Add(stamp)
 			local scale = make("UIScale", { Scale = if calm then 1 else 2.4 }, stamp) :: UIScale
 			if not calm then

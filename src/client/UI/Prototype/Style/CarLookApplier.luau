@@ -6,7 +6,8 @@
 -- handle's Trove and is removed on update() or destroy(); update() rebuilds only the tabs that changed.
 --
 --   local h = CarLookApplier.apply(model: Model, look: CarLook.Look, options: Options?) -> Handle
---   h:update(look)              re-dress (only the tabs that changed are rebuilt)
+--   h:update(look)              re-dress (only the tabs that changed are rebuilt). A handle is per car: look.car is read once, at
+--                               apply(); to dress another car, destroy this handle and apply() on that car (review N1)
 --   h:setTrailSpeed(0..1)       T-03: 0 = standing / launch card, 1 = top run speed
 --   h:burst(moment)             T-04: "leap" | "dive" | "catch" | "flare" (Style.TrailBursts when that module exists)
 --   h:moveTrailTo(model)        C-02: the trail follows the player to the next car (paint, decal, wheels stay behind)
