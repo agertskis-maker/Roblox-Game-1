@@ -23,6 +23,7 @@ local BetaConfig = require(ReplicatedStorage.Shared.Beta.BetaConfig)
 local Catalog = require(ReplicatedStorage.Shared.UI.CosmeticPreviewCatalog)
 local UI = script.Parent.Parent:WaitForChild("UI")
 local RidePick = require(UI.Prototype.RidePick)
+local RosterFixtures = require(ReplicatedStorage.Shared.UI.RosterFixtures)
 local StyleState = require(UI.Prototype.StyleState)
 
 local BetaLookTest = {}
@@ -40,7 +41,10 @@ local WEAR: { { tab: string, id: string } } = {
 	{ tab = "Wheels", id = "split_five" },
 	{ tab = "Trails", id = "bubble_pop" },
 }
-local RIDE = "Pizza Runner"
+local DOWNTOWN_RIDE = "Pizza Runner"
+-- review D2: the World is the LocalPlayer attribute BetaLookTestWorld ("Downtown" when unset, "DustyHighway", "SummitPass"); in the
+-- other two Worlds the run starts on that World's Loaner (always yours to pick), since a Downtown car never starts a run there
+local WORLD_ATTRIBUTE = "BetaLookTestWorld"
 
 local player = Players.LocalPlayer
 
@@ -173,6 +177,13 @@ end
 
 function BetaLookTest.run(ctx: Context): { string }
 	local lines: { string } = {}
+	local asked = player:GetAttribute(WORLD_ATTRIBUTE)
+	local world = if type(asked) == "string" and table.find(RosterFixtures.Worlds, asked :: any)
+		then asked
+		else "Downtown"
+	local loaner = RosterFixtures.loaner(world)
+	local RIDE = if world == "Downtown" then DOWNTOWN_RIDE elseif loaner then loaner.id else DOWNTOWN_RIDE
+	table.insert(lines, "NOTE World " .. world .. ", ride car " .. RIDE)
 	local fails = 0
 	local function check(name: string, ok: boolean, detail: any?)
 		if not ok then
@@ -243,7 +254,7 @@ function BetaLookTest.run(ctx: Context): { string }
 
 	-- 2. the real launch --------------------------------------------------------------------------------------------------------
 	ctx.control("autopilot", true) -- steers round the car ahead so the run lasts long enough to hop
-	ctx.control("launch", "Downtown")
+	ctx.control("launch", world)
 	local boarded = waitFor(30, function()
 		return ridden() ~= nil
 	end)
@@ -301,8 +312,11 @@ function BetaLookTest.run(ctx: Context): { string }
 		else
 			check("C-02 paint: the drawn colour can be read", false, why)
 		end
+	end
+	do
+		-- review D5(a): the decals are looked for on the whole car (shell or body), so a car with no paint shell is checked too
 		local decals = 0
-		for _, d in shell:GetChildren() do
+		for _, d in rcModel:GetDescendants() do
 			if d:IsA("Decal") and d.Name == "StyleDecal" then
 				decals += 1
 				check(
@@ -328,6 +342,125 @@ function BetaLookTest.run(ctx: Context): { string }
 		"C-02 trail: and every one is enabled",
 		total > 0 and enabled == total,
 		string.format("%d of %d", enabled, total)
+	)
+
+	-- 3b. can it be SEEN from the run's own camera (review D4: the instance checks above passed while Adam saw nothing) ------------
+	-- Geometry from the camera's real position after the launch hero moment (X-01) is over, not pixels: a part counts as seen when it
+	-- is in front of the camera, inside the view, big enough on screen, and the first thing a ray from the camera meets on the way
+	-- to it is that part itself (or nothing). Any one of these failing is a FAIL.
+	task.wait(1.6)
+	local cam = Workspace.CurrentCamera :: Camera
+	local camPos = cam.CFrame.Position
+	local ignore: { Instance } = {}
+	if player.Character then
+		table.insert(ignore, player.Character)
+	end
+	for _, d in car:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency >= 1 then
+			table.insert(ignore, d) -- the run's hidden stand-in parts (the showroom car rides inside them)
+		end
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	local function screen(p: Vector3): Vector2?
+		local v, inView = cam:WorldToViewportPoint(p)
+		return if inView and v.Z > 0 then Vector2.new(v.X, v.Y) else nil
+	end
+	local function seen(p: Vector3, target: Instance?): boolean
+		local hit = Workspace:Raycast(camPos, p - camPos, params)
+		if hit == nil or (hit.Position - camPos).Magnitude >= (p - camPos).Magnitude - 0.3 then
+			return true
+		end
+		return target ~= nil and (hit.Instance == target or hit.Instance:IsDescendantOf(target))
+	end
+	-- the screen size of a box (a part, or a face of one): the widest gap between its corners on screen
+	local function span(cf: CFrame, size: Vector3): number
+		local pts: { Vector2 } = {}
+		for _, x in { -0.5, 0.5 } do
+			for _, y in { -0.5, 0.5 } do
+				for _, z in { -0.5, 0.5 } do
+					local s = screen((cf * CFrame.new(size.X * x, size.Y * y, size.Z * z)).Position)
+					if s then
+						table.insert(pts, s)
+					end
+				end
+			end
+		end
+		local best = 0
+		for i = 1, #pts do
+			for j = i + 1, #pts do
+				best = math.max(best, (pts[i] - pts[j]).Magnitude)
+			end
+		end
+		return best
+	end
+	local body = shell or wash or (rcModel:FindFirstChild("body_geom", true) :: BasePart?)
+	if body then
+		local px = span(body.CFrame, body.Size)
+		check(
+			"C-02 seen: the painted body is on screen from the chase camera and at least 60 px across",
+			screen(body.Position) ~= nil and px >= 60,
+			string.format("%d px", math.floor(px))
+		)
+	end
+	local rear: Decal? = nil
+	for _, d in rcModel:GetDescendants() do
+		if d:IsA("Decal") and d.Name == "StyleDecalRear" then
+			rear = d
+		end
+	end
+	check("C-02 decal: a decal is on the rear panel too (the face the chase camera sees)", rear ~= nil, nil)
+	if rear and rear.Parent and rear.Parent:IsA("BasePart") then
+		local part = rear.Parent :: BasePart
+		local normal = part.CFrame:VectorToWorldSpace(Vector3.FromNormalId(rear.Face))
+		local centre = part.Position + normal * (part.Size * Vector3.FromNormalId(rear.Face)).Magnitude * 0.5
+		local facing = normal:Dot((camPos - centre).Unit)
+		check("C-02 seen: the rear decal faces the chase camera", facing > 0.15, string.format("facing %.2f", facing))
+		local below = centre - part.CFrame.UpVector * part.Size.Y * 0.15 -- the design sits in the lower band of the face
+		check(
+			"C-02 seen: the rear decal is on screen and nothing hides it",
+			screen(below) ~= nil and seen(below, part),
+			nil
+		)
+	end
+	local lips, lipsSeen = 0, 0
+	for _, d in rcModel:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "RimLip" then
+			lips += 1
+			if screen(d.Position) and seen(d.Position, nil) then
+				lipsSeen += 1
+			end
+		end
+	end
+	check(
+		"C-02 seen: rim-coloured wheel lips show from the chase camera",
+		lips > 0 and lipsSeen > 0,
+		string.format("%d of %d lip pieces in view", lipsSeen, lips)
+	)
+	local trailPts: { Vector2 } = {}
+	for _, holder in rcModel:GetDescendants() do
+		if holder:IsA("BasePart") and holder:GetAttribute("CarLookTrail") ~= nil then
+			for _, a in holder:GetDescendants() do
+				if a:IsA("Attachment") then
+					local s = screen(a.WorldPosition)
+					if s then
+						table.insert(trailPts, s)
+					end
+				end
+			end
+		end
+	end
+	local trailPx = 0
+	for i = 1, #trailPts do
+		for j = i + 1, #trailPts do
+			trailPx = math.max(trailPx, (trailPts[i] - trailPts[j]).Magnitude)
+		end
+	end
+	check(
+		"C-02 seen: the trail's emitters are in view and spread at least 30 px",
+		#trailPts > 0 and trailPx >= 30,
+		string.format("%d points, %d px", #trailPts, math.floor(trailPx))
 	)
 
 	-- 4. a hop: the trail follows, the caught car keeps its own look -----------------------------------------------------------

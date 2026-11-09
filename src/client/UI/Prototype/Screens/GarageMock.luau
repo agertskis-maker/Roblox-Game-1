@@ -770,29 +770,29 @@ function GarageMock.new(ctx: Overlay.Ctx, options: Options?): Garage
 					end)
 					return
 				end
-			confirm.Text = "✔ READY TO RIDE: " .. string.upper(car.name or car.id)
-			confirm.BackgroundColor3 = Color3.fromRGB(46, 180, 80)
-			confirm.Visible = true
-			local cardRef = facts:card()
-			local glow: UIStroke? = nil
-			if cardRef then
-				glow = make("UIStroke", {
-					Name = "RideGlow",
-					Thickness = 6,
-					Color = Color3.fromRGB(90, 255, 120),
-					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-					Parent = cardRef.root,
-				})
-			end
-			refreshRide()
-			task.delay(2.5, function()
-				if glow then
-					glow:Destroy()
+				confirm.Text = "✔ READY TO RIDE: " .. string.upper(car.name or car.id)
+				confirm.BackgroundColor3 = Color3.fromRGB(46, 180, 80)
+				confirm.Visible = true
+				local cardRef = facts:card()
+				local glow: UIStroke? = nil
+				if cardRef then
+					glow = make("UIStroke", {
+						Name = "RideGlow",
+						Thickness = 6,
+						Color = Color3.fromRGB(90, 255, 120),
+						ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+						Parent = cardRef.root,
+					})
 				end
-				if confirmSerial == serial then
-					confirm.Visible = false
-				end
-			end)
+				refreshRide()
+				task.delay(2.5, function()
+					if glow then
+						glow:Destroy()
+					end
+					if confirmSerial == serial then
+						confirm.Visible = false
+					end
+				end)
 			end)
 		end,
 	})

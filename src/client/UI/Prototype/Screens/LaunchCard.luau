@@ -617,7 +617,11 @@ function LaunchCard.new(ctx: Overlay.Ctx, options: Options): { [string]: any }
 				ZIndex = 16,
 			}, card) :: Frame
 			make("UICorner", { CornerRadius = UDim.new(1, 0) }, line)
-			make("UIStroke", { Thickness = 3, Color = Color3.fromRGB(110, 20, 16), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, line)
+			make(
+				"UIStroke",
+				{ Thickness = 3, Color = Color3.fromRGB(110, 20, 16), ApplyStrokeMode = Enum.ApplyStrokeMode.Border },
+				line
+			)
 			local text = CarKit.title(line, string.upper(reason or "Try again."), math.max(math.round(24 * k), 14), {
 				align = Enum.TextXAlignment.Center,
 				size = UDim2.new(1, -16, 1, 0),

@@ -112,7 +112,11 @@ function ChaseCamera.step(
 		local angle = math.rad(100) * (1 - s)
 		local radius = 11 + (self._back - 11) * s
 		local up = 3.2 + (RunConfig.CAMERA_UP - 3.2) * s
-		eye = (base * CFrame.new(lat + side * math.sin(angle) * radius, self._height + up, -(along - math.cos(angle) * radius))).Position
+		eye = (base * CFrame.new(
+			lat + side * math.sin(angle) * radius,
+			self._height + up,
+			-(along - math.cos(angle) * radius)
+		)).Position
 		local onCar = (base * CFrame.new(lat, self._height + 1.6, -along)).Position
 		focus = onCar:Lerp(focus, s)
 	end

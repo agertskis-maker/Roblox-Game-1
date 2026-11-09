@@ -511,6 +511,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		end
 		self._kitId = id
 		if id == nil then
+			self:_chaseLips(nil)
 			return
 		end
 		local anchors = anchorsFor("Wheels", self.look.car)
@@ -524,7 +525,7 @@ function Applied._wheelsFor(self: any, item: Catalog.Item?)
 		end)
 		if ok and handle then
 			self._kitHandle = handle
-			self:_chaseLips(nil) -- WheelKit's own rims
+			self:_chaseLips(item) -- review D1: the chase view's rim lip, at WheelKit's hubs
 			if self._spin ~= 0 then
 				pcall(function()
 					if handle.setSpin then
@@ -628,7 +629,12 @@ function Applied._attachTrail(self: any, model: Model)
 	-- TrailFx (WS-5a) finds the car's exhaust points itself from the CarName attribute up the model tree; the car name here is for a
 	-- model that carries none. The old four-argument-free call still works (the options are ignored by a TrailFx without them).
 	local scale = self.options.trailScale or 1
-	local fx = (TrailFx :: any).attach(holder, tail, math.max(width, 3) * scale, { model = model, car = self.look.car }) :: any
+	local fx = (TrailFx :: any).attach(
+			holder,
+			tail,
+			math.max(width, 3) * scale,
+			{ model = model, car = self.look.car }
+		) :: any
 	if self.options.lod == "low" and fx.setQuality then
 		fx:setQuality("low") -- beams and ribbons only: no particles, no glow, no sound
 	end
@@ -831,7 +837,8 @@ function Applied.setChaseView(self: any, on: boolean)
 	end
 	self:_chaseDecal(self._items.Decals, self._decalTarget)
 	local wheels: Catalog.Item? = self._items.Wheels
-	self:_chaseLips(if self._kitHandle == nil and wheels and not (wheels.key == "five" and wheels.kind == nil) then wheels else nil)
+	local stock = wheels == nil or wheels.id == "stock_five" or (wheels.key == "five" and wheels.kind == nil)
+	self:_chaseLips(if stock then nil else wheels)
 end
 
 function Applied._chaseDecal(self: any, item: Catalog.Item?, target: BasePart?)
@@ -867,7 +874,7 @@ end
 local LIP_SEGMENTS = 10
 
 -- A hoop in the rim colour on the outside of each wheel, built from short bars (a Part cannot be a ring), so the spokes stay visible
--- from the side and the hoop's edge reads from behind.
+-- from the side and the hoop's edge reads from behind. At WheelKit's hubs when WheelKit dressed the wheels, else at the car's own wheels.
 function Applied._chaseLips(self: any, item: Catalog.Item?)
 	for _, p in self._lips or {} do
 		p:Destroy()
@@ -878,14 +885,38 @@ function Applied._chaseLips(self: any, item: Catalog.Item?)
 	end
 	local style = item.kind :: any
 	local colour = item.colours[1]
-	local pivot = self.model:GetPivot()
-	for _, wheel in self._wheels do
-		local at = pivot:PointToObjectSpace(wheel.Position)
-		local d = math.max(wheel.Size.X, wheel.Size.Y, wheel.Size.Z)
+	local hubs: { { cf: CFrame, d: number, out: number } } = {}
+	local kit = if self._kitHandle then optional("WheelKit") else nil
+	if kit then
+		pcall(function()
+			local design = kit.designOf(item.id)
+			if design and design.rimColor then
+				colour = design.rimColor
+			end
+			local anchors = anchorsFor("Wheels", self.look.car)
+			for i = 1, 4 do
+				local hub = kit.hub(self.model, i, anchors)
+				if hub then
+					table.insert(hubs, { cf = hub.cframe, d = hub.radius * 2, out = hub.width / 2 })
+				end
+			end
+		end)
+	else
+		local pivot = self.model:GetPivot()
+		for _, wheel in self._wheels do
+			local at = pivot:PointToObjectSpace(wheel.Position)
+			local d = math.max(wheel.Size.X, wheel.Size.Y, wheel.Size.Z)
+			-- +X out of the car, as WheelKit's hubs
+			local cf = pivot * CFrame.new(at) * CFrame.Angles(0, if at.X > 0 then 0 else math.pi, 0)
+			table.insert(hubs, { cf = cf, d = d, out = d * 0.26 })
+		end
+	end
+	for _, hub in hubs do
+		local d = hub.d
 		local thick = d * 0.14
-		local radius = d * 0.42
+		local radius = d * 0.4
 		local seg = 2 * math.pi * radius / LIP_SEGMENTS * 1.1
-		local axle = pivot * CFrame.new(at) * CFrame.new(math.sign(at.X) * (d * 0.26 + thick / 2), 0, 0)
+		local axle = hub.cf * CFrame.new(hub.out + thick / 2, 0, 0)
 		for i = 1, LIP_SEGMENTS do
 			local p = Instance.new("Part")
 			p.Name = "RimLip"
@@ -894,11 +925,11 @@ function Applied._chaseLips(self: any, item: Catalog.Item?)
 			p.CanQuery = false
 			p.CanTouch = false
 			p.CastShadow = false
-			p.Size = Vector3.new(thick, d * 0.13, seg)
+			p.Size = Vector3.new(thick, d * 0.12, seg)
 			p.CFrame = axle * CFrame.Angles((i / LIP_SEGMENTS) * math.pi * 2, 0, 0) * CFrame.new(0, radius, 0)
 			p.Color = colour
-			p.Material = if style == "carbon" then Enum.Material.Slate else Enum.Material.Metal
-			p.Reflectance = if style == "chrome" or style == "gold" then 0.35 else 0
+			p.Material = if style == "carbon" then Enum.Material.Slate else Enum.Material.SmoothPlastic
+			p.Reflectance = if style == "chrome" or style == "gold" then 0.25 else 0
 			p.Parent = self.model
 			table.insert(self._lips, p)
 		end
