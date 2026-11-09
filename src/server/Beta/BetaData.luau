@@ -40,6 +40,7 @@ export type Data = {
 	Owned: { [string]: boolean }, -- beta-only (Round 6, R-02): bundle passes, the Starter Pack and its cosmetics
 	LuckLevel: number, -- beta-only (Round 7, P-04): Lucky Clover levels bought, 0 to 5
 	Equipped: { [string]: string }, -- beta-only (Round 7, C-08): the worn Style Shop item per tab
+	RideCar: string, -- beta-only (Round 8, C-03): the car a run starts on, an owned car id (default "Putter"), a proposal for Brian L
 }
 
 local BetaData = {}
@@ -47,7 +48,12 @@ local BetaData = {}
 BetaData.Loaded = Signal.new() -- (player, data, priorLastSeen: number)
 BetaData.Releasing = Signal.new() -- (player, data) just before the session ends
 
-local store = ProfileStore.New(BetaConfig.StoreName, BetaConfig.Template)
+-- Round 8 (C-03): the template plus the one new field, RideCar (the lead may move it into BetaConfig.Template; this stays the same then)
+local TEMPLATE = table.clone(BetaConfig.Template)
+if TEMPLATE.RideCar == nil then
+	TEMPLATE.RideCar = "Putter"
+end
+local store = ProfileStore.New(BetaConfig.StoreName, TEMPLATE)
 local profiles: { [Player]: any } = {}
 local testKeys: { [number]: string } = {}
 local useMock = false
@@ -216,6 +222,15 @@ function BetaData.sanitize(data: any): { string }
 		end
 	end
 	data.Lineup = clean
+	-- Round 8 (C-03): RideCar is a known car the player owns (or a World's Loaner, always theirs); anything else goes back to Putter
+	local ride = data.RideCar
+	local rideCar = if type(ride) == "string" then RosterFixtures.byId(ride) else nil
+	if rideCar == nil or not (rideCar.loaner or data.Cars[rideCar.id]) then
+		data.RideCar = "Putter"
+		if ride ~= nil then
+			table.insert(fixed, "RideCar")
+		end
+	end
 	return fixed
 end
 

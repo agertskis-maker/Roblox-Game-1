@@ -267,3 +267,39 @@ Creator Store audio, free, not uploaded by us and not listened to yet. Set in `s
 | Summit Pass | 136454830957820 | loop_wind_03 | WhistleAcousticMan |
 
 The pads add no new meshes or images: they reuse the group-owned B2 and Worlds kits and the island portal art.
+
+## Round 8 (2026-11-08): uploads and Robux products under LEGION STUDI0S
+
+Uploaded by the lead (Claude Code) through the Studio MCP `open_cloud_invoke` call from the live "Car Hop Beta" Studio (universe
+10774024892), `creationContext.creator.groupId = 74306252`. Each upload's operation reported `creator.groupId 74306252`.
+
+| Asset id | Name | Source file | Use | Moderation at upload |
+|---|---|---|---|---|
+| 85738342467843 | r8_roxy_portrait | `Car-Hop-Art/upload-round7/art_r7_roxy_portrait.png` | Coach Roxy portrait (replaces 106010075891034 owned by peskaface) | Approved |
+| 86033962268368 | r8_art_doublelap | `upload-round7/art_r7_doublelap.png` | Double Lap Pay tile (`GameIconIds.art_r7_doublelap`) | Reviewing |
+| 75386568806579 | r8_art_paddock | `upload-round7/art_r7_paddock.png` | Expanded Paddock tile | Reviewing |
+| 80799454648058 | r8_art_starter | `upload-round7/art_r7_starter.png` | Starter Pack tile | Reviewing |
+| 95455674060813 | r8_art_vip | `upload-round7/art_r7_vip.png` | VIP tile | Reviewing |
+
+Robux products (O-03), all created NOT for sale (`isForSale = false`); ids in `src/shared/Beta/BetaProducts.luau`. Icons uploaded
+by Roblox with each product (group-owned through the universe).
+
+| Kind | Id | Name | PREVIEW price (Robux) |
+|---|---|---|---|
+| Developer Product | 3729763663 | Respawn | 19 |
+| Developer Product | 3729763815 | Cash pack, 10 minutes | 49 |
+| Developer Product | 3729763833 | Cash pack, 30 minutes | 99 |
+| Developer Product | 3729763851 | Cash pack, 1 hour | 179 |
+| Developer Product | 3729763860 | Cash pack, 3 hours | 449 |
+| Developer Product | 3729763868 | Cash pack, 8 hours | 899 |
+| Developer Product | 3729763880 | Starter Pack | 79 |
+| Developer Product | 3729763898 | All Passes Bundle | 549 |
+| Game Pass | 2076250307 | Double Lap Pay | 199 |
+| Game Pass | 2076196273 | Expanded Paddock | 149 |
+| Game Pass | 2075620327 | VIP | 299 |
+| Game Pass | 2074192398 | Flame Rush trail | 99 |
+| Game Pass | 2074246311 | Confetti Party trail | 129 |
+| Game Pass | 2074870350 | Rainbow Runway trail | 199 |
+| Game Pass | 2075962315 | Comet Tail trail | 249 |
+
+Round 8 builder art (AssetIds keys `r8_*`) is added below as it is uploaded.

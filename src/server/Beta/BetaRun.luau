@@ -33,6 +33,7 @@ local BetaData = require(script.Parent.BetaData)
 local BetaEconomy = require(script.Parent.BetaEconomy)
 local BetaEvents = require(script.Parent.BetaEvents)
 local BetaLineup = require(script.Parent.BetaLineup)
+local BetaRide = require(script.Parent.BetaRide)
 local BetaRunMap = require(ReplicatedStorage.Shared.Beta.BetaRunMap)
 local BetaRunNet = require(ReplicatedStorage.Shared.Beta.BetaRunNet)
 local EconomyPreview = require(ReplicatedStorage.Shared.UI.EconomyPreview)
@@ -105,6 +106,7 @@ type Run = {
 	leapOpen: boolean,
 	lastBump: number,
 	luck: number,
+	startCar: string, -- Round 8 (C-03): the car this run starts on, checked by BetaRide (owned, of this World)
 	-- Round 7 (U-05): for missions. Accepted hops, bumps, and the longest chain of hops without touching the road
 	hops: number,
 	bumps: number,
@@ -354,7 +356,7 @@ local function closeRun(run: Run, cause: string)
 end
 
 -- The handlers, apart from the remotes so the self-test can call them. Each returns a short status string.
-function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
+function BetaRun.start(player: Player, world: any, startCarId: any): Run?
 	local data = BetaData.get(player)
 	if not data or type(world) ~= "string" or RosterFixtures.WorldNames[world] == nil then
 		log(player, "RunStart refused: unknown World " .. tostring(world))
@@ -383,6 +385,8 @@ function BetaRun.start(player: Player, world: any, _startCarId: any): Run?
 		-- Round 7 (L-02, R-12): the luck snapshot at run start; a purchase during the run counts from the next run
 		sequence = RunSequence.new(seed, RunConfig.profile(BetaRun.PROFILE), EconomyPreview.luckFor(data.LuckLevel)),
 		luck = EconomyPreview.luckFor(data.LuckLevel),
+		-- Round 8 (C-03): the client's startCarId counts only if the player owns it and it belongs to this World, else their saved RideCar
+		startCar = BetaRide.startCarFor(player, world, startCarId),
 		bolts = bolts,
 		boltsLeft = bolts,
 		leapOpen = false,
@@ -570,7 +574,9 @@ function BetaRun.startRemotes(net: Folder, runNet: Folder)
 	local function onStart(player: Player, world: any, startCarId: any)
 		local run = BetaRun.start(player, world, startCarId)
 		-- Round 7: the luck snapshot (L-02, R-12) and the bolts rides along; the client builds the same traffic with them
-		return if run then { runId = run.id, seed = run.seed, luck = run.luck, bolts = run.bolts } else nil
+		return if run
+			then { runId = run.id, seed = run.seed, luck = run.luck, bolts = run.bolts, startCar = run.startCar }
+			else nil
 	end
 	startFn.OnServerInvoke = onStart
 	oldStart.OnServerInvoke = function(player: Player, world: any, startCarId: any)
