@@ -447,32 +447,32 @@ local function buildFallbackWheel(w: Wheel, folder: Folder, design: Designs.Desi
 			put(band, side * 0.25 * width, "glow", glow)
 		end
 	end
-	local rimFace = halfW - 0.015 * r
-	put(cylinder("Lip", 0.05 * r, 1.4 * r, f.rim, design.material), rimFace - 0.02 * r)
+	-- everything stands in FRONT of the tyre cylinder's flat face (x > halfW), stacked outward
+	put(cylinder("Lip", 0.03 * r, 1.52 * r, f.rim, design.material), halfW + 0.015 * r)
 	local discColour = f.disc or RUBBER
 	put(
 		cylinder(
 			"Face",
-			0.05 * r,
-			1.22 * r,
+			0.03 * r,
+			1.34 * r,
 			discColour,
 			if f.solidFace then design.material else Enum.Material.SmoothPlastic
 		),
-		rimFace - 0.045 * r
+		halfW + 0.03 * r
 	)
 	if f.glowRing then
-		put(cylinder("GlowRing", 0.03 * r, 1.2 * r, glow, Enum.Material.Neon), rimFace - 0.03 * r, "glow", glow)
-		put(cylinder("GlowRingIn", 0.03 * r, 1.04 * r, discColour, Enum.Material.SmoothPlastic), rimFace - 0.022 * r)
+		put(cylinder("GlowRing", 0.03 * r, 1.3 * r, glow, Enum.Material.Neon), halfW + 0.05 * r, "glow", glow)
+		put(cylinder("GlowRingIn", 0.03 * r, 1.14 * r, discColour, Enum.Material.SmoothPlastic), halfW + 0.056 * r)
 	end
 	for k = 1, f.spokes do
 		local spoke = plain(
 			"Spoke",
-			Vector3.new(0.05 * r, 0.56 * r, f.spokeWidth * r),
+			Vector3.new(0.04 * r, 0.6 * r, f.spokeWidth * r),
 			f.spoke,
 			if f.neonSpokes then Enum.Material.Neon else design.material
 		)
-		-- x in front of the face, 0.36 r out along the rotated Y axis
-		local offset = CFrame.Angles(2 * math.pi * k / f.spokes, 0, 0) * CFrame.new(rimFace - 0.06 * r, 0.36 * r, 0)
+		-- in front of the face, 0.38 r out along the rotated Y axis
+		local offset = CFrame.Angles(2 * math.pi * k / f.spokes, 0, 0) * CFrame.new(halfW + 0.06 * r, 0.38 * r, 0)
 		addPiece(
 			w,
 			folder,
@@ -483,14 +483,14 @@ local function buildFallbackWheel(w: Wheel, folder: Folder, design: Designs.Desi
 		)
 	end
 	if f.solidFace then
-		put(cylinder("Dome", 0.05 * r, 1.0 * r, f.rim, design.material), rimFace - 0.04 * r)
+		put(cylinder("Dome", 0.04 * r, 1.2 * r, f.rim, design.material), halfW + 0.05 * r)
 	end
 	put(
 		cylinder("Hub", 0.09 * r, 0.34 * r, f.hub, if f.glowHub then Enum.Material.SmoothPlastic else design.material),
-		rimFace - 0.03 * r
+		halfW + 0.07 * r
 	)
 	if f.glowHub then
-		put(cylinder("GlowHub", 0.03 * r, 0.24 * r, glow, Enum.Material.Neon), rimFace + 0.02 * r, "glow", glow)
+		put(cylinder("GlowHub", 0.03 * r, 0.24 * r, glow, Enum.Material.Neon), halfW + 0.12 * r, "glow", glow)
 	end
 end
 
