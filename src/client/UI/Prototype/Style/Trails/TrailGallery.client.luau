@@ -236,11 +236,30 @@ end
 request:SetAttribute("Ready", true)
 local camera = workspace.CurrentCamera
 local quality = request:GetAttribute("Quality") or "full"
+local hidden = false
+local function applyHide(on: boolean)
+	-- icons: the car is hidden so only the trail shows (trails, beams, particles and the road glow are separate objects)
+	hidden = on
+	for _, m in cars do
+		for _, d in m:GetDescendants() do
+			if d:IsA("BasePart") then
+				if on and d:GetAttribute("WS5A_T") == nil then
+					d:SetAttribute("WS5A_T", d.Transparency)
+				end
+				d.Transparency = if on then 1 else ((d:GetAttribute("WS5A_T") :: number?) or 0)
+			end
+		end
+	end
+end
 RunService:BindToRenderStep("WS5A_Camera", Enum.RenderPriority.Camera.Value + 20, function(dt: number)
 	if not request.Parent then
 		return
 	end
 	camera.CameraType = Enum.CameraType.Scriptable
+	local wantHidden = request:GetAttribute("HideCar") == true
+	if wantHidden ~= hidden then
+		applyHide(wantHidden)
+	end
 	if mode == "exhausts" then
 		local row = (request:GetAttribute("Row") or 1) :: number
 		local at = Vector3.new(64, 500, -(row - 1) * 22)
