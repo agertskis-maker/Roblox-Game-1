@@ -926,6 +926,10 @@ function LaunchPad.attachShell(s: any)
 				shop:openExpandedPaddock()
 			end
 		end
+		-- Round 8 (U-03, O-09): the green "+" on every cannot-afford button opens the Cash page of the Shop.
+		ShopPanel.onCashShop = function()
+			s.shopAt("Cash")
+		end
 	end)
 	s:mountPanel("launchCard", { "Screens", "LaunchCard" }, "Overlay", {
 		onStart = function()
