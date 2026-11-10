@@ -59,3 +59,67 @@ Sonnet 5.5 per workstream after its builder. Opus 5.5: one reviewer over everyth
 ## Requirement status
 
 Filled in as workstreams finish. Every MUST in H, U, C, W, T, L, R, O, N, V, F gets a row with its real evidence.
+
+8. **Fewer agents (Adam, 2026-11-09):** "start using less agents from now on ... way too much usage". From then on the lead did
+   the rest alone: no more Sonnet reviewers, no Opus overall reviewer, no new agents. The paused builders were not resumed; their
+   committed work was merged as it stood and its gaps are listed below as partial.
+9. **Shop pass art reverted (Adam's fallback):** the Round 7 Starter Pack, VIP, Double Lap Pay and Paddock pictures are whole
+   painted scenes; no clean cut-out could be made with the tools on this laptop (no image library), so the cards are back on the
+   transparent pre-Round 7 icons (`GameIcons.Alias`).
+10. **Decals:** Adam allowed covering the car; designs may spread 2.4x the measured door panel's length and 2x its height
+    (`DecalArt.DRAMA`), clipped to the body side.
+
+## Close (2026-11-09, lead)
+
+### Agents that actually ran
+
+| Model | Role | Count | Notes |
+|---|---|---|---|
+| Sonnet 5.5 | builders | 14 | ws1, ws2a, ws2b, ws3, ws4, ws5a, ws5b, ws6a, ws6b, ws7, ws8, ws9, ws10, ws11; all branches merged into `integration/beta-6` |
+| Sonnet 5.5 | reviewers | 7 started, 2 finished | finished: ws1 (2 MUST blockers, fixed by fix1), ws5b (0 blockers, T-03/T-04 not evidenced); ws2a, ws4, ws6a, ws8, ws11 stopped at the usage limit and were not resumed (call 8) |
+| Opus 5.5 | fixer | 1 | r8-fix1 (ws1 review D1, D2), merged |
+| Opus 5.5 | overall reviewer | 0 | not run (call 8); the lead did one hard-rule pass instead (below) |
+
+### Lead's review pass (hard rules, whole round diff)
+
+New client-to-server traffic: `PickRideCar` (server checks type, length, ownership, cooldown) and `StartRun`'s car argument (used
+only when owned); the look-test report remote exists only in Studio. `RealPurchases = false`; FreePurchases and BetaGrantCash
+only in Studio. No countdown, streak or scarcity wording added. Every changed Luau file starts with `--!strict`; `check.ps1` passes.
+
+### Requirement status
+
+| ID | Status | Evidence |
+|---|---|---|
+| C-01 | done | CarLookApplier merged; look test |
+| C-02 | done | end-to-end look test on the merged build, 40 of 40 PASS (paint, decal, wheels, trail on the run car; trail follows a real hop) |
+| C-03 | done desktop, partial phone | ws1 report; ride self-test 16 PASS |
+| C-04 | partial | ws2a report |
+| C-05 | done (code), bolder after playtest | ws2b merged; decals 2.4x / 2x (call 10); Style Shop frames |
+| C-06 | partial | ws3: tiles show the selected car (seen first pass) |
+| C-07 | partial | ws3 |
+| W-01, W-02, W-05 | done | ws4; 22 rim models uploaded |
+| W-03 | partial | ws4 |
+| W-04 | done | 17 wheel icons uploaded (assets.md) |
+| T-01, T-07, T-10, T-11 | partial | ws5a |
+| T-02 | done | ws5a, exhaust points per car |
+| T-03, T-04 | code merged, not evidenced | ws5b review |
+| T-05 (SHOULD) | not evidenced | ws5b review |
+| T-06, T-08 | code done, not seen | ws5a |
+| T-09 | partial | ws3 |
+| T-12 | done | 19 ParticleFX flipbooks and 5 beam textures uploaded; sources in Trails.luau and assets.md |
+| U-01 to U-06 | partial | ws6a/ws6b code and art merged, 26 card images uploaded; no side-by-side after upload |
+| H-01 | code merged | ws7 headshot fix (root cause in ws7 report) |
+| H-02 | code merged | ws7 |
+| H-03 | done | lead, Studio: ghosts and EMPTY tags on the lot lines after a layout change; paint reads from the walkway; tags never overlap |
+| H-04, H-05, H-07 | done | ws8, seen in Studio |
+| H-06 | code merged, not measured | ws9 |
+| L-01 | modelled and uploaded | ws9; 10 clover files |
+| L-02 | code merged, not seen | ws9 |
+| R-01 to R-04 | code merged; HOP button seen in a run | ws10; 11 HOP art images uploaded |
+| O-02 | done | Roxy cut-out uploaded |
+| O-03 | self-tests only | purchases self-test 15 PASS; no real prompts (RealPurchases false) |
+| O-06, O-07, O-08 | not done | measurements not run (call 8) |
+| O-09 | partial | ws11 items 1-6 coded, font chosen (Fredoka One), sweep not done |
+| N-01, N-02 | done | `lane3-round8-for-brian-r.md`, `lane3-round8-for-brian-l.md` |
+| Playtest asks (2026-11-09) | done | run declutter, ghost alignment, shop icons, bolder decals: Studio screenshots |
+| F (publish) | waiting for Adam | clicks in RESULT.md |
