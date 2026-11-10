@@ -10,7 +10,9 @@ local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-export type EventKind = "Hop" | "KeysComplete" | "RunEnd" | "Revive"
+-- Round 7: Leap (the first press of the two-press Hop, 1 bolt), Bump (1 bolt, then 1.5 s free), Bonk (landing on the road, 1 bolt)
+-- and Thrown (full Heat, 1 bolt). Hop is now the dive (or the catch after a fall) onto the car in `target`.
+export type EventKind = "Hop" | "KeysComplete" | "RunEnd" | "Revive" | "Leap" | "Bump" | "Bonk" | "Thrown"
 
 export type Event = {
 	kind: EventKind,

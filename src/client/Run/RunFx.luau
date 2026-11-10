@@ -19,6 +19,7 @@ local SOUNDS = {
 	bump = "rbxasset://sounds/collide.wav",
 	claim = "rbxasset://sounds/electronicpingshort.wav",
 	alert = "rbxasset://sounds/electronicpingshort.wav",
+	tick = "rbxasset://sounds/volume_slider.ogg", -- Round 8 (R-02): the soft tick when the dive ring swings to another car
 }
 
 export type RunFx = {

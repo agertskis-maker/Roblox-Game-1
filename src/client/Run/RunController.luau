@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 
 local Families = require(ReplicatedStorage.Shared.Run.Families)
 local RunConfig = require(ReplicatedStorage.Shared.Run.RunConfig)
+local Luck = require(ReplicatedStorage.Shared.Run.Luck)
 local RunSequence = require(ReplicatedStorage.Shared.Run.RunSequence)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -25,13 +26,17 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local CarTags = require(script.Parent.CarTags)
 local CarVisual = require(script.Parent.CarVisual)
 local ChaseCamera = require(script.Parent.ChaseCamera)
+local HopGuide = require(script.Parent.HopGuide) -- Round 8 (WS-10, R-01 and R-02): the lock-on ring, the landing ring and the dive path
 local RunFx = require(script.Parent.RunFx)
 local RunInput = require(script.Parent.RunInput)
 local RunOverlay = require(script.Parent.RunOverlay)
 local RunReport = require(script.Parent.RunReport)
 local RunRoad = require(script.Parent.RunRoad)
+local TrailMoments = require(script.Parent.TrailMoments) -- Round 8 (T-03 to T-05)
 
-type Mode = "Riding" | "Hopping" | "FootDash" | "Ended"
+-- Round 7 (R-01): Riding -> Float -> Dive -> Riding; Float -> Recover (a bonk) -> Riding; any -> Ended. "Hopping" and "FootDash" are
+-- Brian R's earlier one-press Hop; they are no longer entered (kept so his debug tools still read).
+type Mode = "Riding" | "Float" | "Dive" | "Recover" | "Hopping" | "FootDash" | "Ended"
 type Stage = "Calm" | "Warning" | "Critical" | "Meltdown"
 
 type Car = {
@@ -61,6 +66,21 @@ type Car = {
 	bounceVel: number,
 }
 
+type Float = {
+	startT: number,
+	duration: number,
+	fromUp: number,
+	from: Car?,
+}
+
+type Dive = {
+	startT: number,
+	fromAlong: number,
+	fromLateral: number,
+	fromUp: number,
+	target: Car,
+}
+
 type Hop = {
 	startT: number,
 	fromAlong: number,
@@ -86,6 +106,11 @@ export type Options = {
 	profile: string?, -- "Highway" (default) or "Circuit"
 
 	hud: boolean?, -- drive Lane 3's RunHud (default true when it exists)
+	-- Round 7 (Lane 3 with Adam's opening of every lane):
+	stamina: number?, -- bolts for this run (one unit per leap, bump, bonk or throw); nil = no limit (Brian R's playground)
+	luck: number?, -- the server's Luck snapshot for this run (L-02); the sequence is built with it
+	floatHelp: boolean?, -- the tutorial and first runs: a longer float and a PRESS AGAIN! prompt
+	quietClaims: boolean?, -- the beta shows its own IT'S YOURS feed from the server's grants (R-11)
 }
 
 export type DebugState = {
@@ -120,6 +145,12 @@ export type DebugState = {
 	bumps: number,
 	events: { [string]: number },
 	cause: string?,
+	stamina: number?,
+	staminaMax: number?,
+	luck: number,
+	floatLeft: number?,
+	floatDuration: number?,
+	guide: { [string]: any }?,
 }
 
 export type RunController = {
@@ -131,7 +162,15 @@ export type RunController = {
 	setSteerOverride: (self: RunController, steer: number?) -> (),
 	forceMiss: (self: RunController) -> (),
 	getDebugState: (self: RunController) -> DebugState,
+	getGuideLog: (self: RunController) -> { any }, -- Round 8 (R-04)
 	destroy: (self: RunController) -> (),
+	finish: (self: RunController, cause: string) -> (),
+	refillStamina: (self: RunController, n: number) -> (),
+	StaminaChanged: any, -- Signal(value: number, max: number, kind: string): "Leap" | "Bump" | "Bonk" | "Thrown" | "Refused" | "Refill"
+	Bonk: any, -- Signal(kind: string, at: CFrame): a bonk, a bump or a throw, for the beta's BONK! pop
+	Boarded: any, -- Signal(model: Model): the rider landed on this car (Round 7, C-08)
+	Moment: any, -- Signal(kind: "leap" | "dive", model: Model?): Round 8 (T-04) TrailMoments; model = the car the rider leaves
+	getSpeed01: (self: RunController) -> number, -- Round 8 (T-03): 0 at the run's start speed, 1 at top speed
 }
 
 local RunController = {}
@@ -199,32 +238,8 @@ function RunController.new(options: Options?): RunController
 	carsFolder.Name = "Traffic"
 	carsFolder.Parent = zone
 
-	local ring = Instance.new("Part")
-	ring.Name = "HopRing"
-	ring.Shape = Enum.PartType.Cylinder
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CanQuery = false
-	ring.CanTouch = false
-	ring.CastShadow = false
-	ring.Material = Enum.Material.Neon
-	ring.Color = Color3.fromRGB(255, 214, 70)
-	ring.Transparency = 1
-	ring.Size = Vector3.new(0.2, 10, 10)
-	ring.Parent = zone
-	local arrow = Instance.new("Part")
-	arrow.Name = "HopArrow"
-	arrow.Anchored = true
-	arrow.CanCollide = false
-	arrow.CanQuery = false
-	arrow.CanTouch = false
-	arrow.CastShadow = false
-	arrow.Material = Enum.Material.Neon
-	arrow.Color = Color3.fromRGB(255, 214, 70)
-	arrow.Shape = Enum.PartType.Ball
-	arrow.Size = Vector3.new(1.4, 1.4, 1.4)
-	arrow.Transparency = 1
-	arrow.Parent = zone
+	-- Round 8 (R-01): the old neon disc and the bouncing ball over the target are gone; HopGuide draws the guidance (built after
+	-- the Fx below, which plays its tick)
 
 	-- Red outline on the car you are about to hit (forgiveness aid).
 	local danger = Instance.new("Highlight")
@@ -245,13 +260,21 @@ function RunController.new(options: Options?): RunController
 	self._player = player
 	self._zone = zone
 	self._carsFolder = carsFolder
-	self._ring = ring
-	self._arrow = arrow
 	self._session = session
 	self._profile = RunConfig.profile(opts.profile)
-	self._sequence = RunSequence.new(seed, self._profile)
+	self.luck = Luck.clamp(opts.luck)
+	self._sequence = RunSequence.new(seed, self._profile, self.luck)
 	self._road = trove:Add(RunRoad.new(zone, seed, self._profile.scenery), "destroy")
 	self._fx = trove:Add(RunFx.new(zone), "destroy")
+	self._guide = trove:Add(
+		HopGuide.new(zone, {
+			floatHelp = opts.floatHelp == true,
+			onSwing = function()
+				self._fx:sound("tick", 0.18, 1.5)
+			end,
+		}),
+		"destroy"
+	)
 	self._input = trove:Add(RunInput.new(), "destroy")
 	self._overlay = trove:Add(RunOverlay.new(playerGui), "destroy")
 	self._report = trove:Add(RunReport.new(seed), "destroy")
@@ -300,6 +323,7 @@ function RunController.new(options: Options?): RunController
 	self._hop = nil :: Hop?
 	self._footLeft = nil :: number?
 	self._target = nil :: Car?
+	self._targetSince = 0 -- Round 8 (R-02): when the current target was taken (os.clock), for the hysteresis dwell
 	self._hops = 0
 	self._claimed = {} :: { string }
 	self._joyrides = 0
@@ -315,6 +339,50 @@ function RunController.new(options: Options?): RunController
 	self._hopA = 0
 	self._cockpit = false
 	self._cockpitCar = nil :: Car?
+	-- Round 7
+	self._float = nil :: Float?
+	self._dive = nil :: Dive?
+	self._recoverLeft = 0
+	self._warnLeft = nil :: number?
+	self._bumpGrace = 0
+	self._floatHelp = opts.floatHelp == true
+	self._quietClaims = opts.quietClaims == true
+	self._staminaMax = opts.stamina
+	self._stamina = opts.stamina
+	self.StaminaChanged = trove:Add(Signal.new())
+	self.Bonk = trove:Add(Signal.new())
+	-- Round 7 (C-08): (model) whenever the rider lands on a car, so the car you ride can wear your Style Shop look
+	self.Boarded = trove:Add(Signal.new())
+	self.Moment = trove:Add(Signal.new()) -- Round 8 (T-04): "leap" and "dive", for TrailMoments
+	trove:Add(TrailMoments.attachToRun(self), "destroy") -- Round 8 (T-03 to T-05): the trail reacts to this run
+	-- the warning on the car itself at full Heat (R-02): a red outline and a red "!" over the car
+	local warnLight = Instance.new("Highlight")
+	warnLight.Name = "HeatWarning"
+	warnLight.FillColor = Color3.fromRGB(255, 40, 40)
+	warnLight.OutlineColor = Color3.fromRGB(255, 60, 60)
+	warnLight.FillTransparency = 0.45
+	warnLight.DepthMode = Enum.HighlightDepthMode.Occluded
+	warnLight.Enabled = false
+	warnLight.Parent = zone
+	self._warnLight = warnLight
+	local bang = Instance.new("BillboardGui")
+	bang.Name = "HeatBang"
+	bang.Size = UDim2.fromOffset(70, 90)
+	bang.StudsOffset = Vector3.new(0, 4, 0)
+	bang.AlwaysOnTop = true
+	bang.Enabled = false
+	local bangText = Instance.new("TextLabel")
+	bangText.BackgroundTransparency = 1
+	bangText.Size = UDim2.fromScale(1, 1)
+	bangText.Font = Enum.Font.FredokaOne
+	bangText.TextScaled = true
+	bangText.Text = "!"
+	bangText.TextColor3 = Color3.fromRGB(255, 50, 50)
+	bangText.TextStrokeTransparency = 0
+	bangText.TextStrokeColor3 = Color3.new(1, 1, 1)
+	bangText.Parent = bang
+	bang.Parent = zone
+	self._bang = bang
 
 	trove:Connect(self._input.Hop, function()
 		self:requestHop()
@@ -379,7 +447,8 @@ local function addCar(
 			needs = spawn.needs,
 			owned = owned,
 		}, car.height)
-		tag.MaxDistance = TAG_RANGE
+		-- Round 7 (R-10): rarer cars are labelled from further away
+		tag.MaxDistance = if rarity == "Legendary" then 420 elseif rarity == "Epic" then 300 else TAG_RANGE
 		CarTags.setLevel(tag, car.needs, self._session.level)
 		car.tag = tag
 	end
@@ -427,6 +496,14 @@ local function spawnAhead(self: any)
 				local car = addCar(self, spawn, spawn.family, spawn.rarity, spawn.size, spawn.paint)
 				car.along = along
 				car.lateral = self._sequence:lateralAt(spawn, self._t)
+				-- A burst as an Epic or Legendary joins the road, plus a ring for a Legendary.
+				if self._t > 1 and (spawn.rarity == "Epic" or spawn.rarity == "Legendary") then
+					local at = RunRoad.frame(car.along, car.lateral, car.roof + 2)
+					self._fx:burst(at, CarVisual.RARITY_COLOR[spawn.rarity])
+					if spawn.rarity == "Legendary" then
+						self._fx:shockwave(at, 24)
+					end
+				end
 				if self._t > 1 and (spawn.rarity == RunConfig.ALERT_RARITY or spawn.size == "Giant") then
 					self._overlay:alert(
 						"A " .. carName(car) .. " is on the road ahead!",
@@ -520,10 +597,14 @@ end
 -- Hop targeting -----------------------------------------------------------------------------
 
 local function findTarget(self: any): Car?
-	local range = (if self._ridden then (self._ridden :: Car).family.hopRange else 30) * self._profile.hopRangeScale
+	local range = if self._mode == "Float"
+		then RunConfig.FLOAT_REACH
+		else (if self._ridden then (self._ridden :: Car).family.hopRange else 30) * self._profile.hopRangeScale
 	local steer = self._steer
 	local best: Car? = nil
 	local bestScore = math.huge
+	local current = self._target :: Car?
+	local currentScore: number? = nil
 	for _, car in self._cars do
 		if car == self._ridden or car.fade then
 			continue
@@ -544,9 +625,25 @@ local function findTarget(self: any): Car?
 		if da < 0 then
 			score += 10
 		end
+		if car == current then
+			currentScore = score
+		end
 		if score < bestScore then
 			best, bestScore = car, score
 		end
+	end
+	-- Round 8 (R-02): the ring never flickers between two cars. The current target stays until another car beats it by
+	-- HopGuide.SWITCH_MARGIN and HopGuide.SWITCH_DWELL seconds have passed (a target that left reach or the road is dropped at once).
+	if
+		best
+		and current
+		and best ~= current
+		and HopGuide.keepCurrent(currentScore, bestScore, os.clock() - self._targetSince)
+	then
+		return current
+	end
+	if best ~= current then
+		self._targetSince = os.clock()
 	end
 	return best
 end
@@ -570,7 +667,7 @@ local function placeRider(self: any)
 	end
 	root.Anchored = true
 	root.AssemblyLinearVelocity = Vector3.zero
-	local seated = self._mode == "Riding" and self._ridden ~= nil
+	local seated = (self._mode == "Riding" and self._ridden ~= nil) or self._mode == "Recover" or self._mode == "Ended"
 	local lean = 0
 	if seated then
 		lean = -self._steer * 0.18
@@ -595,10 +692,10 @@ local function placeRider(self: any)
 	if humanoid and humanoid.Sit ~= seated then
 		humanoid.Sit = seated
 	end
-	-- Inside a closed car the rider is hidden behind tinted glass (outline section 06); on an
-	-- open vehicle, in the air and on foot the rider is visible.
-	local ridden = self._ridden :: Car?
-	local hidden = seated and ridden ~= nil and not ridden.family.openTop
+	-- Round 7 (R-05, Adam: "you see yourself on top of the car"): the rider is always hidden in the driver's seat, on every car
+	-- (the beta shows a real closed car on every family), during the blink after a bonk and after the run ends; visible only in
+	-- the leap and the dive.
+	local hidden = seated
 	if hidden ~= self._riderHidden then
 		self._riderHidden = hidden
 		local character = self._player.Character
@@ -652,54 +749,28 @@ end
 
 -- Public actions ----------------------------------------------------------------------------
 
+-- Round 7 (R-01): the two-press Hop. First press while riding: leap and float (costs 1 bolt). Second press while floating: dive onto
+-- the ringed car. Any other press is ignored, so a held key, a repeated tap or a press during the dive never costs twice.
+local leap: (self: any) -> ()
+local dive: (self: any, target: Car) -> ()
+
 function RunController.requestHop(self: any)
-	if self._mode == "Ended" or self._mode == "Hopping" or not self._started then
+	if self._mode == "Ended" or not self._started then
 		return
 	end
-	local fromFoot = self._mode == "FootDash"
-	local target = self._target
-	if not target and fromFoot then
-		return
+	if self._mode == "Riding" then
+		leap(self)
+	elseif self._mode == "Float" then
+		local target = self._target :: Car?
+		if target then
+			dive(self, target)
+		end
 	end
-	local inPlace = target == nil
-	self._report:push({
-		kind = "Hop",
-		t = self._t,
-		d = self._along,
-		x = self._lateral,
-		target = if target then target.index else (if self._ridden then (self._ridden :: Car).index else 0),
-	})
-	self._hops += 1
-	self._hop = {
-		startT = self._t,
-		fromAlong = self._along,
-		fromLateral = self._lateral,
-		fromUp = self._up,
-		target = target or self._ridden,
-		inPlace = inPlace,
-		fromFoot = fromFoot,
-		nudge = 0,
-	} :: Hop
-	local from = self._ridden :: Car?
-	if from then
-		from.bounceVel += RunConfig.LAUNCH_KICK
-		self._fx:burst(RunRoad.frame(from.along, from.lateral, from.roof + 0.5), Color3.fromRGB(255, 236, 170))
-	end
-	if not inPlace and self._ridden then
-		retire(self, self._ridden)
-		self._ridden = nil
-	end
-	self._hopA = 0
-	self._keys = nil
-	self._keysNeed = nil
-	self._footLeft = nil
-	self._mode = "Hopping"
-	self._fx:sound("hop", 0.6, 1.15)
-	local _, root = riderParts(self)
-	self._fx:setTrail(root, true)
-	if self._camera then
-		self._camera:punch()
-	end
+end
+
+-- Round 8 (R-04): the dive log (what the ring showed, what was pressed, where it landed), for the feel check
+function RunController.getGuideLog(self: any): { any }
+	return self._guide:getDiveLog()
 end
 
 function RunController.setSteerOverride(self: any, steer: number?)
@@ -709,6 +780,114 @@ end
 -- Test hook: the next landing misses so Foot Dash can be checked in a playtest.
 function RunController.forceMiss(self: any)
 	self._forceMiss = true
+end
+
+-- Stamina (Round 7) --------------------------------------------------------------------------
+-- One unit per leap, per bump (then BUMP_GRACE free), per bonk on the road and per throw at full Heat; red and purple bolts hold 2
+-- and 3 units (the beta's RunStamina draws them). A leap with no units left is refused. A bump, bonk or throw that takes the last
+-- unit (or finds none) ends the run: WRECKED (R-06). The server counts the same events from the run report (BetaRun).
+
+local endRun: (self: any, cause: string) -> ()
+
+local function spend(self: any, kind: string): boolean
+	if self._stamina == nil then
+		return true
+	end
+	if kind == "Leap" then
+		if self._stamina <= 0 then
+			self.StaminaChanged:Fire(0, self._staminaMax, "Refused")
+			return false
+		end
+		self._stamina -= 1
+		self.StaminaChanged:Fire(self._stamina, self._staminaMax, kind)
+		return true
+	end
+	local before = self._stamina
+	self._stamina = math.max(self._stamina - 1, 0)
+	self.StaminaChanged:Fire(self._stamina, self._staminaMax, kind)
+	if before <= 1 then
+		endRun(
+			self,
+			if kind == "Thrown" then "Overheated" elseif kind == "Bump" then "Wrecked by bumps" else "Out of Stamina"
+		)
+		return false
+	end
+	return true
+end
+
+function RunController.refillStamina(self: any, n: number)
+	if self._stamina ~= nil then
+		self._stamina = math.min(self._stamina + n, self._staminaMax)
+		self.StaminaChanged:Fire(self._stamina, self._staminaMax, "Refill")
+	end
+end
+
+-- Sets this run's bolts (the beta's Stamina Shop level), full. Only before the first leap.
+function RunController.setStamina(self: any, max: number)
+	if self._hops == 0 then
+		self._staminaMax = max
+		self._stamina = max
+		self.StaminaChanged:Fire(max, max, "Refill")
+	end
+end
+
+function RunController.getStamina(self: any): (number?, number?)
+	return self._stamina, self._staminaMax
+end
+
+-- Round 8 (T-03): the run's speed ramp, 0 at START_SPEED to 1 at TOP_SPEED, whatever the profile (TrailMoments reads it each frame).
+function RunController.getSpeed01(self: any): number
+	local range = RunConfig.TOP_SPEED - RunConfig.START_SPEED
+	return math.clamp((RunConfig.speedAt(self._t) - RunConfig.START_SPEED) / range, 0, 1)
+end
+
+leap = function(self: any)
+	if not spend(self, "Leap") then
+		self._overlay:banner("Out of bolts!", Color3.fromRGB(255, 120, 90))
+		return
+	end
+	local from = self._ridden :: Car?
+	self._report:push({ kind = "Leap", t = self._t, d = self._along, x = self._lateral })
+	self._hops += 1
+	self._float = {
+		startT = self._t,
+		duration = if self._floatHelp then RunConfig.FLOAT_TIME_HELP else RunConfig.FLOAT_TIME,
+		fromUp = self._up,
+		from = from,
+	}
+	if from then
+		from.bounceVel += RunConfig.LAUNCH_KICK
+		self._fx:burst(RunRoad.frame(from.along, from.lateral, from.roof + 0.5), Color3.fromRGB(255, 236, 170))
+		retire(self, from)
+		self._ridden = nil
+	end
+	self._keys = nil
+	self._keysNeed = nil
+	self._warnLeft = nil
+	self._mode = "Float"
+	self._fx:sound("hop", 0.6, 1.15)
+	local _, root = riderParts(self)
+	self._fx:setTrail(root, true)
+	self.Moment:Fire("leap", if from then from.model else nil) -- Round 8 (T-04)
+	if self._camera then
+		self._camera:punch()
+	end
+end
+
+dive = function(self: any, target: Car)
+	self._report:push({ kind = "Hop", t = self._t, d = self._along, x = self._lateral, target = target.index })
+	self._guide:noteDive(target, math.sqrt((target.along - self._along) ^ 2 + (target.lateral - self._lateral) ^ 2)) -- R-04
+	self._dive = {
+		startT = self._t,
+		fromAlong = self._along,
+		fromLateral = self._lateral,
+		fromUp = self._up,
+		target = target,
+	}
+	self._float = nil
+	self._mode = "Dive"
+	self.Moment:Fire("dive") -- Round 8 (T-04)
+	self._fx:sound("hop", 0.5, 1.5)
 end
 
 -- Simulation --------------------------------------------------------------------------------
@@ -736,15 +915,19 @@ local function showEnd(self: any)
 	end)
 end
 
-local function endRun(self: any, cause: string)
+endRun = function(self: any, cause: string)
 	if self._mode == "Ended" then
 		return
 	end
 	self._mode = "Ended"
 	self._cause = cause
 	self._target = nil
-	self._ring.Transparency = 1
-	self._arrow.Transparency = 1
+	self._float = nil
+	self._dive = nil
+	self._warnLeft = nil
+	self._warnLight.Enabled = false
+	self._bang.Enabled = false
+	self._guide:hide()
 	self._meter.gui.Enabled = false
 	self._overlay:setFootDash(nil)
 	self._report:push({ kind = "RunEnd", t = self._t, d = self._along, cause = cause })
@@ -783,6 +966,7 @@ end
 local function boardCar(self: any, car: Car)
 	self._mode = "Riding"
 	self._ridden = car
+	self.Boarded:Fire(car.model)
 	car.retired = true -- leaves the seed schedule while ridden
 	car.fade = nil
 	setModelTransparency(car.model, 0)
@@ -801,47 +985,14 @@ local function boardCar(self: any, car: Car)
 	self._meter.gui.Enabled = true
 end
 
-local function land(self: any, hop: Hop)
-	local car = hop.target
-	self._hop = nil
-	local _, root = riderParts(self)
-	self._fx:setTrail(root, false)
-	if hop.inPlace then
-		self._mode = "Riding"
-		if car then
-			car.bounceVel += RunConfig.LANDING_SQUASH * 0.5
-		end
-		self._fx:sound("land", 0.4)
-		return
-	end
-	local stillThere = table.find(self._cars, car) ~= nil and not car.fade
-	local miss = self._forceMiss or not stillThere or math.abs(hop.nudge) > car.width / 2 + RunConfig.LAND_TOLERANCE
-	self._forceMiss = false
-	if miss then
-		self._mode = "FootDash"
-		self._footLeft = RunConfig.FOOT_DASH_TIME
-		self._up = 0
-		self._meter.gui.Enabled = false
-		self._fx:dust(RunRoad.frame(self._along, self._lateral, 0.5), 4)
-		self._overlay:banner("Missed! Run!", Color3.fromRGB(255, 120, 90))
-		return
-	end
-	boardCar(self, car)
-	car.bounceVel += RunConfig.LANDING_SQUASH
-	self._fx:dust(RunRoad.frame(car.along, car.lateral, 0.5), math.max(car.width, 5))
-	self._fx:shockwave(
-		RunRoad.frame(car.along, car.lateral, car.roof + 0.2),
-		math.max(car.width, car.length * 0.6) * 1.8
-	)
-	self._fx:burst(RunRoad.frame(car.along, car.lateral, car.roof + 1), Color3.fromRGB(255, 220, 110))
-	self._fx:sound("land", 0.8, 0.9)
-	if self._camera then
-		self._camera:jolt(0.3)
-	end
-	if hop.fromFoot then
-		self._saves += 1
-		self._overlay:banner("Nice save!", Color3.fromRGB(120, 230, 140))
-	end
+-- Round 7 (R-07): while END RUN asks "End this run?", the run waits (nothing moves, Heat and Keys stand still).
+function RunController.setPaused(self: any, paused: boolean)
+	self._paused = paused == true
+end
+
+-- Round 7 (R-07): END RUN on the HUD, after the player confirms. Ends like any other end (Results, then home).
+function RunController.finish(self: any, cause: string)
+	endRun(self, cause)
 end
 
 function RunController.revive(self: any): boolean
@@ -890,14 +1041,18 @@ local function completeKeys(self: any, car: Car)
 	local colour = CarTags.RARITY_TEXT[car.rarity]
 	if self._session.owned[car.modelId] then
 		self._joyrides += 1
-		self._overlay:banner("Joyride Bonus! " .. name, colour)
-		self._overlay:addToTray(name, colour, false)
+		if not self._quietClaims then
+			self._overlay:banner("Joyride Bonus! " .. name, colour)
+			self._overlay:addToTray(name, colour, false)
+		end
 	else
 		self._session.owned[car.modelId] = true
 		self._session.level += RunConfig.LEVEL_PER_NEW_MODEL
 		table.insert(self._claimed, name)
-		self._overlay:banner("You got the Keys! " .. name, colour)
-		self._overlay:addToTray(name, colour, true)
+		if not self._quietClaims then
+			self._overlay:banner("You got the Keys! " .. name, colour)
+			self._overlay:addToTray(name, colour, true)
+		end
 	end
 	self._fx:burst(RunRoad.frame(car.along, car.lateral, car.roof + 2), CarVisual.RARITY_COLOR[car.rarity])
 	self._fx:sound("claim", 0.7, if car.rarity == "Common" then 1 else 1.25)
@@ -953,6 +1108,21 @@ local function bumpRidden(self: any, ridden: Car)
 		end
 		local fresh = car.bumpCooldown <= 0
 		local mult = ridden.family.bumpHeatMultiplier
+		if fresh and self._bumpGrace <= 0 then
+			-- Round 7 (R-04): driving into a car costs 1 bolt, then BUMP_GRACE seconds where bumps are free
+			self._bumpGrace = RunConfig.BUMP_GRACE
+			self._report:push({ kind = "Bump", t = self._t, d = self._along, index = car.index })
+			local at =
+				RunRoad.frame((car.along + ridden.along) / 2, (car.lateral + ridden.lateral) / 2, ridden.height + 2)
+			self.Bonk:Fire("Bump", at)
+			self._fx:sound("bump", 0.9, 0.7)
+			if self._camera then
+				self._camera:jolt(0.6)
+			end
+			if not spend(self, "Bump") then
+				return
+			end
+		end
 		local rear = false
 		if overlapA <= overlapL then
 			if da > 0 then
@@ -1003,44 +1173,57 @@ local function tooStrong(self: any, car: Car): boolean
 	return car.spawn ~= nil and not car.keysDone and self._session.level < car.needs
 end
 
+local fall: (self: any, kind: string) -> ()
+
 local function stepRiding(self: any, dt: number, steerInput: number, drag: number)
 	local ridden = self._ridden :: Car
 	local family = ridden.family
 	local strong = tooStrong(self, ridden)
 	self._graceLeft = math.max(self._graceLeft - dt, 0)
 
-	-- Heat (paused while the Keys card is up). A car that is too strong overheats faster.
+	-- Heat (paused while the Keys card is up). Round 7 (R-02): Heat fills in the car's Keys time plus HEAT_TO_SPARE seconds (a
+	-- Common in the Circuit profile: 8 s to full, Critical at 6.8 s), half speed until the first claim of the session.
 	if self._cardLeft > 0 then
 		self._cardLeft -= dt
 	else
-		self._heat += dt / (family.heatCapacity * self._profile.heatScale) * (if strong
-			then RunConfig.TOO_STRONG_HEAT
-			else 1) * (if self._session.firstClaim then 1 else RunConfig.FIRST_CLAIM_HEAT)
+		local keysTime = self._profile.keysTime[ridden.rarity] or self._profile.keysTime.Common
+		local full = keysTime + RunConfig.HEAT_TO_SPARE
+		self._heat += dt / full * (if self._session.firstClaim then 1 else RunConfig.FIRST_CLAIM_HEAT)
 	end
-	if self._heat >= 1 and not self._meltdownLeft then
-		self._meltdownLeft = RunConfig.MELTDOWN_TIME
-		self._meltdownDrift = if Random.new(self.seed + self._hops):NextNumber() < 0.5 then -1 else 1
-		self._overlay:banner("Losing control! HOP NOW!", Color3.fromRGB(255, 90, 70))
+	if self._heat >= 1 and not self._warnLeft then
+		self._warnLeft = RunConfig.HEAT_WARN_TIME
+		self._warnLight.Adornee = ridden.model
+		self._warnLight.Enabled = true
+		self._bang.Adornee = ridden.model
+		self._bang.StudsOffset = Vector3.new(0, ridden.height + 3, 0)
+		self._bang.Enabled = true
+		self._fx:sound("alert", 0.8, 0.8)
+		-- Round 8 declutter: no floating "HOP NOW!" banner here; the Engine Heat panel already says HOP NOW! at Meltdown
 	end
 	local melt = 0
-	if self._meltdownLeft then
-		self._meltdownLeft -= dt
-		melt = 1 - math.max(self._meltdownLeft, 0) / RunConfig.MELTDOWN_TIME
-		if self._meltdownLeft <= 0 then
-			endRun(self, "Meltdown")
+	if self._warnLeft then
+		self._warnLeft -= dt
+		melt = 1 - math.max(self._warnLeft, 0) / RunConfig.HEAT_WARN_TIME
+		-- the car flashes red, and the "!" pops
+		self._warnLight.FillTransparency = if math.floor(self._warnLeft * 8) % 2 == 0 then 0.25 else 0.75
+		self._bang.Size = UDim2.fromOffset(70 + 30 * math.sin(melt * math.pi), 90 + 40 * math.sin(melt * math.pi))
+		if self._warnLeft <= 0 then
+			self._warnLight.Enabled = false
+			self._bang.Enabled = false
+			self._warnLeft = nil
+			fall(self, "Thrown")
 			return
 		end
 	end
+	self._meltdownLeft = nil
 
 	-- Steering: free left/right; sluggish and drifting during Meltdown, never inverted.
-	local lag = if self._meltdownLeft
-		then 1 - math.exp(-dt / (RunConfig.MELTDOWN_STEER_LAG * (0.3 + melt)))
-		else 1 - math.exp(-dt * 14)
+	local lag = 1 - math.exp(-dt * 14)
 	self._steer += (steerInput - self._steer) * lag
 	local lateral = ridden.lateral + self._steer * family.steerSpeed * self._profile.steerScale * dt
 	lateral += drag * RunConfig.ROAD_HALF_WIDTH * 2.4
-	if self._meltdownLeft then
-		lateral += (math.sin(self._t * 9) * 5 * melt + self._meltdownDrift * 6 * melt) * dt
+	if self._warnLeft then
+		lateral += math.sin(self._t * 30) * 4 * melt * dt -- the car shakes before it throws you
 	end
 	ridden.lateral = clampLateral(lateral, ridden.width)
 
@@ -1049,9 +1232,6 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	if self._slowLeft > 0 then
 		self._slowLeft -= dt
 		factor *= RunConfig.REAR_SLOW_FACTOR
-	end
-	if self._meltdownLeft then
-		factor *= 1 - (1 - RunConfig.MELTDOWN_MIN_SPEED) * melt
 	end
 	ridden.along += self._sequence:speedAt(self._t) * factor * dt
 	bumpRidden(self, ridden)
@@ -1074,60 +1254,149 @@ local function stepRiding(self: any, dt: number, steerInput: number, drag: numbe
 	self._up = ridden.seat
 end
 
-local function stepHop(self: any, dt: number, steerInput: number)
-	local hop = self._hop :: Hop
-	local a = math.clamp((self._t - hop.startT) / RunConfig.HOP_TIME, 0, 1)
-	self._hopA = a
-	local target = hop.target
-	if hop.inPlace and target then
-		-- The car keeps going straight under an in-place hop.
-		target.along += self._sequence:speedAt(self._t) * target.family.speedMultiplier * dt
-	else
-		hop.nudge = math.clamp(
-			hop.nudge + steerInput * RunConfig.HOP_NUDGE_SPEED * dt,
-			-RunConfig.HOP_NUDGE,
-			RunConfig.HOP_NUDGE
-		)
-	end
-	local toAlong = if target then target.along else hop.fromAlong
-	local toLateral = (if target then target.lateral else hop.fromLateral) + hop.nudge
-	local toUp = if target then target.seat else 0
-	-- Ease the forward travel so the leap reads: quick launch, soft landing.
-	local e = 1 - (1 - a) * (1 - a)
-	self._along = hop.fromAlong + (toAlong - hop.fromAlong) * e
-	self._lateral = hop.fromLateral + (toLateral - hop.fromLateral) * e
-	self._up = hop.fromUp + (toUp - hop.fromUp) * a + 4 * RunConfig.HOP_HEIGHT * a * (1 - a)
-	if a >= 1 then
-		land(self, hop)
+-- Round 7 (R-01) ------------------------------------------------------------------------------
+
+-- Lands the rider on a car: the same landing as Brian R's Hop (squash, dust, ring, burst, sound).
+local function landOn(self: any, car: Car)
+	local _, root = riderParts(self)
+	self._fx:setTrail(root, false)
+	self._guide:noteLanding(car) -- R-04
+	boardCar(self, car)
+	car.bounceVel += RunConfig.LANDING_SQUASH
+	self._fx:dust(RunRoad.frame(car.along, car.lateral, 0.5), math.max(car.width, 5))
+	self._fx:shockwave(
+		RunRoad.frame(car.along, car.lateral, car.roof + 0.2),
+		math.max(car.width, car.length * 0.6) * 1.8
+	)
+	self._fx:burst(RunRoad.frame(car.along, car.lateral, car.roof + 1), Color3.fromRGB(255, 220, 110))
+	self._fx:sound("land", 0.8, 0.9)
+	if self._camera then
+		self._camera:jolt(0.3)
 	end
 end
 
-local function stepFoot(self: any, dt: number, steerInput: number, drag: number)
-	self._footLeft -= dt
-	self._steer = steerInput
-	self._along += self._sequence:speedAt(self._t) * RunConfig.FOOT_SPEED * dt
-	local lateral = self._lateral
-		+ steerInput * RunConfig.FOOT_STEER * self._profile.steerScale * dt
-		+ drag * RunConfig.ROAD_HALF_WIDTH * 2
-	self._lateral = clampLateral(lateral, RunConfig.FOOT_SIZE)
-	self._up = 0
+-- The car under the rider (within its roof outline plus CATCH_TOLERANCE), or nil.
+local function carUnder(self: any): Car?
 	for _, car in self._cars do
 		if car.fade then
 			continue
 		end
-		local da = car.along - self._along
-		local dl = car.lateral - self._lateral
 		if
-			math.abs(da) < car.length / 2 + RunConfig.FOOT_SIZE / 2
-			and math.abs(dl) < car.width / 2 + RunConfig.FOOT_SIZE / 2
+			math.abs(car.along - self._along) < car.length / 2 + RunConfig.CATCH_TOLERANCE
+			and math.abs(car.lateral - self._lateral) < car.width / 2 + RunConfig.CATCH_TOLERANCE
 		then
-			endRun(self, "Hit on foot")
-			return
+			return car
 		end
 	end
-	if self._footLeft <= 0 then
-		endRun(self, "Foot Dash ran out")
+	return nil
+end
+
+-- A fall: BONK! on the road, or thrown at full Heat. One bolt; then a short blink and back onto the nearest car behind.
+fall = function(self: any, kind: string)
+	local ridden = self._ridden :: Car?
+	if ridden then
+		retire(self, ridden)
+		self._ridden = nil
 	end
+	self._float = nil
+	self._dive = nil
+	self._keys = nil
+	self._keysNeed = nil
+	self._up = 0
+	self._report:push({ kind = kind :: any, t = self._t, d = self._along, x = self._lateral })
+	local at = RunRoad.frame(self._along, self._lateral, 3)
+	self.Bonk:Fire(kind, at)
+	self._fx:dust(RunRoad.frame(self._along, self._lateral, 0.5), 5)
+	self._fx:sound("bump", 0.9, 0.6)
+	if self._camera then
+		self._camera:jolt(0.7)
+	end
+	local _, root = riderParts(self)
+	self._fx:setTrail(root, false)
+	if not spend(self, kind) then
+		return -- out of bolts: endRun has run
+	end
+	self._overlay:banner(if kind == "Thrown" then "Too hot! Thrown off!" else "BONK!", Color3.fromRGB(255, 110, 90))
+	self._mode = "Recover"
+	self._recoverLeft = RunConfig.BONK_BLINK
+end
+
+local function stepFloat(self: any, dt: number, steerInput: number)
+	local f = self._float :: Float
+	local a = math.clamp((self._t - f.startT) / f.duration, 0, 1)
+	self._hopA = a
+	self._along += self._sequence:speedAt(self._t) * dt
+	self._steer = steerInput
+	self._lateral = clampLateral(self._lateral + steerInput * RunConfig.FLOAT_STEER * dt, RunConfig.FOOT_SIZE)
+	-- up fast, a hover with a little bob, a slight sink at the end
+	local rise = 1 - (1 - math.min(a / 0.3, 1)) ^ 2
+	local sink = math.max(a - 0.75, 0) / 0.25
+	self._up = f.fromUp + RunConfig.FLOAT_HEIGHT * rise - 3 * sink * sink + math.sin(self._t * 6) * 0.25
+	if a >= 1 then
+		-- no second press: a car under you catches you, otherwise the road
+		local under = carUnder(self)
+		if under then
+			self._report:push({ kind = "Hop", t = self._t, d = self._along, x = self._lateral, target = under.index })
+			self._float = nil
+			landOn(self, under)
+		else
+			fall(self, "Bonk")
+		end
+	end
+end
+
+local function stepDive(self: any, _dt: number)
+	local d = self._dive :: Dive
+	local a = math.clamp((self._t - d.startT) / RunConfig.DIVE_TIME, 0, 1)
+	self._hopA = a
+	local target = d.target
+	-- a car that left the road while you dived: catch whatever is under you, or the road
+	if table.find(self._cars, target) == nil or target.fade then
+		self._dive = nil
+		local under = carUnder(self)
+		if under then
+			landOn(self, under)
+		else
+			fall(self, "Bonk")
+		end
+		return
+	end
+	local e = a * a
+	self._along = d.fromAlong + (target.along - d.fromAlong) * e
+	self._lateral = d.fromLateral + (target.lateral - d.fromLateral) * e
+	self._up = d.fromUp + (target.seat - d.fromUp) * e
+	if a >= 1 then
+		self._dive = nil
+		landOn(self, target)
+	end
+end
+
+local function stepRecover(self: any, dt: number)
+	self._recoverLeft -= dt
+	self._along += self._sequence:speedAt(self._t) * 0.6 * dt
+	if self._recoverLeft > 0 then
+		return
+	end
+	-- the nearest car behind (or just beside) you; with none close, a Loaner under you
+	local best: Car? = nil
+	local bestGap = 120
+	for _, car in self._cars do
+		local gap = self._along - car.along
+		if not car.fade and gap > -6 and gap < bestGap then
+			best, bestGap = car, gap
+		end
+	end
+	local car = best
+	if not car then
+		local loaner = addCar(self, nil, Families.LOANER, "Common", "Normal", 1)
+		loaner.along = self._along
+		loaner.lateral = RunConfig.laneCenter(nearestLane(self._lateral))
+		car = loaner
+	end
+	local landed = car :: Car
+	self._report:push({ kind = "Hop", t = self._t, d = landed.along, x = landed.lateral, target = landed.index })
+	self._fx:burst(RunRoad.frame(landed.along, landed.lateral, landed.roof + 2), Color3.fromRGB(255, 220, 120))
+	landOn(self, landed)
 end
 
 local function render(self: any, dt: number)
@@ -1161,37 +1430,22 @@ local function render(self: any, dt: number)
 		local rock = math.sin(t * 6 + car.index) * 0.015
 		car.model:PivotTo(RunRoad.frame(car.along, car.lateral, 0) * offset * CFrame.Angles(rock, 0, rock))
 	end
-	local hop = self._hop :: Hop?
-	local target = self._target
-	if hop and not hop.inPlace and self._mode == "Hopping" then
-		-- Landing marker: a bright ring that closes in on the car you will land on.
-		local landing = hop.target
-		local d = (math.max(landing.width, landing.length * 0.7) + 3) * (2.2 - 1.2 * self._hopA)
-		self._ring.Size = Vector3.new(0.2, d, d)
-		self._ring.CFrame = RunRoad.frame(landing.along, landing.lateral, landing.roof + 0.3)
-			* CFrame.Angles(0, 0, math.pi / 2)
-		self._ring.Color = Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(255, 214, 70), self._hopA)
-		self._ring.Transparency = 0.15
-		self._arrow.Transparency = 1
-	elseif target and (self._mode == "Riding" or self._mode == "FootDash") then
-		local d = math.max(target.width, target.length * 0.7) + 3
-		local pulse = 1 + math.sin(t * 8) * 0.06
-		self._ring.Size = Vector3.new(0.2, d * pulse, d * pulse)
-		self._ring.CFrame = RunRoad.frame(target.along, target.lateral, 0.15) * CFrame.Angles(0, 0, math.pi / 2)
-		self._ring.Color = if tooStrong(self, target) then Color3.fromRGB(255, 96, 86) else Color3.fromRGB(255, 214, 70)
-		self._ring.Transparency = 0.3
-		self._arrow.CFrame =
-			RunRoad.frame(target.along, target.lateral, target.roof + 2.5 + math.abs(math.sin(t * 6)) * 1.2)
-		self._arrow.Color = self._ring.Color
-		self._arrow.Transparency = 0
-	else
-		self._ring.Transparency = 1
-		self._arrow.Transparency = 1
-	end
+	-- Round 8 (R-01, R-02): the guidance (WS-10): a quiet lock-on ring while riding, the landing ring, the outline and the dive path
+	-- (HopGuide.updateScreen, after the camera) while floating; no arrows over the road
+	local target = self._target :: Car?
+	local diving = self._dive :: Dive?
+	self._guide:update({
+		mode = self._mode,
+		target = target,
+		diveTarget = if diving then diving.target else nil,
+		rider = { along = self._along, lateral = self._lateral, up = self._up },
+		hopA = self._hopA,
+		tooStrong = target ~= nil and tooStrong(self, target),
+	})
 end
 
 local function updateUi(self: any)
-	local stage = stageFor(self._heat, self._meltdownLeft ~= nil)
+	local stage = stageFor(self._heat, self._warnLeft ~= nil)
 	local riding = self._mode == "Riding"
 	if self._hud then
 		self._hud:setState({
@@ -1232,7 +1486,7 @@ local function updateUi(self: any)
 
 	self._overlay:setFootDash(if self._footLeft then self._footLeft / RunConfig.FOOT_DASH_TIME else nil)
 	self._overlay:setHint(
-		self._t < 7,
+		self._t < 7 and not self._quietClaims,
 		if self._profile.crashEndsRun
 			then "Cut lanes to survive! Touching a car ends the run  ·  Hop: Space  ·  V: in-car view"
 			else "Steer: A / D or drag  ·  Hop: Space or tap  ·  V: in-car view"
@@ -1288,16 +1542,17 @@ local function step(self: any, dt: number)
 		end
 		return
 	end
+	if self._paused then
+		return
+	end
 	dt = math.min(dt, 1 / 20)
 	local realDt = dt
-	-- Slow-motion beat at the top of a Hop: the whole run (traffic too) slows, then snaps back.
-	if self._mode == "Hopping" then
-		local hop = self._hop :: Hop?
-		if hop and not hop.inPlace then
-			local s = math.sin(math.pi * self._hopA)
-			dt *= 1 - (1 - RunConfig.HOP_SLOWMO) * s * s
-		end
+	-- Round 7 (R-01): while floating this run's own clock runs at FLOAT_SLOWMO (traffic, Heat and the run report all use it; the
+	-- server's checks allow for it, BetaRun). Nothing outside this run slows.
+	if self._mode == "Float" then
+		dt *= RunConfig.FLOAT_SLOWMO
 	end
+	self._bumpGrace = math.max(self._bumpGrace - dt, 0)
 	self._t += dt
 	local steerInput = self._input:getSteer()
 	local drag = self._input:takeDrag()
@@ -1306,16 +1561,18 @@ local function step(self: any, dt: number)
 	moveTraffic(self, dt)
 	if self._mode == "Riding" then
 		stepRiding(self, dt, steerInput, drag)
-	elseif self._mode == "Hopping" then
-		stepHop(self, dt, steerInput)
-	elseif self._mode == "FootDash" then
-		stepFoot(self, dt, steerInput, drag)
+	elseif self._mode == "Float" then
+		stepFloat(self, dt, steerInput)
+	elseif self._mode == "Dive" then
+		stepDive(self, dt)
+	elseif self._mode == "Recover" then
+		stepRecover(self, dt)
 	end
 	if self._mode == "Ended" then
 		render(self, dt)
 		return
 	end
-	self._target = if self._mode == "Riding" or self._mode == "FootDash" then findTarget(self) else nil
+	self._target = if self._mode == "Riding" or self._mode == "Float" then findTarget(self) else nil
 
 	local metres = RunConfig.toMetres(self._along)
 	if metres >= self._nextMilestone then
@@ -1339,10 +1596,11 @@ local function step(self: any, dt: number)
 			speed01
 		)
 	else
-		local lift = if self._mode == "Hopping" then math.sin(math.pi * self._hopA) * 8 else 0
+		local lift = if self._mode == "Float" then 6 else 0
 		self._camera:step(realDt, self._along, self._lateral, self._up, carLength + lift, speed01)
 	end
-	self._fx:setSpeedLines(self._camera:getCFrame(), if self._mode == "Hopping" then 1 else 0.3 + speed01 * 0.7)
+	self._fx:setSpeedLines(self._camera:getCFrame(), if self._mode == "Float" then 1 else 0.3 + speed01 * 0.7)
+	self._guide:updateScreen() -- Round 8 (R-02): the dive path, placed with this frame's final camera
 	updateUi(self)
 	self._report:step(self._t)
 end
@@ -1427,7 +1685,7 @@ function RunController.getDebugState(self: any): DebugState
 		level = self._session.level,
 		revives = self._session.revives,
 		heat = self._heat,
-		stage = stageFor(self._heat, self._meltdownLeft ~= nil),
+		stage = stageFor(self._heat, self._warnLeft ~= nil),
 		meltdownLeft = self._meltdownLeft,
 		keys = self._keys,
 		keysNeed = self._keysNeed,
@@ -1446,10 +1704,27 @@ function RunController.getDebugState(self: any): DebugState
 		bumps = self._bumps,
 		events = self._report:counts(),
 		cause = self._cause,
+		stamina = self._stamina,
+		staminaMax = self._staminaMax,
+		luck = self.luck,
+		floatLeft = if self._float
+			then (self._float :: Float).duration - (self._t - (self._float :: Float).startT)
+			else nil,
+		floatDuration = if self._float then (self._float :: Float).duration else nil, -- Round 8 (R-03): the HOP / DIVE button's drain ring
+		guide = self._guide:getDebugState(), -- Round 8 (R-04): the guidance's own counters (the dive log is getGuideLog)
 	}
 end
 
 function RunController.destroy(self: any)
+	local character = self._player.Character
+	if character and self._riderHidden then
+		for _, d in character:GetDescendants() do
+			if d:IsA("BasePart") or d:IsA("Decal") then
+				(d :: any).LocalTransparencyModifier = 0
+			end
+		end
+		self._riderHidden = false
+	end
 	for _, car in self._cars do
 		car.model:Destroy()
 	end

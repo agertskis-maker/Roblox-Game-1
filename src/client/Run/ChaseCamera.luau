@@ -21,6 +21,7 @@ export type ChaseCamera = {
 	) -> (),
 	jolt: (self: ChaseCamera, strength: number) -> (),
 	punch: (self: ChaseCamera) -> (),
+	intro: (self: ChaseCamera, seconds: number) -> (),
 	stepCockpit: (self: ChaseCamera, dt: number, along: number, lateral: number, eyeUp: number, speed01: number) -> (),
 	getCFrame: (self: ChaseCamera) -> CFrame,
 	destroy: (self: ChaseCamera) -> (),
@@ -31,6 +32,8 @@ export type ChaseCamera = {
 	_punch: number,
 	_fov: number,
 	_time: number,
+	_intro: number,
+	_introLength: number,
 	_previousType: Enum.CameraType,
 	_previousFov: number,
 }
@@ -52,6 +55,8 @@ function ChaseCamera.new(): ChaseCamera
 		_punch = 0,
 		_fov = RunConfig.CAMERA_FOV,
 		_time = 0,
+		_intro = 0,
+		_introLength = 0,
 		_previousType = cam.CameraType,
 		_previousFov = cam.FieldOfView,
 	}, ChaseCamera)
@@ -97,6 +102,24 @@ function ChaseCamera.step(
 	local lat = self._lateral :: number
 	local eye = (base * CFrame.new(lat, self._height + RunConfig.CAMERA_UP, -(along - self._back))).Position + shake
 	local focus = (base * CFrame.new(lat, self._height + 2, -(along + RunConfig.CAMERA_LOOK_AHEAD))).Position
+	if self._intro > 0 then
+		-- Round 8 X-01 (start-of-run hero moment, opt-in through intro()): the camera starts beside the car, a little ahead of it, and
+		-- swings round behind it into the normal chase view; at the end it is exactly the view above, so nothing jumps.
+		self._intro = math.max(self._intro - dt, 0)
+		local a = 1 - self._intro / self._introLength
+		local s = a * a * (3 - 2 * a) -- smoothstep
+		local side = if lat > 0 then -1 else 1 -- swing on the road's middle side
+		local angle = math.rad(100) * (1 - s)
+		local radius = 11 + (self._back - 11) * s
+		local up = 3.2 + (RunConfig.CAMERA_UP - 3.2) * s
+		eye = (base * CFrame.new(
+			lat + side * math.sin(angle) * radius,
+			self._height + up,
+			-(along - math.cos(angle) * radius)
+		)).Position
+		local onCar = (base * CFrame.new(lat, self._height + 1.6, -along)).Position
+		focus = onCar:Lerp(focus, s)
+	end
 	local cam = camera()
 	cam.CFrame = CFrame.lookAt(eye, focus, base.UpVector)
 	cam.FieldOfView = self._fov
@@ -130,6 +153,13 @@ function ChaseCamera.stepCockpit(
 	local cam = Workspace.CurrentCamera :: Camera
 	cam.CFrame = CFrame.lookAt(eye, focus, base.UpVector)
 	cam.FieldOfView = self._fov
+end
+
+-- Round 8 X-01: a short camera swing past the car as the run starts (the caller skips it under Reduce Motion). Camera only: the
+-- run, its controls and the follow above are unchanged.
+function ChaseCamera.intro(self: ChaseCamera, seconds: number)
+	self._intro = math.max(seconds, 0)
+	self._introLength = math.max(seconds, 1e-3)
 end
 
 function ChaseCamera.jolt(self: ChaseCamera, strength: number)
