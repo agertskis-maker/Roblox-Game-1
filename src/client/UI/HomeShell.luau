@@ -45,13 +45,13 @@ export type Options = {
 
 -- What is in this beta now, and nothing else (N11-02a). Plans stay out of it.
 HomeShell.Updates = {
-	-- Round 7 (2026-11-05)
-	{ icon = "Hop", title = "Two-press Hop", text = "Press to leap, press again to dive!" },
-	{ icon = "Shop", title = "Style Shop", text = "Paint, decals, wheels and trails." },
-	{ icon = "Star", title = "Lucky Clover", text = "More rare cars on the road." },
-	{ icon = "Missions", title = "45 Missions", text = "Five tabs of things to do." },
+	-- Round 8 (2026-11-09)
+	{ icon = "Hop", title = "New HOP button", text = "Lock-on and dive arrows show where you land." },
+	{ icon = "Shop", title = "Your look, everywhere", text = "Paint, decals, new 3D wheels and trails in every run." },
+	{ icon = "Star", title = "Lucky Clover", text = "Meet the clover at its new stand." },
+	{ icon = "Missions", title = "New upgrade cards", text = "Raceway and Parking cards, rebuilt." },
 }
-HomeShell.UpdateVersion = "beta-5.0" -- Lane 3 Round 7 (2026-11-05)
+HomeShell.UpdateVersion = "beta-6.0" -- Lane 3 Round 8 (2026-11-09)
 
 function HomeShell.start(options: Options?): any
 	local o: Options = options or {}
