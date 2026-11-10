@@ -77,49 +77,60 @@ end
 -- its colour (an edition car says its edition first: "GOLD EPIC"), the car's name, and a red "new!" when you do not own it. Readable
 -- at speed (fixed pixel size), seen from further away the rarer the car. "Needs" (the Rider Level gate) stays for Brian R's
 -- playground; the beta hides it.
+-- Round 8 declutter (Adam: "declutter the actual gameplay"): the car name is gone, the rarity word is smaller, and the everyday
+-- Common and Uncommon tags only show close up, so the road ahead is not a wall of labels.
 CarTags.SEEN_FROM =
-	table.freeze({ Common = 70, Uncommon = 90, Rare = 150, Epic = 210, Legendary = 280 } :: { [string]: number })
+	table.freeze({ Common = 35, Uncommon = 50, Rare = 110, Epic = 160, Legendary = 220 } :: { [string]: number })
 
 function CarTags.wordFor(rarity: string, variant: string?): string
 	local edition = if variant and variant ~= "None" then string.upper(variant) .. " " else ""
 	return edition .. string.upper(rarity)
 end
 
+-- Round 8 declutter: the tag is sized in studs, not pixels, so it shrinks with distance like the car under it. A near car keeps a
+-- big, readable word; the cars far down the road no longer stack their labels into one wall of words.
+local TAG_STUDS = Vector2.new(12, 3.84)
+local TAG_LINES: { [string]: { number } } =
+	{ -- name -> { top, height } as fractions of the tag, as built in CarTags.attach
+		Rarity = { 0, 0.44 },
+		New = { 0.44, 0.28 },
+		Needs = { 0.72, 0.28 },
+	}
+
+local function line(gui: BillboardGui, name: string, colour: Color3): TextLabel
+	local spec = TAG_LINES[name]
+	local l = text(gui, name, 0, 0, 1, colour)
+	l.Position = UDim2.fromScale(0, spec[1])
+	l.Size = UDim2.fromScale(1, spec[2])
+	l.TextScaled = true
+	return l
+end
+
 function CarTags.attach(model: Model, info: TagInfo, height: number): BillboardGui
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Tag"
-	gui.Size = UDim2.fromOffset(260, 98)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, height + 5, 0)
+	gui.Size = UDim2.fromScale(TAG_STUDS.X, TAG_STUDS.Y)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, height + 3, 0)
 	-- seen from further away the rarer the car; a far Common tag only cluttered the horizon (2026-11-05 playtest: "COMMONCOMMON")
 	gui.MaxDistance = CarTags.SEEN_FROM[info.rarity] or 170
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
-	local word = text(gui, "Rarity", 0, 34, 30, CarTags.WORD_COLOUR[info.rarity] or CREAM)
+	local word = line(gui, "Rarity", CarTags.WORD_COLOUR[info.rarity] or CREAM)
 	word.Text = CarTags.wordFor(info.rarity, info.variant)
-	local title = text(gui, "Title", 34, 26, 20, CREAM)
-	title.Text = RunConfig.SIZE_LABEL[info.size] .. info.family
-	local new = text(gui, "New", 60, 22, 20, CarTags.NEW_COLOUR)
+	local new = line(gui, "New", CarTags.NEW_COLOUR)
 	new.Text = "new!"
 	new.TextStrokeColor3 = Color3.new(1, 1, 1)
 	new.Visible = not info.owned
-	local needs = text(gui, "Needs", 78, 20, 14, OK)
+	local needs = line(gui, "Needs", OK)
 	needs.Visible = false
 	gui.Adornee = (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) :: any
 	gui.Parent = model
 	return gui
 end
 
--- Round 8 (R-01): the label of the car the Hop would land on grows a little (HopGuide eases `amount` from 0 to 1 and back). Each line's
--- position, size and text size are scaled from the numbers in CarTags.attach, and the billboard grows with them, so the label stays
--- centred on its car. (Plain properties, not a UIScale: a fixed set of four lines.)
+-- Round 8 (R-01): the label of the car the Hop would land on grows a little (HopGuide eases `amount` from 0 to 1 and back). The lines
+-- are fractions of the tag with scaled text, so growing the billboard grows them with it, centred on the car.
 CarTags.FOCUS_GROWTH = 0.22
-local TAG_WIDTH, TAG_HEIGHT = 260, 98
-local TAG_LINES: { [string]: { number } } = { -- name -> { y, height, text size }, as built in CarTags.attach
-	Rarity = { 0, 34, 30 },
-	Title = { 34, 26, 20 },
-	New = { 60, 22, 20 },
-	Needs = { 78, 20, 14 },
-}
 local focusOf: { [BillboardGui]: number } = setmetatable({}, { __mode = "k" }) :: any
 function CarTags.setFocus(gui: BillboardGui, amount: number)
 	local a = math.clamp(amount, 0, 1)
@@ -129,15 +140,7 @@ function CarTags.setFocus(gui: BillboardGui, amount: number)
 	end
 	focusOf[gui] = a
 	local s = 1 + CarTags.FOCUS_GROWTH * a
-	gui.Size = UDim2.fromOffset(TAG_WIDTH * s, TAG_HEIGHT * s)
-	for name, line in TAG_LINES do
-		local label = gui:FindFirstChild(name)
-		if label and label:IsA("TextLabel") then
-			label.Position = UDim2.fromOffset(0, line[1] * s)
-			label.Size = UDim2.new(1, 0, 0, line[2] * s)
-			label.TextSize = math.floor(line[3] * s + 0.5)
-		end
-	end
+	gui.Size = UDim2.fromScale(TAG_STUDS.X * s, TAG_STUDS.Y * s)
 end
 
 -- Colours "Needs N" green when the Rider Level is enough, red when it is not.
