@@ -369,7 +369,7 @@ end
 local KEEP_ORIENTATION: { [string]: boolean } = { seven = true, twentythree = true, number07 = true }
 -- Band designs fill a panel's length and take this share of its height; every other design keeps its own proportions.
 local BAND: { [string]: number } =
-	{ stripe = 0.36, twin = 0.62, pin = 0.2, checkers = 0.5, lightning = 0.62, swoosh = 0.62, panel = 1 }
+	{ stripe = 0.46, twin = 0.66, pin = 0.26, checkers = 0.6, lightning = 0.7, swoosh = 0.7, panel = 1 }
 local FILL = 0.94 -- how much of the panel a design may use (the panel already keeps clear of windows and seams)
 -- Animated designs that run through pre-drawn frames in panel mode: the share of the design one cycle covers (nil: all of it), the
 -- seconds one cycle takes, and which way it runs (1 toward the nose, -1 toward the tail).
@@ -379,6 +379,9 @@ local RUNS: { [string]: { period: number?, seconds: number, dir: number } } = {
 	chevrons = { period = 64 / 243, seconds = 0.8, dir = 1 },
 }
 local CANVAS_WIDTH = 512
+-- Round 8 playtest (Adam: "make the decals more dramatic, you can cover the car with the decal"): a design may spread this much past
+-- its measured door panel, over the wheel arches and up to the window line; whatever runs off the body side is simply not drawn.
+local DRAMA = Vector2.new(2.4, 2)
 
 -- The size in studs (at the car's authored size) that a design takes inside a panel.
 local function fitSize(key: string, design: Design, panel: Vector2): Vector2
@@ -755,7 +758,8 @@ local function panelSet(self: any, item: Catalog.Item): boolean
 	local frame = carFrame(car)
 	local factor = scaleFactor(car, key)
 	local itemKey = item.key or ""
-	local fit = fitSize(itemKey, design, panels.size) * factor
+	local size = panels.size * DRAMA
+	local fit = fitSize(itemKey, design, size) * factor
 	local run = if item.tier == "animated" then RUNS[itemKey] else nil
 	local frames: { [string]: { EditableImage } } = {}
 	local layout: { [string]: Layout } = {}
@@ -769,10 +773,10 @@ local function panelSet(self: any, item: Catalog.Item): boolean
 		local ch = math.clamp(math.floor(CANVAS_WIDTH * region.sv / region.su + 0.5), 32, 1024)
 		local pxPerU, pxPerV = cw, ch
 		local panelRect: Rect = {
-			x0 = (region.uc - panels.size.X * factor / 2 / region.su) * pxPerU,
-			x1 = (region.uc + panels.size.X * factor / 2 / region.su) * pxPerU,
-			y0 = (region.vc - panels.size.Y * factor / 2 / region.sv) * pxPerV,
-			y1 = (region.vc + panels.size.Y * factor / 2 / region.sv) * pxPerV,
+			x0 = (region.uc - size.X * factor / 2 / region.su) * pxPerU,
+			x1 = (region.uc + size.X * factor / 2 / region.su) * pxPerU,
+			y0 = (region.vc - size.Y * factor / 2 / region.sv) * pxPerV,
+			y1 = (region.vc + size.Y * factor / 2 / region.sv) * pxPerV,
 		}
 		local area: Rect = {
 			x0 = region.uc * pxPerU - fit.X / 2 / region.su * pxPerU,
