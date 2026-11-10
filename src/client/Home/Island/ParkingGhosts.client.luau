@@ -641,14 +641,15 @@ local function newView(lane: Lane, index: number, want: Want): View?
 	-- The pictures are drawn upright in a portrait group w x h (across the bay, mouth at the bottom). A SurfaceGui on a Top face has
 	-- its canvas turned the other way (found in Studio: AbsoluteSize is depth x width, canvas right runs toward the back wall,
 	-- canvas down runs across the bay), so the portrait group is turned a quarter to stand upright for someone looking in from the
-	-- aisle.
+	-- aisle. Round 8 playtest: a quarter turn the other way (-90): at +90 the numbers, EMPTY and the prices read upside down from the
+	-- walkway and the paint sat half a turn off the bay lines.
 	local w, h = math.floor(pose.width * PX), math.floor(pose.depth * PX)
 	local group = make("CanvasGroup", {
 		Name = "Paint",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(h / 2, w / 2),
 		Size = UDim2.fromOffset(w, h),
-		Rotation = 90,
+		Rotation = -90,
 		BackgroundTransparency = 1,
 		GroupTransparency = 1,
 	}, gui)
