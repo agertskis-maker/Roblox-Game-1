@@ -269,6 +269,8 @@ function Applied.update(self: any, look: CarLook.Look)
 	end
 end
 
+local failedOnce: { [string]: boolean } = {}
+
 -- One tab, with a catalog item (or nil: as the car was made).
 function Applied.setItem(self: any, tab: Catalog.TabId, item: Catalog.Item?)
 	if self._dead then
@@ -278,15 +280,23 @@ function Applied.setItem(self: any, tab: Catalog.TabId, item: Catalog.Item?)
 		item = nil
 	end
 	self._items[tab] = item
-	if tab == "Paint" then
-		self:_paint(item)
-		self:_syncMatchPaint() -- a trail that matches the paint follows the paint
-	elseif tab == "Decals" then
-		self:_decal(item)
-	elseif tab == "Wheels" then
-		self:_wheelsFor(item)
-	elseif tab == "Trails" then
-		self:_trailFor(item)
+	-- Live game (2026-11-10): with the experience's Mesh / Image APIs off, the paint and decal pictures cannot be made and the error
+	-- stopped the whole look, wheels and trail included. Each tab now goes on by itself; a failed one is reported once and skipped.
+	local ok, err = pcall(function()
+		if tab == "Paint" then
+			self:_paint(item)
+			self:_syncMatchPaint() -- a trail that matches the paint follows the paint
+		elseif tab == "Decals" then
+			self:_decal(item)
+		elseif tab == "Wheels" then
+			self:_wheelsFor(item)
+		elseif tab == "Trails" then
+			self:_trailFor(item)
+		end
+	end)
+	if not ok and not failedOnce[tab] then
+		failedOnce[tab] = true
+		warn("[CarLookApplier] " .. tab .. " skipped: " .. tostring(err))
 	end
 	self:_ghostify()
 end
