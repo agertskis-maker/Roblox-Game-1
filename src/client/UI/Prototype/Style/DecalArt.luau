@@ -379,6 +379,9 @@ local RUNS: { [string]: { period: number?, seconds: number, dir: number } } = {
 	chevrons = { period = 64 / 243, seconds = 0.8, dir = 1 },
 }
 local CANVAS_WIDTH = 512
+-- Round 8 playtest (Adam: "make the decals more dramatic, you can cover the car with the decal"): a design may spread this much past
+-- its measured door panel, over the wheel arches and up to the window line; whatever runs off the body side is simply not drawn.
+local DRAMA = Vector2.new(1.5, 1.7)
 
 -- The size in studs (at the car's authored size) that a design takes inside a panel.
 local function fitSize(key: string, design: Design, panel: Vector2): Vector2
@@ -755,7 +758,8 @@ local function panelSet(self: any, item: Catalog.Item): boolean
 	local frame = carFrame(car)
 	local factor = scaleFactor(car, key)
 	local itemKey = item.key or ""
-	local fit = fitSize(itemKey, design, panels.size) * factor
+	local size = panels.size * DRAMA
+	local fit = fitSize(itemKey, design, size) * factor
 	local run = if item.tier == "animated" then RUNS[itemKey] else nil
 	local frames: { [string]: { EditableImage } } = {}
 	local layout: { [string]: Layout } = {}
@@ -769,10 +773,10 @@ local function panelSet(self: any, item: Catalog.Item): boolean
 		local ch = math.clamp(math.floor(CANVAS_WIDTH * region.sv / region.su + 0.5), 32, 1024)
 		local pxPerU, pxPerV = cw, ch
 		local panelRect: Rect = {
-			x0 = (region.uc - panels.size.X * factor / 2 / region.su) * pxPerU,
-			x1 = (region.uc + panels.size.X * factor / 2 / region.su) * pxPerU,
-			y0 = (region.vc - panels.size.Y * factor / 2 / region.sv) * pxPerV,
-			y1 = (region.vc + panels.size.Y * factor / 2 / region.sv) * pxPerV,
+			x0 = (region.uc - size.X * factor / 2 / region.su) * pxPerU,
+			x1 = (region.uc + size.X * factor / 2 / region.su) * pxPerU,
+			y0 = (region.vc - size.Y * factor / 2 / region.sv) * pxPerV,
+			y1 = (region.vc + size.Y * factor / 2 / region.sv) * pxPerV,
 		}
 		local area: Rect = {
 			x0 = region.uc * pxPerU - fit.X / 2 / region.su * pxPerU,
