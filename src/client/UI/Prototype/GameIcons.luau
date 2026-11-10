@@ -122,13 +122,14 @@ GameIcons.Alias = {
 	-- cut from R5-IMG-03 (Car-Hop-Art/review/round5/art): a gift with a Rare-gem key, a crown, three parking spots.
 	-- Round 7 (U-06): the Starter Pack, VIP, Double Lap Pay and Paddock tiles are cut from R7-IMG-20 (Car-Hop-Art/upload-round7):
 	-- no FREE anywhere on the Starter Pack, a crown with the VIP trail swirl and tag, a full x2 stopwatch banner, three bays
-	starterPack = "art_r7_starter",
-	art_starter = "art_r7_starter",
-	doubleLapPay = "art_r7_doublelap",
-	art_doublelap = "art_r7_doublelap",
+	-- Round 8 playtest (Adam): those four tiles are whole painted scenes whose square backgrounds show as a box on the cards, and
+	-- no clean cut-out could be made, so the shop is back on the transparent icons the live game showed before Round 7.
+	starterPack = "art_cash3",
+	art_starter = "art_cash3",
+	doubleLapPay = "art_doublelap",
 	-- VIP: the game's own transparent crown icon reads cleaner on the gold card than the reference tile's lounge square
-	art_vip = "art_r7_vip",
-	art_paddock = "art_r7_paddock",
+	art_vip = "vip",
+	art_paddock = "parkingSpot",
 }
 
 -- Art not uploaded yet (no id in GameIconIds) shows this uploaded icon instead outside Adam's local test places, never a car.
