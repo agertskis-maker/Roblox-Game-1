@@ -89,7 +89,7 @@ end
 
 -- Round 8 declutter: the tag is sized in studs, not pixels, so it shrinks with distance like the car under it. A near car keeps a
 -- big, readable word; the cars far down the road no longer stack their labels into one wall of words.
-local TAG_STUDS = Vector2.new(6, 1.92)
+local TAG_STUDS = Vector2.new(12, 3.84)
 local TAG_LINES: { [string]: { number } } =
 	{ -- name -> { top, height } as fractions of the tag, as built in CarTags.attach
 		Rarity = { 0, 0.44 },
