@@ -885,7 +885,7 @@ function HopButton.attach(options: AttachOptions?)
 		local old = self._face :: FaceObject?
 		if not old or old.size ~= D then
 			if old then
-				old:Destroy()
+				old:destroy()
 			end
 			local face = HopButton.buildFace(frame, D, { input = detectInput(self._touchForced) })
 			face.root.ZIndex = 10
@@ -946,7 +946,7 @@ function HopButton.attach(options: AttachOptions?)
 	trove:Add(function()
 		local face = self._face :: FaceObject?
 		if face then
-			face:Destroy()
+			face:destroy()
 		end
 	end)
 
@@ -956,7 +956,7 @@ function HopButton.attach(options: AttachOptions?)
 		local board: Frame? = nil
 		local function clearBoard()
 			for _, f in boardFaces do
-				f:Destroy()
+				f:destroy()
 			end
 			table.clear(boardFaces)
 			if board then
@@ -1136,7 +1136,7 @@ function HopButton.new(ctx: any, options: Options?)
 		face:setPressed(false)
 	end)
 	self._trove:Add(function()
-		face:Destroy()
+		face:destroy()
 	end)
 	self._trove:Add(ctx.store:subscribe("run", function()
 		self:_apply()
